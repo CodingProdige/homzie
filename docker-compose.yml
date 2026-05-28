@@ -1,12 +1,11 @@
 services:
   postgres:
     image: postgres:16
-    container_name: homzie-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: homzie
-      POSTGRES_USER: homzie
-      POSTGRES_PASSWORD: V+RIPGL1lEw3zV+im5iaSdFCuIhHQn610nlTQazsCgE=
+      POSTGRES_DB: ${POSTGRES_DB:-homzie}
+      POSTGRES_USER: ${POSTGRES_USER:-homzie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-homzie-local-password}
     ports:
       - "5433:5432"
     volumes:
@@ -14,13 +13,72 @@ services:
 
   redis:
     image: redis:7
-    container_name: homzie-redis
     restart: unless-stopped
     ports:
       - "6380:6379"
     volumes:
       - homzie_redis_data:/data
 
+  web:
+    profiles:
+      - selfhost
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ${HOMZIE_ENV_FILE:-/mnt/c/Homzie/config/homzie.env}
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      MEDIA_ROOT: /data/media
+      MEDIA_STORAGE_PATH: /data/media
+      VIDEO_STORAGE_PATH: /data/media/videos
+      THUMBNAIL_STORAGE_PATH: /data/media/thumbnails
+      EXPORT_STORAGE_PATH: /data/media/exports
+      BACKUP_STORAGE_PATH: /data/media/backups
+    expose:
+      - "3000"
+    volumes:
+      - /mnt/c/Homzie/storage/media:/data/media
+      - /mnt/c/Homzie/storage/videos:/data/media/videos
+      - /mnt/c/Homzie/storage/thumbnails:/data/media/thumbnails
+      - /mnt/c/Homzie/storage/exports:/data/media/exports
+      - /mnt/c/Homzie/storage/backups:/data/media/backups
+    depends_on:
+      - postgres
+      - redis
+
+  caddy:
+    profiles:
+      - selfhost
+    image: caddy:2-alpine
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - homzie_caddy_data:/data
+      - homzie_caddy_config:/config
+      - /mnt/c/Homzie/storage/media:/data/media:ro
+      - /mnt/c/Homzie/storage/videos:/data/media/videos:ro
+      - /mnt/c/Homzie/storage/thumbnails:/data/media/thumbnails:ro
+      - /mnt/c/Homzie/storage/exports:/data/media/exports:ro
+    depends_on:
+      - web
+
+  cloudflared:
+    profiles:
+      - tunnel
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+
 volumes:
   homzie_postgres_data:
   homzie_redis_data:
+  homzie_caddy_data:
+  homzie_caddy_config:
