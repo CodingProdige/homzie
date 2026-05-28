@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: homzie-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: homzie
+      POSTGRES_USER: homzie
+      POSTGRES_PASSWORD: V+RIPGL1lEw3zV+im5iaSdFCuIhHQn610nlTQazsCgE=
+    ports:
+      - "5433:5432"
+    volumes:
+      - homzie_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: homzie-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - homzie_redis_data:/data
+
+volumes:
+  homzie_postgres_data:
+  homzie_redis_data:
