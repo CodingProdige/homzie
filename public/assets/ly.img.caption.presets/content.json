@@ -1,0 +1,342 @@
+{
+  "version": "6.0.0",
+  "id": "ly.img.caption.presets",
+  "assets": [
+    {
+      "id": "ly.img.caption.presets.background",
+      "label": {
+        "en": "Background"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.caption.presets/presets/background.blocks",
+        "thumbUri": "{{base_url}}/ly.img.caption.presets/thumbnails/background.png",
+        "mimeType": "application/ubq-blocks-string"
+      },
+      "payload": {
+        "properties": [
+          {
+            "type": "Float",
+            "property": "caption/scale",
+            "value": 1,
+            "defaultValue": 1,
+            "min": 0.1,
+            "max": 4,
+            "step": 0.1
+          },
+          {
+            "type": "Color",
+            "property": "fill/solid/color",
+            "value": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          },
+          {
+            "type": "Color",
+            "property": "backgroundColor/color",
+            "value": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 0.5
+            },
+            "defaultValue": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 0.5
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ly.img.caption.presets.comic",
+      "label": {
+        "en": "Comic"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.caption.presets/presets/comic.blocks",
+        "thumbUri": "{{base_url}}/ly.img.caption.presets/thumbnails/comic.png",
+        "mimeType": "application/ubq-blocks-string"
+      },
+      "payload": {
+        "properties": [
+          {
+            "type": "Float",
+            "property": "caption/scale",
+            "value": 1,
+            "defaultValue": 1,
+            "min": 0.1,
+            "max": 4,
+            "step": 0.1
+          },
+          {
+            "type": "Color",
+            "property": "fill/solid/color",
+            "value": {
+              "r": 1,
+              "g": 0.9686274528503418,
+              "b": 0.38823530077934265,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 1,
+              "g": 0.9686274528503418,
+              "b": 0.38823530077934265,
+              "a": 1
+            }
+          },
+          {
+            "type": "Color",
+            "property": "dropShadow/color",
+            "value": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ly.img.caption.presets.glow",
+      "label": {
+        "en": "Glow"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.caption.presets/presets/glow.blocks",
+        "thumbUri": "{{base_url}}/ly.img.caption.presets/thumbnails/glow.png",
+        "mimeType": "application/ubq-blocks-string"
+      },
+      "payload": {
+        "properties": [
+          {
+            "type": "Float",
+            "property": "caption/scale",
+            "value": 1,
+            "defaultValue": 1,
+            "min": 0.1,
+            "max": 4,
+            "step": 0.1
+          },
+          {
+            "type": "Color",
+            "property": "fill/solid/color",
+            "value": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          },
+          {
+            "type": "Color",
+            "property": "dropShadow/color",
+            "value": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ly.img.caption.presets.neon",
+      "label": {
+        "en": "Neon"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.caption.presets/presets/neon.blocks",
+        "thumbUri": "{{base_url}}/ly.img.caption.presets/thumbnails/neon.png",
+        "mimeType": "application/ubq-blocks-string"
+      },
+      "payload": {
+        "properties": [
+          {
+            "type": "Float",
+            "property": "caption/scale",
+            "value": 1,
+            "defaultValue": 1,
+            "min": 0.1,
+            "max": 4,
+            "step": 0.1
+          },
+          {
+            "type": "Color",
+            "property": "fill/solid/color",
+            "value": {
+              "r": 0.9852343201637268,
+              "g": 0.26171875,
+              "b": 1,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 0.9852343201637268,
+              "g": 0.26171875,
+              "b": 1,
+              "a": 1
+            }
+          },
+          {
+            "type": "Color",
+            "property": "dropShadow/color",
+            "value": {
+              "r": 0.9852343201637268,
+              "g": 0.15625,
+              "b": 1,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 0.9852343201637268,
+              "g": 0.15625,
+              "b": 1,
+              "a": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ly.img.caption.presets.outline",
+      "label": {
+        "en": "Outline"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.caption.presets/presets/outline.blocks",
+        "thumbUri": "{{base_url}}/ly.img.caption.presets/thumbnails/outline.png",
+        "mimeType": "application/ubq-blocks-string"
+      },
+      "payload": {
+        "properties": [
+          {
+            "type": "Float",
+            "property": "caption/scale",
+            "value": 1,
+            "defaultValue": 1,
+            "min": 0.1,
+            "max": 4,
+            "step": 0.1
+          },
+          {
+            "type": "Color",
+            "property": "fill/solid/color",
+            "value": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          },
+          {
+            "type": "Color",
+            "property": "dropShadow/color",
+            "value": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ly.img.caption.presets.shadow",
+      "label": {
+        "en": "Shadow"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.caption.presets/presets/shadow.blocks",
+        "thumbUri": "{{base_url}}/ly.img.caption.presets/thumbnails/shadow.png",
+        "mimeType": "application/ubq-blocks-string"
+      },
+      "payload": {
+        "properties": [
+          {
+            "type": "Float",
+            "property": "caption/scale",
+            "value": 1,
+            "defaultValue": 1,
+            "min": 0.1,
+            "max": 4,
+            "step": 0.1
+          },
+          {
+            "type": "Color",
+            "property": "fill/solid/color",
+            "value": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          },
+          {
+            "type": "Color",
+            "property": "dropShadow/color",
+            "value": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "defaultValue": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

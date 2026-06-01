@@ -1,0 +1,262 @@
+{
+  "version": "6.0.0",
+  "id": "ly.img.crop.presets",
+  "assets": [
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.free",
+      "label": {
+        "en": "Free",
+        "de": "Frei"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-free.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FreeAspectRatio"
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.original",
+      "label": {
+        "en": "Original",
+        "de": "Original"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-original.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "ContentAspectRatio"
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.1_1",
+      "label": {
+        "en": "1:1",
+        "de": "1:1"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-1-1.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 1,
+          "height": 1
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.9_16",
+      "label": {
+        "en": "9:16",
+        "de": "9:16"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-9-16.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 9,
+          "height": 16
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.16_9",
+      "label": {
+        "en": "16:9",
+        "de": "16:9"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-16-9.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 16,
+          "height": 9
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.10_16",
+      "label": {
+        "en": "10:16",
+        "de": "10:16"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-10-16.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 10,
+          "height": 16
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.16_10",
+      "label": {
+        "en": "16:10",
+        "de": "16:10"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-16-10.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 16,
+          "height": 10
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.2_3",
+      "label": {
+        "en": "2:3",
+        "de": "2:3"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-2-3.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 2,
+          "height": 3
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.3_2",
+      "label": {
+        "en": "3:2",
+        "de": "3:2"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-3-2.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 3,
+          "height": 2
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.3_4",
+      "label": {
+        "en": "3:4",
+        "de": "3:4"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-3-4.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 3,
+          "height": 4
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.4_3",
+      "label": {
+        "en": "4:3",
+        "de": "4:3"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-4-3.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 4,
+          "height": 3
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.4_5",
+      "label": {
+        "en": "4:5",
+        "de": "4:5"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-4-5.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 4,
+          "height": 5
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    },
+    {
+      "id": "ly.img.crop.presets.fixed-ratio.5_4",
+      "label": {
+        "en": "5:4",
+        "de": "5:4"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.crop.presets/thumbnails/ratio-5-4.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedAspectRatio",
+          "width": 5,
+          "height": 4
+        }
+      },
+      "groups": [
+        "fixed-ratio"
+      ]
+    }
+  ]
+}

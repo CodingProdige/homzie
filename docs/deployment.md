@@ -311,9 +311,9 @@ Public app routes:
 - `/properties`
 - `/properties/[slug]`
 - `/agents`
-- `/agents/[username]`
-- `/agents/[username]/videos`
-- `/agents/[username]/listings`
+- `/users/[username]`
+- `/users/[username]/videos`
+- `/users/[username]/listings`
 - `/book-viewing/[propertyId]`
 
 Agent dashboard routes:

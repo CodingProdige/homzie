@@ -1,0 +1,62 @@
+{
+  "version": "5.0.0",
+  "id": "ly.img.audio",
+  "assets": [
+    {
+      "id": "ly.img.audio.dance_harder",
+      "label": {
+        "en": "Dance Harder",
+        "de": "Dance Harder"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.audio/audios/dance_harder.m4a",
+        "thumbUri": "{{base_url}}/ly.img.audio/thumbnails/dance_harder.jpg",
+        "blockType": "//ly.img.ubq/audio",
+        "mimeType": "audio/x-m4a",
+        "duration": "212.531995"
+      }
+    },
+    {
+      "id": "ly.img.audio.elsewhere",
+      "label": {
+        "en": "Elsewhere",
+        "de": "Elsewhere"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.audio/audios/elsewhere.m4a",
+        "thumbUri": "{{base_url}}/ly.img.audio/thumbnails/elsewhere.jpg",
+        "blockType": "//ly.img.ubq/audio",
+        "mimeType": "audio/x-m4a",
+        "duration": "121.2"
+      }
+    },
+    {
+      "id": "ly.img.audio.far_from_home",
+      "label": {
+        "en": "Far From Home",
+        "de": "Far From Home"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.audio/audios/far_from_home.m4a",
+        "thumbUri": "{{base_url}}/ly.img.audio/thumbnails/audio-wave.png",
+        "blockType": "//ly.img.ubq/audio",
+        "mimeType": "audio/x-m4a",
+        "duration": "98.716009"
+      }
+    },
+    {
+      "id": "ly.img.audio.trapped_in_the_upside_down",
+      "label": {
+        "en": "Trapped In The Upside Down",
+        "de": "Trapped In The Upside Down"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.audio/audios/trapped_in_the_upside_down.m4a",
+        "thumbUri": "{{base_url}}/ly.img.audio/thumbnails/trapped_in_the_upside_down.jpg",
+        "blockType": "//ly.img.ubq/audio",
+        "mimeType": "audio/x-m4a",
+        "duration": "93.6"
+      }
+    }
+  ]
+}

@@ -50,6 +50,34 @@ services:
       - postgres
       - redis
 
+  worker:
+    profiles:
+      - selfhost
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    restart: unless-stopped
+    env_file:
+      - ${HOMZIE_ENV_FILE:-/mnt/c/Homzie/config/homzie.env}
+    environment:
+      NODE_ENV: production
+      MEDIA_ROOT: /data/media
+      MEDIA_STORAGE_PATH: /data/media
+      VIDEO_STORAGE_PATH: /data/media/videos
+      THUMBNAIL_STORAGE_PATH: /data/media/thumbnails
+      EXPORT_STORAGE_PATH: /data/media/exports
+      BACKUP_STORAGE_PATH: /data/media/backups
+    volumes:
+      - /mnt/c/Homzie/storage/media:/data/media
+      - /mnt/c/Homzie/storage/videos:/data/media/videos
+      - /mnt/c/Homzie/storage/thumbnails:/data/media/thumbnails
+      - /mnt/c/Homzie/storage/exports:/data/media/exports
+      - /mnt/c/Homzie/storage/backups:/data/media/backups
+    depends_on:
+      - postgres
+      - redis
+
   caddy:
     profiles:
       - selfhost

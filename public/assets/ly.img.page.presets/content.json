@@ -1,0 +1,1414 @@
+{
+  "version": "6.0.0",
+  "id": "ly.img.page.presets",
+  "assets": [
+    {
+      "id": "ly.img.page.presets.instagram.landscape",
+      "label": {
+        "en": "Landscape Post (1.91:1)",
+        "de": "Querformat-Post (1.91:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/instagram/ig-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1080,
+          "height": 566,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "instagram"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.instagram.portrait",
+      "label": {
+        "en": "Portrait Post (4:5)",
+        "de": "Hochformat-Post (4:5)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/instagram/ig-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1080,
+          "height": 1350,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "instagram"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.instagram.profile",
+      "label": {
+        "en": "instagram Profile Photo",
+        "de": "Instagram Profilfoto"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/instagram/ig-profile.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 320,
+          "height": 320,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "instagram"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.instagram.square",
+      "label": {
+        "en": "Square Post (1:1)",
+        "de": "Quadratischer Post (1:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/instagram/ig-square.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1080,
+          "height": 1080,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "instagram"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.instagram.story",
+      "label": {
+        "en": "Story/Reels/IGTV (9:16)",
+        "de": "Story/Reels/IGTV (9:16)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/instagram/ig-story.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1080,
+          "height": 1920,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "instagram"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.facebook.cover",
+      "label": {
+        "en": "Cover Photo",
+        "de": "Titelbild"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/facebook/fb-cover.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 820,
+          "height": 312,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "facebook"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.facebook.profile",
+      "label": {
+        "en": "Profile Photo",
+        "de": "Profilfoto"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/facebook/fb-profile.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 170,
+          "height": 170,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "facebook"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.facebook.shared_image",
+      "label": {
+        "en": "Shared Image (1.91:1)",
+        "de": "Geteiltes Bild (1.91:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/facebook/fb-shared-image.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1200,
+          "height": 630,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "facebook"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.facebook.square",
+      "label": {
+        "en": "Square Post (1:1)",
+        "de": "Quadratischer Post (1:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/facebook/fb-square.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1080,
+          "height": 1080,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "facebook"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.facebook.video.landscape",
+      "label": {
+        "en": "Video Landscape (16:9)",
+        "de": "Video Querformat (16:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/facebook/fb-video-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1280,
+          "height": 720,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "facebook"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.facebook.video.vertical",
+      "label": {
+        "en": "Video Vertical (9:16)",
+        "de": "Video Hochformat (9:16)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/facebook/fb-video-vertical.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 720,
+          "height": 1280,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "facebook"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.tiktok.profile",
+      "label": {
+        "en": "Profile Photo (1:1)",
+        "de": "Profilfoto (1:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/tiktok/tt-profile.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 200,
+          "height": 200,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "tiktok"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.tiktok.video.portrait",
+      "label": {
+        "en": "Video (9:16)",
+        "de": "Video (9:16)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/tiktok/tt-video.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1080,
+          "height": 1920,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "tiktok"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.youtube.profile",
+      "label": {
+        "en": "Profile Photo (1:1)",
+        "de": "Profilfoto (1:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/youtube/yt-profile.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 800,
+          "height": 800,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "youtube"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.youtube.shorts",
+      "label": {
+        "en": "Shorts (9:16)",
+        "de": "Kurzvideos (9:16)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/youtube/yt-shorts.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1080,
+          "height": 1920,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "youtube"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.youtube.standard",
+      "label": {
+        "en": "Standard (16:9)",
+        "de": "Standard (16:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/youtube/yt-standard.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1920,
+          "height": 1080,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "youtube"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.x.header",
+      "label": {
+        "en": "Profile Header (3:1)",
+        "de": "Profil-Header (3:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/x/x-header.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1500,
+          "height": 500,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "x"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.x.instream",
+      "label": {
+        "en": "In-stream Photo (16:9)",
+        "de": "In-Stream-Foto (16:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/x/x-instream.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1200,
+          "height": 675,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "x"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.x.profile",
+      "label": {
+        "en": "Profile Photo (1:1)",
+        "de": "Profilfoto (1:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/x/x-profile.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 400,
+          "height": 400,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "x"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.x.video.portrait",
+      "label": {
+        "en": "Video (16:9)",
+        "de": "Video (16:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/x/x-video.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1280,
+          "height": 720,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "x"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.pinterest.long",
+      "label": {
+        "en": "Long Pin",
+        "de": "Langer Pin"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/pinterest/pin-long.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1000,
+          "height": 2100,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "pinterest"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.pinterest.profile",
+      "label": {
+        "en": "Profile Photo (1:1)",
+        "de": "Profilfoto (1:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/pinterest/pin-profile.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 165,
+          "height": 165,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "pinterest"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.pinterest.standard",
+      "label": {
+        "en": "Standard Pin (2:3)",
+        "de": "Standard-Pin (2:3)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/pinterest/pin-standard.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1000,
+          "height": 1500,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "pinterest"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.linkedin.background",
+      "label": {
+        "en": "Profile Background Photo",
+        "de": "Profil-Hintergrundfoto"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/linkedIn/li-background.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1584,
+          "height": 396,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "linkedIn"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.linkedin.company_cover",
+      "label": {
+        "en": "Company Cover Photo",
+        "de": "Unternehmens-Titelbild"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/linkedIn/li-company-cover.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1128,
+          "height": 191,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "linkedIn"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.linkedin.profile",
+      "label": {
+        "en": "Profile Photo (1:1)",
+        "de": "Profilfoto (1:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/linkedIn/li-profile.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 400,
+          "height": 400,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "linkedIn"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.linkedin.shared_post",
+      "label": {
+        "en": "Shared Post (1.91:1)",
+        "de": "Geteilter Post (1.91:1)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/linkedIn/li-shared-post.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1200,
+          "height": 627,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "linkedIn"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.video.hd_1080p",
+      "label": {
+        "en": "Full HD (1080p) (16:9)",
+        "de": "Full HD (1080p) (16:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/hd/hd-1080p.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1920,
+          "height": 1080,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "hd-video"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.video.hd_2k",
+      "label": {
+        "en": "2K (17:9)",
+        "de": "2K (17:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/hd/hd-2k.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 2048,
+          "height": 1080,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "hd-video"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.video.hd_480p",
+      "label": {
+        "en": "SD (480p) (3:2)",
+        "de": "SD (480p) (3:2)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/hd/hd-480p.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 720,
+          "height": 480,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "hd-video"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.video.hd_4k",
+      "label": {
+        "en": "4K (16:9)",
+        "de": "4K (16:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/hd/hd-4k.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 3840,
+          "height": 2160,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "hd-video"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.video.hd_720p",
+      "label": {
+        "en": "HD (720p) (16:9)",
+        "de": "HD (720p) (16:9)"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/hd/hd-720p.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1280,
+          "height": 720,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "hd-video"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.video.hd_cinema_4k",
+      "label": {
+        "en": "Cinema 4K",
+        "de": "Cinema 4K"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/hd/hd-cinema-4k.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 4096,
+          "height": 2160,
+          "designUnit": "Pixel"
+        }
+      },
+      "groups": [
+        "hd-video"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.brochure.landscape",
+      "label": {
+        "en": "Brochure Landscape",
+        "de": "Broschüre Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/brochure-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 315,
+          "height": 148,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.brochure.portrait",
+      "label": {
+        "en": "Brochure Portrait",
+        "de": "Broschüre Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/brochure-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 148,
+          "height": 315,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.business_card.landscape",
+      "label": {
+        "en": "Business Card Landscape",
+        "de": "Visitenkarte Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/business-card-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 85,
+          "height": 55,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.business_card.portrait",
+      "label": {
+        "en": "Business Card Portrait",
+        "de": "Visitenkarte Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/business-card-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 55,
+          "height": 85,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.flyer.landscape",
+      "label": {
+        "en": "Flyer Landscape",
+        "de": "Flyer Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/flyer-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 150,
+          "height": 130,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.flyer.portrait",
+      "label": {
+        "en": "Flyer Portrait",
+        "de": "Flyer Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/flyer-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 130,
+          "height": 150,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.postcard.landscape",
+      "label": {
+        "en": "Postcard Landscape",
+        "de": "Postkarte Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/postcard-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 235,
+          "height": 125,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.postcard.portrait",
+      "label": {
+        "en": "Postcard Portrait",
+        "de": "Postkarte Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/postcard-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 125,
+          "height": 235,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.poster.landscape",
+      "label": {
+        "en": "Poster Landscape",
+        "de": "Poster Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/poster-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1400,
+          "height": 1000,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.poster.portrait",
+      "label": {
+        "en": "Poster Portrait",
+        "de": "Poster Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/otherPrint/poster-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1000,
+          "height": 1400,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "other-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a0.landscape",
+      "label": {
+        "en": "DIN A0 Landscape",
+        "de": "DIN A0 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a0-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 1189,
+          "height": 841,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a0.portrait",
+      "label": {
+        "en": "DIN A0 Portrait",
+        "de": "DIN A0 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a0-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 841,
+          "height": 1189,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a1.landscape",
+      "label": {
+        "en": "DIN A1 Landscape",
+        "de": "DIN A1 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a1-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 841,
+          "height": 594,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a1.portrait",
+      "label": {
+        "en": "DIN A1 Portrait",
+        "de": "DIN A1 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a1-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 594,
+          "height": 841,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a2.landscape",
+      "label": {
+        "en": "DIN A2 Landscape",
+        "de": "DIN A2 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a2-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 594,
+          "height": 420,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a2.portrait",
+      "label": {
+        "en": "DIN A2 Portrait",
+        "de": "DIN A2 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a2-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 420,
+          "height": 594,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a3.landscape",
+      "label": {
+        "en": "DIN A3 Landscape",
+        "de": "DIN A3 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a3-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 420,
+          "height": 297,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a3.portrait",
+      "label": {
+        "en": "DIN A3 Portrait",
+        "de": "DIN A3 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a3-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 297,
+          "height": 420,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a4.landscape",
+      "label": {
+        "en": "DIN A4 Landscape",
+        "de": "DIN A4 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a4-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 297,
+          "height": 210,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a4.portrait",
+      "label": {
+        "en": "DIN A4 Portrait",
+        "de": "DIN A4 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a4-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 210,
+          "height": 297,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a5.landscape",
+      "label": {
+        "en": "DIN A5 Landscape",
+        "de": "DIN A5 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a5-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 210,
+          "height": 148,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a5.portrait",
+      "label": {
+        "en": "DIN A5 Portrait",
+        "de": "DIN A5 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a5-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 148,
+          "height": 210,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a6_5.landscape",
+      "label": {
+        "en": "DIN A6/5 Landscape",
+        "de": "DIN A6/5 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a6-5-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 210,
+          "height": 105,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a6_5.portrait",
+      "label": {
+        "en": "DIN A6/5 Portrait",
+        "de": "DIN A6/5 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a6-5-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 105,
+          "height": 210,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a6.landscape",
+      "label": {
+        "en": "DIN A6 Landscape",
+        "de": "DIN A6 Querformat"
+      },
+      "meta": {
+        "default": true,
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a6-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 148,
+          "height": 105,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.a6.portrait",
+      "label": {
+        "en": "DIN A6 Portrait",
+        "de": "DIN A6 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-a6-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 105,
+          "height": 148,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.b5.landscape",
+      "label": {
+        "en": "DIN B5 Landscape",
+        "de": "DIN B5 Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-b5-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 250,
+          "height": 176,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.iso.b5.portrait",
+      "label": {
+        "en": "DIN B5 Portrait",
+        "de": "DIN B5 Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/din/din-b5-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 176,
+          "height": 250,
+          "designUnit": "Millimeter"
+        }
+      },
+      "groups": [
+        "iso-standard-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.na.legal.landscape",
+      "label": {
+        "en": "Legal Landscape",
+        "de": "Legal Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/northAmericanPrint/legal-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 14,
+          "height": 8.5,
+          "designUnit": "Inch"
+        }
+      },
+      "groups": [
+        "north-american-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.na.legal.portrait",
+      "label": {
+        "en": "Legal Portrait",
+        "de": "Legal Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/northAmericanPrint/legal-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 8.5,
+          "height": 14,
+          "designUnit": "Inch"
+        }
+      },
+      "groups": [
+        "north-american-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.na.letter.landscape",
+      "label": {
+        "en": "Letter Landscape",
+        "de": "Letter Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/northAmericanPrint/letter-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 11,
+          "height": 8.5,
+          "designUnit": "Inch"
+        }
+      },
+      "groups": [
+        "north-american-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.na.letter.portrait",
+      "label": {
+        "en": "Letter Portrait",
+        "de": "Letter Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/northAmericanPrint/letter-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 8.5,
+          "height": 11,
+          "designUnit": "Inch"
+        }
+      },
+      "groups": [
+        "north-american-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.na.tabloid.landscape",
+      "label": {
+        "en": "Tabloid Landscape",
+        "de": "Tabloid Querformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/northAmericanPrint/tabloid-landscape.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 17,
+          "height": 11,
+          "designUnit": "Inch"
+        }
+      },
+      "groups": [
+        "north-american-print"
+      ]
+    },
+    {
+      "id": "ly.img.page.presets.print.na.tabloid.portrait",
+      "label": {
+        "en": "Tabloid Portrait",
+        "de": "Tabloid Hochformat"
+      },
+      "meta": {
+        "thumbUri": "{{base_url}}/ly.img.page.presets/thumbnails/northAmericanPrint/tabloid-portrait.png"
+      },
+      "payload": {
+        "transformPreset": {
+          "type": "FixedSize",
+          "width": 11,
+          "height": 17,
+          "designUnit": "Inch"
+        }
+      },
+      "groups": [
+        "north-american-print"
+      ]
+    }
+  ]
+}

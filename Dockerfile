@@ -12,6 +12,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
+FROM builder AS worker
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+CMD ["node", "--import", "tsx", "scripts/reel-render-worker.ts"]
+
 FROM node:22-alpine AS runner
 WORKDIR /app
 

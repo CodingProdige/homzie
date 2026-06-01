@@ -123,9 +123,9 @@ Important public routes include:
 - `/properties`
 - `/properties/[slug]`
 - `/agents`
-- `/agents/[username]`
-- `/agents/[username]/videos`
-- `/agents/[username]/listings`
+- `/users/[username]`
+- `/users/[username]/videos`
+- `/users/[username]/listings`
 - `/book-viewing/[propertyId]`
 
 Video-heavy discovery can be interactive, but the underlying property and agent pages should still expose meaningful server-rendered content.
@@ -151,14 +151,18 @@ Keep Client Components small and purposeful. Data loading, permission checks, an
 
 Use Server Actions for standard forms.
 
+Do not create custom Route Handlers or API endpoints for ordinary app queries or mutations. Homzie should avoid middleman calls that add latency, duplicate validation, or split business rules across multiple surfaces. Keep normal database reads in Server Components and normal writes in Server Actions so the UI gets the shortest practical path to server-side logic.
+
 Use Route Handlers for:
 
+- Auth.js internals and provider callbacks
 - Uploads
-- Auth callbacks
 - Webhooks
 - Media endpoints
 - Integrations
 - Streaming or range-sensitive media behavior
+
+If a feature can be handled by a Server Component or Server Action, do that first. Add a Route Handler only when HTTP semantics are genuinely required, such as third-party callbacks, file uploads, webhooks, public media serving, range requests, or protocol-level integrations.
 
 Every mutation must:
 

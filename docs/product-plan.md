@@ -15,9 +15,24 @@ Homzie is not a native mobile app yet. The first product must feel excellent in 
 
 ## First Production Milestones
 
-### 1. Auth and Identity
+### 1. Agent Profiles and Agent Creator Presence
 
-Build auth first because every later workflow depends on it.
+Agents are the center of Homzie. The first product surface should prove that agents can be creators, publishers, and lead generators inside the main app.
+
+Initial scope:
+
+- Public profile route at `/users/[username]`.
+- Profile bio, location, stats, links, highlights, testimonials, and active listings.
+- Reels grid where each reel can optionally link to a listing.
+- If a reel is not linked to a listing, it should route users back into the agent profile.
+- Clear calls to follow, message, and view listings.
+- Agent-owned dashboard actions for uploading a reel or adding a listing once auth is implemented.
+
+This is the product spine: users discover agents through media, then move into listings, leads, and viewing bookings.
+
+### 2. Auth, Agent Onboarding, and Subscription Access
+
+Auth exists to support agent workflows first. Agents should be able to sign up, subscribe, create a profile, and start publishing.
 
 Initial scope:
 
@@ -27,20 +42,18 @@ Initial scope:
 - Server-side permission helpers.
 - Protected dashboard routes.
 - Protected admin routes.
-- Agent profile onboarding after sign-in.
+- Agent onboarding after sign-in.
+- Subscription gate for agent publishing tools.
 
-Roles should be server-authoritative. The client can show or hide navigation, but all access decisions must be checked on the server.
+Initial monetization:
 
-### 2. Agent Profiles
+```text
+R99/pm agent subscription
+```
 
-Agents are creators. The first signed-in workflow should help an agent create a profile that can later anchor listings, videos, leads, bookings, analytics, boosts, and subscriptions.
+The subscription unlocks the ability for agents to use the platform, maintain their profile, upload listings, publish reels, receive leads, and manage viewing bookings. Boosts can be introduced later as a visibility layer on top of the base subscription.
 
-Initial scope:
-
-- Create/edit agent profile.
-- Public profile route at `/agents/[username]`.
-- Basic agency association placeholder.
-- Profile status for moderation readiness.
+Roles and subscription access should be server-authoritative. The client can show or hide navigation, but all access decisions must be checked on the server.
 
 ### 3. Properties
 
@@ -53,6 +66,7 @@ Initial scope:
 - SEO metadata.
 - Neighborhood/location fields.
 - Draft/published/moderation states.
+- Listing attachment from reels.
 
 ### 4. Media and Reels
 
@@ -63,9 +77,18 @@ Initial scope:
 - Upload property media to configured storage paths.
 - Store portable relative paths.
 - Attach videos/media to properties and agent profiles.
+- Allow reels to exist with or without a linked listing.
+- Route linked reels to their listing detail pages.
+- Route unlinked reels to the agent profile.
 - Public media serving through `/media/*`.
 
 Video feeds can start simple, but all path rules and ownership checks must be correct from day one.
+
+Future reel analytics should use a dedicated watch-events table rather than only
+the aggregate `reels.view_count` field. `view_count` is the fast display counter
+for reel cards; the analytics layer should store individual watch events with
+viewer or anonymous session identifiers, watch duration, completion percentage,
+traffic source, timestamps, and enough context to build creator analytics later.
 
 ### 5. Leads and Viewing Bookings
 
@@ -102,16 +125,18 @@ Route protection:
 
 Build in this order:
 
-1. `/sign-in`
-2. `/sign-up`
-3. `/dashboard`
-4. `/dashboard/profile`
-5. `/admin`
-6. `/agents/[username]`
-7. `/properties`
-8. `/properties/[slug]`
-9. `/book-viewing/[propertyId]`
-10. `/for-you`
+1. `/users/[username]`
+2. `/agents`
+3. `/sign-in`
+4. `/sign-up`
+5. `/dashboard`
+6. `/dashboard/profile`
+7. `/dashboard/listings`
+8. `/dashboard/videos`
+9. `/properties/[slug]`
+10. `/book-viewing/[propertyId]`
+11. `/for-you`
+12. `/admin`
 
 The public routes can start with real layouts and placeholder data. Protected routes should enforce real server-side access checks from the start.
 
@@ -134,12 +159,10 @@ Do not build bespoke controls when a shadcn primitive fits. Keep public discover
 
 The next engineering slice should implement:
 
-- Auth.js configuration.
-- User/admin database tables.
-- Admin seed script.
-- Sign-in page using shadcn UI.
-- Sign-out action.
-- Server-side `getCurrentUser` helper.
-- `/dashboard` and `/admin` guards.
+- Public agent profile page.
+- Mock agent profile, reel, listing, and testimonial data.
+- Reel objects with optional `listingId`.
+- Agent subscription positioning at R99/pm.
+- Responsive desktop/mobile profile layout.
 
-This gives Homzie a secure spine before property, media, and booking workflows are added.
+After that, implement auth, subscription access, and agent dashboard upload flows.
