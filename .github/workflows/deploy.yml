@@ -32,10 +32,15 @@ jobs:
           HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
         run: node scripts/run-with-env-file.mjs "$HOMZIE_ENV_FILE" npm run build
 
+      - name: Start database services
+        env:
+          HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
+        run: docker compose --env-file "$HOMZIE_ENV_FILE" -p homzie_selfhost up -d postgres redis
+
       - name: Migrate database
         env:
           HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
-        run: docker compose --env-file "$HOMZIE_ENV_FILE" -p homzie_selfhost --profile selfhost run --rm worker node scripts/migrate.mjs
+        run: node scripts/migrate-selfhost.mjs "$HOMZIE_ENV_FILE"
 
       - name: Deploy containers
         env:
