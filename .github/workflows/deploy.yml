@@ -35,7 +35,7 @@ jobs:
       - name: Migrate database
         env:
           HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
-        run: node scripts/run-with-env-file.mjs "$HOMZIE_ENV_FILE" node scripts/migrate.mjs
+        run: docker compose --env-file "$HOMZIE_ENV_FILE" -p homzie_selfhost --profile selfhost run --rm worker node scripts/migrate.mjs
 
       - name: Deploy containers
         env:

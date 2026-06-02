@@ -15,6 +15,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-homzie}
       POSTGRES_USER: ${POSTGRES_USER:-homzie}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-homzie-local-password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     ports:
       - "5433:5432"
     volumes:
@@ -57,8 +62,10 @@ services:
       - /mnt/c/Homzie/storage/exports:/data/media/exports
       - /mnt/c/Homzie/storage/backups:/data/media/backups
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   worker:
     profiles:
@@ -86,8 +93,10 @@ services:
       - /mnt/c/Homzie/storage/exports:/data/media/exports
       - /mnt/c/Homzie/storage/backups:/data/media/backups
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   caddy:
     profiles:
