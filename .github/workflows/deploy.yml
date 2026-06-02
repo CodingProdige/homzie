@@ -13,7 +13,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -29,7 +35,7 @@ jobs:
       - name: Migrate database
         env:
           HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
-        run: node --env-file=/mnt/c/Homzie/config/homzie.env scripts/migrate.mjs
+        run: node --env-file="$HOMZIE_ENV_FILE" scripts/migrate.mjs
 
       - name: Deploy containers
         env:
