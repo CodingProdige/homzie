@@ -14,9 +14,9 @@ import { recordReelHashtagUsage } from "@/modules/hashtags/server";
 import {
   createReelRenderJob,
   setReelRenderState,
-} from "@/modules/reels/server/render-job";
+} from "@/modules/reels/server/render-job-state";
 import { enqueueReelRenderJob } from "@/modules/reels/server/render-queue";
-import { renderPayloadSchema } from "@/modules/reels/server/render-reel";
+import { renderPayloadSchema } from "@/modules/reels/server/render-schema";
 
 export const runtime = "nodejs";
 

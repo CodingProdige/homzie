@@ -1,7 +1,7 @@
 import { createClient, type RedisClientType } from "redis";
 
-import { renderPayloadSchema } from "./render-reel";
-import type { ReelRenderJob } from "./render-job";
+import { renderPayloadSchema } from "./render-schema";
+import type { ReelRenderJob } from "./render-job-state";
 
 const QUEUE_KEY = "homzie:reel-render:queued";
 const PROCESSING_KEY = "homzie:reel-render:processing";

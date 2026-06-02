@@ -3,43 +3,9 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-import ffmpegStatic from "ffmpeg-static";
-import { z } from "zod";
-
 import { toStoredMediaPath } from "@/media/paths";
 import { getMediaStorageRoot } from "@/media/storage";
-
-export const renderClipSchema = z.object({
-  baseTrimStart: z.number().min(0).default(0),
-  duration: z.number().min(0),
-  id: z.string(),
-  mediaPath: z.string(),
-  muted: z.boolean().default(false),
-  order: z.number().int().min(0),
-  timelineStart: z.number(),
-  trimEnd: z.number().min(0),
-  trimStart: z.number().min(0),
-  volume: z.number().min(0).max(1).default(1),
-});
-
-export const renderAudioClipSchema = z.object({
-  baseTrimStart: z.number().min(0).default(0),
-  fadeIn: z.number().min(0).default(0),
-  fadeOut: z.number().min(0).default(0),
-  id: z.string(),
-  timelineStart: z.number(),
-  trimEnd: z.number().min(0),
-  trimStart: z.number().min(0),
-});
-
-export const renderPayloadSchema = z.object({
-  audioClips: z.array(renderAudioClipSchema).default([]),
-  audioMediaPath: z.string().optional(),
-  audioVolume: z.number().min(0).max(1).default(1),
-  clips: z.array(renderClipSchema).min(1),
-});
-
-export type RenderPayload = z.infer<typeof renderPayloadSchema>;
+import type { RenderPayload } from "./render-schema";
 
 const outputWidth = 1080;
 const outputHeight = 1920;
@@ -49,6 +15,8 @@ const outputVideoMaxrate = "12M";
 const outputVideoBufferSize = "16M";
 const outputAudioBitrate = "192k";
 const outputAudioSampleRate = "44100";
+
+const ffmpegBinary = process.env.FFMPEG_PATH || "ffmpeg";
 
 function seconds(value: number) {
   return Math.max(0, Number.isFinite(value) ? value : 0).toFixed(3);
@@ -63,14 +31,8 @@ function mediaStoragePath(mediaPath: string) {
 }
 
 async function runFfmpeg(args: string[]) {
-  const binaryPath = process.env.FFMPEG_PATH || ffmpegStatic;
-
-  if (!binaryPath) {
-    throw new Error("FFmpeg is not configured.");
-  }
-
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(binaryPath, args, { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(ffmpegBinary, args, { stdio: ["ignore", "ignore", "pipe"] });
     const errors: Buffer[] = [];
 
     child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
@@ -91,14 +53,8 @@ async function runFfmpeg(args: string[]) {
 }
 
 async function hasAudioStream(inputPath: string) {
-  const binaryPath = process.env.FFMPEG_PATH || ffmpegStatic;
-
-  if (!binaryPath) {
-    throw new Error("FFmpeg is not configured.");
-  }
-
   return await new Promise<boolean>((resolve, reject) => {
-    const child = spawn(binaryPath, ["-hide_banner", "-i", inputPath], {
+    const child = spawn(ffmpegBinary, ["-hide_banner", "-i", inputPath], {
       stdio: ["ignore", "ignore", "pipe"],
     });
     const errors: Buffer[] = [];
