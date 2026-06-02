@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -20,6 +22,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { CurrencySelector } from "@/modules/currency/currency-selector";
+import { useCurrency } from "@/modules/currency/currency-provider";
 import { RichCaption } from "@/modules/reels/components/rich-caption";
 import { agentProfile, type AgentListing, type AgentReel } from "../data/mock-agent-profile";
 
@@ -58,6 +62,7 @@ function BrandHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <CurrencySelector className="hidden sm:inline-flex" />
           <Button variant="ghost" size="icon" aria-label="Saved properties">
             <Heart className="size-5" />
           </Button>
@@ -266,6 +271,8 @@ function ReelsGrid() {
 }
 
 function ListingCard({ listing }: { listing: AgentListing }) {
+  const { formatPriceLabel } = useCurrency();
+
   return (
     <Card className="overflow-hidden rounded-lg py-0 shadow-md shadow-black/5">
       <div className="relative aspect-[4/2.7] overflow-hidden">
@@ -283,7 +290,9 @@ function ListingCard({ listing }: { listing: AgentListing }) {
       </div>
       <div className="space-y-3 p-4">
         <div>
-          <p className="text-lg font-bold text-primary">{listing.price}</p>
+          <p className="text-lg font-bold text-primary">
+            {formatPriceLabel(listing.price)}
+          </p>
           <h3 className="mt-1 text-sm font-bold">{listing.title}</h3>
           <p className="mt-2 text-xs text-muted-foreground">{listing.location}</p>
         </div>

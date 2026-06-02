@@ -131,6 +131,134 @@
     -webkit-text-fill-color: transparent;
   }
 
+  .rich-text-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--muted-foreground);
+    pointer-events: none;
+  }
+
+  .rich-text-editor p {
+    margin-block: 0 0.75rem;
+  }
+
+  .rich-text-editor p:last-child {
+    margin-bottom: 0;
+  }
+
+  .rich-text-editor ul,
+  .rich-text-editor ol {
+    margin-block: 0 0.75rem;
+    padding-left: 1.25rem;
+  }
+
+  .rich-text-editor ul {
+    list-style: disc;
+  }
+
+  .rich-text-editor ol {
+    list-style: decimal;
+  }
+
+  .listing-preview-fab {
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .listing-preview-fab::after {
+    content: "";
+    position: absolute;
+    inset: -45%;
+    z-index: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.72) 48%,
+      transparent 62%
+    );
+    transform: translateX(-125%) rotate(18deg);
+    animation: listing-preview-shimmer 5s ease-in-out infinite;
+  }
+
+  .ai-action-button.is-processing {
+    opacity: 1 !important;
+  }
+
+  .ai-action-icon {
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    color: var(--homzie-white);
+  }
+
+  .ai-action-button.is-processing .ai-action-icon {
+    animation: ai-action-spark 1s ease-in-out infinite;
+    color: var(--homzie-pink);
+  }
+
+  .ai-action-dots {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .ai-action-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: currentColor;
+    animation: ai-action-dot 1s ease-in-out infinite;
+  }
+
+  .ai-action-dots span:nth-child(2) {
+    animation-delay: 120ms;
+  }
+
+  .ai-action-dots span:nth-child(3) {
+    animation-delay: 240ms;
+  }
+
+  @keyframes ai-action-spark {
+    0%,
+    100% {
+      transform: rotate(0deg) scale(1);
+    }
+
+    50% {
+      transform: rotate(12deg) scale(1.12);
+    }
+  }
+
+  @keyframes ai-action-dot {
+    0%,
+    70%,
+    100% {
+      opacity: 0.35;
+      transform: translateY(0);
+    }
+
+    35% {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+  }
+
+  @keyframes listing-preview-shimmer {
+    0%,
+    76% {
+      transform: translateX(-125%) rotate(18deg);
+      opacity: 0;
+    }
+
+    82% {
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateX(125%) rotate(18deg);
+      opacity: 0;
+    }
+  }
+
   .reel-progress-slider {
     height: 20px;
     border-radius: 999px;

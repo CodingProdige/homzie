@@ -4,10 +4,11 @@ import { getServerSession } from "next-auth";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { reels, users } from "@/db/schema";
+import { propertyListings, reelReshares, reelSaves, reels, users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
 import { hasActiveAgentSubscription } from "@/modules/agents/queries";
+import { getAgentPerformanceStats } from "@/modules/agents/performance";
 import { UserProfilePage as UserProfile } from "@/modules/users/components/user-profile-page";
 import { toPublicMediaUrl } from "@/media/paths";
 
@@ -17,6 +18,7 @@ type UserProfileRouteProps = {
   }>;
   searchParams?: Promise<{
     agent?: string;
+    tab?: string;
   }>;
 };
 
@@ -76,6 +78,24 @@ function reelStatus(value: string): "draft" | "failed" | "processing" | "publish
     : "draft";
 }
 
+function listingDetails(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function listingNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function listingStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 async function getProfileReels({
   isOwner,
   userId,
@@ -83,9 +103,10 @@ async function getProfileReels({
   isOwner: boolean;
   userId: string;
 }) {
-  const rows = await db
+  const ownedRows = await db
     .select({
       caption: reels.caption,
+      createdAt: reels.createdAt,
       editMetadata: reels.editMetadata,
       id: reels.id,
       status: reels.status,
@@ -99,22 +120,129 @@ async function getProfileReels({
     )
     .orderBy(desc(reels.createdAt));
 
-  return rows.map((reel) => {
-    const metadata = metadataObject(reel.editMetadata);
-    const coverFrame = metadataObject(metadata.coverFrame);
-    const coverUrl =
-      typeof coverFrame.src === "string"
-        ? coverFrame.src
-        : toPublicMediaUrl(metadataObject(metadata.render).mediaPath as string);
+  const resharedRows = await db
+    .select({
+      caption: reels.caption,
+      createdAt: reelReshares.createdAt,
+      editMetadata: reels.editMetadata,
+      id: reels.id,
+      status: reels.status,
+      viewCount: reels.viewCount,
+    })
+    .from(reelReshares)
+    .innerJoin(reels, eq(reels.id, reelReshares.reelId))
+    .where(and(eq(reelReshares.userId, userId), eq(reels.status, "published")))
+    .orderBy(desc(reelReshares.createdAt));
+
+  return [
+    ...ownedRows.map((reel) => ({ ...reel, sortDate: reel.createdAt })),
+    ...resharedRows.map((reel) => ({ ...reel, sortDate: reel.createdAt })),
+  ]
+    .sort((first, second) => second.sortDate.getTime() - first.sortDate.getTime())
+    .map(mapProfileReel);
+}
+
+function mapProfileReel(reel: {
+  caption: string | null;
+  editMetadata: unknown;
+  id: string;
+  status: string;
+  viewCount: number;
+}) {
+  const metadata = metadataObject(reel.editMetadata);
+  const coverFrame = metadataObject(metadata.coverFrame);
+  const coverUrl =
+    typeof coverFrame.src === "string"
+      ? coverFrame.src
+      : toPublicMediaUrl(metadataObject(metadata.render).mediaPath as string);
+
+  return {
+    caption: reel.caption,
+    coverUrl,
+    durationLabel: formatDuration(metadata.totalDuration),
+    editHref: `/reels/${reel.id}/edit`,
+    id: reel.id,
+    status: reelStatus(reel.status),
+    viewCountLabel: formatCompactCount(reel.viewCount),
+  };
+}
+
+async function getSavedReels({
+  canViewSaved,
+  userId,
+}: {
+  canViewSaved: boolean;
+  userId: string;
+}) {
+  if (!canViewSaved) return [];
+
+  const rows = await db
+    .select({
+      caption: reels.caption,
+      editMetadata: reels.editMetadata,
+      id: reels.id,
+      status: reels.status,
+      viewCount: reels.viewCount,
+    })
+    .from(reelSaves)
+    .innerJoin(reels, eq(reels.id, reelSaves.reelId))
+    .where(and(eq(reelSaves.userId, userId), eq(reels.status, "published")))
+    .orderBy(desc(reelSaves.createdAt));
+
+  return rows.map(mapProfileReel);
+}
+
+async function getProfileListings({
+  isOwner,
+  userId,
+}: {
+  isOwner: boolean;
+  userId: string;
+}) {
+  const rows = await db
+    .select({
+      askingPriceCents: propertyListings.askingPriceCents,
+      coverImageUrl: propertyListings.coverImageUrl,
+      details: propertyListings.details,
+      features: propertyListings.features,
+      id: propertyListings.id,
+      listingType: propertyListings.listingType,
+      location: propertyListings.location,
+      priceLabel: propertyListings.priceLabel,
+      propertyType: propertyListings.propertyType,
+      status: propertyListings.status,
+      title: propertyListings.title,
+      updatedAt: propertyListings.updatedAt,
+    })
+    .from(propertyListings)
+    .where(
+      isOwner
+        ? eq(propertyListings.userId, userId)
+        : and(
+            eq(propertyListings.userId, userId),
+            eq(propertyListings.status, "published"),
+          ),
+    )
+    .orderBy(desc(propertyListings.updatedAt));
+
+  return rows.map((listing) => {
+    const details = listingDetails(listing.details);
 
     return {
-      caption: reel.caption,
-      coverUrl,
-      durationLabel: formatDuration(metadata.totalDuration),
-      editHref: `/reels/${reel.id}/edit`,
-      id: reel.id,
-      status: reelStatus(reel.status),
-      viewCountLabel: formatCompactCount(reel.viewCount),
+      askingPriceCents: listing.askingPriceCents,
+      bathrooms: listingNumber(details.bathrooms),
+      bedrooms: listingNumber(details.bedrooms),
+      coverImageUrl: toPublicMediaUrl(listing.coverImageUrl),
+      erfSize: listingNumber(details.erfSize),
+      features: listingStringArray(listing.features).slice(0, 5),
+      floorSize: listingNumber(details.floorSize),
+      id: listing.id,
+      listingType: listing.listingType,
+      location: listing.location,
+      priceLabel: listing.priceLabel,
+      propertyType: listing.propertyType,
+      status: listing.status,
+      title: listing.title,
     };
   });
 }
@@ -157,6 +285,7 @@ export default async function UserProfilePage({
   const session = await getServerSession(authOptions);
   const isOwner = session?.user?.id === profile.id;
   const hasSubscription = await hasActiveAgentSubscription(profile.id);
+  const canViewSaved = isOwner || hasSubscription;
   const viewer = session?.user?.id
     ? await db
         .select({ username: users.username, avatarUrl: users.avatarUrl })
@@ -169,6 +298,15 @@ export default async function UserProfilePage({
     isOwner,
     userId: profile.id,
   });
+  const savedReels = await getSavedReels({
+    canViewSaved,
+    userId: profile.id,
+  });
+  const profileListings = await getProfileListings({
+    isOwner,
+    userId: profile.id,
+  });
+  const agentStats = await getAgentPerformanceStats(profile.id);
 
   return (
     <UserProfile
@@ -176,9 +314,13 @@ export default async function UserProfilePage({
         name: profile.name,
         username: profile.username,
         avatarUrl: toPublicMediaUrl(profile.avatarUrl) || undefined,
+        agentStats,
         isOwner,
         hasActiveSubscription: hasSubscription,
+        initialTab: query.tab === "listings" ? "listings" : undefined,
+        listings: profileListings,
         reels: profileReels,
+        savedReels,
         viewerUsername: viewer?.username || undefined,
         viewerAvatarUrl:
           toPublicMediaUrl(viewer?.avatarUrl) ||

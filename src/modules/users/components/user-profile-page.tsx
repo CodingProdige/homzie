@@ -7,11 +7,16 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   BadgeCheck,
+  Bath,
+  BedDouble,
   Bookmark,
   Check,
   ChevronDown,
+  ChevronRight,
   Clapperboard,
+  Clock3,
   Copy,
+  CircleDollarSign,
   Eye,
   Flag,
   Heart,
@@ -19,17 +24,20 @@ import {
   LockKeyhole,
   Mail,
   Menu,
+  PieChart,
   Plus,
+  PlayCircle,
   Search,
   Send,
   Share2,
   Sparkles,
   TrendingUp,
+  Trophy,
   UsersRound,
   UserRound,
   UserPlus,
   MessageCircle,
-  Play,
+  Ruler,
   X,
 } from "lucide-react";
 
@@ -38,20 +46,44 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toPublicMediaUrl } from "@/media/paths";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
+import { CurrencySelector } from "@/modules/currency/currency-selector";
+import { useCurrency } from "@/modules/currency/currency-provider";
 
 type UserProfile = {
   name: string;
   username: string;
   avatarUrl?: string;
+  agentStats: AgentPerformanceStats;
   isOwner: boolean;
   hasActiveSubscription: boolean;
+  initialTab?: ProfileTab;
+  listings: ProfileListing[];
   reels: ProfileReel[];
+  savedReels: ProfileReel[];
   viewerUsername?: string;
   viewerAvatarUrl?: string;
 };
 
 type ProfileTab = "reels" | "listings" | "saved";
 type ProfileReelStatus = "draft" | "failed" | "processing" | "published";
+
+type AgentPerformanceStats = {
+  avgDaysToSellLabel: string;
+  completedMandates: number;
+  completedMandatesLabel: string;
+  disputedCount: number;
+  expiredCount: number;
+  soldCount: number;
+  soldExternallyCount: number;
+  soldThisYear: number;
+  soldThisYearLabel: string;
+  totalSoldValueThisYearCents: number;
+  totalSoldValueThisYearLabel: string;
+  verifiedSales: number;
+  verifiedSalesLabel: string;
+  withdrawnCount: number;
+  winRateLabel: string;
+};
 
 type ProfileReel = {
   caption?: string | null;
@@ -61,6 +93,23 @@ type ProfileReel = {
   id: string;
   status: ProfileReelStatus;
   viewCountLabel: string;
+};
+
+type ProfileListing = {
+  askingPriceCents: number | null;
+  bathrooms: number;
+  bedrooms: number;
+  coverImageUrl?: string | null;
+  erfSize: number;
+  features: string[];
+  floorSize: number;
+  id: string;
+  listingType: string;
+  location: string | null;
+  priceLabel: string | null;
+  propertyType: string;
+  status: string;
+  title: string;
 };
 
 const navItems = ["Buy", "Rent", "Developments", "Commercial", "Agents", "Reels"];
@@ -151,6 +200,7 @@ function BrandHeader({ viewerUsername }: { viewerUsername?: string }) {
           <div className="hidden lg:block">
             <ThemeToggle />
           </div>
+          <CurrencySelector className="hidden lg:inline-flex" />
           <Button
             variant="ghost"
             size="icon"
@@ -225,6 +275,12 @@ function BrandHeader({ viewerUsername }: { viewerUsername?: string }) {
                     Theme
                   </span>
                   <ThemeToggle />
+                </div>
+                <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Currency
+                  </span>
+                  <CurrencySelector />
                 </div>
               </Dialog.Content>
             </Dialog.Portal>
@@ -337,7 +393,7 @@ function getCreateItems(hasActiveSubscription: boolean) {
     {
       label: "Listing",
       description: "Create a property listing.",
-      href: hasActiveSubscription ? "#" : "/become-agent",
+      href: hasActiveSubscription ? "/listings/new" : "/become-agent",
       icon: Home,
     },
   ];
@@ -585,7 +641,7 @@ function ShareProfileDialog({
 
 function ProfileHero({ profile }: { profile: UserProfile }) {
   return (
-    <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-center gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_1fr_auto] lg:items-start lg:gap-x-5 lg:gap-y-8 lg:py-16">
+    <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-start gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_1fr_auto] lg:gap-x-5 lg:gap-y-8 lg:py-16">
       <ProfileAvatar name={profile.name} avatarUrl={profile.avatarUrl} />
 
       <div className="min-w-0 lg:max-w-2xl">
@@ -621,6 +677,10 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="lg:-mr-36 xl:-mr-64">
+          <AgentPerformanceCard profile={profile} />
         </div>
       </div>
 
@@ -661,7 +721,149 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
   );
 }
 
+function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { formatPriceCentsCompact } = useCurrency();
+  const performanceStats = [
+    {
+      icon: Trophy,
+      label: "Win rate",
+      value: profile.agentStats.winRateLabel,
+    },
+    {
+      icon: CircleDollarSign,
+      label: "Sold this year",
+      value: profile.agentStats.soldThisYearLabel,
+    },
+    {
+      icon: PieChart,
+      label: "Total value",
+      value: formatPriceCentsCompact(profile.agentStats.totalSoldValueThisYearCents),
+    },
+    {
+      icon: Flag,
+      label: "Verified sales",
+      value: profile.agentStats.verifiedSalesLabel,
+    },
+  ];
+
+  if (!profile.hasActiveSubscription) {
+    return (
+      <div className="mt-5 max-w-lg rounded-lg border border-primary/10 bg-card p-4 shadow-sm lg:max-w-none">
+        <div className="flex items-center gap-3">
+          <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+            <LockKeyhole className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Agent performance
+            </p>
+            <p className="mt-1 text-sm font-black">Locked until subscribed</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+              Verified sales, win rate, and mandate history unlock for Homzie Agent profiles.
+            </p>
+          </div>
+          {profile.isOwner ? (
+            <Button asChild size="sm">
+              <Link href="/become-agent">Unlock</Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 max-w-lg overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-[max-width] duration-300 ease-out lg:max-w-none">
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/35"
+        onClick={() => setIsExpanded((value) => !value)}
+        aria-expanded={isExpanded}
+      >
+        <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+          <Trophy className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+            Agent performance
+          </p>
+          <div className="mt-1 flex min-w-0 items-baseline gap-2">
+            <p className="text-lg font-black leading-none">{profile.agentStats.winRateLabel}</p>
+            <p className="truncate text-xs font-semibold text-muted-foreground">
+              win rate · {profile.agentStats.soldThisYearLabel} sold this year
+            </p>
+          </div>
+        </div>
+        <ChevronDown
+          className={cn(
+            "size-5 shrink-0 text-muted-foreground transition-transform",
+            isExpanded && "rotate-180",
+          )}
+        />
+      </button>
+
+      <div
+        className={cn(
+          "grid border-t border-border transition-[grid-template-rows] duration-300 ease-out",
+          isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={cn(
+              "px-3 pb-3 transition-all duration-300 ease-out",
+              isExpanded
+                ? "translate-y-0 opacity-100"
+                : "-translate-y-2 opacity-0",
+            )}
+          >
+            <div className="grid pt-1 sm:grid-cols-2 sm:gap-x-3 lg:grid-cols-4">
+              {performanceStats.map((stat) => {
+                const Icon = stat.icon;
+
+                return (
+                  <div
+                    key={stat.label}
+                    className="flex items-center gap-3 border-b border-border/60 px-1 py-3 last:border-b-0 sm:border-b-0 lg:flex-col lg:items-start lg:gap-2 lg:border-r lg:border-border/60 lg:px-3 lg:last:border-r-0"
+                  >
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                      <Icon className="size-5" />
+                    </span>
+                    <p className="min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-wide text-muted-foreground lg:flex-none">
+                      {stat.label}
+                    </p>
+                    <p className="text-lg font-black lg:text-2xl">{stat.value}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="rounded-lg bg-primary/5 px-3 py-3 text-xs font-semibold text-muted-foreground lg:mt-2">
+              <p>{profile.agentStats.completedMandatesLabel}</p>
+              <p className="mt-1">
+                {profile.agentStats.avgDaysToSellLabel === "No sales yet"
+                  ? "No sales yet"
+                  : `${profile.agentStats.avgDaysToSellLabel} avg days to sell`}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Link
+        href={`/users/${profile.username}/performance`}
+        className="flex h-11 items-center justify-between border-t border-border px-4 text-sm font-black text-primary transition-colors hover:bg-primary/5"
+      >
+        See performance breakdown
+        <ChevronRight className="size-4" />
+      </Link>
+    </div>
+  );
+}
+
 function AgentBrandCta() {
+  const { formatPriceLabel } = useCurrency();
+
   return (
     <section className="page-container pb-8">
       <div className="relative isolate overflow-hidden rounded-lg border border-primary/10 bg-[#f5f0ff] p-6 shadow-sm md:p-8 lg:grid lg:min-h-[360px] lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-10">
@@ -753,7 +955,9 @@ function AgentBrandCta() {
               <span className="rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">
                 For Sale
               </span>
-              <p className="mt-2 text-lg font-bold">R3,850,000</p>
+              <p className="mt-2 text-lg font-bold">
+                {formatPriceLabel("R3,850,000")}
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 3 Bed · 2 Bath · 180m2
               </p>
@@ -771,22 +975,29 @@ function AgentBrandCta() {
 
 function ProfileTabs({
   activeTab,
+  canViewSaved,
   isLocked,
   onTabChange,
 }: {
   activeTab: ProfileTab;
+  canViewSaved: boolean;
   isLocked: boolean;
   onTabChange: (tab: ProfileTab) => void;
 }) {
   const tabs = [
     { id: "reels", label: "Reels", icon: Clapperboard },
     { id: "listings", label: "Listings", icon: Home },
-    { id: "saved", label: "Saved", icon: Bookmark },
+    ...(canViewSaved ? [{ id: "saved", label: "Saved", icon: Bookmark }] : []),
   ];
 
   return (
     <div className="border-y border-border">
-      <div className="page-container grid grid-cols-3">
+      <div
+        className={cn(
+          "page-container grid",
+          canViewSaved ? "grid-cols-3" : "grid-cols-2",
+        )}
+      >
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -830,13 +1041,92 @@ function EmptyState({ title, description }: { title: string; description: string
   );
 }
 
+function listingTypeLabel(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function ProfileListingCard({ listing }: { listing: ProfileListing }) {
+  const { formatPriceCents } = useCurrency();
+  const price =
+    listing.askingPriceCents && listing.askingPriceCents > 0
+      ? formatPriceCents(listing.askingPriceCents)
+      : listing.priceLabel || "Price not set";
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+      <div className="relative aspect-[4/3] bg-muted">
+        {listing.coverImageUrl ? (
+          <Image
+            src={listing.coverImageUrl}
+            alt={listing.title}
+            fill
+            className="object-cover"
+          />
+        ) : (
+          <div className="grid size-full place-items-center text-muted-foreground">
+            <Home className="size-8" />
+          </div>
+        )}
+        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
+          {listingTypeLabel(listing.listingType)}
+        </span>
+        <span className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
+          {listing.status}
+        </span>
+      </div>
+      <div className="p-4">
+        <p className="text-xs font-black uppercase tracking-wide text-primary">
+          {listingTypeLabel(listing.propertyType)}
+        </p>
+        <h3 className="mt-1 line-clamp-2 text-lg font-black">{listing.title}</h3>
+        <p className="mt-1 line-clamp-2 text-sm font-bold text-muted-foreground">
+          {listing.location || "Location not set"}
+        </p>
+        <p className="mt-4 text-2xl font-black">{price}</p>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-black text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <BedDouble className="size-4" />
+            {listing.bedrooms || 0} beds
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Bath className="size-4" />
+            {listing.bathrooms || 0} baths
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Ruler className="size-4" />
+            {listing.floorSize || 0}m²
+          </span>
+        </div>
+        {listing.features.length ? (
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {listing.features.map((feature) => (
+              <span
+                key={feature}
+                className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-black text-primary"
+              >
+                #{feature.replace(/\s+/g, "")}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function ProfileTabPanel({
   activeTab,
+  listings,
   reels,
+  savedReels,
   username,
 }: {
   activeTab: ProfileTab;
+  listings: ProfileListing[];
   reels: ProfileReel[];
+  savedReels: ProfileReel[];
   username: string;
 }) {
   const [watchedReelIds, setWatchedReelIds] = useState<Set<string>>(
@@ -852,11 +1142,12 @@ function ProfileTabPanel({
       description: "Linked properties and active listings will appear here once published.",
     },
     saved: {
-      title: "No saved homes yet",
-      description: "Saved properties are private until we build the full saved homes experience.",
+      title: "No saved reels yet",
+      description: "Saved reels and homes this profile wants to revisit will appear here.",
     },
   };
   const emptyState = emptyStates[activeTab];
+  const visibleReels = activeTab === "saved" ? savedReels : reels;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -880,9 +1171,16 @@ function ProfileTabPanel({
 
   return (
     <section className="page-container py-8">
-      {activeTab === "reels" && reels.length ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {reels.map((reel) => (
+      {activeTab === "listings" && listings.length ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {listings.map((listing) => (
+            <ProfileListingCard key={listing.id} listing={listing} />
+          ))}
+        </div>
+      ) : null}
+      {(activeTab === "reels" || activeTab === "saved") && visibleReels.length ? (
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
+          {visibleReels.map((reel) => (
             <ProfileReelCard
               key={reel.id}
               reel={reel}
@@ -891,7 +1189,11 @@ function ProfileTabPanel({
             />
           ))}
         </div>
-      ) : (
+      ) : activeTab !== "listings" ? (
+        <div>
+          <EmptyState title={emptyState.title} description={emptyState.description} />
+        </div>
+      ) : listings.length ? null : (
         <div>
           <EmptyState title={emptyState.title} description={emptyState.description} />
         </div>
@@ -909,64 +1211,58 @@ function ProfileReelCard({
   username: string;
   watched: boolean;
 }) {
-  const badgeStyles: Record<ProfileReelStatus, string> = {
-    draft: "bg-amber-100 text-amber-700",
-    failed: "bg-red-100 text-red-700",
-    processing: "bg-violet-100 text-violet-700",
-    published: "bg-emerald-100 text-emerald-700",
-  };
-  const badgeLabel: Record<ProfileReelStatus, string> = {
-    draft: "Draft",
-    failed: "Failed",
-    processing: "Processing",
-    published: "Live",
-  };
   const href =
     reel.status === "published" ? `/users/${username}/reels` : reel.editHref;
 
   return (
     <Link
       href={href}
-      className="group relative isolate aspect-[9/16] overflow-hidden rounded-md bg-brand-midnight text-white shadow-sm"
+      className="group relative isolate aspect-[3/4] overflow-hidden rounded-md bg-brand-midnight text-white shadow-sm"
     >
       {reel.coverUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails are stored canvas data URLs or local media paths.
         <img
           alt=""
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="absolute inset-0 size-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
           src={reel.coverUrl}
         />
       ) : (
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(124,92,255,0.38),transparent_34%),linear-gradient(155deg,#111116,#050508)]" />
       )}
       <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/5 to-black/70" />
-      <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
-        {watched && reel.status === "published" ? (
-          <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] font-black uppercase text-white shadow-sm backdrop-blur">
+      {watched && reel.status === "published" ? (
+        <>
+          <div className="absolute inset-0 z-10 bg-black/35 backdrop-saturate-75" />
+          <span className="absolute left-2 top-2 z-20 rounded-full bg-black/55 px-2 py-1 text-[9px] font-black uppercase text-white shadow-sm backdrop-blur">
             Watched
           </span>
-        ) : null}
+        </>
+      ) : null}
+      {reel.status === "draft" ? (
+        <div className="absolute left-2 top-2 z-20 grid size-7 place-items-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur">
+          <Clock3 className="size-3.5" />
+        </div>
+      ) : null}
+      {reel.status === "processing" || reel.status === "failed" ? (
         <span
           className={cn(
-            "rounded-full px-2 py-1 text-[10px] font-black uppercase",
-            badgeStyles[reel.status],
+            "absolute left-2 top-2 z-20 rounded-full px-2 py-1 text-[9px] font-black uppercase shadow-sm backdrop-blur",
+            reel.status === "processing"
+              ? "bg-violet-100/95 text-violet-700"
+              : "bg-red-100/95 text-red-700",
           )}
         >
-          {badgeLabel[reel.status]}
+          {reel.status === "processing" ? "Processing" : "Failed"}
         </span>
-      </div>
-      <div className="absolute bottom-3 left-3 right-3">
-        <div className="flex items-center gap-1.5 text-xs font-black">
-          <Play className="size-3.5 fill-current" />
-          {reel.viewCountLabel} views
-          <span className="text-white/45">·</span>
+      ) : null}
+      <div className="absolute inset-x-2 bottom-2 z-20 flex items-end justify-between gap-2 text-[11px] font-black">
+        <span className="flex min-w-0 items-center gap-1 rounded-full bg-black/20 px-1.5 py-1 backdrop-blur-[1px]">
+          <PlayCircle className="size-3.5 shrink-0" />
+          {reel.viewCountLabel}
+        </span>
+        <span className="rounded-full bg-black/20 px-1.5 py-1 backdrop-blur-[1px]">
           {reel.durationLabel}
-        </div>
-        {reel.caption ? (
-          <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-white/85">
-            {reel.caption}
-          </p>
-        ) : null}
+        </span>
       </div>
     </Link>
   );
@@ -1133,7 +1429,16 @@ export function UserProfilePage({
 }: {
   profile: UserProfile;
 }) {
-  const [activeTab, setActiveTab] = useState<ProfileTab>("reels");
+  const [activeTab, setActiveTab] = useState<ProfileTab>(
+    profile.initialTab || "reels",
+  );
+  const canViewSaved = profile.isOwner || profile.hasActiveSubscription;
+
+  useEffect(() => {
+    if (activeTab === "saved" && !canViewSaved) {
+      setActiveTab("reels");
+    }
+  }, [activeTab, canViewSaved]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -1143,12 +1448,15 @@ export function UserProfilePage({
         {profile.isOwner && !profile.hasActiveSubscription ? <AgentBrandCta /> : null}
         <ProfileTabs
           activeTab={activeTab}
+          canViewSaved={canViewSaved}
           isLocked={profile.isOwner && !profile.hasActiveSubscription}
           onTabChange={setActiveTab}
         />
         <ProfileTabPanel
           activeTab={activeTab}
+          listings={profile.listings}
           reels={profile.reels}
+          savedReels={profile.savedReels}
           username={profile.username}
         />
       </main>

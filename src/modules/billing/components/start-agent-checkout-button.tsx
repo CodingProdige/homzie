@@ -12,6 +12,7 @@ import { BadgeCheck, Check, LockKeyhole, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useCurrency } from "@/modules/currency/currency-provider";
 import {
   startAgentSubscriptionCheckout,
   syncAgentSubscriptionStatus,
@@ -60,6 +61,7 @@ function StripePaymentForm({
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, startSubmitting] = useTransition();
+  const { formatPriceCents } = useCurrency();
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -124,7 +126,7 @@ function StripePaymentForm({
         <LockKeyhole className="size-5" />
         {isSubmitting
           ? "Confirming..."
-          : `Subscribe ${agentSubscriptionPlans[selectedPlan].amountLabel}${agentSubscriptionPlans[selectedPlan].intervalLabel}`}
+          : `Subscribe ${formatPriceCents(agentSubscriptionPlans[selectedPlan].amountCents)}${agentSubscriptionPlans[selectedPlan].intervalLabel}`}
       </Button>
     </form>
   );
@@ -136,6 +138,7 @@ export function StartAgentCheckoutButton() {
   const [checkout, setCheckout] = useState<StripeCheckout | null>(null);
   const [isPending, startTransition] = useTransition();
   const publishableKey = checkout?.publishableKey || "";
+  const { formatPriceCents } = useCurrency();
 
   const stripePromise = useMemo(() => {
     if (!publishableKey) {
@@ -176,6 +179,7 @@ export function StartAgentCheckoutButton() {
           const plan = agentSubscriptionPlans[interval];
           const card = planCards[interval];
           const isSelected = selectedPlan === interval;
+          const priceLabel = formatPriceCents(plan.amountCents);
 
           return (
             <button
@@ -200,7 +204,7 @@ export function StartAgentCheckoutButton() {
                     ) : null}
                   </span>
                   <span className="mt-2 block text-3xl font-bold tracking-tight text-foreground">
-                    {plan.amountLabel}
+                    {priceLabel}
                     <span className="ml-1 text-sm font-semibold text-muted-foreground">
                       {plan.intervalLabel}
                     </span>
@@ -223,7 +227,7 @@ export function StartAgentCheckoutButton() {
               {interval === "year" ? (
                 <span className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-primary">
                   <BadgeCheck className="size-3.5" />
-                  Save R189 compared to monthly
+                  Save {formatPriceCents(18900)} compared to monthly
                 </span>
               ) : null}
             </button>
@@ -240,7 +244,7 @@ export function StartAgentCheckoutButton() {
         <LockKeyhole className="size-5" />
         {isPending
           ? "Starting checkout..."
-          : `Start for ${agentSubscriptionPlans[selectedPlan].amountLabel}${agentSubscriptionPlans[selectedPlan].intervalLabel}`}
+          : `Start for ${formatPriceCents(agentSubscriptionPlans[selectedPlan].amountCents)}${agentSubscriptionPlans[selectedPlan].intervalLabel}`}
       </Button>
       {error ? (
         <p className="max-w-xl rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">

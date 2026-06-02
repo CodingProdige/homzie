@@ -18,6 +18,8 @@ import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { StartAgentCheckoutButton } from "@/modules/billing/components/start-agent-checkout-button";
 import { agentSubscriptionPrice } from "@/modules/billing/stripe";
+import { CurrencyAmount } from "@/modules/currency/currency-amount";
+import { CurrencySelector } from "@/modules/currency/currency-selector";
 
 const features = [
   {
@@ -75,7 +77,10 @@ export default async function BecomeAgentPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_92%,rgba(255,159,28,0.95),transparent_20%),radial-gradient(circle_at_78%_72%,rgba(255,77,184,0.75),transparent_28%),radial-gradient(circle_at_12%_88%,rgba(78,42,255,0.5),transparent_34%),linear-gradient(135deg,#040512_0%,#080720_48%,#130827_100%)]" />
         <div className="absolute inset-0 bg-black/15" />
 
-        <BackButton className="fixed left-5 top-5 z-30 rounded-full bg-white/10 px-4 py-2 text-white/85 backdrop-blur-md hover:bg-white/15 hover:text-white sm:left-8 sm:top-8" />
+        <div className="fixed left-5 right-5 top-5 z-30 flex items-center justify-between gap-4 sm:left-8 sm:right-8 sm:top-8">
+          <BackButton className="rounded-full bg-white/10 px-4 py-2 text-white/85 backdrop-blur-md hover:bg-white/15 hover:text-white" />
+          <CurrencySelector className="border-white/15 bg-white/10 text-white backdrop-blur-md" />
+        </div>
 
         <div className="relative z-10 flex min-h-screen min-w-0 flex-col px-5 pb-8 pt-20 sm:px-12 sm:pt-24 lg:px-12 lg:pb-8 xl:px-16">
           <div className="mt-12 max-w-xl min-w-0 lg:mt-16">
@@ -91,7 +96,9 @@ export default async function BecomeAgentPage() {
               <span className="block">portfolio.</span>
             </h1>
             <p className="mt-5 max-w-lg break-words text-sm leading-7 text-white/78 sm:text-base">
-              Agents pay {agentSubscriptionPrice.amountLabel}/month to publish
+              Agents pay{" "}
+              <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
+              /month to publish
               listings, post reels, link videos to properties, capture leads,
               and build visibility on Homzie.
             </p>
@@ -141,7 +148,7 @@ export default async function BecomeAgentPage() {
                     <p className="text-sm font-bold text-primary">Agent plan</p>
                     <div className="mt-4 flex items-end gap-2">
                       <span className="text-5xl font-bold tracking-tight sm:text-6xl">
-                        {agentSubscriptionPrice.amountLabel}
+                        <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
                       </span>
                       <span className="pb-2 text-base font-medium text-muted-foreground">
                         /month

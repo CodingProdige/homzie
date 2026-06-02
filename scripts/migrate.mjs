@@ -177,6 +177,278 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS property_identities (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      normalized_address text,
+      google_place_id text,
+      country text,
+      city text,
+      suburb text,
+      property_type text,
+      bedrooms integer,
+      bathrooms integer,
+      size_square_meters integer,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS property_identities_google_place_id_idx
+    ON property_identities (google_place_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_identities_location_idx
+    ON property_identities (country, city, suburb)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_identities_normalized_address_idx
+    ON property_identities (normalized_address)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_listings (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      agent_profile_id uuid REFERENCES agent_profiles(id) ON DELETE SET NULL,
+      property_identity_id uuid REFERENCES property_identities(id) ON DELETE SET NULL,
+      listing_type text NOT NULL DEFAULT 'sale',
+      property_type text NOT NULL DEFAULT 'free_standing_house',
+      title text NOT NULL,
+      description text,
+      location text,
+      price_label text,
+      asking_price_cents integer,
+      sold_price_cents integer,
+      cover_image_url text,
+      media jsonb,
+      details jsonb,
+      features jsonb,
+      mandate_type text NOT NULL DEFAULT 'open',
+      mandate_start_date timestamptz,
+      mandate_end_date timestamptz,
+      status text NOT NULL DEFAULT 'draft',
+      proof_status text NOT NULL DEFAULT 'not_required',
+      listed_at timestamptz NOT NULL DEFAULT now(),
+      outcome_at timestamptz,
+      sold_at timestamptz,
+      locked_at timestamptz,
+      archived_at timestamptz,
+      proof_requested_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS property_identity_id uuid REFERENCES property_identities(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS listing_type text NOT NULL DEFAULT 'sale'
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS property_type text NOT NULL DEFAULT 'free_standing_house'
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS description text
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS asking_price_cents integer
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS sold_price_cents integer
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS media jsonb
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS details jsonb
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS features jsonb
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS mandate_type text NOT NULL DEFAULT 'open'
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS mandate_start_date timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS mandate_end_date timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS proof_status text NOT NULL DEFAULT 'not_required'
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS listed_at timestamptz NOT NULL DEFAULT now()
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS outcome_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS sold_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS locked_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS archived_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS proof_requested_at timestamptz
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_user_id_idx
+    ON property_listings (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_agent_profile_id_idx
+    ON property_listings (agent_profile_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_property_identity_id_idx
+    ON property_listings (property_identity_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_status_idx
+    ON property_listings (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_outcome_at_idx
+    ON property_listings (outcome_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_sold_at_idx
+    ON property_listings (sold_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_sale_claims (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      property_identity_id uuid REFERENCES property_identities(id) ON DELETE SET NULL,
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      outcome_type text NOT NULL DEFAULT 'sold_by_agent',
+      claim_status text NOT NULL DEFAULT 'pending',
+      proof_status text NOT NULL DEFAULT 'pending',
+      proof_summary text,
+      sold_price_cents integer,
+      sold_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS property_sale_claims_listing_id_idx
+    ON property_sale_claims (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_sale_claims_property_identity_id_idx
+    ON property_sale_claims (property_identity_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_sale_claims_user_id_idx
+    ON property_sale_claims (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_sale_claims_claim_status_idx
+    ON property_sale_claims (claim_status)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_sale_disputes (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      property_identity_id uuid REFERENCES property_identities(id) ON DELETE SET NULL,
+      status text NOT NULL DEFAULT 'pending',
+      reason text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      resolved_at timestamptz,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_sale_disputes_property_identity_id_idx
+    ON property_sale_disputes (property_identity_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_sale_disputes_status_idx
+    ON property_sale_disputes (status)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_listing_status_history (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      from_status text,
+      to_status text NOT NULL,
+      reason text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listing_status_history_listing_id_idx
+    ON property_listing_status_history (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listing_status_history_user_id_idx
+    ON property_listing_status_history (user_id)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS reels (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -185,6 +457,7 @@ try {
       video_path text NOT NULL,
       caption text,
       hashtags text,
+      listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
       listing_reference text,
       sound_id text NOT NULL DEFAULT 'original',
       trim_start_seconds integer NOT NULL DEFAULT 0,
@@ -207,6 +480,11 @@ try {
   `;
 
   await sql`
+    ALTER TABLE reels
+    ADD COLUMN IF NOT EXISTS listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL
+  `;
+
+  await sql`
     CREATE INDEX IF NOT EXISTS reels_user_id_idx ON reels (user_id)
   `;
 
@@ -216,6 +494,218 @@ try {
 
   await sql`
     CREATE INDEX IF NOT EXISTS reels_status_idx ON reels (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reels_listing_id_idx ON reels (listing_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_watch_sessions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      source text NOT NULL DEFAULT 'feed',
+      last_progress_seconds integer NOT NULL DEFAULT 0,
+      max_progress_seconds integer NOT NULL DEFAULT 0,
+      duration_seconds integer NOT NULL DEFAULT 0,
+      max_progress_percent integer NOT NULL DEFAULT 0,
+      total_watch_seconds integer NOT NULL DEFAULT 0,
+      completed boolean NOT NULL DEFAULT false,
+      last_watched_at timestamptz NOT NULL DEFAULT now(),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS reel_watch_sessions_reel_session_unique
+    ON reel_watch_sessions (reel_id, viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_watch_sessions_reel_id_idx
+    ON reel_watch_sessions (reel_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_watch_sessions_viewer_user_id_idx
+    ON reel_watch_sessions (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_watch_sessions_last_watched_at_idx
+    ON reel_watch_sessions (last_watched_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_watch_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      event_type text NOT NULL,
+      source text NOT NULL DEFAULT 'feed',
+      progress_seconds integer NOT NULL DEFAULT 0,
+      duration_seconds integer NOT NULL DEFAULT 0,
+      progress_percent integer NOT NULL DEFAULT 0,
+      watch_seconds integer NOT NULL DEFAULT 0,
+      completed boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_watch_events_reel_id_idx
+    ON reel_watch_events (reel_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_watch_events_viewer_user_id_idx
+    ON reel_watch_events (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_watch_events_viewer_session_id_idx
+    ON reel_watch_events (viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_watch_events_created_at_idx
+    ON reel_watch_events (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_follows (
+      follower_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      following_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (follower_id, following_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_follows_follower_id_idx
+    ON user_follows (follower_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_follows_following_id_idx
+    ON user_follows (following_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_likes (
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (reel_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_likes_user_id_idx
+    ON reel_likes (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_saves (
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (reel_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_saves_user_id_idx
+    ON reel_saves (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_reshares (
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (reel_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_reshares_reel_id_idx
+    ON reel_reshares (reel_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_reshares_user_id_idx
+    ON reel_reshares (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_reshares_created_at_idx
+    ON reel_reshares (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_comments (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      parent_id uuid REFERENCES reel_comments(id) ON DELETE CASCADE,
+      body text NOT NULL,
+      media_url text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_comments_reel_id_idx
+    ON reel_comments (reel_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_comments_parent_id_idx
+    ON reel_comments (parent_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_comments_user_id_idx
+    ON reel_comments (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_comments_created_at_idx
+    ON reel_comments (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_comment_likes (
+      comment_id uuid NOT NULL REFERENCES reel_comments(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (comment_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_comment_likes_user_id_idx
+    ON reel_comment_likes (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reel_comment_dislikes (
+      comment_id uuid NOT NULL REFERENCES reel_comments(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (comment_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_comment_dislikes_user_id_idx
+    ON reel_comment_dislikes (user_id)
   `;
 
   await sql`

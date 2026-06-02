@@ -31,7 +31,8 @@ import {
   cancelAgentSubscription,
   openBillingPortal,
 } from "@/modules/billing/portal-actions";
-import { getStripe } from "@/modules/billing/stripe";
+import { agentSubscriptionPrice, getStripe } from "@/modules/billing/stripe";
+import { CurrencyAmount } from "@/modules/currency/currency-amount";
 
 type BillingInvoice = {
   id: string;
@@ -308,7 +309,13 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">Amount</p>
-              <p className="text-xl font-bold">{billing?.price || "R99.00 / month"}</p>
+              <p className="text-xl font-bold">
+                {billing?.price || (
+                  <>
+                    <CurrencyAmount cents={agentSubscriptionPrice.amountCents} /> / month
+                  </>
+                )}
+              </p>
             </div>
           </div>
         </div>
@@ -417,25 +424,32 @@ function InvoiceHistory({ invoices }: { invoices: BillingInvoice[] }) {
 
 function SubscriptionDetails({ billing }: { billing: BillingData | null }) {
   const rows = [
-    ["Plan", billing?.planName || "No active plan"],
-    ["Billing cycle", billing?.cycle || "Monthly"],
-    ["Price", billing?.price || "R99.00 / month"],
-    ["Next billing date", billing?.nextBillingDate || "Not available"],
-    [
-      "Payment method",
-      billing?.card ? `•••• ${billing.card.last4}` : "Not added",
-    ],
-    ["Started on", billing?.startedOn || "Not available"],
+    { label: "Plan", value: billing?.planName || "No active plan" },
+    { label: "Billing cycle", value: billing?.cycle || "Monthly" },
+    {
+      label: "Price",
+      value: billing?.price || (
+        <>
+          <CurrencyAmount cents={agentSubscriptionPrice.amountCents} /> / month
+        </>
+      ),
+    },
+    { label: "Next billing date", value: billing?.nextBillingDate || "Not available" },
+    {
+      label: "Payment method",
+      value: billing?.card ? `•••• ${billing.card.last4}` : "Not added",
+    },
+    { label: "Started on", value: billing?.startedOn || "Not available" },
   ];
 
   return (
     <section className="rounded-lg border bg-card p-6 shadow-sm lg:p-8">
       <h2 className="font-bold">Subscription details</h2>
       <div className="mt-7 space-y-5">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between gap-4 text-sm">
-            <span>{label}</span>
-            <span className="text-right font-medium text-foreground">{value}</span>
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-4 text-sm">
+            <span>{row.label}</span>
+            <span className="text-right font-medium text-foreground">{row.value}</span>
           </div>
         ))}
       </div>
@@ -475,7 +489,8 @@ function CompactAgentUpgradeCta() {
         <Button asChild className="h-11 px-6">
           <Link href="/become-agent">
             <TrendingUp className="size-4" />
-            Start for R99/month
+            Start for <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
+            /month
           </Link>
         </Button>
       </div>

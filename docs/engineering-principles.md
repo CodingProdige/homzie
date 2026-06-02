@@ -80,6 +80,10 @@ Use Homzie domain language:
 - boosts
 - subscriptions
 
+Agent profiles are also reputation surfaces. Listing outcomes, verified sales, conversion rate, mandate history, and disputed sale claims should be treated as long-lived reputation data, not disposable listing metadata. Published listings should not be hard-deleted through normal product flows; they should move through lifecycle states such as active, under offer, sold, sold externally, withdrawn, expired, disputed, or archived.
+
+Once a listing reaches an outcome state, core facts must be locked or treated as historical evidence: property identity, location/address, asking price, mandate type, listed date, outcome status, sold date, and sale price. If two agents claim the same underlying property sale, both claims should stop counting toward public success stats until proof is reviewed and the correct outcome is verified. Reels linked to unavailable or sold listings should not pretend the property is still active.
+
 ## 4. Discovery-First UX
 
 Homzie combines search, social discovery, and creator-led browsing.
@@ -152,6 +156,8 @@ Keep Client Components small and purposeful. Data loading, permission checks, an
 Use Server Actions for standard forms.
 
 Do not create custom Route Handlers or API endpoints for ordinary app queries or mutations. Homzie should avoid middleman calls that add latency, duplicate validation, or split business rules across multiple surfaces. Keep normal database reads in Server Components and normal writes in Server Actions so the UI gets the shortest practical path to server-side logic.
+
+API routes are not the default backend abstraction in Homzie. Unless something absolutely requires an HTTP API, do not create one. Simple backend calls, product mutations, analytics writes, settings updates, profile edits, dashboard actions, and internal app workflows should use Server Components, Server Actions, or server-side module functions with direct database access. If an API route is introduced, the implementer must be able to point to the protocol or integration requirement that makes it necessary.
 
 Use Route Handlers for:
 
