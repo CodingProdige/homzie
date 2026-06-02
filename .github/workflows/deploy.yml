@@ -22,7 +22,9 @@ jobs:
         run: npm run lint
 
       - name: Build
-        run: npm run build
+        env:
+          HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
+        run: node --env-file="$HOMZIE_ENV_FILE" ./node_modules/next/dist/bin/next build
 
       - name: Migrate database
         env:

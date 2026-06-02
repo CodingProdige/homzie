@@ -1,3 +1,12 @@
+x-homzie-build-args: &homzie-build-args
+  APP_URL: ${APP_URL:-}
+  AUTH_SECRET: ${AUTH_SECRET:-}
+  AUTH_URL: ${AUTH_URL:-}
+  DATABASE_URL: ${DATABASE_URL}
+  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+  NEXTAUTH_URL: ${NEXTAUTH_URL:-}
+
 services:
   postgres:
     image: postgres:16
@@ -25,6 +34,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args: *homzie-build-args
     restart: unless-stopped
     env_file:
       - ${HOMZIE_ENV_FILE:-/mnt/c/Homzie/config/homzie.env}
@@ -57,6 +67,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: worker
+      args: *homzie-build-args
     restart: unless-stopped
     env_file:
       - ${HOMZIE_ENV_FILE:-/mnt/c/Homzie/config/homzie.env}
