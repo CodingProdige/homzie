@@ -27,6 +27,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Check deploy build environment
+        env:
+          HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
+        run: |
+          node --version
+          test -f "$HOMZIE_ENV_FILE"
+          node --env-file="$HOMZIE_ENV_FILE" -e "console.log('DATABASE_URL loaded:', Boolean(process.env.DATABASE_URL)); console.log('APP_URL loaded:', Boolean(process.env.APP_URL || process.env.AUTH_URL));"
+
       - name: Build
         env:
           HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
