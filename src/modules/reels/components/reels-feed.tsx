@@ -19,7 +19,6 @@ import {
   Smile,
   ThumbsDown,
   Trash2,
-  Upload,
   X,
   AtSign,
   Volume2,

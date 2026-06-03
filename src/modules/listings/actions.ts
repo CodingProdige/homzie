@@ -10,7 +10,6 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import {
-  agentProfiles,
   propertyIdentities,
   propertyListingStatusHistory,
   propertyListings,
@@ -25,7 +24,6 @@ import {
   recordHashtagUsage,
 } from "@/modules/hashtags/server";
 import {
-  featureOptions,
   listingTypeOptions,
   mandateTypeOptions,
   propertyTypeOptions,
@@ -60,7 +58,6 @@ const mandateTypeValues = mandateTypeOptions.map((option) => option.value) as [
   string,
   ...string[],
 ];
-const featureValues = featureOptions as readonly string[];
 const completedListingStatuses = new Set([
   "sold",
   "sold_externally",
