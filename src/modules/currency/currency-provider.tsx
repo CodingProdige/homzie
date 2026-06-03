@@ -144,60 +144,67 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [isUsingFallbackRates, setIsUsingFallbackRates] = useState(true);
 
   useEffect(() => {
-    setCurrencyState(readStoredCurrency());
-
-    const storedRates = readStoredRates();
-
-    if (storedRates) {
-      setRates(storedRates.rates);
-      setRatesUpdatedAt(new Date(storedRates.ratesUpdatedAt || storedRates.fetchedAt));
-      setIsUsingFallbackRates(false);
-    }
-
-    const shouldRefresh =
-      !storedRates || Date.now() - storedRates.fetchedAt > ONE_DAY_MS;
-
-    if (!shouldRefresh) return;
-
     const controller = new AbortController();
-    const targetCurrencies = supportedCurrencies
-      .filter((supportedCurrency) => supportedCurrency.code !== "ZAR")
-      .map((supportedCurrency) => supportedCurrency.code)
-      .join(",");
+    const timeout = window.setTimeout(() => {
+      setCurrencyState(readStoredCurrency());
 
-    fetch(`https://api.frankfurter.dev/v2/rates?base=ZAR&quotes=${targetCurrencies}`, {
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: unknown) => {
-        if (!payload || typeof payload !== "object") {
-          return;
-        }
+      const storedRates = readStoredRates();
 
-        const rawRates = Array.isArray(payload)
-          ? payload
-          : (payload as { rates?: unknown }).rates;
-        const nextRates = mergeRates(rawRates);
-        const fetchedAt = Date.now();
-        const ratesDate = dateFromApiDate(readRatesDate(payload), fetchedAt);
-
-        setRates(nextRates);
-        setRatesUpdatedAt(ratesDate);
-        setIsUsingFallbackRates(false);
-        window.localStorage.setItem(
-          CURRENCY_RATES_STORAGE_KEY,
-          JSON.stringify({
-            fetchedAt,
-            rates: nextRates,
-            ratesUpdatedAt: ratesDate.getTime(),
-          }),
+      if (storedRates) {
+        setRates(storedRates.rates);
+        setRatesUpdatedAt(
+          new Date(storedRates.ratesUpdatedAt || storedRates.fetchedAt),
         );
-      })
-      .catch(() => {
-        setIsUsingFallbackRates(!storedRates);
-      });
+        setIsUsingFallbackRates(false);
+      }
 
-    return () => controller.abort();
+      const shouldRefresh =
+        !storedRates || Date.now() - storedRates.fetchedAt > ONE_DAY_MS;
+
+      if (!shouldRefresh) return;
+
+      const targetCurrencies = supportedCurrencies
+        .filter((supportedCurrency) => supportedCurrency.code !== "ZAR")
+        .map((supportedCurrency) => supportedCurrency.code)
+        .join(",");
+
+      fetch(`https://api.frankfurter.dev/v2/rates?base=ZAR&quotes=${targetCurrencies}`, {
+        signal: controller.signal,
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: unknown) => {
+          if (!payload || typeof payload !== "object") {
+            return;
+          }
+
+          const rawRates = Array.isArray(payload)
+            ? payload
+            : (payload as { rates?: unknown }).rates;
+          const nextRates = mergeRates(rawRates);
+          const fetchedAt = Date.now();
+          const ratesDate = dateFromApiDate(readRatesDate(payload), fetchedAt);
+
+          setRates(nextRates);
+          setRatesUpdatedAt(ratesDate);
+          setIsUsingFallbackRates(false);
+          window.localStorage.setItem(
+            CURRENCY_RATES_STORAGE_KEY,
+            JSON.stringify({
+              fetchedAt,
+              rates: nextRates,
+              ratesUpdatedAt: ratesDate.getTime(),
+            }),
+          );
+        })
+        .catch(() => {
+          setIsUsingFallbackRates(!storedRates);
+        });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, []);
 
   const setCurrency = (nextCurrency: SupportedCurrency) => {

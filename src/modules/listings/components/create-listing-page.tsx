@@ -1435,56 +1435,59 @@ function LocationStep({
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    if (query.trim().length < 2) {
-      setPredictions([]);
-      return;
-    }
-
     let isCurrent = true;
-    setIsSearching(true);
-    setPlacesError(null);
+    const timeout = window.setTimeout(() => {
+      if (query.trim().length < 2) {
+        setPredictions([]);
+        return;
+      }
 
-    void loadGooglePlaces()
-      .then(() => {
-        const places = (window as GoogleWindow).google?.maps?.places;
+      setIsSearching(true);
+      setPlacesError(null);
 
-        if (!places) {
-          throw new Error("Google Places is not available.");
-        }
+      void loadGooglePlaces()
+        .then(() => {
+          const places = (window as GoogleWindow).google?.maps?.places;
 
-        const service = new places.AutocompleteService();
-        const sessionToken = new places.AutocompleteSessionToken();
+          if (!places) {
+            throw new Error("Google Places is not available.");
+          }
 
-        service.getPlacePredictions(
-          {
-            input: query,
-            sessionToken,
-          },
-          (results, status) => {
-            if (!isCurrent) return;
+          const service = new places.AutocompleteService();
+          const sessionToken = new places.AutocompleteSessionToken();
 
-            if (status !== places.PlacesServiceStatus.OK || !results?.length) {
-              setPredictions([]);
+          service.getPlacePredictions(
+            {
+              input: query,
+              sessionToken,
+            },
+            (results, status) => {
+              if (!isCurrent) return;
+
+              if (status !== places.PlacesServiceStatus.OK || !results?.length) {
+                setPredictions([]);
+                setIsSearching(false);
+                return;
+              }
+
+              setPredictions(results.slice(0, 6));
               setIsSearching(false);
-              return;
-            }
+            },
+          );
+        })
+        .catch((error: unknown) => {
+          if (!isCurrent) return;
 
-            setPredictions(results.slice(0, 6));
-            setIsSearching(false);
-          },
-        );
-      })
-      .catch((error: unknown) => {
-        if (!isCurrent) return;
-
-        setPlacesError(
-          error instanceof Error ? error.message : "Google Places is unavailable.",
-        );
-        setIsSearching(false);
-      });
+          setPlacesError(
+            error instanceof Error ? error.message : "Google Places is unavailable.",
+          );
+          setIsSearching(false);
+        });
+    }, 0);
 
     return () => {
       isCurrent = false;
+      window.clearTimeout(timeout);
     };
   }, [query]);
 

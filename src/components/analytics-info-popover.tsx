@@ -22,7 +22,9 @@ export function AnalyticsInfoPopover({
   const popoverRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    setMounted(true);
+    const timeout = window.setTimeout(() => setMounted(true), 0);
+
+    return () => window.clearTimeout(timeout);
   }, []);
 
   useEffect(() => {

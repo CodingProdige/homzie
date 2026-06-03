@@ -252,8 +252,8 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
     setIsPlaying(false);
   };
 
-  const handleVideoTap = () => {
-    const now = Date.now();
+  const handleVideoTap = (event: { timeStamp: number }) => {
+    const now = event.timeStamp;
     const isDoubleTap = now - lastTapRef.current < 280;
 
     lastTapRef.current = now;
@@ -946,30 +946,32 @@ function ListingLinkSheet({
     if (!open) return;
 
     let isActive = true;
+    const timeout = window.setTimeout(() => {
+      setError("");
+      setIsLoading(true);
+      void getReelOwnerListings(reel.id)
+        .then((result) => {
+          if (!isActive) return;
 
-    setError("");
-    setIsLoading(true);
-    void getReelOwnerListings(reel.id)
-      .then((result) => {
-        if (!isActive) return;
+          if (!result.ok) {
+            setError(result.error || "We could not load your listings.");
+            setListings([]);
+            return;
+          }
 
-        if (!result.ok) {
-          setError(result.error || "We could not load your listings.");
-          setListings([]);
-          return;
-        }
-
-        setListings(result.listings);
-        onLinkedListingChange(result.linkedListingId);
-      })
-      .finally(() => {
-        if (isActive) {
-          setIsLoading(false);
-        }
-      });
+          setListings(result.listings);
+          onLinkedListingChange(result.linkedListingId);
+        })
+        .finally(() => {
+          if (isActive) {
+            setIsLoading(false);
+          }
+        });
+    }, 0);
 
     return () => {
       isActive = false;
+      window.clearTimeout(timeout);
     };
   }, [onLinkedListingChange, open, reel.id]);
 
@@ -1258,7 +1260,6 @@ function CommentsSheet({
   const [gifQuery, setGifQuery] = useState("");
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [recentGifs, setRecentGifs] = useState<{ label: string; url: string }[]>([]);
-  const [mentionQuery, setMentionQuery] = useState("");
   const [mentionSuggestions, setMentionSuggestions] = useState<
     { name: string; username: string | null; avatarUrl: string | null }[]
   >([]);
@@ -1328,21 +1329,28 @@ function CommentsSheet({
       gif.tags.toLowerCase().includes(query)
     );
   });
+  const mentionQuery = useMemo(() => {
+    const match = body.match(/@([a-z0-9_]{1,24})$/i);
+
+    return match?.[1] || "";
+  }, [body]);
 
   useEffect(() => {
     if (!open) return;
 
-    try {
-      setRecentEmojis(
-        JSON.parse(window.localStorage.getItem("homzie-recent-emojis") || "[]"),
-      );
-      setRecentGifs(
-        JSON.parse(window.localStorage.getItem("homzie-recent-gifs") || "[]"),
-      );
-    } catch {
-      setRecentEmojis([]);
-      setRecentGifs([]);
-    }
+    const timeout = window.setTimeout(() => {
+      try {
+        setRecentEmojis(
+          JSON.parse(window.localStorage.getItem("homzie-recent-emojis") || "[]"),
+        );
+        setRecentGifs(
+          JSON.parse(window.localStorage.getItem("homzie-recent-gifs") || "[]"),
+        );
+      } catch {
+        setRecentEmojis([]);
+        setRecentGifs([]);
+      }
+    }, 0);
 
     void getReelComments(reel.id).then((result) => {
       if (!result.ok) return;
@@ -1350,24 +1358,22 @@ function CommentsSheet({
       setComments(result.comments);
       onCommentCountChange(formatCommentCount(result.count));
     });
+
+    return () => window.clearTimeout(timeout);
   }, [open, reel.id, onCommentCountChange]);
 
   useEffect(() => {
-    const match = body.match(/@([a-z0-9_]{1,24})$/i);
-    const query = match?.[1] || "";
-    setMentionQuery(query);
-
-    if (!query) {
-      setMentionSuggestions([]);
-      return;
-    }
-
     const timeout = window.setTimeout(() => {
-      void getReelMentionSuggestions(query).then(setMentionSuggestions);
-    }, 180);
+      if (!mentionQuery) {
+        setMentionSuggestions([]);
+        return;
+      }
+
+      void getReelMentionSuggestions(mentionQuery).then(setMentionSuggestions);
+    }, mentionQuery ? 180 : 0);
 
     return () => window.clearTimeout(timeout);
-  }, [body]);
+  }, [mentionQuery]);
 
   const rootComments = comments.filter((comment) => !comment.parentId);
   const repliesByParent = new Map<string, ReelCommentItem[]>();

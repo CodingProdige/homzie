@@ -1436,7 +1436,9 @@ export function UserProfilePage({
 
   useEffect(() => {
     if (activeTab === "saved" && !canViewSaved) {
-      setActiveTab("reels");
+      const timeout = window.setTimeout(() => setActiveTab("reels"), 0);
+
+      return () => window.clearTimeout(timeout);
     }
   }, [activeTab, canViewSaved]);
 
