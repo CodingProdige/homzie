@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { eq } from "drizzle-orm";
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { BackButton } from "@/components/back-button";
+import { HomzieLogo } from "@/components/homzie-logo";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { hasActiveAgentSubscription } from "@/modules/agents/queries";
@@ -129,14 +129,7 @@ export default async function BecomeAgentPage() {
           </div>
 
           <div className="mt-auto hidden pt-8 lg:block">
-            <Image
-              src="/logo/homzie-logo-dark.png"
-              alt="Homzie"
-              width={170}
-              height={62}
-              className="h-11 w-auto brightness-0 invert"
-              priority
-            />
+            <HomzieLogo className="h-11 brightness-0 invert" priority />
           </div>
         </div>
 

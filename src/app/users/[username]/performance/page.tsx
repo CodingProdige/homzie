@@ -100,6 +100,73 @@ function getPercent(value: number, total: number) {
   return Math.max(4, Math.round((value / total) * 100));
 }
 
+const mobilePerformanceItems = [
+  {
+    description: "Win rate, sales count, total value, and proof-backed sales.",
+    href: "#summary",
+    icon: Trophy,
+    label: "Summary",
+  },
+  {
+    description: "Completed outcomes split by wins, losses, disputes, and more.",
+    href: "#outcomes",
+    icon: ChartPie,
+    label: "Outcomes",
+  },
+  {
+    description: "Recorded sold value over the selected period.",
+    href: "#trend",
+    icon: CircleDollarSign,
+    label: "Value trend",
+  },
+  {
+    description: "The property sale records behind this performance profile.",
+    href: "#sold-properties",
+    icon: ReceiptText,
+    label: "Sold properties",
+  },
+  {
+    description: "How Homzie protects outcomes from deletion and disputes.",
+    href: "#proof",
+    icon: ShieldCheck,
+    label: "Proof system",
+  },
+];
+
+function MobilePerformanceMenu() {
+  return (
+    <section className="mt-6 space-y-3 sm:hidden">
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
+        Performance tools
+      </p>
+      <div className="space-y-2.5">
+        {mobilePerformanceItems.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-white p-3 text-left shadow-sm transition-colors hover:border-primary/40"
+            >
+              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black">{item.label}</span>
+                <span className="mt-0.5 block text-xs font-semibold leading-5 text-muted-foreground">
+                  {item.description}
+                </span>
+              </span>
+              <span className="text-lg font-bold text-muted-foreground">›</span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function rangeStartDate(range: AgentPerformanceRange) {
   const now = new Date();
 
@@ -259,8 +326,11 @@ export default async function AgentPerformancePage({
   if (!hasSubscription) {
     return (
       <main className={pageClassName}>
-        <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 py-6 sm:px-8">
-          <PageTopBar actions={<CurrencySelector />} />
+        <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-6 pt-20 sm:px-8 sm:pb-8">
+          <PageTopBar
+            actions={<CurrencySelector />}
+            className="fixed inset-x-0 top-0 z-50 mx-auto max-w-3xl px-5 sm:px-8"
+          />
           <section className="my-auto rounded-lg border border-primary/10 bg-white p-6 text-center shadow-sm sm:p-10">
             <div className="mx-auto grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
               <LockKeyhole className="size-7" />
@@ -385,27 +455,34 @@ export default async function AgentPerformancePage({
 
   return (
     <main className={pageClassName}>
-      <div className="relative z-10 mx-auto w-full max-w-[1160px] px-5 py-6 sm:px-8 sm:py-9">
-        <PageTopBar
-          actions={
-            <>
-              <PerformanceRangeSelector
-                currentRange={range}
-                username={profile.username}
-              />
-              <CurrencySelector />
-            </>
-          }
-        />
+      <div className="relative z-10 mx-auto w-full max-w-[1160px] px-5 pb-6 pt-20 sm:px-8 sm:pb-9">
+        <PageTopBar className="fixed inset-x-0 top-0 z-50 mx-auto max-w-[1160px] px-5 sm:px-8" />
 
-        <section className="mt-8 grid grid-cols-[4rem_minmax(0,1fr)] gap-x-4 gap-y-5 sm:grid-cols-[5rem_minmax(0,1fr)]">
-          <div className="col-start-1 row-start-1">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 sm:hidden">
+          <PerformanceRangeSelector
+            currentRange={range}
+            username={profile.username}
+          />
+          <CurrencySelector />
+        </div>
+
+        <div className="mt-5 hidden items-center justify-end gap-3 sm:flex">
+          <PerformanceRangeSelector
+            currentRange={range}
+            username={profile.username}
+          />
+          <CurrencySelector />
+        </div>
+
+        <section className="mt-7 grid justify-items-center gap-y-4 text-center sm:mt-8 sm:grid-cols-[5rem_minmax(0,1fr)] sm:justify-items-start sm:gap-x-4 sm:gap-y-5 sm:text-left">
+          <div className="sm:col-start-1 sm:row-start-1">
             <PerformanceAvatar avatarUrl={profile.avatarUrl} name={profile.name} />
           </div>
-          <div className="col-start-2 min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-2xl font-black leading-tight tracking-tight sm:text-3xl">
-                {profile.name} performance
+          <div className="min-w-0 sm:col-start-2">
+            <div className="flex min-w-0 items-center justify-center gap-2 sm:justify-start">
+              <h1 className="min-w-0 text-2xl font-black leading-tight tracking-tight sm:truncate sm:text-3xl">
+                <span className="sm:hidden">{profile.name}</span>
+                <span className="hidden sm:inline">{profile.name} performance</span>
               </h1>
               <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20">
                 <BadgeCheck className="size-3.5" />
@@ -413,18 +490,18 @@ export default async function AgentPerformancePage({
             </div>
             <Link
               href={`/users/${profile.username}`}
-              className="mt-1 inline-flex max-w-full text-sm font-bold text-muted-foreground transition-colors hover:text-primary"
+              className="mt-1 inline-flex max-w-full justify-center text-sm font-bold text-muted-foreground transition-colors hover:text-primary sm:justify-start"
             >
               <span className="truncate">@{profile.username}</span>
             </Link>
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-5 text-muted-foreground sm:mx-0 sm:max-w-2xl sm:leading-6">
               A verified view of sales outcomes, mandate history, and proof-backed
               performance for this Homzie Agent profile.
             </p>
           </div>
 
-          <div className="col-start-2 flex flex-wrap items-center gap-3">
-            <Button asChild variant="outline">
+          <div className="grid w-full max-w-xs grid-cols-2 gap-2 sm:col-start-2 sm:flex sm:max-w-none sm:flex-wrap sm:items-center sm:gap-3">
+            <Button asChild variant="outline" className="min-w-0">
               <Link href={`/users/${profile.username}`}>View profile</Link>
             </Button>
             <PerformanceShareDialog
@@ -435,7 +512,9 @@ export default async function AgentPerformancePage({
           </div>
         </section>
 
-        <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MobilePerformanceMenu />
+
+        <section id="summary" className="mt-8 scroll-mt-24 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {summaryCards.map((card) => {
             const Icon = card.icon;
 
@@ -479,7 +558,7 @@ export default async function AgentPerformancePage({
         </section>
 
         <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-          <article className={cn(surfaceClassName, "p-5 sm:p-6")}>
+          <article id="outcomes" className={cn(surfaceClassName, "scroll-mt-24 p-5 sm:p-6")}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
@@ -558,7 +637,7 @@ export default async function AgentPerformancePage({
             </div>
           </article>
 
-          <article className="relative overflow-hidden rounded-lg bg-[#101225] p-5 text-white shadow-sm sm:p-6">
+          <article id="trend" className="relative scroll-mt-24 overflow-hidden rounded-lg bg-[#101225] p-5 text-white shadow-sm sm:p-6">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_35%,rgba(255,77,184,0.28),transparent_28%),linear-gradient(145deg,rgba(124,92,255,0.16),transparent_45%)]" />
             <div className="relative z-10 flex items-start justify-between gap-4">
               <div>
@@ -589,7 +668,7 @@ export default async function AgentPerformancePage({
           </article>
         </section>
 
-        <section className={cn(surfaceClassName, "mt-4 p-5 sm:p-6")}>
+        <section id="sold-properties" className={cn(surfaceClassName, "mt-4 scroll-mt-24 p-5 sm:p-6")}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
@@ -695,27 +774,29 @@ export default async function AgentPerformancePage({
           )}
         </section>
 
-        <section className="mt-4 overflow-hidden rounded-lg [background:var(--homzie-gradient)] p-6 text-white shadow-sm sm:p-8">
-          <div className="grid gap-6 md:grid-cols-[8rem_minmax(0,1fr)_auto] md:items-center">
-            <div className="grid size-28 place-items-center rounded-3xl bg-white/10 shadow-inner">
-              <ShieldCheck className="size-16 drop-shadow" />
+        <section id="proof" className="mt-4 scroll-mt-24 overflow-hidden rounded-lg [background:var(--homzie-gradient)] p-4 text-white shadow-sm sm:p-8">
+          <div className="grid gap-4 md:grid-cols-[8rem_minmax(0,1fr)_auto] md:items-center md:gap-6">
+            <div className="grid size-14 place-items-center rounded-2xl bg-white/10 shadow-inner sm:size-20 md:size-28 md:rounded-3xl">
+              <ShieldCheck className="size-8 drop-shadow sm:size-11 md:size-16" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-black">Proof-backed reputation</h2>
+                <h2 className="text-lg font-black leading-tight sm:text-2xl">
+                  Proof-backed reputation
+                </h2>
                 <AnalyticsInfoPopover
                   title="Proof-backed reputation"
                   description="Homzie separates disputed and unverified sales until proof confirms the correct outcome, so agent performance can act as a trustworthy sales record."
                 />
               </div>
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/90">
+              <p className="mt-2 max-w-2xl text-xs font-semibold leading-5 text-white/90 sm:mt-3 sm:text-sm sm:leading-7">
                 Sold listings are counted after status changes and proof checks.
                 Disputed property outcomes are separated until proof confirms the
                 correct agent.
               </p>
             </div>
-            <div className="flex items-center gap-3 text-sm font-black text-white/90">
-              <Send className="size-5" />
+            <div className="flex items-center gap-2 text-xs font-black leading-5 text-white/90 sm:gap-3 sm:text-sm">
+              <Send className="size-4 sm:size-5" />
               Trusted by buyers, sellers and other agents
             </div>
           </div>

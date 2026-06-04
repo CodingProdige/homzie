@@ -7,7 +7,13 @@ import { cn } from "@/lib/utils";
 import { supportedCurrencies } from "./currency";
 import { useCurrency } from "./currency-provider";
 
-export function CurrencySelector({ className }: { className?: string }) {
+export function CurrencySelector({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const { currency, isUsingFallbackRates, ratesUpdatedAt, setCurrency } =
     useCurrency();
   const activeCurrency =
@@ -25,7 +31,8 @@ export function CurrencySelector({ className }: { className?: string }) {
         <button
           type="button"
           className={cn(
-            "group inline-flex h-9 min-w-24 items-center justify-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-black text-foreground shadow-sm outline-none transition-colors hover:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/35",
+            "group inline-flex h-9 items-center justify-center rounded-full border border-border bg-background text-xs font-black text-foreground shadow-sm outline-none transition-colors hover:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/35",
+            compact ? "min-w-0 gap-1 px-2" : "min-w-24 gap-1.5 px-3",
             className,
           )}
           title={title}

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --radius: 0.5rem;
   --homzie-purple: #7b5cff;
@@ -96,10 +98,101 @@
     outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
   }
 
+  html {
+    font-size: 16px;
+    overflow-x: clip;
+  }
+
+  @media (max-width: 48rem) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  @media (max-width: 24rem) {
+    html {
+      font-size: 14px;
+    }
+  }
+
   body {
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-poppins), Arial, Helvetica, sans-serif;
+    overflow-x: clip;
+  }
+
+  .homzie-logo-image {
+    filter: none;
+  }
+
+  .dark .homzie-logo-image {
+    filter: brightness(0) invert(1);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    line-height: 1.15;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+  }
+
+  h4 {
+    font-size: 1.125rem;
+  }
+
+  h5 {
+    font-size: 1rem;
+  }
+
+  h6 {
+    font-size: 0.875rem;
+  }
+
+  @media (max-width: 48rem) {
+    h1 {
+      font-size: 1.75rem;
+    }
+
+    h2 {
+      font-size: 1.375rem;
+    }
+
+    h3 {
+      font-size: 1.125rem;
+    }
+
+    h4 {
+      font-size: 1rem;
+    }
+  }
+
+  @media (max-width: 24rem) {
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    h2 {
+      font-size: 1.25rem;
+    }
+
+    h3 {
+      font-size: 1rem;
+    }
   }
 }
 
@@ -129,6 +222,16 @@
     -webkit-background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
+  }
+
+  .hero-theme-overlay {
+    background: linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--background) 96%, transparent) 0%,
+      color-mix(in oklab, var(--background) 92%, transparent) 58%,
+      color-mix(in oklab, var(--background) 70%, transparent) 74%,
+      transparent 100%
+    );
   }
 
   .rich-text-editor:empty::before {
@@ -256,6 +359,16 @@
     100% {
       transform: translateX(125%) rotate(18deg);
       opacity: 0;
+    }
+  }
+
+  @keyframes top-agent-marquee {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(-50%);
     }
   }
 

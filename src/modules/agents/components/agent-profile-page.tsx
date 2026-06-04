@@ -10,7 +10,6 @@ import {
   Clapperboard,
   Heart,
   Home,
-  Menu,
   MoreHorizontal,
   Play,
   Search,
@@ -19,64 +18,13 @@ import {
   UserPlus,
 } from "lucide-react";
 
+import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import { RichCaption } from "@/modules/reels/components/rich-caption";
 import { agentProfile, type AgentListing, type AgentReel } from "../data/mock-agent-profile";
-
-const navItems = ["Buy", "Rent", "Developments", "Commercial", "Agents", "Reels"];
-
-function BrandHeader() {
-  return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 backdrop-blur-xl">
-      <div className="flex h-20 w-full items-center justify-between px-3">
-        <Link href="/" className="flex items-center gap-3" aria-label="Homzie home">
-          <Image
-            src="/logo/homzie-logo-dark-tight.png"
-            alt="Homzie"
-            width={1099}
-            height={310}
-            className="h-8 w-auto object-contain sm:h-9 lg:h-10"
-            priority
-          />
-        </Link>
-
-        <nav className="hidden items-center gap-10 text-sm font-semibold text-foreground lg:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item}
-              href={item === "Agents" ? "/agents" : "#"}
-              className="flex items-center gap-2 transition-colors hover:text-primary"
-            >
-              {item}
-              {item === "Reels" ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">
-                  New
-                </span>
-              ) : null}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-3">
-          <CurrencySelector className="hidden sm:inline-flex" />
-          <Button variant="ghost" size="icon" aria-label="Saved properties">
-            <Heart className="size-5" />
-          </Button>
-          <Button className="hidden px-6 sm:inline-flex">
-            Sign in
-          </Button>
-          <Button variant="ghost" size="icon" aria-label="Open menu">
-            <Menu className="size-6" />
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
-}
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -431,8 +379,8 @@ function AgentPlatformBanner() {
 export function AgentProfilePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <BrandHeader />
-      <main className="page-body">
+      <GlobalHeader />
+      <main className="page-body pt-20">
         <ProfileHero />
         <AgentPlatformBanner />
         <Highlights />

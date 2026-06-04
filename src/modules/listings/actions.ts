@@ -5,11 +5,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient, type RedisClientType } from "redis";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 
 import { db } from "@/db";
 import {
+  listingActionEvents,
+  listingLikes,
+  listingSaves,
+  listingViewEvents,
   propertyIdentities,
   propertyListingStatusHistory,
   propertyListings,
@@ -28,13 +33,17 @@ import {
   mandateTypeOptions,
   propertyTypeOptions,
 } from "@/modules/listings/options";
-import { and, eq } from "drizzle-orm";
+import {
+  getDiscoverListings,
+  type DiscoverListingFilters,
+} from "@/modules/listings/server/discover-listings";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 const maxListingImageBytes = 15 * 1024 * 1024;
 const maxListingImages = 30;
 const maxListingTitleLength = 120;
 const maxListingDescriptionLength = 3000;
-const maxListingFeatures = 5;
+const maxListingFeatures = 10;
 const maxListingFeatureLength = 24;
 const defaultTitleImprovementModel = "gpt-4.1-mini";
 const aiActionCooldownSeconds = 30;
@@ -66,6 +75,7 @@ const completedListingStatuses = new Set([
   "disputed",
   "archived",
 ]);
+const activeDuplicateListingStatuses = ["draft", "published"];
 
 type StoredListingMedia = {
   name: string;
@@ -74,25 +84,41 @@ type StoredListingMedia = {
   type: string;
 };
 
+function formatCompactCount(value: number) {
+  if (value < 1000) {
+    return String(value);
+  }
+
+  const compactValue = value / 1000;
+
+  return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
+}
+
 const listingSchema = z.object({
   askingPrice: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   availableFrom: z.string().trim().max(32).optional(),
   bathrooms: z.coerce.number().min(0).max(99).optional(),
   bedrooms: z.coerce.number().int().min(0).max(99).optional(),
+  buyerIncentive: z.string().trim().max(40).optional(),
   city: z.string().trim().max(120).optional(),
   country: z.string().trim().max(120).optional(),
   description: z.string().trim().max(10_000).optional(),
   erfSize: z.coerce.number().min(0).max(10_000_000).optional(),
   features: z.array(z.string()).optional(),
   floorSize: z.coerce.number().min(0).max(10_000_000).optional(),
+  furnishedStatus: z.enum(["", "yes", "no"]).optional(),
   garages: z.coerce.number().int().min(0).max(99).optional(),
   googlePlaceId: z.string().trim().max(180).optional(),
+  insuranceEstimate: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   listingType: z.enum(listingTypeValues),
   location: z.string().trim().min(2).max(240),
+  localTaxes: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   mandateEndDate: z.string().trim().max(32).optional(),
   mandateStartDate: z.string().trim().max(32).optional(),
   mandateType: z.enum(mandateTypeValues),
+  communityFees: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   parking: z.coerce.number().int().min(0).max(99).optional(),
+  petsAllowed: z.enum(["", "yes", "no"]).optional(),
   previousAskingPrice: z.coerce
     .number()
     .finite()
@@ -102,8 +128,45 @@ const listingSchema = z.object({
   priceQualifier: z.string().trim().max(40).optional(),
   propertyType: z.enum(propertyTypeValues),
   publishIntent: z.enum(["draft", "published"]),
+  rentalYield: z.coerce.number().finite().min(0).max(100).optional(),
+  shortLetAllowed: z.enum(["", "yes", "no"]).optional(),
   suburb: z.string().trim().max(120).optional(),
   title: z.string().trim().min(4).max(maxListingTitleLength),
+  transferCostsEstimate: z.coerce
+    .number()
+    .finite()
+    .min(0)
+    .max(10_000_000_000)
+    .optional(),
+  utilitiesEstimate: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
+});
+const listingIdSchema = z.uuid();
+const listingAnalyticsSourceSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .optional();
+const listingViewerSessionSchema = z.string().trim().min(4).max(160);
+const listingActionTypeSchema = z.enum([
+  "bond_calculator",
+  "buy_now",
+  "call_agent",
+  "contact_agent",
+  "email_agent",
+  "like",
+  "place_offer",
+  "save",
+  "share",
+  "whatsapp_agent",
+]);
+const listingViewEventSchema = z.object({
+  listingId: listingIdSchema,
+  source: listingAnalyticsSourceSchema,
+  viewerSessionId: listingViewerSessionSchema,
+});
+const listingActionEventSchema = listingViewEventSchema.extend({
+  actionType: listingActionTypeSchema,
 });
 
 const titleImprovementSchema = z.object({
@@ -140,30 +203,40 @@ function parseListingFormData(formData: FormData) {
     availableFrom: formData.get("availableFrom"),
     bathrooms: decimalOrUndefined(formData.get("bathrooms")),
     bedrooms: numberOrUndefined(formData.get("bedrooms")),
+    buyerIncentive: formData.get("buyerIncentive"),
     city: formData.get("city"),
     country: formData.get("country"),
     description: formData.get("description"),
     erfSize: decimalOrUndefined(formData.get("erfSize")),
     features: Array.from(new Set(rawFeatures)),
     floorSize: decimalOrUndefined(formData.get("floorSize")),
+    furnishedStatus: formData.get("furnishedStatus") || "",
     garages: numberOrUndefined(formData.get("garages")),
     googlePlaceId: formData.get("googlePlaceId"),
+    insuranceEstimate: numberOrUndefined(formData.get("insuranceEstimate")),
     listingType: formData.get("listingType"),
     location:
       String(formData.get("location") || "").trim() ||
       (publishIntent === "draft" ? "Location not set" : ""),
+    localTaxes: numberOrUndefined(formData.get("localTaxes")),
     mandateEndDate: formData.get("mandateEndDate"),
     mandateStartDate: formData.get("mandateStartDate"),
     mandateType: formData.get("mandateType"),
+    communityFees: numberOrUndefined(formData.get("communityFees")),
     parking: numberOrUndefined(formData.get("parking")),
+    petsAllowed: formData.get("petsAllowed") || "",
     previousAskingPrice: numberOrUndefined(formData.get("previousAskingPrice")),
     priceQualifier: formData.get("priceQualifier"),
     propertyType: formData.get("propertyType"),
     publishIntent,
+    rentalYield: decimalOrUndefined(formData.get("rentalYield")),
+    shortLetAllowed: formData.get("shortLetAllowed") || "",
     suburb: formData.get("suburb"),
     title:
       String(formData.get("title") || "").trim() ||
       (publishIntent === "draft" ? "Untitled listing" : ""),
+    transferCostsEstimate: numberOrUndefined(formData.get("transferCostsEstimate")),
+    utilitiesEstimate: numberOrUndefined(formData.get("utilitiesEstimate")),
   });
 
   if (!parsed.success) {
@@ -220,6 +293,45 @@ function assertListingCanPublish(
   }
 }
 
+function normalizeDuplicateLocation(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+async function findDuplicateActiveListing({
+  data,
+  userId,
+}: {
+  data: z.infer<typeof listingSchema>;
+  userId: string;
+}) {
+  const normalizedLocation = normalizeDuplicateLocation(data.location);
+
+  if (
+    !normalizedLocation ||
+    normalizedLocation === "location not set" ||
+    normalizedLocation.length < 2
+  ) {
+    return null;
+  }
+
+  const [duplicate] = await db
+    .select({
+      id: propertyListings.id,
+      title: propertyListings.title,
+    })
+    .from(propertyListings)
+    .where(
+      and(
+        eq(propertyListings.userId, userId),
+        inArray(propertyListings.status, activeDuplicateListingStatuses),
+        sql`lower(regexp_replace(${propertyListings.location}, '\\s+', ' ', 'g')) = ${normalizedLocation}`,
+      ),
+    )
+    .limit(1);
+
+  return duplicate || null;
+}
+
 export async function createListing(formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -239,6 +351,15 @@ export async function createListing(formData: FormData) {
 
   const agentProfile = await getAgentProfileForUser(session.user.id);
   const { data, description } = parseListingFormData(formData);
+  const duplicateListing = await findDuplicateActiveListing({
+    data,
+    userId: session.user.id,
+  });
+
+  if (duplicateListing) {
+    redirect(`/listings/new?duplicateListing=${duplicateListing.id}`);
+  }
+
   const media = await storeListingImages(formData.getAll("mediaFiles"));
   assertListingCanPublish(data, description, media.length);
   const coverIndex = Math.min(
@@ -255,6 +376,24 @@ export async function createListing(formData: FormData) {
     typeof data.askingPrice === "number" &&
     data.previousAskingPrice > data.askingPrice
       ? Math.round(data.previousAskingPrice * 100)
+      : null;
+  const localTaxesCents =
+    typeof data.localTaxes === "number" ? Math.round(data.localTaxes * 100) : null;
+  const communityFeesCents =
+    typeof data.communityFees === "number"
+      ? Math.round(data.communityFees * 100)
+      : null;
+  const utilitiesEstimateCents =
+    typeof data.utilitiesEstimate === "number"
+      ? Math.round(data.utilitiesEstimate * 100)
+      : null;
+  const insuranceEstimateCents =
+    typeof data.insuranceEstimate === "number"
+      ? Math.round(data.insuranceEstimate * 100)
+      : null;
+  const transferCostsEstimateCents =
+    typeof data.transferCostsEstimate === "number"
+      ? Math.round(data.transferCostsEstimate * 100)
       : null;
   const priceLabel = buildPriceLabel({
     amount: data.askingPrice,
@@ -285,12 +424,22 @@ export async function createListing(formData: FormData) {
         availableFrom: data.availableFrom || null,
         bathrooms: data.bathrooms ?? null,
         bedrooms: data.bedrooms ?? null,
+        buyerIncentive: data.buyerIncentive || null,
+        communityFeesCents,
         erfSize: data.erfSize ?? null,
         floorSize: data.floorSize ?? null,
+        furnishedStatus: data.furnishedStatus || null,
         garages: data.garages ?? null,
+        insuranceEstimateCents,
+        localTaxesCents,
         parking: data.parking ?? null,
+        petsAllowed: data.petsAllowed || null,
         previousAskingPriceCents,
         priceQualifier: data.priceQualifier || null,
+        rentalYield: data.rentalYield ?? null,
+        shortLetAllowed: data.shortLetAllowed || null,
+        transferCostsEstimateCents,
+        utilitiesEstimateCents,
       },
       features: data.features || [],
       listedAt: data.publishIntent === "published" ? new Date() : undefined,
@@ -362,6 +511,8 @@ export async function updateListing(formData: FormData) {
     .select({
       listedAt: propertyListings.listedAt,
       lockedAt: propertyListings.lockedAt,
+      location: propertyListings.location,
+      propertyIdentityId: propertyListings.propertyIdentityId,
       status: propertyListings.status,
     })
     .from(propertyListings)
@@ -407,6 +558,24 @@ export async function updateListing(formData: FormData) {
     data.previousAskingPrice > data.askingPrice
       ? Math.round(data.previousAskingPrice * 100)
       : null;
+  const localTaxesCents =
+    typeof data.localTaxes === "number" ? Math.round(data.localTaxes * 100) : null;
+  const communityFeesCents =
+    typeof data.communityFees === "number"
+      ? Math.round(data.communityFees * 100)
+      : null;
+  const utilitiesEstimateCents =
+    typeof data.utilitiesEstimate === "number"
+      ? Math.round(data.utilitiesEstimate * 100)
+      : null;
+  const insuranceEstimateCents =
+    typeof data.insuranceEstimate === "number"
+      ? Math.round(data.insuranceEstimate * 100)
+      : null;
+  const transferCostsEstimateCents =
+    typeof data.transferCostsEstimate === "number"
+      ? Math.round(data.transferCostsEstimate * 100)
+      : null;
   const priceLabel = buildPriceLabel({
     amount: data.askingPrice,
     listingType: data.listingType,
@@ -424,6 +593,7 @@ export async function updateListing(formData: FormData) {
     })
     .onConflictDoNothing()
     .returning({ id: propertyIdentities.id });
+  const canChangePropertyIdentity = existingListing.status === "draft";
 
   await db
     .update(propertyListings)
@@ -436,12 +606,22 @@ export async function updateListing(formData: FormData) {
         availableFrom: data.availableFrom || null,
         bathrooms: data.bathrooms ?? null,
         bedrooms: data.bedrooms ?? null,
+        buyerIncentive: data.buyerIncentive || null,
+        communityFeesCents,
         erfSize: data.erfSize ?? null,
         floorSize: data.floorSize ?? null,
+        furnishedStatus: data.furnishedStatus || null,
         garages: data.garages ?? null,
+        insuranceEstimateCents,
+        localTaxesCents,
         parking: data.parking ?? null,
+        petsAllowed: data.petsAllowed || null,
         previousAskingPriceCents,
         priceQualifier: data.priceQualifier || null,
+        rentalYield: data.rentalYield ?? null,
+        shortLetAllowed: data.shortLetAllowed || null,
+        transferCostsEstimateCents,
+        utilitiesEstimateCents,
       },
       features: data.features || [],
       listedAt:
@@ -450,13 +630,17 @@ export async function updateListing(formData: FormData) {
           ? new Date()
           : existingListing.listedAt,
       listingType: data.listingType,
-      location: data.location,
+      location: canChangePropertyIdentity
+        ? data.location
+        : existingListing.location,
       mandateEndDate: parseDate(data.mandateEndDate),
       mandateStartDate: parseDate(data.mandateStartDate),
       mandateType: data.mandateType,
       media,
       priceLabel,
-      propertyIdentityId: identity?.id || null,
+      propertyIdentityId: canChangePropertyIdentity
+        ? identity?.id || existingListing.propertyIdentityId || null
+        : existingListing.propertyIdentityId,
       propertyType: data.propertyType,
       status: data.publishIntent,
       title: data.title,
@@ -490,11 +674,321 @@ export async function updateListing(formData: FormData) {
     });
   }
 
-  redirect(
-    data.publishIntent === "published"
-      ? `/listings/new?listingPublished=${listingId.data}`
-      : `/users/${user.username}?tab=listings`,
+  const updateResult =
+    existingListing.status === "draft" && data.publishIntent === "published"
+      ? "published"
+      : data.publishIntent === "draft"
+        ? "draft"
+        : "updated";
+
+  redirect(`/listings/${listingId.data}/edit?listingUpdated=${updateResult}`);
+}
+
+export async function archiveListing(formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    redirect("/sign-in");
+  }
+
+  const listingId = z.string().uuid().safeParse(formData.get("listingId"));
+
+  if (!listingId.success) {
+    throw new Error("Listing ID is invalid.");
+  }
+
+  const [user] = await db
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+
+  if (!user?.username) {
+    redirect("/onboarding/username");
+  }
+
+  const [existingListing] = await db
+    .select({
+      lockedAt: propertyListings.lockedAt,
+      location: propertyListings.location,
+      propertyIdentityId: propertyListings.propertyIdentityId,
+      status: propertyListings.status,
+    })
+    .from(propertyListings)
+    .where(
+      and(
+        eq(propertyListings.id, listingId.data),
+        eq(propertyListings.userId, session.user.id),
+      ),
+    )
+    .limit(1);
+
+  if (!existingListing) {
+    throw new Error("Listing not found.");
+  }
+
+  if (existingListing.lockedAt || existingListing.status === "archived") {
+    throw new Error("This listing is already locked or archived.");
+  }
+
+  const normalizedLocation = normalizeDuplicateLocation(
+    existingListing.location || "",
   );
+  const hasBeenPublished = existingListing.status !== "draft";
+  const [winningSale] = hasBeenPublished
+    ? existingListing.propertyIdentityId
+      ? await db
+          .select({
+            id: propertyListings.id,
+            outcomeAt: propertyListings.outcomeAt,
+            soldAt: propertyListings.soldAt,
+          })
+          .from(propertyListings)
+          .where(
+            and(
+              eq(
+                propertyListings.propertyIdentityId,
+                existingListing.propertyIdentityId,
+              ),
+              eq(propertyListings.status, "sold"),
+              ne(propertyListings.id, listingId.data),
+            ),
+          )
+          .limit(1)
+      : normalizedLocation.length >= 2
+        ? await db
+            .select({
+              id: propertyListings.id,
+              outcomeAt: propertyListings.outcomeAt,
+              soldAt: propertyListings.soldAt,
+            })
+            .from(propertyListings)
+            .where(
+              and(
+                eq(propertyListings.status, "sold"),
+                ne(propertyListings.id, listingId.data),
+                sql`lower(regexp_replace(${propertyListings.location}, '\\s+', ' ', 'g')) = ${normalizedLocation}`,
+              ),
+            )
+            .limit(1)
+        : []
+    : [];
+  const now = new Date();
+  const archiveStatus = winningSale ? "sold_externally" : "archived";
+  const outcomeAt = winningSale
+    ? winningSale.soldAt || winningSale.outcomeAt || now
+    : null;
+
+  await db
+    .update(propertyListings)
+    .set({
+      archivedAt: now,
+      outcomeAt,
+      status: archiveStatus,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(propertyListings.id, listingId.data),
+        eq(propertyListings.userId, session.user.id),
+      ),
+    );
+
+  await db.insert(propertyListingStatusHistory).values({
+    fromStatus: existingListing.status,
+    listingId: listingId.data,
+    reason: winningSale
+      ? "Listing archived after the same property was recorded as sold by another agent. Performance history is retained and the listing is counted as sold externally."
+      : "Listing archived by owner. Performance history is retained and remains protected.",
+    toStatus: archiveStatus,
+    userId: session.user.id,
+  });
+
+  redirect(
+    `/users/${user.username}?tab=listings&listingArchived=${listingId.data}&archiveStatus=${archiveStatus}`,
+  );
+}
+
+export async function toggleListingSave(listingId: string) {
+  const parsed = listingIdSchema.safeParse(listingId);
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!parsed.success || !userId) {
+    return { error: "Sign in to save listings.", ok: false as const };
+  }
+
+  const [existing] = await db
+    .select({ listingId: listingSaves.listingId })
+    .from(listingSaves)
+    .where(
+      and(eq(listingSaves.listingId, parsed.data), eq(listingSaves.userId, userId)),
+    )
+    .limit(1);
+
+  const [listing] = await db
+    .select({
+      id: propertyListings.id,
+      status: propertyListings.status,
+      userId: propertyListings.userId,
+    })
+    .from(propertyListings)
+    .where(eq(propertyListings.id, parsed.data))
+    .limit(1);
+
+  if (
+    !listing ||
+    (!existing && listing.status !== "published" && listing.userId !== userId)
+  ) {
+    return { error: "This listing is not available to save.", ok: false as const };
+  }
+
+  if (existing) {
+    await db
+      .delete(listingSaves)
+      .where(
+        and(eq(listingSaves.listingId, parsed.data), eq(listingSaves.userId, userId)),
+      );
+  } else {
+    await db.insert(listingSaves).values({ listingId: parsed.data, userId });
+  }
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingSaves)
+    .where(eq(listingSaves.listingId, parsed.data));
+
+  revalidatePath(`/listings/${parsed.data}`);
+
+  return {
+    count,
+    countLabel: formatCompactCount(count),
+    ok: true as const,
+    saved: !existing,
+  };
+}
+
+export async function toggleListingLike(listingId: string) {
+  const parsed = listingIdSchema.safeParse(listingId);
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!parsed.success || !userId) {
+    return { error: "Sign in to like listings.", ok: false as const };
+  }
+
+  const [listing] = await db
+    .select({
+      id: propertyListings.id,
+      status: propertyListings.status,
+      userId: propertyListings.userId,
+    })
+    .from(propertyListings)
+    .where(eq(propertyListings.id, parsed.data))
+    .limit(1);
+
+  if (!listing || (listing.status !== "published" && listing.userId !== userId)) {
+    return { error: "This listing is not available to like.", ok: false as const };
+  }
+
+  const [existing] = await db
+    .select({ listingId: listingLikes.listingId })
+    .from(listingLikes)
+    .where(
+      and(eq(listingLikes.listingId, parsed.data), eq(listingLikes.userId, userId)),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .delete(listingLikes)
+      .where(
+        and(eq(listingLikes.listingId, parsed.data), eq(listingLikes.userId, userId)),
+      );
+  } else {
+    await db.insert(listingLikes).values({ listingId: parsed.data, userId });
+  }
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingLikes)
+    .where(eq(listingLikes.listingId, parsed.data));
+
+  revalidatePath(`/listings/${parsed.data}`);
+
+  return {
+    count,
+    countLabel: formatCompactCount(count),
+    liked: !existing,
+    ok: true as const,
+  };
+}
+
+async function canTrackListing(listingId: string, viewerUserId?: string | null) {
+  const [listing] = await db
+    .select({
+      id: propertyListings.id,
+      status: propertyListings.status,
+      userId: propertyListings.userId,
+    })
+    .from(propertyListings)
+    .where(eq(propertyListings.id, listingId))
+    .limit(1);
+
+  return Boolean(
+    listing &&
+      (listing.status === "published" ||
+        (viewerUserId && listing.userId === viewerUserId)),
+  );
+}
+
+export async function trackListingView(input: unknown) {
+  const parsed = listingViewEventSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false as const };
+  }
+
+  const session = await getServerSession(authOptions);
+  const viewerUserId = session?.user?.id || null;
+
+  if (!(await canTrackListing(parsed.data.listingId, viewerUserId))) {
+    return { ok: false as const };
+  }
+
+  await db.insert(listingViewEvents).values({
+    listingId: parsed.data.listingId,
+    source: parsed.data.source || "listing_detail",
+    viewerSessionId: parsed.data.viewerSessionId,
+    viewerUserId,
+  });
+
+  return { ok: true as const };
+}
+
+export async function trackListingAction(input: unknown) {
+  const parsed = listingActionEventSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false as const };
+  }
+
+  const session = await getServerSession(authOptions);
+  const viewerUserId = session?.user?.id || null;
+
+  if (!(await canTrackListing(parsed.data.listingId, viewerUserId))) {
+    return { ok: false as const };
+  }
+
+  await db.insert(listingActionEvents).values({
+    actionType: parsed.data.actionType,
+    listingId: parsed.data.listingId,
+    source: parsed.data.source || "listing_detail",
+    viewerSessionId: parsed.data.viewerSessionId,
+    viewerUserId,
+  });
+
+  return { ok: true as const };
 }
 
 export async function improveListingTitle(input: {
@@ -1019,4 +1513,23 @@ async function storeListingImages(values: FormDataEntryValue[]) {
   }
 
   return storedFiles;
+}
+
+export async function loadDiscoverListings({
+  filters,
+  limit = 8,
+  offset = 0,
+}: {
+  filters?: DiscoverListingFilters;
+  limit?: number;
+  offset?: number;
+}) {
+  const session = await getServerSession(authOptions);
+
+  return getDiscoverListings({
+    filters,
+    limit,
+    offset,
+    viewerUserId: session?.user?.id || null,
+  });
 }

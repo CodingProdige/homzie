@@ -14,7 +14,6 @@ import {
   Home,
   LockKeyhole,
   LogOut,
-  Menu,
   Settings,
   TrendingUp,
   User,
@@ -33,6 +32,7 @@ import {
 } from "@/modules/billing/portal-actions";
 import { agentSubscriptionPrice, getStripe } from "@/modules/billing/stripe";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
+import { SettingsPageHeader } from "../settings-page-header";
 
 type BillingInvoice = {
   id: string;
@@ -520,51 +520,14 @@ export default async function BillingSettingsPage() {
   }
 
   const billing = await getBillingData(user.id);
-  const initials = user.name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
       <Sidebar />
 
-      <main className="min-w-0 flex-1 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-        <div className="flex items-center justify-between gap-4 lg:justify-end">
-          <BackButton className="text-foreground hover:text-primary lg:hidden" />
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" aria-label="Help">
-              <HelpCircle className="size-4" />
-            </Button>
-            <div className="hidden items-center gap-3 sm:flex">
-              <div className="flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-primary ring-2 ring-primary">
-                {initials || "H"}
-              </div>
-              <span className="font-semibold">{user.name}</span>
-            </div>
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              aria-label="Go to settings menu"
-            >
-              <Link href="/settings">
-                <Menu className="size-5" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <h1 className="text-3xl font-bold tracking-tight">Billing</h1>
-          <p className="mt-2 max-w-xl text-muted-foreground">
-            Manage your subscription, payment methods and view your invoices.
-          </p>
-        </div>
+      <main className="min-w-0 flex-1 px-4 pb-8 sm:px-6 lg:px-10">
+        <SettingsPageHeader
+          title="Billing"
+        />
 
         {!billing ? <div className="mt-8"><CompactAgentUpgradeCta /></div> : null}
 

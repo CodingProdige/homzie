@@ -1,33 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   BadgeCheck,
-  Bath,
-  BedDouble,
   Bookmark,
   Check,
   ChevronDown,
   ChevronRight,
   Clapperboard,
-  Clock3,
   Copy,
   CircleDollarSign,
   Eye,
   Flag,
-  Heart,
   Home,
   LockKeyhole,
   Mail,
-  Menu,
   PieChart,
   Plus,
-  PlayCircle,
-  Search,
   Send,
   Share2,
   Sparkles,
@@ -37,28 +31,35 @@ import {
   UserRound,
   UserPlus,
   MessageCircle,
-  Ruler,
   X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { GlobalHeader } from "@/components/global-header";
 import { cn } from "@/lib/utils";
 import { toPublicMediaUrl } from "@/media/paths";
-import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
-import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { useCurrency } from "@/modules/currency/currency-provider";
+import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
+import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
 
 type UserProfile = {
   name: string;
   username: string;
   avatarUrl?: string;
+  bio?: string;
+  location?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  whatsappNumber?: string;
   agentStats: AgentPerformanceStats;
+  archiveFeedback?: string;
   isOwner: boolean;
   hasActiveSubscription: boolean;
   initialTab?: ProfileTab;
   listings: ProfileListing[];
   reels: ProfileReel[];
+  savedListings: ProfileListing[];
   savedReels: ProfileReel[];
   viewerUsername?: string;
   viewerAvatarUrl?: string;
@@ -99,20 +100,34 @@ type ProfileListing = {
   askingPriceCents: number | null;
   bathrooms: number;
   bedrooms: number;
+  buyerIncentive: string;
   coverImageUrl?: string | null;
   erfSize: number;
   features: string[];
   floorSize: number;
+  garages: number;
   id: string;
+  imageUrls: string[];
+  likedByViewer?: boolean;
+  likeCount: number;
+  likeCountLabel: string;
   listingType: string;
   location: string | null;
+  mandateEndDate: string;
+  mandateStartDate: string;
+  mandateType: string;
+  parking: number;
   priceLabel: string | null;
+  previousAskingPriceCents: number;
   propertyType: string;
+  savedByViewer?: boolean;
+  saveCount: number;
+  saveCountLabel: string;
   status: string;
   title: string;
+  unavailable?: boolean;
+  unavailableLabel?: string;
 };
-
-const navItems = ["Buy", "Rent", "Developments", "Commercial", "Agents", "Reels"];
 
 const agentCtaFeatures = [
   {
@@ -140,156 +155,6 @@ const agentCtaFeatures = [
     className: "bg-emerald-100 text-emerald-600",
   },
 ];
-
-function BrandHeader({ viewerUsername }: { viewerUsername?: string }) {
-  const mobileItems = [
-    ...navItems.map((item) => ({
-      label: item,
-      href: item === "Agents" ? "/agents" : item === "Reels" ? "/reels" : "#",
-    })),
-    {
-      label: viewerUsername ? "Profile" : "Sign in",
-      href: viewerUsername ? `/users/${viewerUsername}` : "/sign-in",
-    },
-  ];
-
-  return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 backdrop-blur-xl">
-      <div className="grid h-20 w-full grid-cols-[1fr_auto_1fr] items-center px-3 lg:flex lg:justify-between">
-        <div className="flex justify-start lg:hidden">
-          <Button variant="ghost" size="icon" aria-label="Search">
-            <Search className="size-5" />
-          </Button>
-        </div>
-
-        <Link
-          href="/"
-          className="flex items-center justify-center gap-3 lg:justify-start"
-          aria-label="Homzie home"
-        >
-          <Image
-            src="/logo/homzie-logo-dark-tight.png"
-            alt="Homzie"
-            width={1099}
-            height={310}
-            className="h-8 w-auto object-contain sm:h-9 lg:h-11"
-            priority
-          />
-        </Link>
-
-        <nav className="hidden items-center gap-10 text-sm font-semibold text-foreground lg:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item}
-              href={
-                item === "Agents" ? "/agents" : item === "Reels" ? "/reels" : "#"
-              }
-              className="flex items-center gap-2 transition-colors hover:text-primary"
-            >
-              {item}
-              {item === "Reels" ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">
-                  New
-                </span>
-              ) : null}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center justify-end gap-2 lg:gap-3">
-          <div className="hidden lg:block">
-            <ThemeToggle />
-          </div>
-          <CurrencySelector className="hidden lg:inline-flex" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden lg:inline-flex"
-            aria-label="Search"
-          >
-            <Search className="size-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden lg:inline-flex"
-            aria-label="Messages"
-          >
-            <Send className="size-5" />
-          </Button>
-          <Button variant="ghost" size="icon" aria-label="Saved properties">
-            <Heart className="size-5" />
-          </Button>
-          {viewerUsername ? (
-            <Button asChild className="hidden px-6 sm:inline-flex">
-              <Link href={`/users/${viewerUsername}`}>Profile</Link>
-            </Button>
-          ) : (
-            <Button asChild className="hidden px-6 sm:inline-flex">
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-          )}
-          <Dialog.Root>
-            <Dialog.Trigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                aria-label="Open menu"
-              >
-                <Menu className="size-6" />
-              </Button>
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[2px] lg:hidden" />
-              <Dialog.Content className="fixed bottom-0 right-0 top-0 z-50 flex w-[min(82vw,22rem)] flex-col border-l border-border bg-background text-foreground shadow-2xl outline-none lg:hidden">
-                <div className="flex h-20 items-center justify-between border-b border-border/70 px-5">
-                  <Dialog.Title className="text-base font-bold">Menu</Dialog.Title>
-                  <Dialog.Close asChild>
-                    <Button variant="ghost" size="icon" aria-label="Close menu">
-                      <X className="size-5" />
-                    </Button>
-                  </Dialog.Close>
-                </div>
-
-                <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-                  {mobileItems.map((item) => (
-                    <Dialog.Close key={item.label} asChild>
-                      <Link
-                        href={item.href}
-                        className="flex min-h-12 items-center justify-between rounded-md px-3 text-base font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                      >
-                        {item.label}
-                        {item.label === "Reels" ? (
-                          <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">
-                            New
-                          </span>
-                        ) : null}
-                      </Link>
-                    </Dialog.Close>
-                  ))}
-                </nav>
-
-                <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Theme
-                  </span>
-                  <ThemeToggle />
-                </div>
-                <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Currency
-                  </span>
-                  <CurrencySelector />
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-        </div>
-      </div>
-    </header>
-  );
-}
 
 function initialsFromName(name: string) {
   return name
@@ -641,10 +506,10 @@ function ShareProfileDialog({
 
 function ProfileHero({ profile }: { profile: UserProfile }) {
   return (
-    <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-start gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_1fr_auto] lg:gap-x-5 lg:gap-y-8 lg:py-16">
+    <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-start gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-x-5 lg:py-16">
       <ProfileAvatar name={profile.name} avatarUrl={profile.avatarUrl} />
 
-      <div className="min-w-0 lg:max-w-2xl">
+      <div className="min-w-0 lg:max-w-[calc(100%-9rem)]">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-3xl">
             {profile.name}
@@ -678,51 +543,89 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
             </div>
           ))}
         </div>
-
-        <div className="lg:-mr-36 xl:-mr-64">
-          <AgentPerformanceCard profile={profile} />
-        </div>
       </div>
 
-      <div className="col-span-2 min-w-0 lg:col-span-1 lg:col-start-2">
-        <div className="mt-7 max-w-full space-y-1 text-sm leading-6">
-          <p className="font-bold">Homzie profile</p>
-          <p className="max-w-full text-wrap text-muted-foreground">
-            Reels, saved homes, listings, and profile details will appear here as this account gets set up.
+      {profile.bio || profile.location ? (
+        <div className="col-span-2 w-full space-y-2 text-sm leading-6 sm:col-span-1 sm:col-start-2 sm:max-w-full lg:max-w-[calc(100%-9rem)]">
+          {profile.bio ? (
+            <p className="max-w-full whitespace-pre-line text-wrap font-medium text-foreground/80">
+              {profile.bio}
+            </p>
+          ) : null}
+          {profile.location ? (
+            <p className="max-w-full truncate text-xs font-bold text-muted-foreground sm:text-sm">
+              {profile.location}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {profile.contactEmail || profile.contactPhone || profile.whatsappNumber ? (
+        <div className="col-span-2 w-full sm:col-span-1 sm:col-start-2 sm:max-w-full lg:max-w-[calc(100%-9rem)]">
+          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            Contact agent
           </p>
+          <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
+            {profile.contactEmail ? (
+              <a
+                href={`mailto:${profile.contactEmail}`}
+                className="max-w-full break-all hover:underline"
+              >
+                {profile.contactEmail}
+              </a>
+            ) : null}
+            {profile.contactPhone ? (
+              <a href={`tel:${profile.contactPhone}`} className="hover:underline">
+                {profile.contactPhone}
+              </a>
+            ) : null}
+            {profile.whatsappNumber ? (
+              <a
+                href={`https://wa.me/${profile.whatsappNumber.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:underline"
+              >
+                WhatsApp {profile.whatsappNumber}
+              </a>
+            ) : null}
+          </div>
         </div>
+      ) : null}
 
-        <div className="mt-7 inline-grid max-w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-3 sm:grid-cols-[14rem_auto_2.25rem]">
-          {profile.isOwner ? (
-            <>
-              <Button asChild variant="outline" className="min-w-0">
-                <Link href="/settings">Profile Settings</Link>
-              </Button>
-              <CreateNewMenu hasActiveSubscription={profile.hasActiveSubscription} />
-              <ShareProfileDialog
-                username={profile.username}
-                name={profile.name}
-              />
-            </>
-          ) : (
-            <>
-              <Button>Follow</Button>
-              <Button variant="outline">Message</Button>
-              <Button variant="outline" size="icon" aria-label="Add profile">
-                <UserPlus className="size-4" />
-              </Button>
-            </>
-          )}
-        </div>
+      <div className="col-span-2 inline-grid max-w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-3 sm:col-span-1 sm:col-start-2 sm:grid-cols-[14rem_auto_2.25rem]">
+        {profile.isOwner ? (
+          <>
+            <Button asChild variant="outline" className="min-w-0">
+              <Link href="/settings">Profile Settings</Link>
+            </Button>
+            <CreateNewMenu hasActiveSubscription={profile.hasActiveSubscription} />
+            <ShareProfileDialog
+              username={profile.username}
+              name={profile.name}
+            />
+          </>
+        ) : (
+          <>
+            <Button>Follow</Button>
+            <Button variant="outline">Message</Button>
+            <Button variant="outline" size="icon" aria-label="Add profile">
+              <UserPlus className="size-4" />
+            </Button>
+          </>
+        )}
       </div>
 
-      <div className="hidden lg:block" />
+      <div className="col-span-2 w-full sm:col-span-1 sm:col-start-2 sm:max-w-full lg:-mr-36 xl:-mr-64">
+        <AgentPerformanceCard profile={profile} />
+      </div>
     </section>
   );
 }
 
 function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobileDialogOpen, setIsMobileDialogOpen] = useState(false);
   const { formatPriceCentsCompact } = useCurrency();
   const performanceStats = [
     {
@@ -749,7 +652,7 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
 
   if (!profile.hasActiveSubscription) {
     return (
-      <div className="mt-5 max-w-lg rounded-lg border border-primary/10 bg-card p-4 shadow-sm lg:max-w-none">
+      <div className="max-w-lg rounded-lg border border-primary/10 bg-card p-4 shadow-sm lg:max-w-none">
         <div className="flex items-center gap-3">
           <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
             <LockKeyhole className="size-5" />
@@ -774,10 +677,32 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
   }
 
   return (
-    <div className="mt-5 max-w-lg overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-[max-width] duration-300 ease-out lg:max-w-none">
+    <div className="max-w-lg overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-[max-width] duration-300 ease-out lg:max-w-none">
       <button
         type="button"
-        className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/35"
+        className="flex w-full items-center gap-2.5 p-2.5 text-left transition-colors hover:bg-muted/35 sm:hidden"
+        onClick={() => setIsMobileDialogOpen(true)}
+      >
+        <div className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+          <Trophy className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">
+            Agent performance
+          </p>
+          <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
+            <p className="text-base font-black leading-none">{profile.agentStats.winRateLabel}</p>
+            <p className="truncate text-xs font-semibold text-muted-foreground">
+              win rate · {profile.agentStats.soldThisYearLabel} sold this year
+            </p>
+          </div>
+        </div>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      <button
+        type="button"
+        className="hidden w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/35 sm:flex"
         onClick={() => setIsExpanded((value) => !value)}
         aria-expanded={isExpanded}
       >
@@ -818,34 +743,11 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
                 : "-translate-y-2 opacity-0",
             )}
           >
-            <div className="grid pt-1 sm:grid-cols-2 sm:gap-x-3 lg:grid-cols-4">
-              {performanceStats.map((stat) => {
-                const Icon = stat.icon;
-
-                return (
-                  <div
-                    key={stat.label}
-                    className="flex items-center gap-3 border-b border-border/60 px-1 py-3 last:border-b-0 sm:border-b-0 lg:flex-col lg:items-start lg:gap-2 lg:border-r lg:border-border/60 lg:px-3 lg:last:border-r-0"
-                  >
-                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                      <Icon className="size-5" />
-                    </span>
-                    <p className="min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-wide text-muted-foreground lg:flex-none">
-                      {stat.label}
-                    </p>
-                    <p className="text-lg font-black lg:text-2xl">{stat.value}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="rounded-lg bg-primary/5 px-3 py-3 text-xs font-semibold text-muted-foreground lg:mt-2">
-              <p>{profile.agentStats.completedMandatesLabel}</p>
-              <p className="mt-1">
-                {profile.agentStats.avgDaysToSellLabel === "No sales yet"
-                  ? "No sales yet"
-                  : `${profile.agentStats.avgDaysToSellLabel} avg days to sell`}
-              </p>
-            </div>
+            <PerformanceStatsGrid
+              avgDaysToSellLabel={profile.agentStats.avgDaysToSellLabel}
+              completedMandatesLabel={profile.agentStats.completedMandatesLabel}
+              stats={performanceStats}
+            />
           </div>
         </div>
       </div>
@@ -857,7 +759,92 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
         See performance breakdown
         <ChevronRight className="size-4" />
       </Link>
+
+      <Dialog.Root open={isMobileDialogOpen} onOpenChange={setIsMobileDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/45" />
+          <Dialog.Content className="fixed inset-x-4 top-1/2 z-[91] max-h-[calc(100dvh-2rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-white p-4 text-brand-black shadow-2xl sm:hidden">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <Dialog.Title className="text-lg font-black">
+                  Agent performance
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+                  {profile.agentStats.winRateLabel} win rate ·{" "}
+                  {profile.agentStats.soldThisYearLabel} sold this year
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <Button type="button" variant="ghost" size="icon" aria-label="Close performance">
+                  <X className="size-5" />
+                </Button>
+              </Dialog.Close>
+            </div>
+            <div className="mt-4">
+              <PerformanceStatsGrid
+                avgDaysToSellLabel={profile.agentStats.avgDaysToSellLabel}
+                completedMandatesLabel={profile.agentStats.completedMandatesLabel}
+                stats={performanceStats}
+              />
+            </div>
+            <Button asChild className="mt-4 w-full">
+              <Link href={`/users/${profile.username}/performance`}>
+                See performance breakdown
+              </Link>
+            </Button>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
+  );
+}
+
+function PerformanceStatsGrid({
+  avgDaysToSellLabel,
+  completedMandatesLabel,
+  stats,
+}: {
+  avgDaysToSellLabel: string;
+  completedMandatesLabel: string;
+  stats: Array<{
+    icon: typeof Trophy;
+    label: string;
+    value: string;
+  }>;
+}) {
+  return (
+    <>
+      <div className="grid pt-1 sm:grid-cols-2 sm:gap-x-3 lg:grid-cols-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+
+          return (
+            <div
+              key={stat.label}
+              className="flex min-w-0 items-center gap-3 border-b border-border/60 px-1 py-3 last:border-b-0 sm:border-b-0 lg:flex-col lg:items-start lg:gap-2 lg:border-r lg:border-border/60 lg:px-3 lg:last:border-r-0"
+            >
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:size-10">
+                <Icon className="size-4 sm:size-5" />
+              </span>
+              <p className="min-w-0 flex-1 text-[10px] font-black uppercase tracking-wide text-muted-foreground sm:text-[11px] lg:flex-none">
+                {stat.label}
+              </p>
+              <p className="min-w-0 truncate text-base font-black sm:text-lg lg:text-2xl">
+                {stat.value}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      <div className="rounded-lg bg-primary/5 px-3 py-3 text-xs font-semibold text-muted-foreground lg:mt-2">
+        <p>{completedMandatesLabel}</p>
+        <p className="mt-1">
+          {avgDaysToSellLabel === "No sales yet"
+            ? "No sales yet"
+            : `${avgDaysToSellLabel} avg days to sell`}
+        </p>
+      </div>
+    </>
   );
 }
 
@@ -976,18 +963,26 @@ function AgentBrandCta() {
 function ProfileTabs({
   activeTab,
   canViewSaved,
+  listingCount,
+  reelCount,
+  savedCount,
   isLocked,
   onTabChange,
 }: {
   activeTab: ProfileTab;
   canViewSaved: boolean;
+  listingCount: number;
+  reelCount: number;
+  savedCount: number;
   isLocked: boolean;
   onTabChange: (tab: ProfileTab) => void;
 }) {
   const tabs = [
-    { id: "reels", label: "Reels", icon: Clapperboard },
-    { id: "listings", label: "Listings", icon: Home },
-    ...(canViewSaved ? [{ id: "saved", label: "Saved", icon: Bookmark }] : []),
+    { id: "reels", label: "Reels", icon: Clapperboard, count: reelCount },
+    { id: "listings", label: "Listings", icon: Home, count: listingCount },
+    ...(canViewSaved
+      ? [{ id: "saved", label: "Saved", icon: Bookmark, count: savedCount }]
+      : []),
   ];
 
   return (
@@ -1017,6 +1012,16 @@ function ProfileTabs({
             >
               <span className="relative leading-none">
                 <Icon className="size-4" />
+                <span
+                  className={cn(
+                    "absolute -right-2.5 -top-2 grid min-w-4 place-items-center rounded-full px-1 py-0.5 text-[9px] font-black leading-none",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {tab.count}
+                </span>
                 {isLocked && (tab.id === "reels" || tab.id === "listings") ? (
                   <LockKeyhole className="absolute -right-2 -top-1.5 size-2.5 text-destructive" />
                 ) : null}
@@ -1047,85 +1052,73 @@ function listingTypeLabel(value: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function ProfileListingCard({ listing }: { listing: ProfileListing }) {
-  const { formatPriceCents } = useCurrency();
-  const price =
-    listing.askingPriceCents && listing.askingPriceCents > 0
-      ? formatPriceCents(listing.askingPriceCents)
-      : listing.priceLabel || "Price not set";
+function unavailableListingLabel(status: string) {
+  if (status === "sold" || status === "sold_externally") return "Sold";
+  if (status === "archived") return "Archived";
+  if (status === "withdrawn") return "Withdrawn";
+  if (status === "expired") return "Expired";
 
-  return (
-    <article className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
-      <div className="relative aspect-[4/3] bg-muted">
-        {listing.coverImageUrl ? (
-          <Image
-            src={listing.coverImageUrl}
-            alt={listing.title}
-            fill
-            className="object-cover"
-          />
-        ) : (
-          <div className="grid size-full place-items-center text-muted-foreground">
-            <Home className="size-8" />
-          </div>
-        )}
-        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
-          {listingTypeLabel(listing.listingType)}
-        </span>
-        <span className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
-          {listing.status}
-        </span>
-      </div>
-      <div className="p-4">
-        <p className="text-xs font-black uppercase tracking-wide text-primary">
-          {listingTypeLabel(listing.propertyType)}
-        </p>
-        <h3 className="mt-1 line-clamp-2 text-lg font-black">{listing.title}</h3>
-        <p className="mt-1 line-clamp-2 text-sm font-bold text-muted-foreground">
-          {listing.location || "Location not set"}
-        </p>
-        <p className="mt-4 text-2xl font-black">{price}</p>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-black text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <BedDouble className="size-4" />
-            {listing.bedrooms || 0} beds
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Bath className="size-4" />
-            {listing.bathrooms || 0} baths
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Ruler className="size-4" />
-            {listing.floorSize || 0}m²
-          </span>
-        </div>
-        {listing.features.length ? (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {listing.features.map((feature) => (
-              <span
-                key={feature}
-                className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-black text-primary"
-              >
-                #{feature.replace(/\s+/g, "")}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </article>
-  );
+  return "No longer available";
+}
+
+function ProfileListingCard({
+  listing,
+  savedByViewer = false,
+}: {
+  listing: ProfileListing;
+  savedByViewer?: boolean;
+}) {
+  const listingCard: ListingCardData = {
+    bathrooms: listing.bathrooms,
+    bedrooms: listing.bedrooms,
+    buyerIncentive: listing.buyerIncentive,
+    coverImageUrl: listing.coverImageUrl,
+    erfSize: listing.erfSize,
+    features: listing.features,
+    floorSize: listing.floorSize,
+    garages: listing.garages,
+    href: `/listings/${listing.id}`,
+    id: listing.id,
+    imageUrls: listing.imageUrls,
+    likedByViewer: listing.likedByViewer,
+    likeCount: listing.likeCount,
+    likeCountLabel: listing.likeCountLabel,
+    listingType: listing.listingType,
+    listingTypeLabel: listingTypeLabel(listing.listingType),
+    location: listing.location,
+    mandateEndDate: listing.mandateEndDate,
+    mandateStartDate: listing.mandateStartDate,
+    mandateType: listing.mandateType,
+    parking: listing.parking,
+    previousPriceCents: listing.previousAskingPriceCents,
+    priceCents: listing.askingPriceCents,
+    priceLabel: listing.priceLabel,
+    propertyTypeLabel: listingTypeLabel(listing.propertyType),
+    savedByViewer: savedByViewer || listing.savedByViewer,
+    saveCount: listing.saveCount,
+    saveCountLabel: listing.saveCountLabel,
+    title: listing.title,
+    unavailable: listing.unavailable,
+    unavailableLabel:
+      listing.unavailableLabel ||
+      (listing.unavailable ? unavailableListingLabel(listing.status) : undefined),
+  };
+
+  return <ListingCard listing={listingCard} />;
 }
 
 function ProfileTabPanel({
   activeTab,
   listings,
   reels,
+  savedListings,
   savedReels,
   username,
 }: {
   activeTab: ProfileTab;
   listings: ProfileListing[];
   reels: ProfileReel[];
+  savedListings: ProfileListing[];
   savedReels: ProfileReel[];
   username: string;
 }) {
@@ -1142,12 +1135,12 @@ function ProfileTabPanel({
       description: "Linked properties and active listings will appear here once published.",
     },
     saved: {
-      title: "No saved reels yet",
-      description: "Saved reels and homes this profile wants to revisit will appear here.",
+      title: "No saved homes or reels yet",
+      description: "Saved listings and reels this profile wants to revisit will appear here.",
     },
   };
   const emptyState = emptyStates[activeTab];
-  const visibleReels = activeTab === "saved" ? savedReels : reels;
+  const hasSavedItems = savedListings.length > 0 || savedReels.length > 0;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1178,9 +1171,42 @@ function ProfileTabPanel({
           ))}
         </div>
       ) : null}
-      {(activeTab === "reels" || activeTab === "saved") && visibleReels.length ? (
+      {activeTab === "saved" && hasSavedItems ? (
+        <div className="space-y-8">
+          {savedReels.length ? (
+            <div>
+              <h2 className="mb-4 text-base font-black">Saved reels</h2>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
+                {savedReels.map((reel) => (
+                  <ProfileReelCard
+                    key={reel.id}
+                    reel={reel}
+                    username={username}
+                    watched={watchedReelIds.has(reel.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {savedListings.length ? (
+            <div>
+              <h2 className="mb-4 text-base font-black">Saved listings</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {savedListings.map((listing) => (
+                  <ProfileListingCard
+                    key={listing.id}
+                    listing={listing}
+                    savedByViewer
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {activeTab === "reels" && reels.length ? (
         <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
-          {visibleReels.map((reel) => (
+          {reels.map((reel) => (
             <ProfileReelCard
               key={reel.id}
               reel={reel}
@@ -1189,7 +1215,11 @@ function ProfileTabPanel({
             />
           ))}
         </div>
-      ) : activeTab !== "listings" ? (
+      ) : activeTab !== "listings" && activeTab !== "saved" ? (
+        <div>
+          <EmptyState title={emptyState.title} description={emptyState.description} />
+        </div>
+      ) : activeTab === "saved" && !hasSavedItems ? (
         <div>
           <EmptyState title={emptyState.title} description={emptyState.description} />
         </div>
@@ -1215,56 +1245,17 @@ function ProfileReelCard({
     reel.status === "published" ? `/users/${username}/reels` : reel.editHref;
 
   return (
-    <Link
-      href={href}
-      className="group relative isolate aspect-[3/4] overflow-hidden rounded-md bg-brand-midnight text-white shadow-sm"
-    >
-      {reel.coverUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails are stored canvas data URLs or local media paths.
-        <img
-          alt=""
-          className="absolute inset-0 size-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
-          src={reel.coverUrl}
-        />
-      ) : (
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(124,92,255,0.38),transparent_34%),linear-gradient(155deg,#111116,#050508)]" />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/5 to-black/70" />
-      {watched && reel.status === "published" ? (
-        <>
-          <div className="absolute inset-0 z-10 bg-black/35 backdrop-saturate-75" />
-          <span className="absolute left-2 top-2 z-20 rounded-full bg-black/55 px-2 py-1 text-[9px] font-black uppercase text-white shadow-sm backdrop-blur">
-            Watched
-          </span>
-        </>
-      ) : null}
-      {reel.status === "draft" ? (
-        <div className="absolute left-2 top-2 z-20 grid size-7 place-items-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur">
-          <Clock3 className="size-3.5" />
-        </div>
-      ) : null}
-      {reel.status === "processing" || reel.status === "failed" ? (
-        <span
-          className={cn(
-            "absolute left-2 top-2 z-20 rounded-full px-2 py-1 text-[9px] font-black uppercase shadow-sm backdrop-blur",
-            reel.status === "processing"
-              ? "bg-violet-100/95 text-violet-700"
-              : "bg-red-100/95 text-red-700",
-          )}
-        >
-          {reel.status === "processing" ? "Processing" : "Failed"}
-        </span>
-      ) : null}
-      <div className="absolute inset-x-2 bottom-2 z-20 flex items-end justify-between gap-2 text-[11px] font-black">
-        <span className="flex min-w-0 items-center gap-1 rounded-full bg-black/20 px-1.5 py-1 backdrop-blur-[1px]">
-          <PlayCircle className="size-3.5 shrink-0" />
-          {reel.viewCountLabel}
-        </span>
-        <span className="rounded-full bg-black/20 px-1.5 py-1 backdrop-blur-[1px]">
-          {reel.durationLabel}
-        </span>
-      </div>
-    </Link>
+    <ReelPreviewCard
+      reel={{
+        coverUrl: reel.coverUrl,
+        durationLabel: reel.durationLabel,
+        href,
+        id: reel.id,
+        status: reel.status,
+        viewCountLabel: reel.viewCountLabel,
+        watched,
+      }}
+    />
   );
 }
 
@@ -1429,35 +1420,64 @@ export function UserProfilePage({
 }: {
   profile: UserProfile;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ProfileTab>(
     profile.initialTab || "reels",
   );
   const canViewSaved = profile.isOwner || profile.hasActiveSubscription;
 
+  const handleTabChange = useCallback((tab: ProfileTab) => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (tab === "reels") {
+      nextParams.delete("tab");
+    } else {
+      nextParams.set("tab", tab);
+    }
+
+    const query = nextParams.toString();
+
+    setActiveTab(tab);
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   useEffect(() => {
     if (activeTab === "saved" && !canViewSaved) {
-      const timeout = window.setTimeout(() => setActiveTab("reels"), 0);
+      const timeout = window.setTimeout(() => handleTabChange("reels"), 0);
 
       return () => window.clearTimeout(timeout);
     }
-  }, [activeTab, canViewSaved]);
+  }, [activeTab, canViewSaved, handleTabChange]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <BrandHeader viewerUsername={profile.viewerUsername} />
-      <main className="page-body pb-24">
+      <GlobalHeader viewerUsername={profile.viewerUsername} />
+      <main className="page-body pb-24 pt-20">
         <ProfileHero profile={profile} />
+        {profile.archiveFeedback ? (
+          <section className="page-container pb-6">
+            <div className="rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+              {profile.archiveFeedback}
+            </div>
+          </section>
+        ) : null}
         {profile.isOwner && !profile.hasActiveSubscription ? <AgentBrandCta /> : null}
         <ProfileTabs
           activeTab={activeTab}
           canViewSaved={canViewSaved}
           isLocked={profile.isOwner && !profile.hasActiveSubscription}
-          onTabChange={setActiveTab}
+          listingCount={profile.listings.length}
+          onTabChange={handleTabChange}
+          reelCount={profile.reels.length}
+          savedCount={profile.savedListings.length + profile.savedReels.length}
         />
         <ProfileTabPanel
           activeTab={activeTab}
           listings={profile.listings}
           reels={profile.reels}
+          savedListings={profile.savedListings}
           savedReels={profile.savedReels}
           username={profile.username}
         />

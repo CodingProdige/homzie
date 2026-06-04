@@ -1,6 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import {
   type ChangeEvent,
@@ -20,23 +21,21 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
-  Bath,
   BedDouble,
   Camera,
+  CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
+  CircleAlert,
   CircleDollarSign,
-  Car,
   Grip,
   House,
   ImagePlus,
   MapPin,
-  ParkingCircle,
-  Ruler,
-  Trees,
   ShieldCheck,
   Sparkles,
-  Upload,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -53,7 +52,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { useCurrency } from "@/modules/currency/currency-provider";
+import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
 import {
+  archiveListing,
   createListing,
   improveListingDescription,
   improveListingTitle,
@@ -133,25 +134,35 @@ export type ListingDraft = {
   availableFrom: string;
   bathrooms: string;
   bedrooms: string;
+  buyerIncentive: string;
   city: string;
   country: string;
   description: string;
   erfSize: string;
   features: string[];
   floorSize: string;
+  furnishedStatus: string;
   garages: string;
   googlePlaceId: string;
+  insuranceEstimate: string;
   listingType: ListingType;
   location: string;
+  localTaxes: string;
   mandateEndDate: string;
   mandateStartDate: string;
   mandateType: string;
+  communityFees: string;
   parking: string;
+  petsAllowed: string;
   previousAskingPrice: string;
   priceQualifier: string;
   propertyType: PropertyType;
+  rentalYield: string;
+  shortLetAllowed: string;
   suburb: string;
   title: string;
+  transferCostsEstimate: string;
+  utilitiesEstimate: string;
 };
 
 export type ListingFormInitialMedia = {
@@ -178,8 +189,15 @@ const maxTitleLength = 120;
 const maxListingImages = 30;
 const maxListingImageSizeMb = 15;
 const aiActionCooldownSeconds = 30;
-const maxListingFeatures = 5;
+const maxListingFeatures = 10;
 const maxFeatureLength = 24;
+const priceQualifierOptions = [
+  { label: "No label", value: "" },
+  { label: "From", value: "From" },
+  { label: "Offers from", value: "Offers from" },
+  { label: "Guide price", value: "Guide price" },
+  { label: "Negotiable", value: "Negotiable" },
+];
 const listingAutosavePrefix = "homzie:listings:autosave";
 const listingAutosaveDbName = "homzie-listing-autosave";
 const listingAutosaveStoreName = "listing-form-media";
@@ -189,25 +207,35 @@ const initialDraft: ListingDraft = {
   availableFrom: "",
   bathrooms: "",
   bedrooms: "",
+  buyerIncentive: "",
   city: "",
   country: "",
   description: "",
   erfSize: "",
   features: [],
   floorSize: "",
+  furnishedStatus: "",
   garages: "",
   googlePlaceId: "",
+  insuranceEstimate: "",
   listingType: "sale",
   location: "",
+  localTaxes: "",
   mandateEndDate: "",
   mandateStartDate: "",
   mandateType: "open",
+  communityFees: "",
   parking: "",
+  petsAllowed: "",
   previousAskingPrice: "",
   priceQualifier: "",
   propertyType: "free_standing_house",
+  rentalYield: "",
+  shortLetAllowed: "",
   suburb: "",
   title: "",
+  transferCostsEstimate: "",
+  utilitiesEstimate: "",
 };
 
 function buildInitialDraft(value?: Partial<ListingDraft>) {
@@ -610,17 +638,144 @@ function SubmitButtons({
   );
 }
 
-function ListingPublishSuccess({
-  createAnotherPath,
-  profileListingsPath,
+function EditSubmitButtons({
+  formId,
+  intent,
+  listingId,
+  setIntent,
 }: {
-  createAnotherPath: string;
-  profileListingsPath: string;
+  formId: string;
+  intent: "draft" | "published";
+  listingId?: string;
+  setIntent: (intent: "draft" | "published") => void;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <div className="flex min-w-0 flex-wrap justify-end gap-2 sm:gap-3">
+      {listingId ? (
+        <ArchiveListingDialog disabled={pending} formId={formId} />
+      ) : null}
+      {intent === "draft" ? (
+        <>
+          <Button
+            className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
+            type="submit"
+            name="publishIntent"
+            value="draft"
+            variant="outline"
+            disabled={pending}
+            onClick={() => setIntent("draft")}
+          >
+            {pending ? "Updating" : "Update draft"}
+          </Button>
+          <Button
+            className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
+            type="submit"
+            name="publishIntent"
+            value="published"
+            disabled={pending}
+            onClick={() => setIntent("published")}
+          >
+            {pending ? "Publishing" : "Publish listing"}
+          </Button>
+        </>
+      ) : (
+        <Button
+          className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
+          type="submit"
+          name="publishIntent"
+          value="published"
+          disabled={pending}
+          onClick={() => setIntent("published")}
+        >
+          {pending ? "Updating" : "Update listing"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ArchiveListingDialog({
+  disabled,
+  formId,
+  triggerId,
+}: {
+  disabled?: boolean;
+  formId: string;
+  triggerId?: string;
 }) {
   return (
-    <main className="min-h-dvh bg-[#fbfbfe] px-4 py-8 text-brand-black sm:px-6">
+    <Dialog.Root>
+      <Dialog.Trigger asChild>
+        <Button
+          id={triggerId}
+          className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
+          type="button"
+          variant="outline"
+          disabled={disabled}
+        >
+          <Trash2 className="size-4" />
+          <span className="hidden sm:inline">Remove listing</span>
+          <span className="sm:hidden">Remove</span>
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/40" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[91] w-[min(calc(100vw-2rem),30rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive">
+              <CircleAlert className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <Dialog.Title className="text-lg font-black">
+                Archive this listing?
+              </Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                This will not delete the listing. It will be archived and no
+                longer publicly visible. Archiving does not affect performance
+                stats, and removing a listing to alter recorded performance is
+                not permitted. Published listings remain part of performance
+                history. If the same property is recorded as sold by another
+                agent, this listing will count as sold externally. Drafts that
+                were never published do not count toward analytics.
+              </Dialog.Description>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Dialog.Close asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </Dialog.Close>
+            <Button
+              form={formId}
+              type="submit"
+              name="listingAction"
+              value="archive"
+              variant="destructive"
+              formAction={archiveListing}
+            >
+              Confirm archive
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function ListingPublishSuccess({
+  createAnotherPath,
+  listingPath,
+}: {
+  createAnotherPath: string;
+  listingPath: string;
+}) {
+  return (
+    <main className="min-h-dvh bg-background px-4 py-8 text-foreground sm:px-6">
       <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[720px] items-center justify-center">
-        <section className="w-full rounded-lg border border-border bg-white p-6 text-center shadow-sm sm:p-8">
+        <section className="w-full rounded-lg border border-border bg-card p-6 text-center text-card-foreground shadow-sm sm:p-8">
           <div className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-100 text-emerald-600">
             <CheckCircle2 className="size-8 stroke-[2.8]" />
           </div>
@@ -631,10 +786,43 @@ function ListingPublishSuccess({
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <Button asChild>
-              <Link href={profileListingsPath}>View listing</Link>
+              <Link href={listingPath} replace>View listing</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href={createAnotherPath}>Create another</Link>
+            </Button>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function ListingDuplicateWarning({
+  createAnotherPath,
+  profileListingsPath,
+}: {
+  createAnotherPath: string;
+  profileListingsPath: string;
+}) {
+  return (
+    <main className="min-h-dvh bg-background px-4 py-8 text-foreground sm:px-6">
+      <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[720px] items-center justify-center">
+        <section className="w-full rounded-lg border border-border bg-card p-6 text-center text-card-foreground shadow-sm sm:p-8">
+          <div className="mx-auto grid size-16 place-items-center rounded-full bg-amber-100 text-amber-600">
+            <CircleAlert className="size-8 stroke-[2.8]" />
+          </div>
+          <h1 className="mt-5 text-2xl font-black">Listing already exists</h1>
+          <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+            This profile already has an active listing for that property. Open
+            the existing listing instead of creating a duplicate.
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <Button asChild>
+              <Link href={profileListingsPath}>View existing listing</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={createAnotherPath}>Create a different listing</Link>
             </Button>
           </div>
         </section>
@@ -694,6 +882,40 @@ function formatListingPrice(
   return listingType === "rental" ? `${formatted}/month` : formatted;
 }
 
+function formatEditableCurrencyValue(
+  value: string,
+  convertFromZarAmount: (amountZar: number) => number,
+) {
+  if (!value) return "";
+
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) return "";
+
+  const converted = convertFromZarAmount(amount);
+
+  return Number.isInteger(converted)
+    ? String(converted)
+    : converted.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function editableCurrencyToZarValue(
+  value: string,
+  convertToZarAmount: (amount: number) => number,
+) {
+  if (!value) return "";
+
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) return "";
+
+  const converted = convertToZarAmount(amount);
+
+  return Number.isInteger(converted)
+    ? String(converted)
+    : converted.toFixed(2).replace(/\.?0+$/, "");
+}
+
 function isReducedPrice(askingPrice: string, previousAskingPrice: string) {
   const current = Number(askingPrice);
   const previous = Number(previousAskingPrice);
@@ -706,19 +928,137 @@ function isReducedPrice(askingPrice: string, previousAskingPrice: string) {
   );
 }
 
-function getMandateOption(value: string) {
+const listingBooleanOptions = [
+  { label: "Not specified", value: "" },
+  { label: "Yes", value: "yes" },
+  { label: "No", value: "no" },
+];
+
+function ListingCostInput({
+  convertFromZarAmount,
+  convertToZarAmount,
+  currency,
+  description,
+  draftKey,
+  label,
+  placeholder,
+  setDraft,
+  value,
+}: {
+  convertFromZarAmount: (amountZar: number) => number;
+  convertToZarAmount: (amount: number) => number;
+  currency: string;
+  description?: string;
+  draftKey: keyof ListingDraft;
+  label: string;
+  placeholder?: string;
+  setDraft: Dispatch<SetStateAction<ListingDraft>>;
+  value: string;
+}) {
   return (
-    mandateTypeOptions.find((option) => option.value === value) ||
-    mandateTypeOptions[0]
+    <label className="block text-sm font-black">
+      <span className="inline-flex items-center gap-1.5">
+        {label} ({currency})
+        {description ? (
+          <AnalyticsInfoPopover title={label} description={description} />
+        ) : null}
+      </span>
+      <input
+        value={formatEditableCurrencyValue(value, convertFromZarAmount)}
+        type="number"
+        min="0"
+        step="100"
+        onChange={(event) =>
+          updateDraft(
+            setDraft,
+            draftKey,
+            editableCurrencyToZarValue(event.target.value, convertToZarAmount),
+          )
+        }
+        placeholder={placeholder || "Optional"}
+        className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+      />
+    </label>
   );
 }
 
-function formatMandateDates(startDate: string, endDate: string) {
-  if (startDate && endDate) return `${startDate} to ${endDate}`;
-  if (startDate) return `Starts ${startDate}`;
-  if (endDate) return `Ends ${endDate}`;
+function ListingSelect({
+  description,
+  draftKey,
+  label,
+  setDraft,
+  value,
+}: {
+  description?: string;
+  draftKey: keyof ListingDraft;
+  label: string;
+  setDraft: Dispatch<SetStateAction<ListingDraft>>;
+  value: string;
+}) {
+  return (
+    <label className="block text-sm font-black">
+      <span className="inline-flex items-center gap-1.5">
+        {label}
+        {description ? (
+          <AnalyticsInfoPopover title={label} description={description} />
+        ) : null}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => updateDraft(setDraft, draftKey, event.target.value)}
+        className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+      >
+        {listingBooleanOptions.map((option) => (
+          <option key={option.value || "empty"} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
-  return "Dates not set";
+function DateInput({
+  name,
+  onChange,
+  value,
+}: {
+  name: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function openPicker() {
+    const input = inputRef.current;
+
+    if (!input) return;
+
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  }
+
+  return (
+    <span className="relative mt-2 block">
+      <input
+        ref={inputRef}
+        name={name}
+        value={value}
+        type="date"
+        onClick={openPicker}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-12 w-full cursor-pointer rounded-md border border-border bg-background px-4 pr-14 text-sm font-semibold outline-none transition-colors [color-scheme:light] focus:border-primary dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
+      />
+      <span className="pointer-events-none absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md bg-primary/10 text-primary">
+        <CalendarDays className="size-4" />
+      </span>
+    </span>
+  );
 }
 
 function splitLocation(value: string) {
@@ -738,7 +1078,10 @@ export function CreateListingPage({
   initialCoverIndex = 0,
   initialDraft,
   initialMedia,
+  initialPublishIntent = "published",
+  duplicateListingId,
   listingId,
+  listingUpdateFeedback,
   mode = "create",
   profilePath,
   publishedListingId,
@@ -746,7 +1089,10 @@ export function CreateListingPage({
   initialCoverIndex?: number;
   initialDraft?: Partial<ListingDraft>;
   initialMedia?: ListingFormInitialMedia[];
+  initialPublishIntent?: "draft" | "published";
+  duplicateListingId?: string;
   listingId?: string;
+  listingUpdateFeedback?: "draft" | "published" | "updated";
   mode?: "create" | "edit";
   profilePath: string;
   publishedListingId?: string;
@@ -756,9 +1102,9 @@ export function CreateListingPage({
     buildInitialDraft(initialDraft),
   );
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [publishIntent, setPublishIntent] = useState<"draft" | "published">(
-    "published",
-  );
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [publishIntent, setPublishIntent] =
+    useState<"draft" | "published">(initialPublishIntent);
   const [media, setMedia] = useState<ListingFormMedia[]>(() =>
     buildInitialMedia(initialMedia),
   );
@@ -774,7 +1120,10 @@ export function CreateListingPage({
   );
   const formId = `listing-form-${mode}-${listingId || "new"}`;
   const formAction = mode === "edit" ? updateListing : createListing;
+  const isPublishedEdit = mode === "edit" && initialPublishIntent === "published";
   const profileListingsPath = `${profilePath}?tab=listings`;
+  const backHref = mode === "edit" && listingId ? `/listings/${listingId}` : profileListingsPath;
+  const listingHref = listingId ? `/listings/${listingId}` : "";
   const activeListingType = listingTypeOptions.find(
     (option) => option.value === draft.listingType,
   );
@@ -992,14 +1341,6 @@ export function CreateListingPage({
   }
 
   function resetForm() {
-    if (
-      !window.confirm(
-        "Reset this listing form? This clears autosaved progress in this browser.",
-      )
-    ) {
-      return;
-    }
-
     media.forEach((item) => {
       if (item.previewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(item.previewUrl);
@@ -1020,8 +1361,21 @@ export function CreateListingPage({
     void clearAutosavedMedia(autosaveKey);
   }
 
+  function requestResetForm() {
+    setResetDialogOpen(true);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
+
+    if (
+      submitter instanceof HTMLButtonElement &&
+      submitter.name === "listingAction" &&
+      submitter.value === "archive"
+    ) {
+      return;
+    }
+
     const intent =
       submitter instanceof HTMLButtonElement &&
       submitter.name === "publishIntent" &&
@@ -1048,21 +1402,29 @@ export function CreateListingPage({
     setPublishMessage(`Listing incomplete: ${issues.map((issue) => issue.message).join(" ")}`);
   }
 
-  if (publishedListingId) {
+  if (duplicateListingId) {
     return (
-      <ListingPublishSuccess
+      <ListingDuplicateWarning
         createAnotherPath="/listings/new"
         profileListingsPath={profileListingsPath}
       />
     );
   }
 
+  if (publishedListingId) {
+    return (
+      <ListingPublishSuccess
+        createAnotherPath="/listings/new"
+        listingPath={`/listings/${publishedListingId}`}
+      />
+    );
+  }
+
   return (
-    <main className="min-h-dvh w-full max-w-full bg-[#fbfbfe] text-brand-black">
+    <main className="min-h-dvh w-full max-w-full bg-background text-foreground">
       <form
         id={formId}
         action={formAction}
-        encType="multipart/form-data"
         onSubmit={handleSubmit}
       >
         {mode === "edit" && listingId ? (
@@ -1087,16 +1449,23 @@ export function CreateListingPage({
         <input type="hidden" name="availableFrom" value={draft.availableFrom} />
         <input type="hidden" name="bathrooms" value={draft.bathrooms} />
         <input type="hidden" name="bedrooms" value={draft.bedrooms} />
+        <input type="hidden" name="buyerIncentive" value={draft.buyerIncentive} />
         <input type="hidden" name="city" value={draft.city} />
         <input type="hidden" name="country" value={draft.country} />
         <input type="hidden" name="description" value={draft.description} />
         <input type="hidden" name="erfSize" value={draft.erfSize} />
+        {draft.features.map((feature) => (
+          <input key={feature} type="hidden" name="features" value={feature} />
+        ))}
         <input type="hidden" name="floorSize" value={draft.floorSize} />
+        <input type="hidden" name="furnishedStatus" value={draft.furnishedStatus} />
         <input type="hidden" name="garages" value={draft.garages} />
+        <input type="hidden" name="insuranceEstimate" value={draft.insuranceEstimate} />
         <input type="hidden" name="suburb" value={draft.suburb} />
         <input type="hidden" name="googlePlaceId" value={draft.googlePlaceId} />
         <input type="hidden" name="listingType" value={draft.listingType} />
         <input type="hidden" name="location" value={draft.location} />
+        <input type="hidden" name="localTaxes" value={draft.localTaxes} />
         <input type="hidden" name="mandateEndDate" value={draft.mandateEndDate} />
         <input
           type="hidden"
@@ -1104,7 +1473,9 @@ export function CreateListingPage({
           value={draft.mandateStartDate}
         />
         <input type="hidden" name="mandateType" value={draft.mandateType} />
+        <input type="hidden" name="communityFees" value={draft.communityFees} />
         <input type="hidden" name="parking" value={draft.parking} />
+        <input type="hidden" name="petsAllowed" value={draft.petsAllowed} />
         <input
           type="hidden"
           name="previousAskingPrice"
@@ -1112,7 +1483,15 @@ export function CreateListingPage({
         />
         <input type="hidden" name="priceQualifier" value={draft.priceQualifier} />
         <input type="hidden" name="propertyType" value={draft.propertyType} />
+        <input type="hidden" name="rentalYield" value={draft.rentalYield} />
+        <input type="hidden" name="shortLetAllowed" value={draft.shortLetAllowed} />
         <input type="hidden" name="title" value={draft.title} />
+        <input
+          type="hidden"
+          name="transferCostsEstimate"
+          value={draft.transferCostsEstimate}
+        />
+        <input type="hidden" name="utilitiesEstimate" value={draft.utilitiesEstimate} />
         <button
           id={`${formId}-save-draft`}
           className="hidden"
@@ -1129,6 +1508,14 @@ export function CreateListingPage({
           value="published"
           onClick={() => setPublishIntent("published")}
         />
+        <button
+          id={`${formId}-update`}
+          className="hidden"
+          type="submit"
+          name="publishIntent"
+          value={publishIntent}
+          onClick={() => setPublishIntent(publishIntent)}
+        />
         <input
           ref={mediaInputRef}
           type="file"
@@ -1142,42 +1529,166 @@ export function CreateListingPage({
         <div className="mx-auto box-border flex w-full max-w-[1180px] min-w-0 flex-col px-6 py-4 sm:px-6 sm:py-8 lg:px-8">
           <PageTopBar
             actions={
-              <SubmitButtons
-                intent={publishIntent}
-                onReset={resetForm}
-                setIntent={setPublishIntent}
-              />
+              mode === "edit" ? (
+                <>
+                  {listingHref ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
+                    >
+                      <Link href={listingHref} replace>Go to listing</Link>
+                    </Button>
+                  ) : null}
+                  <EditSubmitButtons
+                    formId={formId}
+                    intent={publishIntent}
+                    listingId={listingId}
+                    setIntent={setPublishIntent}
+                  />
+                </>
+              ) : (
+                <SubmitButtons
+                  intent={publishIntent}
+                  onReset={requestResetForm}
+                  setIntent={setPublishIntent}
+                />
+              )
             }
             mobileActions={
-              <>
-                <PageTopBarMenuItem onSelect={resetForm}>
-                  Reset form
-                </PageTopBarMenuItem>
-                <PageTopBarMenuItem
-                  onSelect={() => {
-                    setPublishIntent("draft");
-                    document.getElementById(`${formId}-save-draft`)?.click();
-                  }}
-                >
-                  Save draft
-                </PageTopBarMenuItem>
-                <PageTopBarMenuItem
-                  className="text-primary"
-                  onSelect={() => {
-                    setPublishIntent("published");
-                    document.getElementById(`${formId}-publish`)?.click();
-                  }}
-                >
-                  Publish listing
-                </PageTopBarMenuItem>
-              </>
+              mode === "edit" ? (
+                <>
+                  {listingHref ? (
+                    <PageTopBarMenuItem
+                      onSelect={() => {
+                        window.location.replace(listingHref);
+                      }}
+                    >
+                      Go to listing
+                    </PageTopBarMenuItem>
+                  ) : null}
+                  <PageTopBarMenuItem
+                    onSelect={() => {
+                      setPublishIntent(publishIntent);
+                      document.getElementById(`${formId}-update`)?.click();
+                    }}
+                  >
+                    {publishIntent === "draft" ? "Update draft" : "Update listing"}
+                  </PageTopBarMenuItem>
+                  {publishIntent === "draft" ? (
+                    <PageTopBarMenuItem
+                      className="text-primary"
+                      onSelect={() => {
+                        setPublishIntent("published");
+                        document.getElementById(`${formId}-publish`)?.click();
+                      }}
+                    >
+                      Publish listing
+                    </PageTopBarMenuItem>
+                  ) : null}
+                  <PageTopBarMenuItem
+                    className="text-destructive"
+                    onSelect={() => {
+                      window.setTimeout(() => {
+                        document
+                          .getElementById(`${formId}-archive-trigger`)
+                          ?.click();
+                      }, 0);
+                    }}
+                  >
+                    Remove listing
+                  </PageTopBarMenuItem>
+                </>
+              ) : (
+                <>
+                  <PageTopBarMenuItem onSelect={requestResetForm}>
+                    Reset form
+                  </PageTopBarMenuItem>
+                  <PageTopBarMenuItem
+                    onSelect={() => {
+                      setPublishIntent("draft");
+                      document.getElementById(`${formId}-save-draft`)?.click();
+                    }}
+                  >
+                    Save draft
+                  </PageTopBarMenuItem>
+                  <PageTopBarMenuItem
+                    className="text-primary"
+                    onSelect={() => {
+                      setPublishIntent("published");
+                      document.getElementById(`${formId}-publish`)?.click();
+                    }}
+                  >
+                    Publish listing
+                  </PageTopBarMenuItem>
+                </>
+              )
             }
-          />
+          >
+            <Link
+              href={backHref}
+              replace
+              className="inline-flex w-fit items-center gap-3 text-sm font-medium text-foreground transition-colors hover:text-primary"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </Link>
+          </PageTopBar>
+          {mode === "edit" && listingId ? (
+            <span className="hidden">
+              <ArchiveListingDialog
+                disabled={false}
+                formId={formId}
+                triggerId={`${formId}-archive-trigger`}
+              />
+            </span>
+          ) : null}
           {publishMessage ? (
-            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-700 dark:text-amber-300">
               {publishMessage}
             </p>
           ) : null}
+          {listingUpdateFeedback ? (
+            <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+              {listingUpdateFeedback === "draft"
+                ? "Draft updated. Your changes have been saved."
+                : listingUpdateFeedback === "published"
+                  ? "Listing published. Your listing is now publicly visible."
+                  : "Listing updated. Your changes have been saved."}
+            </p>
+          ) : null}
+
+          <Dialog.Root open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm" />
+              <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl outline-none">
+                <Dialog.Title className="text-base font-black">
+                  Reset listing form?
+                </Dialog.Title>
+                <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                  This clears your current listing changes and removes autosaved
+                  progress from this browser.
+                </Dialog.Description>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <Dialog.Close asChild>
+                    <Button type="button" variant="outline">
+                      Cancel
+                    </Button>
+                  </Dialog.Close>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      resetForm();
+                      setResetDialogOpen(false);
+                    }}
+                  >
+                    Reset form
+                  </Button>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
 
           <section
             className={cn(
@@ -1188,7 +1699,7 @@ export function CreateListingPage({
             )}
           >
             <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
-              <div className="h-fit max-h-[calc(100dvh-7rem)] max-w-full overflow-hidden rounded-lg border border-border bg-white p-3 shadow-sm lg:overflow-y-auto lg:overscroll-contain">
+              <div className="h-fit max-h-[calc(100dvh-7rem)] max-w-full overflow-hidden rounded-lg border border-border bg-card p-3 text-card-foreground shadow-sm lg:overflow-y-auto lg:overscroll-contain">
                 <div className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] lg:block lg:space-y-1 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
                   {steps.map((step, index) => {
                     const Icon = step.icon;
@@ -1212,9 +1723,9 @@ export function CreateListingPage({
                       >
                         <span
                           className={cn(
-                            "grid size-7 place-items-center rounded-full border border-border bg-white",
+                            "grid size-7 place-items-center rounded-full border border-border bg-background",
                             isActive && "border-primary",
-                            isComplete && "border-primary bg-primary text-white",
+                            isComplete && "border-primary bg-primary text-primary-foreground",
                           )}
                         >
                           {isComplete ? (
@@ -1231,7 +1742,7 @@ export function CreateListingPage({
               </div>
             </aside>
 
-            <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+            <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm">
               {activeStep === steps.length - 1 ? null : (
                 <div className="border-b border-border px-5 py-4">
                   <h1 className="text-xl font-black">
@@ -1239,7 +1750,7 @@ export function CreateListingPage({
                   </h1>
                   <p className="mt-1 text-sm font-semibold text-muted-foreground">
                     {mode === "edit"
-                      ? "Update listing details while preserving draft and publishing controls."
+                      ? "Update listing details while keeping the current listing status."
                       : "Build a structured property listing that can be linked to reels and tracked in agent performance."}
                   </p>
                 </div>
@@ -1254,7 +1765,11 @@ export function CreateListingPage({
                   />
                 ) : null}
                 {activeStep === 1 ? (
-                  <LocationStep draft={draft} setDraft={setDraft} />
+                  <LocationStep
+                    draft={draft}
+                    isLocked={isPublishedEdit}
+                    setDraft={setDraft}
+                  />
                 ) : null}
                 {activeStep === 2 ? (
                   <DetailsStep draft={draft} setDraft={setDraft} />
@@ -1281,6 +1796,7 @@ export function CreateListingPage({
                     activePropertyType={activePropertyType?.label || "Property"}
                     cover={media[coverIndex]?.previewUrl}
                     draft={draft}
+                    imageUrls={media.map((item) => item.previewUrl)}
                   />
                 ) : null}
               </div>
@@ -1304,10 +1820,18 @@ export function CreateListingPage({
                   <Button
                     type="submit"
                     name="publishIntent"
-                    value="published"
-                    onClick={() => setPublishIntent("published")}
+                    value={mode === "edit" ? publishIntent : "published"}
+                    onClick={() => {
+                      if (mode !== "edit") {
+                        setPublishIntent("published");
+                      }
+                    }}
                   >
-                    Publish listing
+                    {mode === "edit"
+                      ? publishIntent === "draft"
+                        ? "Update draft"
+                        : "Update listing"
+                      : "Publish listing"}
                   </Button>
                 )}
               </div>
@@ -1325,6 +1849,7 @@ export function CreateListingPage({
                   activePropertyType={activePropertyType?.label || "Property"}
                   cover={media[coverIndex]?.previewUrl}
                   draft={draft}
+                  imageUrls={media.map((item) => item.previewUrl)}
                   profilePath={profilePath}
                 />
               </div>
@@ -1337,6 +1862,7 @@ export function CreateListingPage({
               activePropertyType={activePropertyType?.label || "Property"}
               cover={media[coverIndex]?.previewUrl}
               draft={draft}
+              imageUrls={media.map((item) => item.previewUrl)}
               open={previewOpen}
               profilePath={profilePath}
               setOpen={setPreviewOpen}
@@ -1424,9 +1950,11 @@ function ListingTypeStep({
 
 function LocationStep({
   draft,
+  isLocked = false,
   setDraft,
 }: {
   draft: ListingDraft;
+  isLocked?: boolean;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
   const [query, setQuery] = useState(draft.location);
@@ -1437,6 +1965,12 @@ function LocationStep({
   useEffect(() => {
     let isCurrent = true;
     const timeout = window.setTimeout(() => {
+      if (isLocked) {
+        setPredictions([]);
+        setIsSearching(false);
+        return;
+      }
+
       if (query.trim().length < 2) {
         setPredictions([]);
         return;
@@ -1489,7 +2023,7 @@ function LocationStep({
       isCurrent = false;
       window.clearTimeout(timeout);
     };
-  }, [query]);
+  }, [isLocked, query]);
 
   function selectLocation(option: GoogleAutocompletePrediction) {
     const parts = splitLocation(option.description);
@@ -1510,8 +2044,9 @@ function LocationStep({
       <div>
         <h2 className="text-lg font-black">Location</h2>
         <p className="mt-1 text-sm font-semibold text-muted-foreground">
-          Search the address, suburb, city, or country. We store this structured
-          so listings can be matched later.
+          {isLocked
+            ? "Published listing locations are locked so performance matching cannot be avoided by changing the address."
+            : "Search the address, suburb, city, or country. We store this structured so listings can be matched later."}
         </p>
       </div>
       <div className="block text-sm font-black">
@@ -1533,7 +2068,8 @@ function LocationStep({
             }));
           }}
           placeholder="Start typing an address, city, or country"
-          className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+          className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+          disabled={isLocked}
           required
         />
       </div>
@@ -1548,7 +2084,7 @@ function LocationStep({
             <button
               key={option.place_id}
               type="button"
-              className="flex w-full items-start gap-3 rounded-md px-3 py-3 text-left transition-colors hover:bg-white"
+              className="flex w-full items-start gap-3 rounded-md px-3 py-3 text-left transition-colors hover:bg-background"
               onClick={() => selectLocation(option)}
             >
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -1739,7 +2275,7 @@ function DetailsStep({
               "ai-action-button h-10 rounded-md px-3 text-xs font-black disabled:opacity-45",
               isImprovingTitle && "is-processing disabled:opacity-100",
               isTitleCoolingDown &&
-                "[background:#ececf2] text-brand-black shadow-none hover:[background:#ececf2] disabled:opacity-100 [&_.ai-action-icon]:text-brand-black",
+                "bg-muted text-muted-foreground shadow-none hover:bg-muted disabled:opacity-100 [&_.ai-action-icon]:text-muted-foreground",
             )}
             disabled={
               isImprovingTitle || isTitleCoolingDown || draft.title.trim().length < 4
@@ -1798,7 +2334,7 @@ function DetailsStep({
               "ai-action-button h-10 rounded-md px-3 text-xs font-black disabled:opacity-45",
               isImprovingDescription && "is-processing disabled:opacity-100",
               isDescriptionCoolingDown &&
-                "[background:#ececf2] text-brand-black shadow-none hover:[background:#ececf2] disabled:opacity-100 [&_.ai-action-icon]:text-brand-black",
+                "bg-muted text-muted-foreground shadow-none hover:bg-muted disabled:opacity-100 [&_.ai-action-icon]:text-muted-foreground",
             )}
             disabled={
               isImprovingDescription ||
@@ -1930,9 +2466,6 @@ function DetailsStep({
             );
           })}
         </div>
-        {draft.features.map((feature) => (
-          <input key={feature} type="hidden" name="features" value={feature} />
-        ))}
         <div className="mt-3 flex gap-2">
           <label className="min-w-0 flex-1">
             <span className="sr-only">Add custom feature</span>
@@ -1988,10 +2521,23 @@ function PricingStep({
   draft: ListingDraft;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
-  const { formatPriceCents } = useCurrency();
+  const { convertFromZarAmount, convertToZarAmount, currency, formatPriceCents } =
+    useCurrency();
   const showReducedPrice = isReducedPrice(
     draft.askingPrice,
     draft.previousAskingPrice,
+  );
+  const askingPriceValue = formatEditableCurrencyValue(
+    draft.askingPrice,
+    convertFromZarAmount,
+  );
+  const previousAskingPriceValue = formatEditableCurrencyValue(
+    draft.previousAskingPrice,
+    convertFromZarAmount,
+  );
+  const askingPricePlaceholder = formatEditableCurrencyValue(
+    draft.listingType === "rental" ? "25000" : "4500000",
+    convertFromZarAmount,
   );
 
   return (
@@ -2008,36 +2554,48 @@ function PricingStep({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-black">
-          Asking price
+          Asking price ({currency})
           <input
-            name="askingPrice"
-            value={draft.askingPrice}
+            value={askingPriceValue}
             type="number"
             min="0"
             step="1000"
             onChange={(event) =>
-              updateDraft(setDraft, "askingPrice", event.target.value)
+              updateDraft(
+                setDraft,
+                "askingPrice",
+                editableCurrencyToZarValue(
+                  event.target.value,
+                  convertToZarAmount,
+                ),
+              )
             }
-            placeholder={draft.listingType === "rental" ? "25000" : "4500000"}
+            placeholder={askingPricePlaceholder}
             className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
           />
         </label>
         <label className="block text-sm font-black">
           <span className="inline-flex items-center gap-1.5">
-            Previous price
+            Previous price ({currency})
             <AnalyticsInfoPopover
               title="Previous price"
               description="Use this when the listing has been reduced. It only appears as Reduced from when it is higher than the asking price."
             />
           </span>
           <input
-            name="previousAskingPrice"
-            value={draft.previousAskingPrice}
+            value={previousAskingPriceValue}
             type="number"
             min="0"
             step="1000"
             onChange={(event) =>
-              updateDraft(setDraft, "previousAskingPrice", event.target.value)
+              updateDraft(
+                setDraft,
+                "previousAskingPrice",
+                editableCurrencyToZarValue(
+                  event.target.value,
+                  convertToZarAmount,
+                ),
+              )
             }
             placeholder="Optional"
             className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
@@ -2051,13 +2609,67 @@ function PricingStep({
               description="Optional text shown before the price, such as From, Offers from, or Guide price."
             />
           </span>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                className="mt-2 flex h-12 w-full items-center justify-between rounded-md border border-border bg-background px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-primary/45 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
+              >
+                <span>
+                  {priceQualifierOptions.find(
+                    (option) => option.value === draft.priceQualifier,
+                  )?.label || "No label"}
+                </span>
+                <ChevronDown className="size-4 text-muted-foreground" />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="start"
+                sideOffset={8}
+                className="z-[80] w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl shadow-black/20 outline-none"
+              >
+                {priceQualifierOptions.map((option) => {
+                  const isActive = option.value === draft.priceQualifier;
+
+                  return (
+                    <DropdownMenu.Item
+                      key={option.label}
+                      className={cn(
+                        "flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-3 text-sm font-bold outline-none transition-colors focus:bg-accent focus:text-accent-foreground",
+                        isActive &&
+                          "bg-primary text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                      )}
+                      onSelect={() =>
+                        updateDraft(setDraft, "priceQualifier", option.value)
+                      }
+                    >
+                      <span className="grid size-4 place-items-center">
+                        {isActive ? <Check className="size-3.5" /> : null}
+                      </span>
+                      {option.label}
+                    </DropdownMenu.Item>
+                  );
+                })}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        </label>
+        <label className="block text-sm font-black sm:col-span-2">
+          <span className="inline-flex items-center gap-1.5">
+            Buyer incentive badge
+            <AnalyticsInfoPopover
+              title="Buyer incentive"
+              description="Optional buyer-facing badge such as No transfer duty, VAT included, Seller pays transfer costs, or Move-in ready."
+            />
+          </span>
           <input
-            name="priceQualifier"
-            value={draft.priceQualifier}
+            value={draft.buyerIncentive}
+            maxLength={40}
             onChange={(event) =>
-              updateDraft(setDraft, "priceQualifier", event.target.value)
+              updateDraft(setDraft, "buyerIncentive", event.target.value)
             }
-            placeholder={draft.listingType === "development" ? "From" : "Optional"}
+            placeholder="No transfer duty"
             className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
           />
         </label>
@@ -2065,23 +2677,144 @@ function PricingStep({
       {draft.listingType === "rental" ? (
         <label className="block text-sm font-black">
           Available from
-          <input
+          <DateInput
             name="availableFrom"
             value={draft.availableFrom}
-            type="date"
-            onChange={(event) =>
-              updateDraft(setDraft, "availableFrom", event.target.value)
-            }
-            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            onChange={(value) => updateDraft(setDraft, "availableFrom", value)}
           />
         </label>
       ) : null}
-      <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
-        <p className="text-xs font-black uppercase tracking-wide text-primary">
-          Preview price
+      <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
+        <h3 className="text-sm font-black">Ownership costs</h3>
+        <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+          Use local equivalents such as rates and taxes, levies, HOA, strata or
+          building fees. These help buyers understand the real monthly cost.
         </p>
-        <p className="mt-2 text-2xl font-black">
-          {draft.priceQualifier ? `${draft.priceQualifier} ` : ""}
+        <div className="mt-4 grid gap-4">
+          <ListingCostInput
+            convertFromZarAmount={convertFromZarAmount}
+            convertToZarAmount={convertToZarAmount}
+            currency={currency}
+            description="Recurring local government or municipal charges associated with owning the property. In South Africa this is usually rates and taxes."
+            draftKey="localTaxes"
+            label="Local taxes"
+            placeholder="Rates, council or property tax"
+            setDraft={setDraft}
+            value={draft.localTaxes}
+          />
+          <ListingCostInput
+            convertFromZarAmount={convertFromZarAmount}
+            convertToZarAmount={convertToZarAmount}
+            currency={currency}
+            description="Recurring body corporate, HOA, estate, strata, levy or community charges paid by the owner or occupant."
+            draftKey="communityFees"
+            label="Community fees"
+            placeholder="Levies, HOA or strata"
+            setDraft={setDraft}
+            value={draft.communityFees}
+          />
+          <ListingCostInput
+            convertFromZarAmount={convertFromZarAmount}
+            convertToZarAmount={convertToZarAmount}
+            currency={currency}
+            description="Estimated monthly utilities such as electricity, water, refuse, gas, internet or other recurring services."
+            draftKey="utilitiesEstimate"
+            label="Utilities estimate"
+            setDraft={setDraft}
+            value={draft.utilitiesEstimate}
+          />
+          <ListingCostInput
+            convertFromZarAmount={convertFromZarAmount}
+            convertToZarAmount={convertToZarAmount}
+            currency={currency}
+            description="Estimated property insurance or building cover cost where it is useful for buyers to budget ownership costs."
+            draftKey="insuranceEstimate"
+            label="Insurance estimate"
+            setDraft={setDraft}
+            value={draft.insuranceEstimate}
+          />
+          <ListingCostInput
+            convertFromZarAmount={convertFromZarAmount}
+            convertToZarAmount={convertToZarAmount}
+            currency={currency}
+            description="Estimated once-off transfer, registration or closing costs. Use the local equivalent for the listing market."
+            draftKey="transferCostsEstimate"
+            label="Transfer costs estimate"
+            setDraft={setDraft}
+            value={draft.transferCostsEstimate}
+          />
+          <label className="block text-sm font-black">
+            <span className="inline-flex items-center gap-1.5">
+              Rental yield estimate (%)
+              <AnalyticsInfoPopover
+                title="Rental yield estimate"
+                description="Estimated annual rental return as a percentage of the purchase price. Useful for investment-focused buyers."
+              />
+            </span>
+            <input
+              value={draft.rentalYield}
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              onChange={(event) =>
+                updateDraft(setDraft, "rentalYield", event.target.value)
+              }
+              placeholder="Optional"
+              className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+        </div>
+      </div>
+      <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
+        <h3 className="text-sm font-black">Availability and rules</h3>
+        <div className="mt-4 grid gap-4">
+          {draft.listingType !== "rental" ? (
+            <label className="block text-sm font-black">
+              <span className="inline-flex items-center gap-1.5">
+                Occupation / available date
+              <AnalyticsInfoPopover
+                  title="Occupation / available date"
+                  description="The earliest date the buyer or tenant can take occupation, if known."
+                />
+              </span>
+              <DateInput
+                name="availableFrom"
+                value={draft.availableFrom}
+                onChange={(value) => updateDraft(setDraft, "availableFrom", value)}
+              />
+            </label>
+          ) : null}
+          <ListingSelect
+            description="Whether the property is offered with furniture included. Leave unspecified if this has not been confirmed."
+            draftKey="furnishedStatus"
+            label="Furnished"
+            setDraft={setDraft}
+            value={draft.furnishedStatus}
+          />
+          <ListingSelect
+            description="Whether pets are permitted by the owner, body corporate, HOA or applicable property rules."
+            draftKey="petsAllowed"
+            label="Pets allowed"
+            setDraft={setDraft}
+            value={draft.petsAllowed}
+          />
+          <ListingSelect
+            description="Whether the property can be used for short-term letting or holiday rentals where local rules allow it."
+            draftKey="shortLetAllowed"
+            label="Short-let allowed"
+            setDraft={setDraft}
+            value={draft.shortLetAllowed}
+          />
+        </div>
+      </div>
+      <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
+        {draft.priceQualifier ? (
+          <p className="text-xs font-black uppercase tracking-wide text-primary">
+            {draft.priceQualifier}
+          </p>
+        ) : null}
+        <p className={draft.priceQualifier ? "mt-1 text-2xl font-black" : "text-2xl font-black"}>
           {formatListingPrice(
             draft.askingPrice,
             draft.listingType,
@@ -2089,7 +2822,7 @@ function PricingStep({
           )}
         </p>
         {showReducedPrice ? (
-          <p className="mt-1 text-sm font-black text-emerald-700">
+          <p className="mt-1 text-sm font-black text-red-600">
             Reduced from{" "}
             <span className="text-muted-foreground line-through">
               {formatListingPrice(
@@ -2182,17 +2915,17 @@ function MediaStep({
                 height={240}
                 className="aspect-[4/3] w-full object-cover"
               />
-              <div className="absolute left-2 top-2 grid size-7 place-items-center rounded-full bg-white/90 text-foreground shadow-sm">
+              <div className="absolute left-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm">
                 <Grip className="size-3.5" aria-hidden="true" />
               </div>
               {coverIndex === index ? (
-                <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-[10px] font-black text-white shadow-sm">
+                <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-[10px] font-black text-primary-foreground shadow-sm">
                   Cover
                 </span>
               ) : (
                 <button
                   type="button"
-                  className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-white/90 text-foreground shadow-sm transition-colors hover:bg-white hover:text-primary"
+                  className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background hover:text-primary"
                   onClick={() => setCoverIndex(index)}
                   aria-label="Set as cover image"
                   title="Set as cover"
@@ -2202,7 +2935,7 @@ function MediaStep({
               )}
               <button
                 type="button"
-                className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-white/90 text-foreground shadow-sm transition-colors hover:bg-white hover:text-destructive"
+                className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background hover:text-destructive"
                 onClick={() => onRemove(index)}
                 aria-label="Remove image"
                 title="Remove image"
@@ -2258,9 +2991,9 @@ function MandateStep({
                 />
                 <span
                   className={cn(
-                    "grid size-8 shrink-0 place-items-center rounded-full border border-border bg-white text-muted-foreground",
+                    "grid size-8 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground",
                     draft.mandateType === option.value &&
-                      "border-primary/30 bg-white text-primary",
+                      "border-primary/30 bg-background text-primary",
                   )}
                 >
                   <Icon className="size-4" />
@@ -2279,26 +3012,18 @@ function MandateStep({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-black">
           Mandate start
-          <input
+          <DateInput
             name="mandateStartDate"
             value={draft.mandateStartDate}
-            type="date"
-            onChange={(event) =>
-              updateDraft(setDraft, "mandateStartDate", event.target.value)
-            }
-            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            onChange={(value) => updateDraft(setDraft, "mandateStartDate", value)}
           />
         </label>
         <label className="block text-sm font-black">
           Mandate end
-          <input
+          <DateInput
             name="mandateEndDate"
             value={draft.mandateEndDate}
-            type="date"
-            onChange={(event) =>
-              updateDraft(setDraft, "mandateEndDate", event.target.value)
-            }
-            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            onChange={(value) => updateDraft(setDraft, "mandateEndDate", value)}
           />
         </label>
       </div>
@@ -2316,6 +3041,7 @@ function PreviewStep(props: {
   activePropertyType: string;
   cover?: string;
   draft: ListingDraft;
+  imageUrls?: string[];
 }) {
   return (
     <div className="space-y-6">
@@ -2338,6 +3064,7 @@ function MobileListingPreviewDialog({
   open,
   profilePath,
   setOpen,
+  imageUrls,
 }: {
   activeListingType: string;
   activePropertyType: string;
@@ -2346,6 +3073,7 @@ function MobileListingPreviewDialog({
   open: boolean;
   profilePath: string;
   setOpen: (open: boolean) => void;
+  imageUrls?: string[];
 }) {
   const [buttonPosition, setButtonPosition] = useState<{
     left: number;
@@ -2426,7 +3154,7 @@ function MobileListingPreviewDialog({
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="listing-preview-fab fixed bottom-24 right-3 z-40 grid size-14 max-w-[calc(100vw-1.5rem)] touch-none place-items-center rounded-full bg-[linear-gradient(135deg,#5b34ff,#f044b7)] text-white shadow-[0_16px_35px_rgba(124,92,255,0.35)] ring-4 ring-white lg:hidden"
+          className="listing-preview-fab fixed bottom-24 right-3 z-40 grid size-14 max-w-[calc(100vw-1.5rem)] touch-none place-items-center rounded-full bg-[linear-gradient(135deg,#5b34ff,#f044b7)] text-white shadow-[0_16px_35px_rgba(124,92,255,0.35)] ring-4 ring-background lg:hidden"
           aria-label="Open listing preview"
           onClick={(event) => {
             if (!suppressNextClickRef.current) return;
@@ -2450,7 +3178,7 @@ function MobileListingPreviewDialog({
           }
         >
           <House className="relative z-10 size-5" />
-          <span className="absolute right-1.5 top-1.5 z-20 grid size-4 place-items-center rounded-full border border-white/80 bg-white text-brand-electric shadow-md">
+          <span className="absolute right-1.5 top-1.5 z-20 grid size-4 place-items-center rounded-full border border-border bg-background text-primary shadow-md">
             <Grip className="size-2.5" />
           </span>
         </button>
@@ -2482,6 +3210,7 @@ function MobileListingPreviewDialog({
             activePropertyType={activePropertyType}
             cover={cover}
             draft={draft}
+            imageUrls={imageUrls}
             profilePath={profilePath}
           />
         </Dialog.Content>
@@ -2495,141 +3224,48 @@ function ListingPreview({
   activePropertyType,
   cover,
   draft,
+  imageUrls,
   profilePath,
 }: {
   activeListingType: string;
   activePropertyType: string;
   cover?: string;
   draft: ListingDraft;
+  imageUrls?: string[];
   profilePath: string;
 }) {
-  const { formatPriceCents } = useCurrency();
-  const showReducedPrice = isReducedPrice(
-    draft.askingPrice,
-    draft.previousAskingPrice,
-  );
-  const mandateOption = getMandateOption(draft.mandateType);
-  const MandateIcon = mandateOption.icon;
+  const priceAmount = Number(draft.askingPrice);
+  const previousPriceAmount = Number(draft.previousAskingPrice);
+  const listing: ListingCardData = {
+    bathrooms: draft.bathrooms,
+    bedrooms: draft.bedrooms,
+    buyerIncentive: draft.buyerIncentive,
+    coverImageUrl: cover,
+    erfSize: draft.erfSize,
+    features: draft.features,
+    floorSize: draft.floorSize,
+    footerText: profilePath ? `Publishes to ${profilePath}` : undefined,
+    garages: draft.garages,
+    imageUrls,
+    listingType: draft.listingType,
+    listingTypeLabel: activeListingType,
+    location: draft.location,
+    mandateEndDate: draft.mandateEndDate,
+    mandateStartDate: draft.mandateStartDate,
+    mandateType: draft.mandateType,
+    parking: draft.parking,
+    previousPriceCents:
+      Number.isFinite(previousPriceAmount) && previousPriceAmount > 0
+        ? Math.round(previousPriceAmount * 100)
+        : null,
+    priceCents:
+      Number.isFinite(priceAmount) && priceAmount > 0
+        ? Math.round(priceAmount * 100)
+        : null,
+    pricePrefix: draft.priceQualifier,
+    propertyTypeLabel: activePropertyType,
+    title: draft.title,
+  };
 
-  return (
-    <article className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
-      <div className="relative aspect-[4/3] bg-muted">
-        {cover ? (
-          <Image src={cover} alt="Listing cover" fill className="object-cover" />
-        ) : (
-          <div className="grid size-full place-items-center text-muted-foreground">
-            <Upload className="size-8" />
-          </div>
-        )}
-        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
-          {activeListingType}
-        </span>
-      </div>
-      <div className="p-4">
-        <p className="text-xs font-black uppercase tracking-wide text-primary">
-          {activePropertyType}
-        </p>
-        <h3 className="mt-1 line-clamp-2 text-lg font-black">
-          {draft.title || "Your listing title"}
-        </h3>
-        <p className="mt-1 text-sm font-bold text-muted-foreground">
-          {draft.location || "Location not set"}
-        </p>
-        <p className="mt-4 text-2xl font-black">
-          {draft.priceQualifier ? `${draft.priceQualifier} ` : ""}
-          {formatListingPrice(
-            draft.askingPrice,
-            draft.listingType,
-            formatPriceCents,
-          )}
-        </p>
-        {showReducedPrice ? (
-          <p className="mt-1 text-xs font-black text-emerald-700">
-            Reduced from{" "}
-            <span className="text-muted-foreground line-through">
-              {formatListingPrice(
-                draft.previousAskingPrice,
-                draft.listingType,
-                formatPriceCents,
-              )}
-            </span>
-          </p>
-        ) : null}
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-xs font-black text-muted-foreground">
-          <ListingPreviewStat
-            icon={BedDouble}
-            value={`${draft.bedrooms || "0"} beds`}
-          />
-          <ListingPreviewStat
-            icon={Bath}
-            value={`${draft.bathrooms || "0"} baths`}
-          />
-          <ListingPreviewStat
-            icon={Car}
-            value={`${draft.garages || "0"} garages`}
-          />
-          <ListingPreviewStat
-            icon={ParkingCircle}
-            value={`${draft.parking || "0"} parking`}
-          />
-          <ListingPreviewStat
-            icon={Ruler}
-            value={`${draft.floorSize || "0"}m² floor`}
-          />
-          <ListingPreviewStat
-            icon={Trees}
-            value={`${draft.erfSize || "0"}m² erf`}
-          />
-        </div>
-        {draft.features.length ? (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {draft.features.slice(0, maxListingFeatures).map((feature) => (
-              <span
-                key={feature}
-                className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-black text-primary"
-              >
-                {featureHashtag(feature)}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        <div className="mt-4 flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-xs font-bold text-muted-foreground">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white text-primary">
-            <MandateIcon className="size-3.5" />
-          </span>
-          <div className="min-w-0">
-            <p className="font-black text-foreground">
-              {mandateOption.label}
-            </p>
-            <p className="mt-0.5">
-              {formatMandateDates(
-                draft.mandateStartDate,
-                draft.mandateEndDate,
-              )}
-            </p>
-          </div>
-        </div>
-        {profilePath ? (
-          <p className="mt-4 text-xs font-semibold text-muted-foreground">
-            Publishes to {profilePath}
-          </p>
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
-function ListingPreviewStat({
-  icon: Icon,
-  value,
-}: {
-  icon: typeof BedDouble;
-  value: string;
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-1.5">
-      <Icon className="size-4 shrink-0" />
-      <span className="truncate">{value}</span>
-    </span>
-  );
+  return <ListingCard listing={listing} />;
 }

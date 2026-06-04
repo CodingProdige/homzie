@@ -59,6 +59,13 @@ try {
       username text UNIQUE,
       email text NOT NULL UNIQUE,
       avatar_url text,
+      bio text,
+      location text,
+      location_place_id text,
+      contact_email text,
+      contact_phone text,
+      whatsapp_number text,
+      public_contact_visible boolean NOT NULL DEFAULT true,
       password_hash text,
       role user_role NOT NULL DEFAULT 'user',
       status user_status NOT NULL DEFAULT 'active',
@@ -76,6 +83,41 @@ try {
   await sql`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS avatar_url text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS bio text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location_place_id text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS contact_email text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS contact_phone text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS whatsapp_number text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS public_contact_visible boolean NOT NULL DEFAULT true
   `;
 
   await sql`
@@ -577,6 +619,111 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS reel_listing_clicks (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      source text NOT NULL DEFAULT 'feed',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_listing_clicks_reel_id_idx
+    ON reel_listing_clicks (reel_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_listing_clicks_listing_id_idx
+    ON reel_listing_clicks (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_listing_clicks_viewer_user_id_idx
+    ON reel_listing_clicks (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_listing_clicks_viewer_session_id_idx
+    ON reel_listing_clicks (viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_listing_clicks_created_at_idx
+    ON reel_listing_clicks (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_view_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      source text NOT NULL DEFAULT 'listing_detail',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_view_events_listing_id_idx
+    ON listing_view_events (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_view_events_viewer_user_id_idx
+    ON listing_view_events (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_view_events_viewer_session_id_idx
+    ON listing_view_events (viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_view_events_created_at_idx
+    ON listing_view_events (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_action_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      action_type text NOT NULL,
+      source text NOT NULL DEFAULT 'listing_detail',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_action_events_listing_id_idx
+    ON listing_action_events (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_action_events_viewer_user_id_idx
+    ON listing_action_events (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_action_events_viewer_session_id_idx
+    ON listing_action_events (viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_action_events_action_type_idx
+    ON listing_action_events (action_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_action_events_created_at_idx
+    ON listing_action_events (created_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS user_follows (
       follower_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       following_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -621,6 +768,44 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS reel_saves_user_id_idx
     ON reel_saves (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_saves (
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (listing_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_saves_listing_id_idx
+    ON listing_saves (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_saves_user_id_idx
+    ON listing_saves (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_likes (
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (listing_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_likes_listing_id_idx
+    ON listing_likes (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_likes_user_id_idx
+    ON listing_likes (user_id)
   `;
 
   await sql`

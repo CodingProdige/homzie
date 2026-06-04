@@ -1,0 +1,821 @@
+"use client";
+
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { useFormStatus } from "react-dom";
+import {
+  AtSign,
+  Camera,
+  CheckCircle2,
+  MapPin,
+  Save,
+  X,
+  XCircle,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import type { UsernameAvailability } from "@/modules/auth/actions";
+import { normalizeUsername } from "@/modules/auth/username";
+import { SettingsPageHeader } from "../settings-page-header";
+import {
+  checkProfileUsernameAvailability,
+  type ProfileSettingsState,
+  updateProfileSettings,
+} from "./actions";
+
+type ProfileSettingsFormProps = {
+  initialProfile: {
+    avatarUrl: string | null;
+    bio: string;
+    contactEmail: string;
+    contactPhone: string;
+    initials: string;
+    location: string;
+    locationPlaceId: string;
+    name: string;
+    publicContactVisible: boolean;
+    username: string;
+    whatsappNumber: string;
+  };
+};
+
+const initialState: ProfileSettingsState = {
+  message: "",
+  ok: false,
+};
+
+const phoneCountries = [
+  { code: "ZA", dialCode: "+27", flag: "🇿🇦", label: "South Africa" },
+  { code: "US", dialCode: "+1", flag: "🇺🇸", label: "United States" },
+  { code: "GB", dialCode: "+44", flag: "🇬🇧", label: "United Kingdom" },
+  { code: "AE", dialCode: "+971", flag: "🇦🇪", label: "United Arab Emirates" },
+  { code: "AU", dialCode: "+61", flag: "🇦🇺", label: "Australia" },
+  { code: "DE", dialCode: "+49", flag: "🇩🇪", label: "Germany" },
+  { code: "NL", dialCode: "+31", flag: "🇳🇱", label: "Netherlands" },
+] as const;
+
+type PhoneCountry = (typeof phoneCountries)[number];
+
+const defaultPhoneCountry = phoneCountries[0];
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function sanitizeNationalNumber(value: string, country: PhoneCountry) {
+  let digits = digitsOnly(value);
+  const dialDigits = digitsOnly(country.dialCode);
+
+  if (digits.startsWith(dialDigits)) {
+    digits = digits.slice(dialDigits.length);
+  }
+
+  if (country.code === "ZA") {
+    digits = digits.replace(/^0+/, "");
+  }
+
+  return digits;
+}
+
+function toInternationalPhone(country: PhoneCountry, nationalNumber: string) {
+  const sanitized = sanitizeNationalNumber(nationalNumber, country);
+
+  return sanitized ? `${country.dialCode}${sanitized}` : "";
+}
+
+function splitInternationalPhone(value: string) {
+  const compactValue = value.replace(/\s/g, "");
+  const match = phoneCountries.find((country) =>
+    compactValue.startsWith(country.dialCode),
+  );
+  const country = match || defaultPhoneCountry;
+  const nationalNumber = match
+    ? compactValue.slice(country.dialCode.length)
+    : value;
+
+  return {
+    country,
+    nationalNumber: sanitizeNationalNumber(nationalNumber, country),
+  };
+}
+
+const googleMapsScriptId = "homzie-google-maps-places";
+
+type GoogleAutocompletePrediction = {
+  description: string;
+  place_id: string;
+  structured_formatting?: {
+    main_text?: string;
+    secondary_text?: string;
+  };
+};
+
+type GoogleAutocompleteService = {
+  getPlacePredictions: (
+    request: {
+      input: string;
+      sessionToken?: unknown;
+    },
+    callback: (
+      predictions: GoogleAutocompletePrediction[] | null,
+      status: string,
+    ) => void,
+  ) => void;
+};
+
+type GoogleWindow = Window & {
+  __homzieGoogleMapsPromise?: Promise<void>;
+  google?: {
+    maps?: {
+      places?: {
+        AutocompleteService: new () => GoogleAutocompleteService;
+        AutocompleteSessionToken: new () => unknown;
+        PlacesServiceStatus: {
+          OK: string;
+        };
+      };
+    };
+  };
+};
+
+function loadGooglePlaces() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Google Places is only available in browser."));
+  }
+
+  const googleWindow = window as GoogleWindow;
+
+  if (googleWindow.google?.maps?.places) {
+    return Promise.resolve();
+  }
+
+  if (googleWindow.__homzieGoogleMapsPromise) {
+    return googleWindow.__homzieGoogleMapsPromise;
+  }
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    return Promise.reject(new Error("Google Places is not configured."));
+  }
+
+  googleWindow.__homzieGoogleMapsPromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.getElementById(googleMapsScriptId);
+
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener(
+        "error",
+        () => reject(new Error("Could not load Google Places.")),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = googleMapsScriptId;
+    script.async = true;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&v=weekly`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Could not load Google Places."));
+    document.head.appendChild(script);
+  });
+
+  return googleWindow.__homzieGoogleMapsPromise;
+}
+
+function SubmitButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button
+      type="submit"
+      className="w-full min-w-0 px-3 sm:w-auto sm:min-w-32"
+      disabled={disabled || pending}
+    >
+      <Save className="size-4" />
+      {pending ? "Saving..." : "Save changes"}
+    </Button>
+  );
+}
+
+function HeaderActions({
+  disabled,
+  state,
+}: {
+  disabled: boolean;
+  state: ProfileSettingsState;
+}) {
+  return (
+    <SettingsPageHeader
+      className="lg:col-span-2"
+      title="Profile settings"
+      message={state.message || undefined}
+      messageTone={state.ok ? "success" : "error"}
+      actions={
+        <SubmitButton disabled={disabled} />
+      }
+    />
+  );
+}
+
+function Field({
+  children,
+  description,
+  label,
+}: {
+  children: ReactNode;
+  description?: string;
+  label: string;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="text-sm font-bold">{label}</span>
+      {children}
+      {description ? (
+        <span className="text-xs font-medium leading-5 text-muted-foreground">
+          {description}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+function UsernameField({
+  availability,
+  pendingUsername,
+  setUsername,
+  username,
+}: {
+  availability: UsernameAvailability;
+  pendingUsername: string | null;
+  setUsername: (value: string) => void;
+  username: string;
+}) {
+  return (
+    <div className="grid gap-2">
+      <span className="text-sm font-bold">Username</span>
+      <div className="relative">
+        <AtSign className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          name="username"
+          value={username}
+          onChange={(event) => setUsername(normalizeUsername(event.target.value))}
+          maxLength={30}
+          required
+          className="pl-10 pr-10"
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2">
+          {pendingUsername ? (
+            <span className="block size-4 animate-pulse rounded-full bg-muted-foreground/35" />
+          ) : availability.status === "available" ? (
+            <CheckCircle2 className="size-4 text-emerald-600" />
+          ) : availability.status === "taken" || availability.status === "invalid" ? (
+            <XCircle className="size-4 text-destructive" />
+          ) : null}
+        </span>
+      </div>
+      <div className="min-h-10 text-xs font-medium leading-5">
+        {pendingUsername ? (
+          <p className="text-muted-foreground">Checking username...</p>
+        ) : availability.status === "available" ? (
+          <p className="flex items-center gap-2 text-emerald-600">
+            <CheckCircle2 className="size-4" />
+            {availability.message}
+          </p>
+        ) : availability.status === "taken" || availability.status === "invalid" ? (
+          <p className="flex items-start gap-2 text-destructive">
+            <XCircle className="mt-0.5 size-4 shrink-0" />
+            {availability.message}
+          </p>
+        ) : (
+          <p className="text-muted-foreground">
+            Your public URL changes if you update this handle.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LocationField({
+  location,
+  setLocation,
+  setLocationPlaceId,
+}: {
+  location: string;
+  setLocation: (value: string) => void;
+  setLocationPlaceId: (value: string) => void;
+}) {
+  const [predictions, setPredictions] = useState<GoogleAutocompletePrediction[]>([]);
+  const [placesError, setPlacesError] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  useEffect(() => {
+    if (!hasInteracted) {
+      return;
+    }
+
+    let isCurrent = true;
+    const timeout = window.setTimeout(() => {
+      if (location.trim().length < 2) {
+        setPredictions([]);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      setPlacesError(null);
+
+      void loadGooglePlaces()
+        .then(() => {
+          const places = (window as GoogleWindow).google?.maps?.places;
+
+          if (!places) {
+            throw new Error("Google Places is not available.");
+          }
+
+          const service = new places.AutocompleteService();
+          const sessionToken = new places.AutocompleteSessionToken();
+
+          service.getPlacePredictions(
+            {
+              input: location,
+              sessionToken,
+            },
+            (results, status) => {
+              if (!isCurrent) return;
+
+              if (status !== places.PlacesServiceStatus.OK || !results?.length) {
+                setPredictions([]);
+                setIsSearching(false);
+                return;
+              }
+
+              setPredictions(results.slice(0, 5));
+              setIsSearching(false);
+            },
+          );
+        })
+        .catch((error: unknown) => {
+          if (!isCurrent) return;
+
+          setPlacesError(
+            error instanceof Error ? error.message : "Google Places is unavailable.",
+          );
+          setIsSearching(false);
+        });
+    }, 0);
+
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(timeout);
+    };
+  }, [hasInteracted, location]);
+
+  function selectLocation(option: GoogleAutocompletePrediction) {
+    setLocation(option.description);
+    setLocationPlaceId(option.place_id);
+    setPredictions([]);
+    setHasInteracted(false);
+  }
+
+  return (
+    <div className="grid gap-2">
+      <span className="text-sm font-bold">Location</span>
+      <div className="relative">
+        <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          name="location"
+          value={location}
+          onChange={(event) => {
+            setHasInteracted(true);
+            setLocation(event.target.value);
+            setLocationPlaceId("");
+          }}
+          maxLength={120}
+          placeholder="Start typing a city, suburb, or country"
+          className="pl-10"
+        />
+      </div>
+      {placesError ? (
+        <p className="rounded-md bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+          {placesError}
+        </p>
+      ) : null}
+      {predictions.length || isSearching ? (
+        <div className="rounded-lg border border-border bg-muted/40 p-2">
+          {predictions.map((option) => (
+            <button
+              key={option.place_id}
+              type="button"
+              className="flex w-full items-start gap-3 rounded-md px-3 py-3 text-left transition-colors hover:bg-white"
+              onClick={() => selectLocation(option)}
+            >
+              <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>
+                <span className="block text-sm font-black">
+                  {option.structured_formatting?.main_text || option.description}
+                </span>
+                <span className="block text-xs font-semibold text-muted-foreground">
+                  {option.structured_formatting?.secondary_text || "Google Places"}
+                </span>
+              </span>
+            </button>
+          ))}
+          {isSearching ? (
+            <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Searching places
+            </p>
+          ) : null}
+          <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+            Powered by Google
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PhoneField({
+  label,
+  name,
+  setValue,
+  value,
+}: {
+  label: string;
+  name: string;
+  setValue: (value: string) => void;
+  value: string;
+}) {
+  const parsed = splitInternationalPhone(value);
+  const [countryCode, setCountryCode] = useState<PhoneCountry["code"]>(
+    parsed.country.code,
+  );
+  const country =
+    phoneCountries.find((option) => option.code === countryCode) ||
+    defaultPhoneCountry;
+  const nationalNumber = splitInternationalPhone(value).nationalNumber;
+  const normalizedValue = toInternationalPhone(country, nationalNumber);
+
+  useEffect(() => {
+    if (!value || value === normalizedValue) return;
+
+    const timeout = window.setTimeout(() => setValue(normalizedValue), 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [normalizedValue, setValue, value]);
+
+  function updateNumber(nextCountry: PhoneCountry, nextNationalNumber: string) {
+    setValue(toInternationalPhone(nextCountry, nextNationalNumber));
+  }
+
+  return (
+    <div className="grid gap-2">
+      <span className="text-sm font-bold">{label}</span>
+      <div className="flex min-w-0 overflow-hidden rounded-md border border-input bg-transparent shadow-xs transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+        <select
+          value={country.code}
+          onChange={(event) => {
+            const nextCountry =
+              phoneCountries.find((option) => option.code === event.target.value) ||
+              defaultPhoneCountry;
+            setCountryCode(nextCountry.code);
+            updateNumber(nextCountry, nationalNumber);
+          }}
+          aria-label={`${label} country prefix`}
+          className="h-9 w-[6.75rem] shrink-0 border-r border-input bg-background px-2 text-sm font-bold outline-none sm:w-[7.5rem] sm:px-3"
+        >
+          {phoneCountries.map((option) => (
+            <option key={option.code} value={option.code}>
+              {option.flag} {option.dialCode}
+            </option>
+          ))}
+        </select>
+        <input
+          value={nationalNumber}
+          onChange={(event) => updateNumber(country, event.target.value)}
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder={country.code === "ZA" ? "82 123 4567" : "Phone number"}
+          className="h-9 min-w-0 flex-1 bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground md:text-sm"
+        />
+      </div>
+      <input type="hidden" name={name} value={normalizedValue} />
+      <span className="text-xs font-medium leading-5 text-muted-foreground">
+        Saved as {normalizedValue || `${country.dialCode}...`}
+      </span>
+    </div>
+  );
+}
+
+function PreviewAvatar({
+  avatarUrl,
+  initials,
+  name,
+}: {
+  avatarUrl: string | null;
+  initials: string;
+  name: string;
+}) {
+  return (
+    <div className="relative flex size-24 shrink-0 items-center justify-center rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-1 sm:size-28 lg:size-32">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- Stored avatars may be local media paths and unsaved previews.
+        <img
+          src={avatarUrl}
+          alt={name}
+          className="size-full rounded-full border-4 border-background object-cover"
+        />
+      ) : (
+        <div className="flex size-full items-center justify-center rounded-full border-4 border-background bg-brand-midnight text-3xl font-bold text-white sm:text-4xl">
+          {initials || "H"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ProfileSettingsForm({
+  initialProfile,
+}: ProfileSettingsFormProps) {
+  const [state, formAction] = useActionState(updateProfileSettings, initialState);
+  const [name, setName] = useState(initialProfile.name);
+  const [username, setUsername] = useState(initialProfile.username);
+  const [bio, setBio] = useState(initialProfile.bio);
+  const [location, setLocation] = useState(initialProfile.location);
+  const [locationPlaceId, setLocationPlaceId] = useState(
+    initialProfile.locationPlaceId,
+  );
+  const [contactEmail, setContactEmail] = useState(initialProfile.contactEmail);
+  const [contactPhone, setContactPhone] = useState(initialProfile.contactPhone);
+  const [whatsappNumber, setWhatsappNumber] = useState(
+    initialProfile.whatsappNumber,
+  );
+  const [publicContactVisible, setPublicContactVisible] = useState(
+    initialProfile.publicContactVisible,
+  );
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(
+    initialProfile.avatarUrl,
+  );
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [avatarChanged, setAvatarChanged] = useState(false);
+  const [pendingUsername, setPendingUsername] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<UsernameAvailability>({
+    status: "available",
+    username: initialProfile.username,
+    message: "Username is available.",
+  });
+
+  useEffect(() => {
+    let isCurrent = true;
+    const timeout = window.setTimeout(() => {
+      if (username === initialProfile.username) {
+        setPendingUsername(null);
+        setAvailability({
+          status: "available",
+          username,
+          message: "Username is available.",
+        });
+        return;
+      }
+
+      if (!username) {
+        setPendingUsername(null);
+        setAvailability({ status: "empty", username: "" });
+        return;
+      }
+
+      setPendingUsername(username);
+
+      checkProfileUsernameAvailability(username)
+        .then((result) => {
+          if (isCurrent) {
+            setAvailability(result);
+            setPendingUsername(null);
+          }
+        })
+        .catch(() => {
+          if (isCurrent) {
+            setAvailability({
+              status: "invalid",
+              username,
+              message: "Could not check username right now.",
+            });
+            setPendingUsername(null);
+          }
+        });
+    }, username && username !== initialProfile.username ? 350 : 0);
+
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(timeout);
+    };
+  }, [initialProfile.username, username]);
+
+  const initials = useMemo(
+    () =>
+      name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase() || initialProfile.initials,
+    [initialProfile.initials, name],
+  );
+  const hasChanges =
+    avatarChanged ||
+    name !== initialProfile.name ||
+    username !== initialProfile.username ||
+    bio !== initialProfile.bio ||
+    location !== initialProfile.location ||
+    locationPlaceId !== initialProfile.locationPlaceId ||
+    contactEmail !== initialProfile.contactEmail ||
+    contactPhone !== initialProfile.contactPhone ||
+    whatsappNumber !== initialProfile.whatsappNumber ||
+    publicContactVisible !== initialProfile.publicContactVisible;
+  const usernameReady =
+    username === initialProfile.username ||
+    (availability.status === "available" && !pendingUsername);
+
+  return (
+    <form
+      action={formAction}
+      className="grid w-full min-w-0 gap-6"
+    >
+      <HeaderActions disabled={!hasChanges || !usernameReady} state={state} />
+      <div className="w-full min-w-0 space-y-6 pt-2">
+        <section className="w-full rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="grid min-w-0 gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+            <PreviewAvatar
+              avatarUrl={removeAvatar ? null : avatarPreview}
+              initials={initials}
+              name={name}
+            />
+            <div className="min-w-0">
+              <h2 className="text-lg font-black">Profile photo</h2>
+              <p className="mt-1 text-sm font-medium leading-6 text-muted-foreground">
+                Use a JPG, PNG, or WebP image up to 8MB.
+              </p>
+              <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
+                <Label
+                  htmlFor="avatar"
+                  className="inline-flex h-9 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md border bg-background px-4 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground sm:text-sm"
+                >
+                  <Camera className="size-4" />
+                  Upload photo
+                </Label>
+                <input
+                  id="avatar"
+                  name="avatar"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    if (!file) return;
+
+                    setAvatarPreview(URL.createObjectURL(file));
+                    setRemoveAvatar(false);
+                    setAvatarChanged(true);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-w-0"
+                  onClick={() => {
+                    setRemoveAvatar(true);
+                    setAvatarPreview(null);
+                    setAvatarChanged(true);
+                  }}
+                >
+                  <X className="size-4" />
+                  Remove
+                </Button>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" name="removeAvatar" value={removeAvatar ? "on" : ""} />
+        </section>
+
+        <section className="w-full min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div>
+            <h2 className="text-lg font-black">Public profile</h2>
+            <p className="mt-1 text-sm font-medium leading-6 text-muted-foreground">
+              These details appear on your public profile.
+            </p>
+          </div>
+
+          <div className="mt-5 grid min-w-0 gap-5">
+            <Field label="Display name">
+              <Input
+                name="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={80}
+                required
+              />
+            </Field>
+
+            <UsernameField
+              availability={availability}
+              pendingUsername={pendingUsername}
+              setUsername={setUsername}
+              username={username}
+            />
+
+            <Field label="Bio" description={`${bio.length}/280 characters`}>
+              <textarea
+                name="bio"
+                value={bio}
+                onChange={(event) => setBio(event.target.value)}
+                maxLength={280}
+                rows={5}
+                className="min-h-32 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm leading-6 shadow-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              />
+            </Field>
+
+            <LocationField
+              location={location}
+              setLocation={setLocation}
+              setLocationPlaceId={setLocationPlaceId}
+            />
+            <input type="hidden" name="locationPlaceId" value={locationPlaceId} />
+          </div>
+        </section>
+
+        <section className="w-full min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-black">Contact information</h2>
+              <p className="mt-1 text-sm font-medium leading-6 text-muted-foreground">
+                These details can appear on your profile and listing contact cards.
+              </p>
+            </div>
+            <label className="inline-flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">
+              <input
+                type="checkbox"
+                name="publicContactVisible"
+                checked={publicContactVisible}
+                onChange={(event) => setPublicContactVisible(event.target.checked)}
+                className="peer sr-only"
+              />
+              <span
+                className={cn(
+                  "relative h-6 w-11 rounded-full transition-colors",
+                  publicContactVisible ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute left-1 top-1 size-4 rounded-full bg-white shadow-sm transition-transform",
+                    publicContactVisible ? "translate-x-5" : "",
+                  )}
+                />
+              </span>
+              <span className="text-sm font-bold">
+                {publicContactVisible ? "Shown" : "Hidden"}
+              </span>
+            </label>
+          </div>
+
+          <div className="mt-5 grid gap-5 sm:grid-cols-2">
+            <Field label="Contact email">
+              <Input
+                name="contactEmail"
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                maxLength={160}
+                type="email"
+              />
+            </Field>
+            <PhoneField
+              label="Phone number"
+              name="contactPhone"
+              value={contactPhone}
+              setValue={setContactPhone}
+            />
+            <PhoneField
+              label="WhatsApp number"
+              name="whatsappNumber"
+              value={whatsappNumber}
+              setValue={setWhatsappNumber}
+            />
+          </div>
+        </section>
+      </div>
+
+    </form>
+  );
+}

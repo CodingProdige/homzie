@@ -1,6 +1,7 @@
 "use server";
 
 import { and, asc, eq, ilike, inArray, isNotNull, sql } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 
@@ -10,6 +11,7 @@ import {
   reelCommentDislikes,
   reelCommentLikes,
   reelComments,
+  reelListingClicks,
   reelLikes,
   reelReshares,
   reelSaves,
@@ -21,7 +23,10 @@ import {
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
-import { getHashtagSuggestions } from "@/modules/hashtags/server";
+import {
+  getHashtagSuggestions,
+  recordReelHashtagUsage,
+} from "@/modules/hashtags/server";
 import {
   createReelRenderJob,
   setReelRenderState,
@@ -45,6 +50,12 @@ const commentIdSchema = z.string().uuid();
 const reelListingLinkSchema = z.object({
   listingId: z.string().uuid().nullable(),
   reelId: z.string().uuid(),
+});
+const reelListingClickSchema = z.object({
+  listingId: z.string().uuid(),
+  reelId: z.string().uuid(),
+  source: z.string().trim().min(1).max(64).optional(),
+  viewerSessionId: z.string().trim().min(8).max(128),
 });
 const reelCommentSchema = z.object({
   body: z.string().trim().max(500),
@@ -70,6 +81,30 @@ const editReelCommentSchema = z.object({
     )
     .optional()
     .nullable(),
+});
+const reelCoverFrameSchema = z
+  .object({
+    clipId: z.string().trim().min(1).max(160),
+    src: z.string().refine(
+      (value) => value.startsWith("data:image/") || z.string().url().safeParse(value).success,
+      "Use a valid cover image.",
+    ),
+    time: z.number().finite().min(0).max(3600),
+  })
+  .nullable();
+const reelPostOptionsSchema = z.object({
+  aiGenerated: z.boolean(),
+  allowComments: z.boolean(),
+  allowReuse: z.boolean(),
+  autoCheckSound: z.boolean(),
+});
+const publishedReelDetailsSchema = z.object({
+  caption: z.string().trim().max(1000),
+  coverFrame: reelCoverFrameSchema,
+  location: z.string().trim().max(180).optional(),
+  options: reelPostOptionsSchema,
+  privacy: z.string().trim().max(80),
+  reelId: z.string().uuid(),
 });
 
 function formatCompactCount(value: number) {
@@ -446,6 +481,39 @@ export async function getReelOwnerListings(reelId: string) {
   };
 }
 
+export async function deleteReel(formData: FormData) {
+  const parsed = reelIdSchema.safeParse(formData.get("reelId"));
+  const userId = await requireUserId();
+
+  if (!parsed.success || !userId) {
+    redirect("/sign-in");
+  }
+
+  const [user] = await db
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user?.username) {
+    redirect("/onboarding/username");
+  }
+
+  const [reel] = await db
+    .select({ id: reels.id })
+    .from(reels)
+    .where(and(eq(reels.id, parsed.data), eq(reels.userId, userId)))
+    .limit(1);
+
+  if (!reel) {
+    throw new Error("Reel not found.");
+  }
+
+  await db.delete(reels).where(and(eq(reels.id, parsed.data), eq(reels.userId, userId)));
+
+  redirect(`/users/${user.username}?tab=reels`);
+}
+
 export async function linkReelListing(input: unknown) {
   const parsed = reelListingLinkSchema.safeParse(input);
   const userId = await requireUserId();
@@ -477,12 +545,22 @@ export async function linkReelListing(input: unknown) {
       })
       .where(eq(reels.id, parsed.data.reelId));
 
-    return { linkedListingId: null, listingReference: null, ok: true as const };
+    return {
+      linkedListing: null,
+      linkedListingId: null,
+      listingReference: null,
+      ok: true as const,
+    };
   }
 
   const [listing] = await db
     .select({
+      coverImageUrl: propertyListings.coverImageUrl,
       id: propertyListings.id,
+      location: propertyListings.location,
+      priceCents: propertyListings.askingPriceCents,
+      priceLabel: propertyListings.priceLabel,
+      status: propertyListings.status,
       title: propertyListings.title,
       userId: propertyListings.userId,
     })
@@ -508,9 +586,117 @@ export async function linkReelListing(input: unknown) {
 
   return {
     linkedListingId: listing.id,
+    linkedListing: {
+      coverImageUrl: toPublicMediaUrl(listing.coverImageUrl),
+      id: listing.id,
+      location: listing.location,
+      priceCents: listing.priceCents,
+      priceLabel: listing.priceLabel,
+      status: listing.status,
+      title: listing.title,
+    },
     listingReference: listing.title,
     ok: true as const,
   };
+}
+
+export async function updatePublishedReelDetails(input: unknown) {
+  const parsed = publishedReelDetailsSchema.safeParse(input);
+  const userId = await requireUserId();
+
+  if (!parsed.success || !userId) {
+    return { error: "Check your reel details.", ok: false as const };
+  }
+
+  const [reel] = await db
+    .select({
+      editMetadata: reels.editMetadata,
+      id: reels.id,
+      status: reels.status,
+      userId: reels.userId,
+    })
+    .from(reels)
+    .where(eq(reels.id, parsed.data.reelId))
+    .limit(1);
+
+  if (!reel || reel.userId !== userId) {
+    return { error: "Reel not found.", ok: false as const };
+  }
+
+  if (reel.status !== "published") {
+    return {
+      error: "Only published reel details can be edited here.",
+      ok: false as const,
+    };
+  }
+
+  const metadata = metadataObject(reel.editMetadata);
+  const hashtags = Array.from(parsed.data.caption.matchAll(/#([a-z0-9_]{2,40})/gi))
+    .map((match) => `#${match[1].toLowerCase()}`)
+    .join(" ");
+
+  await db
+    .update(reels)
+    .set({
+      caption: parsed.data.caption || null,
+      coverTimeSeconds: Math.round(parsed.data.coverFrame?.time || 0),
+      editMetadata: {
+        ...metadata,
+        coverFrame: parsed.data.coverFrame,
+        location: parsed.data.location || null,
+        options: parsed.data.options,
+        privacy: parsed.data.privacy,
+      },
+      hashtags,
+      listingReference: parsed.data.location || null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(reels.id, parsed.data.reelId), eq(reels.userId, userId)));
+
+  if (hashtags) {
+    await recordReelHashtagUsage(parsed.data.reelId);
+  }
+
+  return { ok: true as const };
+}
+
+export async function trackReelListingClick(input: unknown) {
+  const parsed = reelListingClickSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false as const };
+  }
+
+  const session = await getServerSession(authOptions);
+  const source = parsed.data.source || "feed";
+  const [linkedReel] = await db
+    .select({
+      id: reels.id,
+      listingId: reels.listingId,
+    })
+    .from(reels)
+    .where(
+      and(
+        eq(reels.id, parsed.data.reelId),
+        eq(reels.status, "published"),
+        eq(reels.listingId, parsed.data.listingId),
+      ),
+    )
+    .limit(1);
+
+  if (!linkedReel?.listingId) {
+    return { ok: false as const };
+  }
+
+  await db.insert(reelListingClicks).values({
+    listingId: parsed.data.listingId,
+    reelId: parsed.data.reelId,
+    source,
+    viewerSessionId: parsed.data.viewerSessionId,
+    viewerUserId: session?.user?.id || null,
+  });
+
+  return { ok: true as const };
 }
 
 export async function getReelComments(reelId: string) {

@@ -67,6 +67,16 @@ export function convertFromZar(
   return amountZar * (rates[currency] || fallbackCurrencyRates[currency] || 1);
 }
 
+export function convertToZar(
+  amount: number,
+  currency: SupportedCurrency,
+  rates: CurrencyRates,
+) {
+  const rate = rates[currency] || fallbackCurrencyRates[currency] || 1;
+
+  return amount / rate;
+}
+
 export function formatCurrencyAmount(
   amount: number,
   currency: SupportedCurrency,

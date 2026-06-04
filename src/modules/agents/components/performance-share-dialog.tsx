@@ -85,9 +85,12 @@ export function PerformanceShareDialog({
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <Button className="shadow-md shadow-primary/20">
+        <Button className="w-full min-w-0 px-2 text-xs shadow-md shadow-primary/20 sm:w-auto sm:px-4 sm:text-sm">
           <Upload className="size-4" />
-          {isOwner ? "Share my performance" : "Share this performance"}
+          <span className="sm:hidden">Share</span>
+          <span className="hidden sm:inline">
+            {isOwner ? "Share my performance" : "Share this performance"}
+          </span>
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>

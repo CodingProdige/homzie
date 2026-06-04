@@ -104,6 +104,39 @@ export async function POST(request: Request) {
         ? { ...baseMetadata, renderPayload: parsed.data.renderPayload }
         : baseMetadata;
     const initialStatus = shouldRender ? "processing" : parsed.data.status;
+    const existingReel = parsed.data.reelId
+      ? await db
+          .select({
+            status: reels.status,
+            videoPath: reels.videoPath,
+          })
+          .from(reels)
+          .where(
+            and(eq(reels.id, parsed.data.reelId), eq(reels.userId, session.user.id)),
+          )
+          .limit(1)
+          .then(([reel]) => reel || null)
+      : null;
+
+    if (parsed.data.reelId && !existingReel) {
+      return Response.json({ error: "Reel not found." }, { status: 404 });
+    }
+
+    if (
+      existingReel?.status === "published" &&
+      (shouldRender ||
+        parsed.data.status !== "published" ||
+        videoPath !== existingReel.videoPath)
+    ) {
+      return Response.json(
+        {
+          error:
+            "Published reel video cannot be edited. Update the reel details instead.",
+        },
+        { status: 409 },
+      );
+    }
+
     const reelValues = {
       userId: session.user.id,
       agentProfileId: agentProfile.id,

@@ -35,6 +35,13 @@ export const users = pgTable("users", {
   username: text("username").unique(),
   email: text("email").notNull().unique(),
   avatarUrl: text("avatar_url"),
+  bio: text("bio"),
+  location: text("location"),
+  locationPlaceId: text("location_place_id"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  whatsappNumber: text("whatsapp_number"),
+  publicContactVisible: boolean("public_contact_visible").notNull().default(true),
   passwordHash: text("password_hash"),
   role: userRoleEnum("role").notNull().default("user"),
   status: userStatusEnum("status").notNull().default("active"),
@@ -318,6 +325,78 @@ export const reelWatchEvents = pgTable(
   ],
 );
 
+export const reelListingClicks = pgTable(
+  "reel_listing_clicks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    reelId: uuid("reel_id")
+      .notNull()
+      .references(() => reels.id, { onDelete: "cascade" }),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    viewerUserId: uuid("viewer_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    viewerSessionId: text("viewer_session_id").notNull(),
+    source: text("source").notNull().default("feed"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("reel_listing_clicks_reel_id_idx").on(table.reelId),
+    index("reel_listing_clicks_listing_id_idx").on(table.listingId),
+    index("reel_listing_clicks_viewer_user_id_idx").on(table.viewerUserId),
+    index("reel_listing_clicks_viewer_session_id_idx").on(table.viewerSessionId),
+    index("reel_listing_clicks_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const listingViewEvents = pgTable(
+  "listing_view_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    viewerUserId: uuid("viewer_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    viewerSessionId: text("viewer_session_id").notNull(),
+    source: text("source").notNull().default("listing_detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("listing_view_events_listing_id_idx").on(table.listingId),
+    index("listing_view_events_viewer_user_id_idx").on(table.viewerUserId),
+    index("listing_view_events_viewer_session_id_idx").on(table.viewerSessionId),
+    index("listing_view_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const listingActionEvents = pgTable(
+  "listing_action_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    viewerUserId: uuid("viewer_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    viewerSessionId: text("viewer_session_id").notNull(),
+    actionType: text("action_type").notNull(),
+    source: text("source").notNull().default("listing_detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("listing_action_events_listing_id_idx").on(table.listingId),
+    index("listing_action_events_viewer_user_id_idx").on(table.viewerUserId),
+    index("listing_action_events_viewer_session_id_idx").on(table.viewerSessionId),
+    index("listing_action_events_action_type_idx").on(table.actionType),
+    index("listing_action_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const userFollows = pgTable(
   "user_follows",
   {
@@ -373,6 +452,46 @@ export const reelSaves = pgTable(
       columns: [table.reelId, table.userId],
     }),
     index("reel_saves_user_id_idx").on(table.userId),
+  ],
+);
+
+export const listingSaves = pgTable(
+  "listing_saves",
+  {
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.listingId, table.userId],
+    }),
+    index("listing_saves_listing_id_idx").on(table.listingId),
+    index("listing_saves_user_id_idx").on(table.userId),
+  ],
+);
+
+export const listingLikes = pgTable(
+  "listing_likes",
+  {
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.listingId, table.userId],
+    }),
+    index("listing_likes_listing_id_idx").on(table.listingId),
+    index("listing_likes_user_id_idx").on(table.userId),
   ],
 );
 
@@ -499,6 +618,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   reelLikes: many(reelLikes),
   reelReshares: many(reelReshares),
   reelSaves: many(reelSaves),
+  listingLikes: many(listingLikes),
+  listingSaves: many(listingSaves),
   reelWatchEvents: many(reelWatchEvents),
   reelWatchSessions: many(reelWatchSessions),
   subscriptions: many(subscriptions),
@@ -554,6 +675,10 @@ export const propertyListingsRelations = relations(propertyListings, ({ one, man
   }),
   saleClaim: one(propertySaleClaims),
   statusHistory: many(propertyListingStatusHistory),
+  saves: many(listingSaves),
+  likes: many(listingLikes),
+  actionEvents: many(listingActionEvents),
+  viewEvents: many(listingViewEvents),
   reels: many(reels),
 }));
 
@@ -609,6 +734,7 @@ export const reelsRelations = relations(reels, ({ one, many }) => ({
     fields: [reels.listingId],
     references: [propertyListings.id],
   }),
+  listingClicks: many(reelListingClicks),
   watchEvents: many(reelWatchEvents),
   watchSessions: many(reelWatchSessions),
   likes: many(reelLikes),
@@ -638,6 +764,49 @@ export const reelWatchEventsRelations = relations(reelWatchEvents, ({ one }) => 
     references: [users.id],
   }),
 }));
+
+export const reelListingClicksRelations = relations(reelListingClicks, ({ one }) => ({
+  listing: one(propertyListings, {
+    fields: [reelListingClicks.listingId],
+    references: [propertyListings.id],
+  }),
+  reel: one(reels, {
+    fields: [reelListingClicks.reelId],
+    references: [reels.id],
+  }),
+  viewer: one(users, {
+    fields: [reelListingClicks.viewerUserId],
+    references: [users.id],
+  }),
+}));
+
+export const listingViewEventsRelations = relations(
+  listingViewEvents,
+  ({ one }) => ({
+    listing: one(propertyListings, {
+      fields: [listingViewEvents.listingId],
+      references: [propertyListings.id],
+    }),
+    viewer: one(users, {
+      fields: [listingViewEvents.viewerUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const listingActionEventsRelations = relations(
+  listingActionEvents,
+  ({ one }) => ({
+    listing: one(propertyListings, {
+      fields: [listingActionEvents.listingId],
+      references: [propertyListings.id],
+    }),
+    viewer: one(users, {
+      fields: [listingActionEvents.viewerUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const userFollowsRelations = relations(userFollows, ({ one }) => ({
   follower: one(users, {
@@ -670,6 +839,28 @@ export const reelSavesRelations = relations(reelSaves, ({ one }) => ({
   }),
   user: one(users, {
     fields: [reelSaves.userId],
+    references: [users.id],
+  }),
+}));
+
+export const listingSavesRelations = relations(listingSaves, ({ one }) => ({
+  listing: one(propertyListings, {
+    fields: [listingSaves.listingId],
+    references: [propertyListings.id],
+  }),
+  user: one(users, {
+    fields: [listingSaves.userId],
+    references: [users.id],
+  }),
+}));
+
+export const listingLikesRelations = relations(listingLikes, ({ one }) => ({
+  listing: one(propertyListings, {
+    fields: [listingLikes.listingId],
+    references: [propertyListings.id],
+  }),
+  user: one(users, {
+    fields: [listingLikes.userId],
     references: [users.id],
   }),
 }));
@@ -753,12 +944,22 @@ export type ReelWatchSession = typeof reelWatchSessions.$inferSelect;
 export type NewReelWatchSession = typeof reelWatchSessions.$inferInsert;
 export type ReelWatchEvent = typeof reelWatchEvents.$inferSelect;
 export type NewReelWatchEvent = typeof reelWatchEvents.$inferInsert;
+export type ReelListingClick = typeof reelListingClicks.$inferSelect;
+export type NewReelListingClick = typeof reelListingClicks.$inferInsert;
+export type ListingViewEvent = typeof listingViewEvents.$inferSelect;
+export type NewListingViewEvent = typeof listingViewEvents.$inferInsert;
+export type ListingActionEvent = typeof listingActionEvents.$inferSelect;
+export type NewListingActionEvent = typeof listingActionEvents.$inferInsert;
 export type UserFollow = typeof userFollows.$inferSelect;
 export type NewUserFollow = typeof userFollows.$inferInsert;
 export type ReelLike = typeof reelLikes.$inferSelect;
 export type NewReelLike = typeof reelLikes.$inferInsert;
 export type ReelSave = typeof reelSaves.$inferSelect;
 export type NewReelSave = typeof reelSaves.$inferInsert;
+export type ListingSave = typeof listingSaves.$inferSelect;
+export type NewListingSave = typeof listingSaves.$inferInsert;
+export type ListingLike = typeof listingLikes.$inferSelect;
+export type NewListingLike = typeof listingLikes.$inferInsert;
 export type ReelReshare = typeof reelReshares.$inferSelect;
 export type NewReelReshare = typeof reelReshares.$inferInsert;
 export type ReelComment = typeof reelComments.$inferSelect;

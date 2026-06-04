@@ -102,7 +102,7 @@ export function AnalyticsInfoPopover({
         <span
           ref={popoverRef}
           role="tooltip"
-          className="fixed z-[100] w-64 rounded-lg border border-border bg-white p-3 text-left text-brand-black shadow-xl"
+          className="fixed z-[100] w-64 rounded-lg border border-border bg-popover p-3 text-left text-popover-foreground shadow-xl"
           style={{ left: position.left, top: position.top }}
         >
           <span className="block text-xs font-black uppercase tracking-wide">

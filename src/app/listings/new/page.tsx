@@ -10,6 +10,7 @@ import { CreateListingPage } from "@/modules/listings/components/create-listing-
 
 type NewListingPageProps = {
   searchParams?: Promise<{
+    duplicateListing?: string;
     listingPublished?: string;
   }>;
 };
@@ -38,6 +39,7 @@ export default async function NewListingPage({ searchParams }: NewListingPagePro
 
   return (
     <CreateListingPage
+      duplicateListingId={query.duplicateListing}
       profilePath={`/users/${user.username}`}
       publishedListingId={query.listingPublished}
     />

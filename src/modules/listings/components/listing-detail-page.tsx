@@ -1,0 +1,997 @@
+"use client";
+
+import * as Dialog from "@radix-ui/react-dialog";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Bath,
+  BedDouble,
+  CalendarDays,
+  Car,
+  Calculator,
+  Edit3,
+  Eye,
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  Home,
+  MapPin,
+  ParkingCircle,
+  Percent,
+  Ruler,
+  ShieldCheck,
+  Trees,
+  Upload,
+  X,
+} from "lucide-react";
+
+import { GlobalFooter } from "@/components/global-footer";
+import { GlobalHeader } from "@/components/global-header";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useCurrency } from "@/modules/currency/currency-provider";
+import { trackListingAction, trackListingView } from "@/modules/listings/actions";
+import {
+  ListingEngagementActions,
+  ListingSaveButton,
+} from "@/modules/listings/components/listing-card";
+import { mandateTypeOptions } from "@/modules/listings/options";
+import type { ListingDetailData } from "@/modules/listings/server/listing-data";
+
+function featureHashtag(value: string) {
+  return `#${value.replace(/\s+/g, "")}`;
+}
+
+function formatMetric(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "0";
+}
+
+function formatDate(value: string) {
+  if (!value) return "Dates not set";
+
+  return value;
+}
+
+function mandateDates(startDate: string, endDate: string) {
+  if (startDate && endDate) return `${startDate} to ${endDate}`;
+  if (startDate) return `Starts ${startDate}`;
+  if (endDate) return `Ends ${endDate}`;
+
+  return "Dates not set";
+}
+
+function statusLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function amountToCents(value: string) {
+  const amount = Number(value);
+
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+}
+
+function getListingViewerSessionId() {
+  if (typeof window === "undefined") return "";
+
+  const storageKey = "homzie-listing-viewer-session";
+  const existing = window.localStorage.getItem(storageKey);
+
+  if (existing) return existing;
+
+  const nextId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  window.localStorage.setItem(storageKey, nextId);
+
+  return nextId;
+}
+
+function DetailStat({
+  icon: Icon,
+  value,
+}: {
+  icon: typeof BedDouble;
+  value: string;
+}) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-black text-foreground">
+      <Icon className="size-5 shrink-0 text-muted-foreground" />
+      <span>{value}</span>
+    </span>
+  );
+}
+
+function ListingMetaPanel({ listing }: { listing: ListingDetailData }) {
+  return (
+    <div className="grid gap-2 rounded-lg border border-border bg-card p-4 text-sm font-bold text-muted-foreground shadow-sm">
+      <p className="flex items-center gap-2">
+        <Home className="size-4" />
+        {listing.propertyTypeLabel}
+      </p>
+      <p className="flex items-center gap-2">
+        <CalendarDays className="size-4" />
+        Listed {formatDate(listing.listedAt.slice(0, 10))}
+      </p>
+      <p className="flex items-center gap-2">
+        <ShieldCheck className="size-4" />
+        {statusLabel(listing.status)}
+      </p>
+    </div>
+  );
+}
+
+function yesNoLabel(value: string) {
+  if (value === "yes") return "Yes";
+  if (value === "no") return "No";
+
+  return "";
+}
+
+function DetailDataTable({
+  items,
+}: {
+  items: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="mt-4 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm">
+      <table className="w-full table-fixed text-left text-sm">
+        <tbody className="divide-y divide-border">
+          {items.map((item) => (
+            <tr key={item.label} className="transition hover:bg-muted/35">
+              <th
+                scope="row"
+                className="w-[46%] px-4 py-3 align-top text-xs font-black uppercase tracking-wide text-muted-foreground sm:w-1/3 sm:px-5"
+              >
+                {item.label}
+              </th>
+              <td className="break-words px-4 py-3 align-top font-black sm:px-5">
+                {item.value}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BondCalculatorDialog({
+  askingPriceCents,
+  buyerIncentive,
+  onOpen,
+  transferCostsEstimateCents,
+  formatPriceCents,
+  triggerClassName,
+}: {
+  askingPriceCents: number;
+  buyerIncentive: string | null;
+  onOpen?: () => void;
+  transferCostsEstimateCents: number | null;
+  formatPriceCents: (value: number) => string;
+  triggerClassName?: string;
+}) {
+  const [depositAmount, setDepositAmount] = useState("0");
+  const [interestRate, setInterestRate] = useState("10.5");
+  const [loanTermYears, setLoanTermYears] = useState(20);
+  const depositCents = amountToCents(depositAmount);
+  const principalCents = Math.max(0, askingPriceCents - depositCents);
+  const monthlyRate = Math.max(0, Number(interestRate) || 0) / 100 / 12;
+  const numberOfPayments = loanTermYears * 12;
+  const monthlyRepaymentCents =
+    numberOfPayments > 0 && monthlyRate > 0
+      ? Math.round(
+          principalCents *
+            ((monthlyRate * (1 + monthlyRate) ** numberOfPayments) /
+              ((1 + monthlyRate) ** numberOfPayments - 1)),
+        )
+      : numberOfPayments > 0
+        ? Math.round(principalCents / numberOfPayments)
+        : 0;
+  const minimumIncomeCents = Math.round(monthlyRepaymentCents * 3.33);
+  const onceOffCostsCents = transferCostsEstimateCents || 0;
+
+  return (
+    <Dialog.Root>
+      <Dialog.Trigger asChild>
+        <Button variant="outline" className={triggerClassName} onClick={onOpen}>
+          <Calculator className="size-4" />
+          Bond calculator
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm" />
+        <Dialog.Content className="fixed inset-x-3 top-1/2 z-[91] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-4 text-foreground shadow-2xl focus-visible:outline-none sm:mx-auto sm:max-w-3xl sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Dialog.Title className="text-lg font-black">
+                Bond calculator
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+                Estimate repayments using this listing&apos;s price.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <Button variant="ghost" size="icon" aria-label="Close calculator">
+                <X className="size-5" />
+              </Button>
+            </Dialog.Close>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
+            <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
+              <div className="grid gap-4">
+                <label className="grid gap-2">
+                  <span className="text-sm font-black">Purchase price</span>
+                  <div className="flex h-11 items-center rounded-md border border-border bg-muted px-3 text-sm font-black">
+                    {formatPriceCents(askingPriceCents)}
+                  </div>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-black">Deposit</span>
+                  <div className="flex h-11 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary/25">
+                    <span className="text-sm font-black text-primary">
+                      {formatPriceCents(0).replace(/[0-9.,\s]+/g, "").trim() ||
+                        "R"}
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      value={depositAmount}
+                      onChange={(event) => setDepositAmount(event.target.value)}
+                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
+                    />
+                  </div>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-black">Interest rate</span>
+                  <div className="flex h-11 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary/25">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.1"
+                      value={interestRate}
+                      onChange={(event) => setInterestRate(event.target.value)}
+                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
+                    />
+                    <Percent className="size-4 text-primary" />
+                  </div>
+                </label>
+
+                <label className="grid gap-3">
+                  <span className="flex items-center justify-between gap-3 text-sm font-black">
+                    Loan term
+                    <span className="text-primary">{loanTermYears} years</span>
+                  </span>
+                  <input
+                    type="range"
+                    min="5"
+                    max="30"
+                    step="1"
+                    value={loanTermYears}
+                    onChange={(event) =>
+                      setLoanTermYears(Number(event.target.value))
+                    }
+                    className="h-2 w-full accent-primary"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="grid content-start gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
+              <div>
+                <p className="text-sm font-bold text-muted-foreground">
+                  Monthly repayment
+                </p>
+                <p className="mt-1 text-2xl font-black text-primary">
+                  {formatPriceCents(monthlyRepaymentCents)}
+                </p>
+              </div>
+              <div className="h-px bg-border" />
+              <div className="flex items-start justify-between gap-3 text-sm font-semibold">
+                <span className="text-muted-foreground">
+                  Once-off costs estimate
+                </span>
+                <span className="font-black">
+                  {onceOffCostsCents
+                    ? formatPriceCents(onceOffCostsCents)
+                    : "Not supplied"}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-3 text-sm font-semibold">
+                <span className="text-muted-foreground">
+                  Suggested gross monthly income
+                </span>
+                <span className="font-black">
+                  {formatPriceCents(minimumIncomeCents)}
+                </span>
+              </div>
+              {buyerIncentive ? (
+                <div className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-black uppercase tracking-wide text-primary">
+                  {buyerIncentive}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs font-medium leading-5 text-muted-foreground">
+            This is an estimate only. Actual repayment, fees, taxes and approval
+            requirements depend on the lender, jurisdiction and your personal
+            affordability assessment.
+          </p>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function ListingDescription({ value }: { value: string | null }) {
+  if (!value) {
+    return (
+      <p className="text-sm font-normal leading-7 text-muted-foreground">
+        No description has been added yet.
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className="space-y-4 text-sm font-normal leading-7 text-foreground/80 [&_em]:italic [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_strong]:font-bold [&_ul]:space-y-2"
+      dangerouslySetInnerHTML={{ __html: value }}
+    />
+  );
+}
+
+function AgentProfileCard({
+  agentHref,
+  listing,
+  onAction,
+}: {
+  agentHref: string;
+  listing: ListingDetailData;
+  onAction?: (
+    actionType: "call_agent" | "email_agent" | "whatsapp_agent",
+  ) => void;
+}) {
+  const actionsDisabled = listing.isUnavailableForViewer;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">
+      <div className="flex items-start gap-4">
+        <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-sm font-black text-primary ring-4 ring-primary/10">
+          {listing.agent.avatarUrl ? (
+            <Image
+              src={listing.agent.avatarUrl}
+              alt=""
+              width={64}
+              height={64}
+              className="size-full object-cover"
+            />
+          ) : (
+            listing.agent.name.slice(0, 2).toUpperCase()
+          )}
+        </div>
+        <div className="min-w-0 flex-1 pt-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-lg font-black">{listing.agent.name}</p>
+            <span
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded-full [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 ring-2 ring-background"
+              title="Verified Homzie agent"
+            >
+              <BadgeCheck className="size-3.5" />
+            </span>
+          </div>
+          <p className="truncate text-xs font-bold text-muted-foreground">
+            {listing.agent.username
+              ? `@${listing.agent.username}`
+              : "Homzie agent"}
+          </p>
+          {listing.agent.location ? (
+            <p className="mt-2 truncate text-xs font-bold text-muted-foreground">
+              {listing.agent.location}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {listing.agent.bio ? (
+        <p className="mt-4 whitespace-pre-line text-sm font-medium leading-6 text-foreground/80">
+          {listing.agent.bio}
+        </p>
+      ) : null}
+      {listing.agent.contactEmail ||
+      listing.agent.contactPhone ||
+      listing.agent.whatsappNumber ? (
+        <div className="mt-4">
+          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            Contact agent
+          </p>
+          <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
+          {listing.agent.contactEmail ? (
+            actionsDisabled ? (
+              <span className="max-w-full break-all text-muted-foreground">
+                {listing.agent.contactEmail}
+              </span>
+            ) : (
+              <a
+                href={`mailto:${listing.agent.contactEmail}`}
+                className="max-w-full break-all hover:underline"
+                onClick={() => onAction?.("email_agent")}
+              >
+                {listing.agent.contactEmail}
+              </a>
+            )
+          ) : null}
+          {listing.agent.contactPhone ? (
+            actionsDisabled ? (
+              <span className="text-muted-foreground">
+                {listing.agent.contactPhone}
+              </span>
+            ) : (
+              <a
+                href={`tel:${listing.agent.contactPhone}`}
+                className="hover:underline"
+                onClick={() => onAction?.("call_agent")}
+              >
+                {listing.agent.contactPhone}
+              </a>
+            )
+          ) : null}
+          {listing.agent.whatsappNumber ? (
+            actionsDisabled ? (
+              <span className="text-muted-foreground">
+                WhatsApp {listing.agent.whatsappNumber}
+              </span>
+            ) : (
+              <a
+                href={`https://wa.me/${listing.agent.whatsappNumber.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:underline"
+                onClick={() => onAction?.("whatsapp_agent")}
+              >
+                WhatsApp {listing.agent.whatsappNumber}
+              </a>
+            )
+          ) : null}
+          </div>
+        </div>
+      ) : null}
+      {actionsDisabled ? (
+        <Button variant="outline" className="mt-4 w-full" disabled>
+          <Eye className="size-4" />
+          View agent profile
+        </Button>
+      ) : (
+        <Button asChild variant="outline" className="mt-4 w-full">
+          <Link href={agentHref}>
+            <Eye className="size-4" />
+            View agent profile
+          </Link>
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function ListingDetailPage({
+  listing,
+  viewerUsername,
+}: {
+  listing: ListingDetailData;
+  viewerUsername?: string;
+}) {
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const hasTrackedViewRef = useRef(false);
+  const { formatPriceCents, formatPriceLabel } = useCurrency();
+  const imageUrls = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...(listing.coverImageUrl ? [listing.coverImageUrl] : []),
+          ...listing.media.map((item) => item.previewUrl),
+        ]),
+      ).filter(Boolean),
+    [listing.coverImageUrl, listing.media],
+  );
+  const activeImageUrl = imageUrls[activeImageIndex] || listing.coverImageUrl;
+  const showGalleryControls = imageUrls.length > 1;
+  const formattedPrice =
+    listing.askingPriceCents && listing.askingPriceCents > 0
+      ? formatPriceCents(listing.askingPriceCents)
+      : formatPriceLabel(listing.priceLabel) || "Price not set";
+  const price =
+    listing.listingType === "rental" &&
+    listing.askingPriceCents &&
+    listing.askingPriceCents > 0
+      ? `${formattedPrice}/month`
+      : formattedPrice;
+  const showBondCalculator =
+    !listing.isUnavailableForViewer &&
+    listing.listingType !== "rental" &&
+    Boolean(listing.askingPriceCents) &&
+    Number(listing.askingPriceCents) > 0;
+  const showReducedPrice =
+    Boolean(listing.askingPriceCents) &&
+    Number(listing.previousAskingPriceCents || 0) >
+      Number(listing.askingPriceCents || 0);
+  const canUseListingActions = !listing.isUnavailableForViewer;
+  const mandateOption =
+    mandateTypeOptions.find((option) => option.value === listing.mandateType) ||
+    mandateTypeOptions[0];
+  const MandateIcon = mandateOption.icon;
+  const agentHref = listing.agent.username
+    ? `/users/${listing.agent.username}`
+    : "/agents";
+  const ownershipCosts = [
+    {
+      label: "Local taxes",
+      value: listing.localTaxesCents
+        ? formatPriceCents(listing.localTaxesCents)
+        : "",
+    },
+    {
+      label: "Community fees",
+      value: listing.communityFeesCents
+        ? formatPriceCents(listing.communityFeesCents)
+        : "",
+    },
+    {
+      label: "Utilities estimate",
+      value: listing.utilitiesEstimateCents
+        ? formatPriceCents(listing.utilitiesEstimateCents)
+        : "",
+    },
+    {
+      label: "Insurance estimate",
+      value: listing.insuranceEstimateCents
+        ? formatPriceCents(listing.insuranceEstimateCents)
+        : "",
+    },
+    {
+      label: "Transfer costs estimate",
+      value: listing.transferCostsEstimateCents
+        ? formatPriceCents(listing.transferCostsEstimateCents)
+        : "",
+    },
+    {
+      label: "Rental yield estimate",
+      value: listing.rentalYield ? `${listing.rentalYield}%` : "",
+    },
+  ].filter((item) => item.value);
+  const availabilityDetails = [
+    {
+      label:
+        listing.listingType === "rental"
+          ? "Available from"
+          : "Occupation / available date",
+      value: listing.availableFrom || "",
+    },
+    {
+      label: "Furnished",
+      value: yesNoLabel(listing.furnishedStatus),
+    },
+    {
+      label: "Pets allowed",
+      value: yesNoLabel(listing.petsAllowed),
+    },
+    {
+      label: "Short-let allowed",
+      value: yesNoLabel(listing.shortLetAllowed),
+    },
+  ].filter((item) => item.value);
+  const recordListingAction = (
+    actionType:
+      | "bond_calculator"
+      | "buy_now"
+      | "call_agent"
+      | "contact_agent"
+      | "email_agent"
+      | "like"
+      | "place_offer"
+      | "save"
+      | "share"
+      | "whatsapp_agent",
+  ) => {
+    void trackListingAction({
+      actionType,
+      listingId: listing.id,
+      source: "listing_detail",
+      viewerSessionId: getListingViewerSessionId(),
+    });
+  };
+  useEffect(() => {
+    if (hasTrackedViewRef.current) return;
+
+    hasTrackedViewRef.current = true;
+    void trackListingView({
+      listingId: listing.id,
+      source: "listing_detail",
+      viewerSessionId: getListingViewerSessionId(),
+    });
+  }, [listing.id]);
+  const showPreviousImage = () => {
+    setActiveImageIndex((index) =>
+      imageUrls.length ? (index - 1 + imageUrls.length) % imageUrls.length : 0,
+    );
+  };
+  const showNextImage = () => {
+    setActiveImageIndex((index) =>
+      imageUrls.length ? (index + 1) % imageUrls.length : 0,
+    );
+  };
+  const editListingAction = canUseListingActions ? (
+    <Button asChild>
+      <Link href={`/listings/${listing.id}/edit`}>
+        <Edit3 className="size-4" />
+        Edit listing
+      </Link>
+    </Button>
+  ) : null;
+  const buyNowAction = canUseListingActions ? (
+    <Button asChild>
+      <Link href={agentHref} onClick={() => recordListingAction("buy_now")}>
+        Buy now
+      </Link>
+    </Button>
+  ) : null;
+  const placeOfferAction = canUseListingActions ? (
+    <Button asChild variant="outline">
+      <Link href={agentHref} onClick={() => recordListingAction("place_offer")}>
+        Place offer
+      </Link>
+    </Button>
+  ) : null;
+  const purchaseActions = (
+    <>
+      {buyNowAction}
+      {placeOfferAction}
+    </>
+  );
+  const listingToolActions = canUseListingActions ? (
+    <ListingEngagementActions
+      className="mt-3"
+      listing={{
+        id: listing.id,
+        likedByViewer: listing.likedByViewer,
+        likeCountLabel: listing.likeCountLabel,
+        savedByViewer: listing.savedByViewer,
+        saveCountLabel: listing.saveCountLabel,
+      }}
+      onLike={() => recordListingAction("like")}
+      onSave={() => recordListingAction("save")}
+    />
+  ) : listing.savedByViewer ? (
+    <div className="mt-3">
+      <ListingSaveButton
+        countLabel={listing.saveCountLabel}
+        initialSaved={listing.savedByViewer}
+        listingId={listing.id}
+        onSave={() => recordListingAction("save")}
+      />
+    </div>
+  ) : null;
+
+  return (
+    <main className="min-h-screen overflow-x-hidden bg-background pt-20 pb-48 text-foreground lg:pb-0">
+      <GlobalHeader viewerUsername={viewerUsername} />
+      <div className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+        <section className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+          <div className="min-w-0">
+            <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              <div className="relative aspect-[4/3] bg-muted sm:aspect-[16/10]">
+                {activeImageUrl ? (
+                  <Image
+                    src={activeImageUrl}
+                    alt={listing.title}
+                    fill
+                    priority
+                    className={cn(
+                      "object-cover",
+                      listing.isUnavailableForViewer && "grayscale",
+                    )}
+                  />
+                ) : (
+                  <div className="grid size-full place-items-center text-muted-foreground">
+                    <Upload className="size-10" />
+                  </div>
+                )}
+                <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
+                  {listing.isUnavailableForViewer
+                    ? listing.statusLabel
+                    : listing.listingTypeLabel}
+                </span>
+                {listing.buyerIncentive && canUseListingActions ? (
+                  <span className="absolute bottom-4 left-4 max-w-[calc(100%-2rem)] truncate rounded-full bg-primary px-3 py-1.5 text-xs font-black uppercase tracking-wide text-primary-foreground shadow-lg">
+                    {listing.buyerIncentive}
+                  </span>
+                ) : null}
+                {showGalleryControls ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Previous listing image"
+                      className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-brand-black shadow-lg transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      onClick={showPreviousImage}
+                    >
+                      <ChevronLeft className="size-5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Next listing image"
+                      className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-brand-black shadow-lg transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      onClick={showNextImage}
+                    >
+                      <ChevronRight className="size-5" />
+                    </button>
+                  </>
+                ) : null}
+              </div>
+              {showGalleryControls ? (
+                <div className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain p-3 [scrollbar-width:thin]">
+                  {imageUrls.map((imageUrl, index) => (
+                    <button
+                      key={`${imageUrl}-${index}`}
+                      type="button"
+                      aria-label={`Show listing image ${index + 1}`}
+                      className={cn(
+                        "relative h-16 w-24 shrink-0 snap-start overflow-hidden rounded-md border bg-muted",
+                        index === activeImageIndex
+                          ? "border-primary ring-2 ring-primary/25"
+                          : "border-border",
+                      )}
+                      onClick={() => setActiveImageIndex(index)}
+                    >
+                      <Image
+                        src={imageUrl}
+                        alt=""
+                        fill
+                        className={cn(
+                          "object-cover",
+                          listing.isUnavailableForViewer && "grayscale",
+                        )}
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <section className="mt-8">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-wide text-primary">
+                    {listing.isUnavailableForViewer
+                      ? listing.statusLabel
+                      : listing.propertyTypeLabel}
+                  </p>
+                  <h1 className="mt-2 max-w-4xl text-2xl font-black leading-tight sm:text-3xl">
+                    {listing.title}
+                  </h1>
+                  <p className="mt-3 flex items-start gap-2 text-sm font-bold text-muted-foreground">
+                    <MapPin className="mt-0.5 size-4 shrink-0" />
+                    {listing.location || "Location not set"}
+                  </p>
+                  {listingToolActions}
+                </div>
+                <div className="hidden items-center gap-2 sm:flex">
+                  {listing.isOwner ? editListingAction : null}
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <DetailStat icon={BedDouble} value={`${formatMetric(listing.bedrooms)} beds`} />
+              <DetailStat icon={Bath} value={`${formatMetric(listing.bathrooms)} baths`} />
+              <DetailStat icon={Car} value={`${formatMetric(listing.garages)} garages`} />
+              <DetailStat icon={ParkingCircle} value={`${formatMetric(listing.parking)} parking`} />
+              <DetailStat icon={Ruler} value={`${formatMetric(listing.floorSize)}m² floor`} />
+              <DetailStat icon={Trees} value={`${formatMetric(listing.erfSize)}m² erf`} />
+            </section>
+
+            {listing.isUnavailableForViewer ? (
+              <section className="mt-6 rounded-lg border border-border bg-muted/60 p-5 text-foreground shadow-sm">
+                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+                  Listing {listing.statusLabel.toLowerCase()}
+                </p>
+                <h2 className="mt-1 text-xl font-black">
+                  This listing is no longer active.
+                </h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                  The agent has removed, archived, or completed this listing. Listing actions are disabled. If it is saved, you can still remove it using the bookmark action above.
+                </p>
+              </section>
+            ) : null}
+
+            {listing.features.length ? (
+              <section className="mt-8">
+                <h2 className="text-xl font-black">Features</h2>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {listing.features.map((feature) => (
+                    <span
+                      key={feature}
+                      className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-black text-primary"
+                    >
+                      {featureHashtag(feature)}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="mt-8 lg:hidden">
+              <ListingMetaPanel listing={listing} />
+            </section>
+
+            <section className="mt-8">
+              <h2 className="text-xl font-black">Description</h2>
+              <div className="mt-4 rounded-lg border border-border bg-card p-5 text-card-foreground">
+                <ListingDescription value={listing.description} />
+              </div>
+            </section>
+
+            {ownershipCosts.length ? (
+              <section className="mt-8">
+                <div>
+                  <h2 className="text-xl font-black">Ownership costs</h2>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                    Local running costs and estimates added by the agent.
+                  </p>
+                </div>
+                <DetailDataTable items={ownershipCosts} />
+              </section>
+            ) : null}
+
+            {availabilityDetails.length ? (
+              <section className="mt-8">
+                <h2 className="text-xl font-black">Availability and rules</h2>
+                <DetailDataTable items={availabilityDetails} />
+              </section>
+            ) : null}
+
+            {showBondCalculator ? (
+              <section className="mt-8">
+                <div className="relative overflow-hidden rounded-lg border border-primary/25 bg-card text-card-foreground shadow-sm">
+                  <div className="absolute inset-x-0 top-0 h-1 [background:var(--homzie-gradient)]" />
+                  <div className="grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-6">
+                    <div className="flex min-w-0 gap-4">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                        <Calculator className="size-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black uppercase tracking-wide text-primary">
+                          Buying tools
+                        </p>
+                        <h2 className="mt-1 text-xl font-black">
+                          Bond calculator
+                        </h2>
+                        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                          Estimate the repayment, once-off costs and income guide for this listing.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="sm:justify-self-end">
+                      <BondCalculatorDialog
+                        askingPriceCents={Number(listing.askingPriceCents)}
+                        buyerIncentive={listing.buyerIncentive}
+                        onOpen={() => recordListingAction("bond_calculator")}
+                        transferCostsEstimateCents={listing.transferCostsEstimateCents}
+                        formatPriceCents={formatPriceCents}
+                        triggerClassName="w-full border-transparent [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 hover:opacity-95 sm:w-auto"
+                      />
+                      <p className="mt-2 text-center text-[11px] font-bold text-muted-foreground sm:text-right">
+                        Quick estimate only
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+          </div>
+
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+            <div className="hidden rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm lg:block">
+              {listing.priceQualifier ? (
+                <p className="text-xs font-black uppercase tracking-wide text-primary">
+                  {listing.priceQualifier}
+                </p>
+              ) : null}
+              <p className={listing.priceQualifier ? "mt-1 text-3xl font-black" : "text-3xl font-black"}>
+                {price}
+              </p>
+              {showReducedPrice ? (
+                <p className="mt-1 text-sm font-black text-red-600">
+                  Reduced from{" "}
+                  <span className="text-muted-foreground line-through">
+                    {formatPriceCents(Number(listing.previousAskingPriceCents))}
+                  </span>
+                </p>
+              ) : null}
+              {listing.buyerIncentive && canUseListingActions ? (
+                <p className="mt-4 inline-flex rounded-full bg-primary px-3 py-1.5 text-xs font-black uppercase tracking-wide text-primary-foreground">
+                  {listing.buyerIncentive}
+                </p>
+              ) : null}
+              <div className="mt-5 grid gap-2">
+                {canUseListingActions ? purchaseActions : null}
+              </div>
+            </div>
+
+            <div className="hidden rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm lg:block">
+              <Image
+                src="/badges/Stripe%20Secure%20Checkout%20Badge.png"
+                alt="Secure checkout powered by Stripe"
+                width={502}
+                height={131}
+                className="h-auto w-full"
+              />
+            </div>
+
+            <AgentProfileCard
+              agentHref={agentHref}
+              listing={listing}
+              onAction={recordListingAction}
+            />
+
+            <div className="rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                  <MandateIcon className="size-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-black">{listing.mandateTypeLabel}</p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-muted-foreground">
+                    {mandateDates(listing.mandateStartDate, listing.mandateEndDate)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden lg:block">
+              <ListingMetaPanel listing={listing} />
+            </div>
+          </aside>
+        </section>
+      </div>
+      <GlobalFooter viewerUsername={viewerUsername} />
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,15,22,0.08)] backdrop-blur-xl lg:hidden">
+        <div className="mx-auto grid max-w-7xl gap-2">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              {listing.priceQualifier ? (
+                <p className="truncate text-[10px] font-black uppercase tracking-wide text-primary">
+                  {listing.priceQualifier}
+                </p>
+              ) : null}
+              <p className="truncate text-lg font-black">
+                {price}
+              </p>
+              {showReducedPrice ? (
+                <p className="truncate text-xs font-black text-red-600">
+                  Reduced from{" "}
+                  <span className="text-muted-foreground line-through">
+                    {formatPriceCents(Number(listing.previousAskingPriceCents))}
+                  </span>
+                </p>
+              ) : null}
+              {listing.buyerIncentive && canUseListingActions ? (
+                <p className="mt-1 truncate text-[10px] font-black uppercase tracking-wide text-primary">
+                  {listing.buyerIncentive}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {canUseListingActions ? purchaseActions : null}
+            {listing.isOwner && canUseListingActions ? editListingAction : null}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

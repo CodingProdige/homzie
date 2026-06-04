@@ -1,6 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
+
+import { HomzieLogo } from "@/components/homzie-logo";
 
 import { AuthForm } from "./auth-form";
 import { GoogleAuthButton } from "./google-auth-button";
@@ -21,14 +22,7 @@ function AuthMediaPanel() {
       />
       <div className="relative z-10 flex min-h-[620px] flex-col px-7 py-10 sm:px-12 lg:min-h-screen">
         <Link href="/" className="flex items-center gap-3" aria-label="Homzie home">
-          <Image
-            src="/logo/homzie-logo-dark.png"
-            alt="Homzie"
-            width={170}
-            height={62}
-            className="h-9 w-auto brightness-0 invert"
-            priority
-          />
+          <HomzieLogo className="h-9 brightness-0 invert" priority />
         </Link>
       </div>
     </section>
@@ -58,13 +52,7 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
 
         <div className="w-full max-w-[430px]">
           <div className="mb-10 text-center">
-            <Image
-              src="/logo/homzie-logo-dark.png"
-              alt="Homzie"
-              width={170}
-              height={62}
-              className="mx-auto h-9 w-auto object-contain"
-            />
+            <HomzieLogo className="mx-auto h-9" />
           </div>
 
           <div className="text-center">

@@ -11,6 +11,8 @@ import {
 
 import {
   CURRENCY_RATES_STORAGE_KEY,
+  convertFromZar,
+  convertToZar,
   CURRENCY_STORAGE_KEY,
   fallbackCurrencyRates,
   formatZarCents,
@@ -29,6 +31,8 @@ type StoredRates = {
 };
 
 type CurrencyContextValue = {
+  convertFromZarAmount: (amountZar: number) => number;
+  convertToZarAmount: (amount: number) => number;
   currency: SupportedCurrency;
   formatPriceCents: (cents: number) => string;
   formatPriceCentsCompact: (cents: number) => string;
@@ -217,6 +221,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CurrencyContextValue>(
     () => ({
+      convertFromZarAmount: (amountZar) => convertFromZar(amountZar, currency, rates),
+      convertToZarAmount: (amount) => convertToZar(amount, currency, rates),
       currency,
       formatPriceCents: (cents) => formatZarCents(cents, currency, rates),
       formatPriceCentsCompact: (cents) =>

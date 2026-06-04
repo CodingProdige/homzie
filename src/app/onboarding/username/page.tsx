@@ -1,8 +1,8 @@
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { eq } from "drizzle-orm";
 
+import { HomzieLogo } from "@/components/homzie-logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -45,14 +45,7 @@ export default async function UsernameOnboardingPage() {
         <Card className="rounded-lg border-border/80 py-9 shadow-xl shadow-primary/5">
           <CardContent className="px-7 sm:px-10">
             <div className="text-center">
-              <Image
-                src="/logo/homzie-logo-dark.png"
-                alt="Homzie"
-                width={170}
-                height={62}
-                className="mx-auto h-9 w-auto object-contain"
-                priority
-              />
+              <HomzieLogo className="mx-auto h-9" priority />
               <h1 className="mt-10 text-2xl font-bold tracking-tight sm:text-3xl">
                 Choose your username
               </h1>

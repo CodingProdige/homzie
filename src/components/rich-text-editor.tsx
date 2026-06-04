@@ -133,7 +133,7 @@ function EditorButton({
   return (
     <button
       type="button"
-      className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
+      className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
       aria-label={label}
       title={label}
       onClick={onClick}

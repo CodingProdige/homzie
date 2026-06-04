@@ -1,5 +1,6 @@
 "use client";
 
+import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -28,15 +29,18 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { BackButton } from "@/components/back-button";
+import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
   createReelComment,
+  deleteReel,
   deleteReelComment,
   editReelComment,
   getReelOwnerListings,
   getReelComments,
   getReelMentionSuggestions,
   linkReelListing,
+  trackReelListingClick,
   toggleReelCommentDislike,
   toggleProfileFollow,
   toggleReelCommentLike,
@@ -81,9 +85,10 @@ export type ReelFeedItem = {
   videoUrl?: string;
   posterUrl?: string;
   linkedListingId?: string | null;
+  linkedListing?: ReelLinkedListing | null;
 };
 
-type ReelOwnerListing = {
+type ReelLinkedListing = {
   coverImageUrl: string | null;
   id: string;
   location: string | null;
@@ -92,6 +97,8 @@ type ReelOwnerListing = {
   status: string;
   title: string;
 };
+
+type ReelOwnerListing = ReelLinkedListing;
 
 type ReelCommentItem = {
   avatarUrl: string | null;
@@ -121,20 +128,39 @@ function initialsFromName(name: string) {
     .join("");
 }
 
-function orderReelsForSession(reels: ReelFeedItem[], scope: string) {
+function prioritizeReel(reels: ReelFeedItem[], preferredReelId?: string | null) {
+  if (!preferredReelId) return reels;
+
+  const preferredReel = reels.find((reel) => reel.id === preferredReelId);
+
+  if (!preferredReel) return reels;
+
+  return [
+    preferredReel,
+    ...reels.filter((reel) => reel.id !== preferredReelId),
+  ];
+}
+
+function orderReelsForSession(
+  reels: ReelFeedItem[],
+  scope: string,
+  preferredReelId?: string | null,
+) {
+  const prioritizedReels = prioritizeReel(reels, preferredReelId);
+
   if (typeof window === "undefined") {
-    return reels;
+    return prioritizedReels;
   }
 
   const storageKey = `homzie-seen-reels:${scope}`;
   const seenIds = new Set(
     JSON.parse(window.sessionStorage.getItem(storageKey) || "[]") as string[],
   );
-  const unseen = reels.filter((reel) => !seenIds.has(reel.id));
-  const seen = reels.filter((reel) => seenIds.has(reel.id));
+  const unseen = prioritizedReels.filter((reel) => !seenIds.has(reel.id));
+  const seen = prioritizedReels.filter((reel) => seenIds.has(reel.id));
   const ordered = [...unseen, ...seen];
 
-  return ordered;
+  return prioritizeReel(ordered, preferredReelId);
 }
 
 function rememberWatchedReel(scope: string, reelId: string) {
@@ -195,7 +221,17 @@ function PropertyArtwork({ reel }: { reel: ReelFeedItem }) {
   );
 }
 
-function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
+function ReelCard({
+  isMuted,
+  onVisible,
+  reel,
+  scope,
+}: {
+  isMuted: boolean;
+  onVisible?: (reelId: string) => void;
+  reel: ReelFeedItem;
+  scope: string;
+}) {
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captionRef = useRef<HTMLDivElement | null>(null);
@@ -209,7 +245,6 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
     sentAt: 0,
   });
   const [hasLongCaption, setHasLongCaption] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
   const [isCaptionExpanded, setIsCaptionExpanded] = useState(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [isListingSheetOpen, setIsListingSheetOpen] = useState(false);
@@ -223,19 +258,16 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
   const [reshareLabel, setReshareLabel] = useState(reel.reshares);
   const [reshareNotice, setReshareNotice] = useState("");
   const [linkedListingId, setLinkedListingId] = useState(reel.linkedListingId || null);
+  const [linkedListing, setLinkedListing] = useState(reel.linkedListing || null);
   const [followingAgent, setFollowingAgent] = useState(reel.followingAgent);
   const [isPlaying, setIsPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
-  const { formatPriceCents, formatPriceLabel } = useCurrency();
-  const displayPrice =
-    typeof reel.priceZarCents === "number"
-      ? formatPriceCents(reel.priceZarCents)
-      : formatPriceLabel(reel.price);
   const analyticsSource = reel.resharedByUsername
     ? "reshare-feed"
     : scope === "global"
       ? "global-feed"
       : "profile-feed";
+  const linkedListingHref = linkedListingId ? `/listings/${linkedListingId}` : "";
 
   const togglePlayback = () => {
     const video = videoRef.current;
@@ -286,12 +318,6 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
 
     const nextProgress = Math.min(1, Math.max(0, value));
     video.currentTime = nextProgress * video.duration;
-    setProgress(nextProgress);
-  };
-
-  const previewSeekProgress = (value: number) => {
-    const nextProgress = Math.min(1, Math.max(0, value));
-
     setProgress(nextProgress);
   };
 
@@ -383,6 +409,7 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {
+          onVisible?.(reel.id);
           rememberWatchedReel(scope, reel.id);
 
           if (!hasRecordedViewRef.current) {
@@ -402,7 +429,7 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
     observer.observe(element);
 
     return () => observer.disconnect();
-  }, [analyticsSource, reel.id, scope]);
+  }, [analyticsSource, onVisible, reel.id, scope]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -542,7 +569,8 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
   return (
     <section
       ref={cardRef}
-      className="relative h-dvh snap-start overflow-hidden bg-black text-white"
+      data-reel-card
+      className="relative h-dvh snap-start overflow-hidden bg-black text-white lg:mx-auto lg:aspect-[9/16] lg:h-[clamp(640px,100dvh,920px)] lg:w-auto lg:rounded-2xl lg:shadow-2xl lg:shadow-black/45"
       onClick={handleVideoTap}
     >
       {reel.videoUrl ? (
@@ -565,7 +593,7 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
 
       {!isPlaying ? (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-          <div className="grid size-20 place-items-center rounded-full bg-black/35 text-white shadow-2xl backdrop-blur">
+          <div className="grid size-20 place-items-center rounded-full bg-black/35 text-white shadow-2xl backdrop-blur lg:scale-[var(--reel-ui-scale)]">
             <span className="ml-1 size-0 border-y-[16px] border-l-[24px] border-y-transparent border-l-white" />
           </div>
         </div>
@@ -598,7 +626,7 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
             }
           }}
           onInput={(event) => {
-            previewSeekProgress(Number(event.currentTarget.value) / 1000);
+            seekVideo(Number(event.currentTarget.value) / 1000);
           }}
           onChange={(event) => {
             if (!isSeekingRef.current) {
@@ -618,28 +646,13 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
         />
       </div>
 
-      <button
-        type="button"
-        aria-label={isMuted ? "Unmute reel" : "Mute reel"}
-        className="absolute right-4 top-[calc(env(safe-area-inset-top)+4.75rem)] z-20 flex size-10 items-center justify-center rounded-full bg-black/45 text-white shadow-lg backdrop-blur"
-        onClick={(event) => {
-          event.stopPropagation();
-          setIsMuted((value) => !value);
-        }}
-      >
-        {isMuted ? (
-          <VolumeX className="size-5" />
-        ) : (
-          <Volume2 className="size-5" />
-        )}
-      </button>
-
       {reel.isOwnAgent ? (
         <button
           type="button"
           aria-label="Link listing"
           className={cn(
-            "absolute right-4 top-[calc(env(safe-area-inset-top)+7.75rem)] z-20 flex size-10 items-center justify-center rounded-full bg-[var(--homzie-gradient)] text-white shadow-lg shadow-primary/30 ring-1 ring-white/30",
+            "absolute right-4 top-[calc(env(safe-area-inset-top)+7.75rem)] z-20 flex size-10 origin-center items-center justify-center rounded-full bg-[var(--homzie-gradient)] text-white shadow-lg shadow-primary/30 ring-1 ring-white/30 lg:right-[calc(1rem*var(--reel-ui-scale))] lg:top-[calc((env(safe-area-inset-top)+7.75rem)*var(--reel-ui-scale))] lg:scale-[var(--reel-ui-scale)]",
+            linkedListing && "top-[calc(env(safe-area-inset-top)+11rem)] lg:top-[calc((env(safe-area-inset-top)+11rem)*var(--reel-ui-scale))]",
             linkedListingId && "ring-2 ring-emerald-300",
           )}
           onClick={(event) => {
@@ -651,7 +664,30 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
         </button>
       ) : null}
 
-      <aside className="absolute bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] right-3 z-20 flex flex-col items-center gap-4 text-white">
+      {linkedListing ? (
+        <div
+          className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-20 lg:left-[calc(0.75rem*var(--reel-ui-scale))] lg:right-[calc(0.75rem*var(--reel-ui-scale))] lg:top-[calc((env(safe-area-inset-top)+4.25rem)*var(--reel-ui-scale))]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <ReelListingLinkCard
+            actionLabel="View now"
+            href={linkedListingHref}
+            listing={linkedListing}
+            onAction={async () => {
+              if (!linkedListingId) return;
+
+              await trackReelListingClick({
+                listingId: linkedListingId,
+                reelId: reel.id,
+                source: analyticsSource,
+                viewerSessionId: getViewerSessionId(),
+              });
+            }}
+          />
+        </div>
+      ) : null}
+
+      <aside className="absolute bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] right-3 z-20 flex origin-bottom-right flex-col items-center gap-4 text-white lg:scale-[var(--reel-ui-scale)]">
         <Link
           href={`/users/${reel.agentUsername}`}
           className="relative flex size-12 items-center justify-center rounded-full border-2 border-white bg-[var(--homzie-gradient)] text-sm font-black shadow-lg"
@@ -726,7 +762,7 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
       </aside>
 
       <div
-        className="absolute bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] left-3 right-20 z-20 rounded-lg bg-black/10 p-3 text-white shadow-lg drop-shadow backdrop-blur-[2px]"
+        className="absolute bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] left-3 right-20 z-20 rounded-lg bg-black/10 p-3 text-white shadow-lg drop-shadow backdrop-blur-[2px] lg:bottom-[calc((env(safe-area-inset-bottom)+1.25rem)*var(--reel-ui-scale))] lg:left-[calc(0.75rem*var(--reel-ui-scale))] lg:right-[calc(5rem*var(--reel-ui-scale))]"
         onClick={(event) => event.stopPropagation()}
       >
         <Link
@@ -764,14 +800,6 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
             {isCaptionExpanded ? "Show less" : "Show more"}
           </button>
         )}
-        {displayPrice || reel.beds || reel.baths || reel.size ? (
-          <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-white/90">
-            {displayPrice ? <span>{displayPrice}</span> : null}
-            {reel.beds ? <span>{reel.beds} beds</span> : null}
-            {reel.baths ? <span>{reel.baths} baths</span> : null}
-            {reel.size ? <span>{reel.size}</span> : null}
-          </div>
-        ) : null}
         <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-white/90">
           <Send className="size-4" />
           Original sound
@@ -786,7 +814,10 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
       />
       <ListingLinkSheet
         linkedListingId={linkedListingId}
-        onLinkedListingChange={setLinkedListingId}
+        onLinkedListingChange={(listing) => {
+          setLinkedListingId(listing?.id || null);
+          setLinkedListing(listing);
+        }}
         onClose={() => setIsListingSheetOpen(false)}
         open={isListingSheetOpen}
         reel={reel}
@@ -797,6 +828,90 @@ function ReelCard({ reel, scope }: { reel: ReelFeedItem; scope: string }) {
         onClose={() => setIsShareOpen(false)}
       />
     </section>
+  );
+}
+
+function OwnerReelMenu({
+  onOpenChange,
+  open,
+  reelId,
+}: {
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  reelId: string;
+}) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="Reel options"
+        className="flex size-10 items-center justify-center rounded-full bg-black/35 text-white shadow-lg ring-1 ring-white/20 backdrop-blur transition hover:bg-black/55"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenChange(!open);
+        }}
+      >
+        <MoreHorizontal className="size-5" />
+      </button>
+      {open ? (
+        <div
+          className="absolute right-0 top-12 w-44 overflow-hidden rounded-2xl bg-white text-sm font-black text-black shadow-2xl ring-1 ring-black/10"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Link
+            href={`/reels/${reelId}/edit`}
+            className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-black/5"
+          >
+            <Pencil className="size-4" />
+            Edit reel
+          </Link>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-4 py-3 text-left text-red-500 hover:bg-red-50"
+            onClick={() => {
+              onOpenChange(false);
+              setDeleteDialogOpen(true);
+            }}
+          >
+            <Trash2 className="size-4" />
+            Delete reel
+          </button>
+        </div>
+      ) : null}
+      <Dialog.Root open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/45 backdrop-blur-sm" />
+          <Dialog.Content
+            className="fixed left-1/2 top-1/2 z-[91] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl outline-none"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Dialog.Title className="text-base font-black">
+              Delete reel?
+            </Dialog.Title>
+            <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              This permanently removes the reel and clears it from saved profiles,
+              likes, comments and reshares.
+            </Dialog.Description>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <Dialog.Close asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </Dialog.Close>
+              <form action={deleteReel}>
+                <input type="hidden" name="reelId" value={reelId} />
+                <Button type="submit" variant="destructive" className="w-full">
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              </form>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </div>
   );
 }
 
@@ -851,6 +966,106 @@ function formatCommentCount(count: number) {
   return `${Number.isInteger(compact) ? compact.toFixed(0) : compact.toFixed(1)}K`;
 }
 
+function ReelListingLinkCard({
+  actionLabel,
+  disabled,
+  href,
+  isSelected,
+  listing,
+  onAction,
+  onSelect,
+}: {
+  actionLabel?: string;
+  disabled?: boolean;
+  href?: string;
+  isSelected?: boolean;
+  listing: ReelLinkedListing;
+  onAction?: () => Promise<void> | void;
+  onSelect?: () => void;
+}) {
+  const { formatPriceCents, formatPriceLabel } = useCurrency();
+  const displayPrice =
+    typeof listing.priceCents === "number"
+      ? formatPriceCents(listing.priceCents)
+      : formatPriceLabel(listing.priceLabel);
+  const className = cn(
+    "flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left text-black shadow-sm transition",
+    isSelected && "border-primary ring-2 ring-primary/30",
+  );
+  const content = (
+    <>
+      <div className="size-16 shrink-0 overflow-hidden rounded-xl bg-black/5">
+        {listing.coverImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- Listing covers are local media URLs.
+          <img
+            src={listing.coverImageUrl}
+            alt=""
+            className="size-full object-cover"
+          />
+        ) : (
+          <div className="grid size-full place-items-center bg-[var(--homzie-gradient)] text-white">
+            <Link2 className="size-6" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-black">{listing.title}</p>
+          {isSelected ? (
+            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+              Linked
+            </span>
+          ) : null}
+        </div>
+        {listing.location ? (
+          <p className="mt-1 truncate text-xs font-bold text-black/45">
+            {listing.location}
+          </p>
+        ) : null}
+        <div className="mt-2 flex items-center gap-2 text-xs font-black text-black/60">
+          {displayPrice ? <span>{displayPrice}</span> : null}
+          <span className="rounded-full bg-black/5 px-2 py-1 capitalize">
+            {listing.status}
+          </span>
+        </div>
+      </div>
+      {actionLabel && href ? (
+        <Link
+          href={href}
+          className="shrink-0 rounded-full bg-black px-3 py-2 text-xs font-black text-white"
+          onClick={async (event) => {
+            event.stopPropagation();
+            event.preventDefault();
+
+            try {
+              await onAction?.();
+            } finally {
+              window.location.href = href;
+            }
+          }}
+        >
+          {actionLabel}
+        </Link>
+      ) : null}
+    </>
+  );
+
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        className={className}
+        disabled={disabled}
+        onClick={onSelect}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
+}
+
 function SheetShell({
   children,
   open,
@@ -873,30 +1088,32 @@ function SheetShell({
         onClose();
       }}
     >
-      <div
-        className="absolute inset-x-0 bottom-0 flex h-[70dvh] flex-col overflow-hidden rounded-t-[1.75rem] bg-white text-black shadow-2xl"
-        style={{ transform: `translateY(${dragY}px)` }}
-        onClick={(event) => event.stopPropagation()}
-        onPointerMove={(event) => {
-          if (dragStartRef.current === null) return;
-          setDragY(Math.max(0, event.clientY - dragStartRef.current));
-        }}
-        onPointerUp={() => {
-          if (dragY > 110) {
-            onClose();
-          }
-
-          setDragY(0);
-          dragStartRef.current = null;
-        }}
-      >
+      <div className="absolute inset-x-0 bottom-0 lg:left-1/2 lg:right-auto lg:w-[clamp(360px,calc(100dvh*9/16),520px)] lg:-translate-x-1/2">
         <div
-          className="mx-auto mt-2 h-1.5 w-12 shrink-0 touch-none rounded-full bg-black/10"
-          onPointerDown={(event) => {
-            dragStartRef.current = event.clientY;
+          className="flex h-[70dvh] flex-col overflow-hidden rounded-t-[1.75rem] bg-white text-black shadow-2xl lg:max-h-[min(70dvh,calc(920px*0.72))]"
+          style={{ transform: `translateY(${dragY}px)` }}
+          onClick={(event) => event.stopPropagation()}
+          onPointerMove={(event) => {
+            if (dragStartRef.current === null) return;
+            setDragY(Math.max(0, event.clientY - dragStartRef.current));
           }}
-        />
-        {children}
+          onPointerUp={() => {
+            if (dragY > 110) {
+              onClose();
+            }
+
+            setDragY(0);
+            dragStartRef.current = null;
+          }}
+        >
+          <div
+            className="mx-auto mt-2 h-1.5 w-12 shrink-0 touch-none rounded-full bg-black/10"
+            onPointerDown={(event) => {
+              dragStartRef.current = event.clientY;
+            }}
+          />
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -932,7 +1149,7 @@ function ListingLinkSheet({
 }: {
   linkedListingId: string | null;
   onClose: () => void;
-  onLinkedListingChange: (listingId: string | null) => void;
+  onLinkedListingChange: (listing: ReelLinkedListing | null) => void;
   open: boolean;
   reel: ReelFeedItem;
 }) {
@@ -940,7 +1157,6 @@ function ListingLinkSheet({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [listings, setListings] = useState<ReelOwnerListing[]>([]);
-  const { formatPriceCents, formatPriceLabel } = useCurrency();
 
   useEffect(() => {
     if (!open) return;
@@ -960,7 +1176,10 @@ function ListingLinkSheet({
           }
 
           setListings(result.listings);
-          onLinkedListingChange(result.linkedListingId);
+          onLinkedListingChange(
+            result.listings.find((listing) => listing.id === result.linkedListingId) ||
+              null,
+          );
         })
         .finally(() => {
           if (isActive) {
@@ -976,11 +1195,14 @@ function ListingLinkSheet({
   }, [onLinkedListingChange, open, reel.id]);
 
   const selectListing = async (listingId: string | null) => {
-    const previous = linkedListingId;
+    const previous =
+      listings.find((listing) => listing.id === linkedListingId) || null;
+    const nextListing =
+      listings.find((listing) => listing.id === listingId) || null;
 
     setError("");
     setIsSaving(true);
-    onLinkedListingChange(listingId);
+    onLinkedListingChange(nextListing);
 
     const result = await linkReelListing({
       listingId,
@@ -995,7 +1217,7 @@ function ListingLinkSheet({
       return;
     }
 
-    onLinkedListingChange(result.linkedListingId);
+    onLinkedListingChange(result.linkedListing || null);
     onClose();
   };
 
@@ -1039,62 +1261,15 @@ function ListingLinkSheet({
                 Unlink current listing
               </button>
             ) : null}
-            {listings.map((listing) => {
-              const isSelected = linkedListingId === listing.id;
-              const displayPrice =
-                typeof listing.priceCents === "number"
-                  ? formatPriceCents(listing.priceCents)
-                  : formatPriceLabel(listing.priceLabel);
-
-              return (
-                <button
-                  key={listing.id}
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left shadow-sm transition",
-                    isSelected && "border-primary ring-2 ring-primary/30",
-                  )}
-                  disabled={isSaving}
-                  onClick={() => void selectListing(listing.id)}
-                >
-                  <div className="size-16 shrink-0 overflow-hidden rounded-xl bg-black/5">
-                    {listing.coverImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- Listing covers are local media URLs.
-                      <img
-                        src={listing.coverImageUrl}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid size-full place-items-center bg-[var(--homzie-gradient)] text-white">
-                        <Link2 className="size-6" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-black">{listing.title}</p>
-                      {isSelected ? (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
-                          Linked
-                        </span>
-                      ) : null}
-                    </div>
-                    {listing.location ? (
-                      <p className="mt-1 truncate text-xs font-bold text-black/45">
-                        {listing.location}
-                      </p>
-                    ) : null}
-                    <div className="mt-2 flex items-center gap-2 text-xs font-black text-black/60">
-                      {displayPrice ? <span>{displayPrice}</span> : null}
-                      <span className="rounded-full bg-black/5 px-2 py-1 capitalize">
-                        {listing.status}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            {listings.map((listing) => (
+              <ReelListingLinkCard
+                key={listing.id}
+                disabled={isSaving}
+                isSelected={linkedListingId === listing.id}
+                listing={listing}
+                onSelect={() => void selectListing(listing.id)}
+              />
+            ))}
           </div>
         ) : (
           <div className="mt-6 rounded-3xl bg-black/[0.04] p-6 text-center">
@@ -2026,20 +2201,83 @@ function ShareBrandIcon({ brand }: { brand: string }) {
 }
 
 export function ReelsFeed({
+  preferredReelId,
   reels,
   scope,
 }: {
+  preferredReelId?: string | null;
   reels: ReelFeedItem[];
   scope: string;
 }) {
   const orderedReels = useMemo(
-    () => orderReelsForSession(reels, scope),
-    [reels, scope],
+    () => orderReelsForSession(reels, scope, preferredReelId),
+    [preferredReelId, reels, scope],
   );
+  const feedRef = useRef<HTMLElement | null>(null);
+  const [activeReelId, setActiveReelId] = useState(orderedReels[0]?.id || "");
+  const [isOwnerMenuOpen, setIsOwnerMenuOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const feedTitle = useMemo(
     () => (scope === "global" ? "For You" : `@${scope}`),
     [scope],
   );
+  const activeReel =
+    orderedReels.find((reel) => reel.id === activeReelId) || orderedReels[0];
+  const handleActiveReelChange = (reelId: string) => {
+    setActiveReelId((currentReelId) => {
+      if (currentReelId === reelId) return currentReelId;
+
+      setIsOwnerMenuOpen(false);
+      return reelId;
+    });
+  };
+
+  useEffect(() => {
+    function scrollToSiblingReel(direction: 1 | -1) {
+      const feed = feedRef.current;
+
+      if (!feed) return;
+
+      const cards = Array.from(
+        feed.querySelectorAll<HTMLElement>("[data-reel-card]"),
+      );
+
+      if (!cards.length) return;
+
+      const currentTop = feed.scrollTop;
+      const currentIndex = cards.reduce((closestIndex, card, index) => {
+        const closestDistance = Math.abs(cards[closestIndex].offsetTop - currentTop);
+        const nextDistance = Math.abs(card.offsetTop - currentTop);
+
+        return nextDistance < closestDistance ? index : closestIndex;
+      }, 0);
+      const nextIndex = Math.min(
+        Math.max(currentIndex + direction, 0),
+        cards.length - 1,
+      );
+
+      feed.scrollTo({ behavior: "smooth", top: cards[nextIndex].offsetTop });
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+      const target = event.target as HTMLElement | null;
+
+      if (
+        target?.closest("input, textarea, select, button, [contenteditable='true']")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      scrollToSiblingReel(event.key === "ArrowDown" ? 1 : -1);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   if (orderedReels.length === 0) {
     return (
@@ -2058,8 +2296,11 @@ export function ReelsFeed({
   }
 
   return (
-    <main className="h-dvh overflow-y-auto snap-y snap-mandatory bg-black text-white">
-      <header className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between bg-black/10 px-4 pt-[env(safe-area-inset-top)] text-white backdrop-blur-[2px]">
+    <main
+      ref={feedRef}
+      className="h-dvh overflow-y-auto snap-y snap-mandatory bg-black text-white lg:[--reel-ui-scale:min(1,max(0.78,calc(100dvh/820px)))]"
+    >
+      <header className="fixed left-0 right-0 top-0 z-30 mx-auto flex h-14 items-center justify-between bg-black/10 px-4 pt-[env(safe-area-inset-top)] text-white backdrop-blur-[2px] lg:h-[calc(3.5rem*var(--reel-ui-scale))] lg:w-[clamp(360px,calc(100dvh*9/16),520px)] lg:rounded-b-2xl lg:px-[calc(1rem*var(--reel-ui-scale))] lg:pt-[calc(env(safe-area-inset-top)*var(--reel-ui-scale))]">
         <BackButton
           className="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur"
           iconClassName="size-6"
@@ -2069,12 +2310,38 @@ export function ReelsFeed({
         <div className="absolute left-1/2 flex -translate-x-1/2 items-center text-sm font-bold">
           <span className="border-b-2 border-primary pb-2">{feedTitle}</span>
         </div>
-        <div className="size-10" aria-hidden="true" />
+        <div className="flex items-center gap-2">
+          {activeReel?.isOwnAgent ? (
+            <OwnerReelMenu
+              open={isOwnerMenuOpen}
+              reelId={activeReel.id}
+              onOpenChange={setIsOwnerMenuOpen}
+            />
+          ) : null}
+          <button
+            type="button"
+            aria-label={isMuted ? "Unmute reels" : "Mute reels"}
+            className="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur"
+            onClick={() => setIsMuted((value) => !value)}
+          >
+            {isMuted ? (
+              <VolumeX className="size-5" />
+            ) : (
+              <Volume2 className="size-5" />
+            )}
+          </button>
+        </div>
       </header>
 
-      <div>
+      <div className="lg:grid lg:justify-center">
         {orderedReels.map((reel) => (
-          <ReelCard key={reel.id} reel={reel} scope={scope} />
+          <ReelCard
+            key={reel.id}
+            isMuted={isMuted}
+            onVisible={handleActiveReelChange}
+            reel={reel}
+            scope={scope}
+          />
         ))}
       </div>
     </main>

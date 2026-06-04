@@ -1,0 +1,433 @@
+import { and, eq, sql } from "drizzle-orm";
+
+import { db } from "@/db";
+import { listingLikes, listingSaves, propertyListings, users } from "@/db/schema";
+import { toPublicMediaUrl } from "@/media/paths";
+import {
+  listingTypeOptions,
+  mandateTypeOptions,
+  propertyTypeOptions,
+  type ListingType,
+  type PropertyType,
+} from "@/modules/listings/options";
+
+export type ListingMediaItem = {
+  name: string;
+  path: string;
+  previewUrl: string;
+  size: number;
+  type: string;
+};
+
+export type ListingDetailData = {
+  agent: {
+    avatarUrl: string | null;
+    bio: string | null;
+    contactEmail: string | null;
+    contactPhone: string | null;
+    location: string | null;
+    name: string;
+    publicContactVisible: boolean;
+    username: string | null;
+    whatsappNumber: string | null;
+  };
+  askingPriceCents: number | null;
+  availableFrom: string | null;
+  bathrooms: number | null;
+  bedrooms: number | null;
+  buyerIncentive: string;
+  city: string;
+  communityFeesCents: number | null;
+  country: string;
+  coverImageUrl: string | null;
+  description: string | null;
+  erfSize: number | null;
+  features: string[];
+  floorSize: number | null;
+  furnishedStatus: string;
+  garages: number | null;
+  googlePlaceId: string;
+  id: string;
+  insuranceEstimateCents: number | null;
+  isOwner: boolean;
+  isUnavailableForViewer: boolean;
+  likedByViewer: boolean;
+  likeCount: number;
+  likeCountLabel: string;
+  savedByViewer: boolean;
+  saveCount: number;
+  saveCountLabel: string;
+  listedAt: string;
+  listingType: ListingType | string;
+  listingTypeLabel: string;
+  location: string | null;
+  localTaxesCents: number | null;
+  mandateEndDate: string;
+  mandateStartDate: string;
+  mandateType: string;
+  mandateTypeLabel: string;
+  media: ListingMediaItem[];
+  parking: number | null;
+  petsAllowed: string;
+  previousAskingPriceCents: number | null;
+  priceLabel: string | null;
+  priceQualifier: string;
+  propertyType: PropertyType | string;
+  propertyTypeLabel: string;
+  rentalYield: number | null;
+  shortLetAllowed: string;
+  status: string;
+  statusLabel: string;
+  suburb: string;
+  title: string;
+  transferCostsEstimateCents: number | null;
+  updatedAt: string;
+  utilitiesEstimateCents: number | null;
+};
+
+type ListingRow = Awaited<ReturnType<typeof getListingRow>>;
+
+function objectValue(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function isoDate(value: Date | null) {
+  return value?.toISOString().slice(0, 10) || "";
+}
+
+function formatCompactCount(value: number) {
+  if (value < 1000) {
+    return String(value);
+  }
+
+  const compactValue = value / 1000;
+
+  return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
+}
+
+function listingStatusLabel(status: string) {
+  if (status === "published") return "Published";
+  if (status === "archived") return "Archived";
+  if (status === "sold") return "Sold";
+  if (status === "sold_externally") return "Sold externally";
+  if (status === "draft") return "Draft";
+  if (status === "withdrawn") return "Withdrawn";
+  if (status === "expired") return "Expired";
+
+  return status.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function parseListingMedia(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item): ListingMediaItem | null => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return null;
+      }
+
+      const mediaItem = item as Record<string, unknown>;
+      const path = stringValue(mediaItem.path);
+      const previewUrl = toPublicMediaUrl(path);
+
+      if (!path || !previewUrl) return null;
+
+      return {
+        name: stringValue(mediaItem.name) || path.split("/").pop() || "Listing image",
+        path,
+        previewUrl,
+        size: numberValue(mediaItem.size) || 0,
+        type: stringValue(mediaItem.type) || "image/webp",
+      };
+    })
+    .filter((item): item is ListingMediaItem => Boolean(item));
+}
+
+function optionLabel<T extends { label: string; value: string }>(
+  options: readonly T[],
+  value: string,
+  fallback: string,
+) {
+  return options.find((option) => option.value === value)?.label || fallback;
+}
+
+async function getListingRow(listingId: string) {
+  const [row] = await db
+    .select({
+      agentAvatarUrl: users.avatarUrl,
+      agentBio: users.bio,
+      agentContactEmail: users.contactEmail,
+      agentContactPhone: users.contactPhone,
+      agentLocation: users.location,
+      agentName: users.name,
+      agentPublicContactVisible: users.publicContactVisible,
+      agentUsername: users.username,
+      agentWhatsappNumber: users.whatsappNumber,
+      askingPriceCents: propertyListings.askingPriceCents,
+      coverImageUrl: propertyListings.coverImageUrl,
+      description: propertyListings.description,
+      details: propertyListings.details,
+      features: propertyListings.features,
+      id: propertyListings.id,
+      listedAt: propertyListings.listedAt,
+      listingType: propertyListings.listingType,
+      location: propertyListings.location,
+      mandateEndDate: propertyListings.mandateEndDate,
+      mandateStartDate: propertyListings.mandateStartDate,
+      mandateType: propertyListings.mandateType,
+      media: propertyListings.media,
+      priceLabel: propertyListings.priceLabel,
+      propertyType: propertyListings.propertyType,
+      status: propertyListings.status,
+      title: propertyListings.title,
+      updatedAt: propertyListings.updatedAt,
+      userId: propertyListings.userId,
+    })
+    .from(propertyListings)
+    .innerJoin(users, eq(users.id, propertyListings.userId))
+    .where(eq(propertyListings.id, listingId))
+    .limit(1);
+
+  return row || null;
+}
+
+export async function getListingDetail({
+  listingId,
+  viewerUserId,
+}: {
+  listingId: string;
+  viewerUserId?: string | null;
+}) {
+  const row = await getListingRow(listingId);
+
+  if (!row) return null;
+
+  const [save] = viewerUserId
+    ? await db
+        .select({ listingId: listingSaves.listingId })
+        .from(listingSaves)
+        .where(
+          and(
+            eq(listingSaves.listingId, listingId),
+            eq(listingSaves.userId, viewerUserId),
+          ),
+        )
+        .limit(1)
+    : [];
+  const isOwner = row.userId === viewerUserId;
+  const savedByViewer = Boolean(save);
+
+  if (!isOwner && row.status !== "published" && !savedByViewer) {
+    return null;
+  }
+
+  const [like] = viewerUserId
+    ? await db
+        .select({ listingId: listingLikes.listingId })
+        .from(listingLikes)
+        .where(
+          and(
+            eq(listingLikes.listingId, listingId),
+            eq(listingLikes.userId, viewerUserId),
+          ),
+        )
+        .limit(1)
+    : [];
+  const [{ count: likeCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingLikes)
+    .where(eq(listingLikes.listingId, listingId));
+  const [{ count: saveCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingSaves)
+    .where(eq(listingSaves.listingId, listingId));
+
+  return mapListingRow(row, {
+    isOwner,
+    isUnavailableForViewer: row.status !== "published",
+    likedByViewer: Boolean(like),
+    likeCount,
+    savedByViewer,
+    saveCount,
+  });
+}
+
+export async function getOwnedListingDetail({
+  listingId,
+  userId,
+}: {
+  listingId: string;
+  userId: string;
+}) {
+  const [row] = await db
+    .select({
+      agentAvatarUrl: users.avatarUrl,
+      agentBio: users.bio,
+      agentContactEmail: users.contactEmail,
+      agentContactPhone: users.contactPhone,
+      agentLocation: users.location,
+      agentName: users.name,
+      agentPublicContactVisible: users.publicContactVisible,
+      agentUsername: users.username,
+      agentWhatsappNumber: users.whatsappNumber,
+      askingPriceCents: propertyListings.askingPriceCents,
+      coverImageUrl: propertyListings.coverImageUrl,
+      description: propertyListings.description,
+      details: propertyListings.details,
+      features: propertyListings.features,
+      id: propertyListings.id,
+      listedAt: propertyListings.listedAt,
+      listingType: propertyListings.listingType,
+      location: propertyListings.location,
+      mandateEndDate: propertyListings.mandateEndDate,
+      mandateStartDate: propertyListings.mandateStartDate,
+      mandateType: propertyListings.mandateType,
+      media: propertyListings.media,
+      priceLabel: propertyListings.priceLabel,
+      propertyType: propertyListings.propertyType,
+      status: propertyListings.status,
+      title: propertyListings.title,
+      updatedAt: propertyListings.updatedAt,
+      userId: propertyListings.userId,
+    })
+    .from(propertyListings)
+    .innerJoin(users, eq(users.id, propertyListings.userId))
+    .where(and(eq(propertyListings.id, listingId), eq(propertyListings.userId, userId)))
+    .limit(1);
+
+  if (!row) return null;
+
+  const [{ count: likeCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingLikes)
+    .where(eq(listingLikes.listingId, listingId));
+  const [{ count: saveCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingSaves)
+    .where(eq(listingSaves.listingId, listingId));
+
+  return mapListingRow(row, {
+    isOwner: true,
+    isUnavailableForViewer: row.status !== "published",
+    likedByViewer: false,
+    likeCount,
+    savedByViewer: false,
+    saveCount,
+  });
+}
+
+function mapListingRow(
+  row: NonNullable<ListingRow>,
+  viewerState: {
+    isOwner: boolean;
+    isUnavailableForViewer: boolean;
+    likedByViewer: boolean;
+    likeCount: number;
+    savedByViewer: boolean;
+    saveCount: number;
+  },
+): ListingDetailData {
+  const details = objectValue(row.details);
+  const media = parseListingMedia(row.media);
+  const coverImageUrl =
+    toPublicMediaUrl(row.coverImageUrl) || media[0]?.previewUrl || null;
+  const listingTypeLabel = optionLabel(
+    listingTypeOptions,
+    row.listingType,
+    row.listingType,
+  );
+  const propertyTypeLabel = optionLabel(
+    propertyTypeOptions,
+    row.propertyType,
+    row.propertyType,
+  );
+  const mandateTypeLabel = optionLabel(
+    mandateTypeOptions,
+    row.mandateType,
+    row.mandateType,
+  );
+
+  return {
+    agent: {
+      avatarUrl: toPublicMediaUrl(row.agentAvatarUrl),
+      bio: row.agentBio,
+      contactEmail: row.agentPublicContactVisible ? row.agentContactEmail : null,
+      contactPhone: row.agentPublicContactVisible ? row.agentContactPhone : null,
+      location: row.agentLocation,
+      name: row.agentName,
+      publicContactVisible: row.agentPublicContactVisible,
+      username: row.agentUsername,
+      whatsappNumber: row.agentPublicContactVisible ? row.agentWhatsappNumber : null,
+    },
+    askingPriceCents: row.askingPriceCents,
+    availableFrom: stringValue(details.availableFrom) || null,
+    bathrooms: numberValue(details.bathrooms),
+    bedrooms: numberValue(details.bedrooms),
+    buyerIncentive: stringValue(details.buyerIncentive),
+    city: stringValue(details.city),
+    communityFeesCents: numberValue(details.communityFeesCents),
+    country: stringValue(details.country),
+    coverImageUrl,
+    description: row.description,
+    erfSize: numberValue(details.erfSize),
+    features: stringArray(row.features).slice(0, 10),
+    floorSize: numberValue(details.floorSize),
+    furnishedStatus: stringValue(details.furnishedStatus),
+    garages: numberValue(details.garages),
+    googlePlaceId: stringValue(details.googlePlaceId),
+    id: row.id,
+    insuranceEstimateCents: numberValue(details.insuranceEstimateCents),
+    isOwner: viewerState.isOwner,
+    isUnavailableForViewer: viewerState.isUnavailableForViewer,
+    likedByViewer: viewerState.likedByViewer,
+    likeCount: viewerState.likeCount,
+    likeCountLabel: formatCompactCount(viewerState.likeCount),
+    savedByViewer: viewerState.savedByViewer,
+    saveCount: viewerState.saveCount,
+    saveCountLabel: formatCompactCount(viewerState.saveCount),
+    listedAt: row.listedAt.toISOString(),
+    listingType: row.listingType,
+    listingTypeLabel,
+    location: row.location,
+    localTaxesCents: numberValue(details.localTaxesCents),
+    mandateEndDate: isoDate(row.mandateEndDate),
+    mandateStartDate: isoDate(row.mandateStartDate),
+    mandateType: row.mandateType,
+    mandateTypeLabel,
+    media,
+    parking: numberValue(details.parking),
+    petsAllowed: stringValue(details.petsAllowed),
+    previousAskingPriceCents: numberValue(details.previousAskingPriceCents),
+    priceLabel: row.priceLabel,
+    priceQualifier: stringValue(details.priceQualifier),
+    propertyType: row.propertyType,
+    propertyTypeLabel,
+    rentalYield: numberValue(details.rentalYield),
+    shortLetAllowed: stringValue(details.shortLetAllowed),
+    status: row.status,
+    statusLabel: listingStatusLabel(row.status),
+    suburb: stringValue(details.suburb),
+    title: row.title,
+    transferCostsEstimateCents: numberValue(details.transferCostsEstimateCents),
+    updatedAt: row.updatedAt.toISOString(),
+    utilitiesEstimateCents: numberValue(details.utilitiesEstimateCents),
+  };
+}

@@ -203,6 +203,7 @@ const MAX_REEL_UPLOAD_DURATION_SECONDS = 10 * 60;
 const MAX_REEL_UPLOAD_BYTES = 1024 * 1024 * 1024;
 const REEL_VIDEO_UPLOAD_ACCEPT = ".mp4,.mov,video/mp4,video/quicktime";
 const googleMapsScriptId = "homzie-google-maps-places";
+const mediaLoadTimeoutMs = 20000;
 
 function uid() {
   return crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
@@ -236,14 +237,74 @@ function validateReelVideoFile(file: File) {
   }
 }
 
-async function fileFromMediaUrl(url: string, fileName: string, fallbackType: string) {
-  const response = await fetch(url);
+function withTimeout<T>(
+  callback: (resolve: (value: T) => void, reject: (reason?: unknown) => void) => void,
+  timeoutMs = mediaLoadTimeoutMs,
+) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error("Timed out while loading saved media."));
+    }, timeoutMs);
+
+    callback(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (reason) => {
+        window.clearTimeout(timeoutId);
+        reject(reason);
+      },
+    );
+  });
+}
+
+async function fileFromMediaUrl(
+  url: string,
+  fileName: string,
+  fallbackType: string,
+  onProgress?: (progress: number) => void,
+) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  const response = await fetch(url, { signal: controller.signal }).finally(() => {
+    window.clearTimeout(timeoutId);
+  });
 
   if (!response.ok) {
     throw new Error("Could not load saved media.");
   }
 
-  const blob = await response.blob();
+  const contentLength = Number(response.headers.get("content-length") || 0);
+  const contentType = response.headers.get("content-type") || fallbackType;
+  let blob: Blob;
+
+  if (response.body && contentLength > 0) {
+    const reader = response.body.getReader();
+    const chunks: BlobPart[] = [];
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await withTimeout<ReadableStreamReadResult<Uint8Array>>(
+        (resolve, reject) => {
+          reader.read().then(resolve).catch(reject);
+        },
+        mediaLoadTimeoutMs,
+      );
+
+      if (done) break;
+      if (!value) continue;
+
+      chunks.push(value.slice());
+      received += value.byteLength;
+      onProgress?.(Math.round((received / contentLength) * 100));
+    }
+
+    blob = new Blob(chunks, { type: contentType });
+  } else {
+    blob = await response.blob();
+    onProgress?.(100);
+  }
 
   return new File([blob], fileName, {
     type: blob.type || fallbackType,
@@ -394,10 +455,10 @@ async function readVideoDuration(url: string) {
   video.preload = "metadata";
   video.src = url;
 
-  return await new Promise<number>((resolve) => {
+  return await withTimeout<number>((resolve) => {
     video.onloadedmetadata = () => resolve(video.duration || 0);
     video.onerror = () => resolve(0);
-  });
+  }).catch(() => 0);
 }
 
 async function readAudioDuration(url: string) {
@@ -494,7 +555,7 @@ async function captureFrames(url: string, clipId: string, duration: number) {
   video.playsInline = true;
   video.src = url;
 
-  await new Promise<void>((resolve, reject) => {
+  await withTimeout<void>((resolve, reject) => {
     video.onloadedmetadata = () => resolve();
     video.onerror = () => reject(new Error("Could not read clip."));
   }).catch(() => undefined);
@@ -508,10 +569,15 @@ async function captureFrames(url: string, clipId: string, duration: number) {
   const frames: CoverFrame[] = [];
 
   for (const time of frameTimes) {
-    await new Promise<void>((resolve) => {
-      video.onseeked = () => resolve();
+    const didSeek = await withTimeout<boolean>((resolve) => {
+      video.onseeked = () => resolve(true);
       video.currentTime = time;
-    });
+    }, 8000)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!didSeek) continue;
+
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     frames.push({
       clipId,
@@ -642,10 +708,22 @@ export function ReelMvpEditor({
             progress: Math.round(((index + 0.25) / draft.clips.length) * 80),
           });
 
+          const clipProgressStart = (index / draft.clips.length) * 80;
+          const clipProgressSpan = 80 / draft.clips.length;
           const file = await fileFromMediaUrl(
             savedClip.mediaUrl,
             `draft-clip-${index + 1}.mp4`,
             "video/mp4",
+            (downloadProgress) => {
+              if (!isActive) return;
+
+              setMediaProgress({
+                label: `Downloading clip ${index + 1} of ${draft.clips.length}`,
+                progress: Math.round(
+                  clipProgressStart + clipProgressSpan * (downloadProgress / 100),
+                ),
+              });
+            },
           );
           const url = URL.createObjectURL(file);
           hydratedObjectUrls.push(url);
@@ -1759,7 +1837,7 @@ export function ReelMvpEditor({
           deviceModeLabel={getDeviceModeLabel(canRecord)}
           error={error}
           isRecording={isRecording}
-          onBack={() => router.back()}
+          onBack={() => router.replace(profilePath)}
           onRecordEnd={stopRecording}
           onRecordStart={startRecording}
           onUpload={() => fileInputRef.current?.click()}
@@ -1880,7 +1958,7 @@ export function ReelMvpEditor({
             setRenderState({ progress: 0, reelId: null, status: "idle" })
           }
           onOpenProfile={() => {
-            router.push(profilePath);
+            router.replace(profilePath);
             router.refresh();
           }}
           onRetry={retryRender}
@@ -4091,80 +4169,12 @@ function PostScreen({
   const [expandedRow, setExpandedRow] = useState<
     "details" | "location" | "privacy" | "options" | null
   >(null);
-  const [hashtagSuggestions, setHashtagSuggestions] = useState<
-    { count: number; tag: string }[]
-  >([]);
-  const [mentionSuggestions, setMentionSuggestions] = useState<
-    { avatarUrl: string | null; name: string; username: string | null }[]
-  >([]);
-  const activeToken = caption.match(/(?:^|\s)([#@][a-z0-9_]*)$/i)?.[1] || "";
-  const activeTokenType = activeToken.startsWith("#")
-    ? "hashtag"
-    : activeToken.startsWith("@")
-      ? "mention"
-      : null;
-
-  useEffect(() => {
-    let isActive = true;
-
-    if (activeTokenType !== "hashtag") {
-      return;
-    }
-
-    void getReelHashtagSuggestions(activeToken.slice(1))
-      .then((suggestions) => {
-        if (isActive) {
-          setHashtagSuggestions(suggestions);
-        }
-      })
-      .catch(() => {
-        if (isActive) setHashtagSuggestions([]);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [activeToken, activeTokenType]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    if (activeTokenType !== "mention") {
-      return;
-    }
-
-    void getReelMentionSuggestions(activeToken.slice(1))
-      .then((suggestions) => {
-        if (isActive) {
-          setMentionSuggestions(suggestions);
-        }
-      })
-      .catch(() => {
-        if (isActive) setMentionSuggestions([]);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [activeToken, activeTokenType]);
 
   function appendToken(prefix: "#" | "@") {
     const needsSpace = caption.length > 0 && !/\s$/.test(caption);
     onCaptionChange(`${caption}${needsSpace ? " " : ""}${prefix}`);
   }
 
-  function replaceActiveToken(value: string) {
-    const nextCaption = caption.replace(
-      /(?:^|\s)([#@][a-z0-9_]*)$/i,
-      (match) => `${match.startsWith(" ") ? " " : ""}${value} `,
-    );
-
-    onCaptionChange(nextCaption);
-  }
-
-  const hasSuggestions =
-    (activeTokenType === "hashtag" && hashtagSuggestions.length > 0) ||
-    (activeTokenType === "mention" && mentionSuggestions.length > 0);
   const toggleExpandedRow = (
     row: "details" | "location" | "privacy" | "options",
   ) => setExpandedRow((current) => (current === row ? null : row));
@@ -4226,46 +4236,10 @@ function PostScreen({
             Mention
           </button>
         </div>
-        {hasSuggestions ? (
-          <div className="mt-3 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
-            {activeTokenType === "hashtag"
-              ? hashtagSuggestions.map((suggestion) => (
-                  <button
-                    className="flex h-12 w-full items-center justify-between px-4 text-left"
-                    key={suggestion.tag}
-                    onClick={() => replaceActiveToken(`#${suggestion.tag}`)}
-                    type="button"
-                  >
-                    <span className="font-black">#{suggestion.tag}</span>
-                    <span className="text-xs font-bold text-black/40">
-                      {suggestion.count} posts
-                    </span>
-                  </button>
-                ))
-              : mentionSuggestions.map((suggestion) => (
-                  <button
-                    className="flex h-14 w-full items-center gap-3 px-4 text-left"
-                    key={suggestion.username}
-                    onClick={() =>
-                      replaceActiveToken(`@${suggestion.username || ""}`)
-                    }
-                    type="button"
-                  >
-                    <span className="grid size-9 place-items-center rounded-full bg-black text-xs font-black text-white">
-                      {suggestion.name.slice(0, 1)}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate font-black">
-                        {suggestion.name}
-                      </span>
-                      <span className="block truncate text-xs font-bold text-black/45">
-                        @{suggestion.username}
-                      </span>
-                    </span>
-                  </button>
-                ))}
-          </div>
-        ) : null}
+        <ReelCaptionSuggestions
+          caption={caption}
+          onCaptionChange={onCaptionChange}
+        />
         <div className="mt-8 divide-y divide-black/10">
           <div>
             <PostRow
@@ -4276,7 +4250,7 @@ function PostScreen({
               value={location || "Add"}
             />
             {expandedRow === "location" ? (
-              <LocationPanel
+              <ReelLocationPanel
                 onSelect={onLocationChange}
                 selectedLocation={location}
               />
@@ -4410,7 +4384,7 @@ function ReelDetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function LocationPanel({
+export function ReelLocationPanel({
   onSelect,
   selectedLocation,
 }: {
@@ -4550,6 +4524,129 @@ function LocationPanel({
       <p className="mt-3 text-right text-[11px] font-black uppercase tracking-[0.18em] text-black/35">
         Powered by Google
       </p>
+    </div>
+  );
+}
+
+export function ReelCaptionSuggestions({
+  caption,
+  onCaptionChange,
+}: {
+  caption: string;
+  onCaptionChange: (value: string) => void;
+}) {
+  const [hashtagSuggestions, setHashtagSuggestions] = useState<
+    { count: number; tag: string }[]
+  >([]);
+  const [mentionSuggestions, setMentionSuggestions] = useState<
+    { avatarUrl: string | null; name: string; username: string | null }[]
+  >([]);
+  const activeToken = caption.match(/(?:^|\s)([#@][a-z0-9_]*)$/i)?.[1] || "";
+  const activeTokenType = activeToken.startsWith("#")
+    ? "hashtag"
+    : activeToken.startsWith("@")
+      ? "mention"
+      : null;
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (activeTokenType !== "hashtag") {
+      return;
+    }
+
+    void getReelHashtagSuggestions(activeToken.slice(1))
+      .then((suggestions) => {
+        if (isActive) {
+          setHashtagSuggestions(suggestions);
+        }
+      })
+      .catch(() => {
+        if (isActive) setHashtagSuggestions([]);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [activeToken, activeTokenType]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (activeTokenType !== "mention") {
+      return;
+    }
+
+    void getReelMentionSuggestions(activeToken.slice(1))
+      .then((suggestions) => {
+        if (isActive) {
+          setMentionSuggestions(suggestions);
+        }
+      })
+      .catch(() => {
+        if (isActive) setMentionSuggestions([]);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [activeToken, activeTokenType]);
+
+  function replaceActiveToken(value: string) {
+    const nextCaption = caption.replace(
+      /(?:^|\s)([#@][a-z0-9_]*)$/i,
+      (match) => `${match.startsWith(" ") ? " " : ""}${value} `,
+    );
+
+    onCaptionChange(nextCaption);
+  }
+
+  const hasSuggestions =
+    (activeTokenType === "hashtag" && hashtagSuggestions.length > 0) ||
+    (activeTokenType === "mention" && mentionSuggestions.length > 0);
+  const visibleHashtagSuggestions =
+    activeTokenType === "hashtag" ? hashtagSuggestions : [];
+  const visibleMentionSuggestions =
+    activeTokenType === "mention" ? mentionSuggestions : [];
+
+  if (!hasSuggestions) return null;
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
+      {activeTokenType === "hashtag"
+        ? visibleHashtagSuggestions.map((suggestion) => (
+            <button
+              className="flex h-12 w-full items-center justify-between px-4 text-left"
+              key={suggestion.tag}
+              onClick={() => replaceActiveToken(`#${suggestion.tag}`)}
+              type="button"
+            >
+              <span className="font-black">#{suggestion.tag}</span>
+              <span className="text-xs font-bold text-black/40">
+                {suggestion.count} posts
+              </span>
+            </button>
+          ))
+        : visibleMentionSuggestions.map((suggestion) => (
+            <button
+              className="flex h-14 w-full items-center gap-3 px-4 text-left"
+              key={suggestion.username}
+              onClick={() => replaceActiveToken(`@${suggestion.username || ""}`)}
+              type="button"
+            >
+              <span className="grid size-9 place-items-center rounded-full bg-black text-xs font-black text-white">
+                {suggestion.name.slice(0, 1)}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-black">
+                  {suggestion.name}
+                </span>
+                <span className="block truncate text-xs font-bold text-black/45">
+                  @{suggestion.username}
+                </span>
+              </span>
+            </button>
+          ))}
     </div>
   );
 }

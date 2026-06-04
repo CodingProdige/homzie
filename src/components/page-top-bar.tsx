@@ -26,7 +26,7 @@ export function PageTopBar({
   return (
     <div
       className={cn(
-        "sticky top-0 z-40 flex w-full min-w-0 items-center justify-between gap-2 bg-[#fbfbfe]/92 py-3 backdrop-blur-xl sm:gap-4",
+        "sticky top-0 z-40 flex w-full min-w-0 items-center justify-between gap-2 bg-background/92 py-3 text-foreground backdrop-blur-xl sm:gap-4",
         className,
       )}
     >
@@ -34,7 +34,7 @@ export function PageTopBar({
         {children || (
           <BackButton
             className={cn(
-              "text-brand-black hover:text-primary",
+              "text-foreground hover:text-primary",
               backButtonClassName,
             )}
             label={backButtonLabel}
@@ -67,7 +67,7 @@ export function PageTopBar({
             <DropdownMenu.Content
               align="end"
               sideOffset={8}
-              className="z-50 min-w-44 rounded-lg border border-border bg-white p-1.5 text-brand-black shadow-xl"
+              className="z-50 min-w-44 rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
             >
               {mobileActions}
             </DropdownMenu.Content>

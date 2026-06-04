@@ -277,7 +277,7 @@ export function TikTokReelEditor({ profilePath }: TikTokReelEditorProps) {
         throw new Error(saveResult.error || "Could not save this reel.");
       }
 
-      router.push(profilePath);
+      router.replace(profilePath);
       router.refresh();
     } catch (saveError) {
       setError(
@@ -392,7 +392,7 @@ export function TikTokReelEditor({ profilePath }: TikTokReelEditorProps) {
                   setStage("upload");
                   return;
                 }
-                router.back();
+                router.replace(profilePath);
               }}
               type="button"
             >

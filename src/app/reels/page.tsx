@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import { cookies } from "next/headers";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -14,7 +15,18 @@ import {
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
+import {
+  countryPreferenceCookie,
+  locationMatchesCountry,
+  parseCountryPreference,
+} from "@/modules/location/country-preference";
 import { ReelsFeed, type ReelFeedItem } from "@/modules/reels/components/reels-feed";
+
+type ReelsPageProps = {
+  searchParams?: Promise<{
+    reel?: string;
+  }>;
+};
 
 function metadataObject(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -59,9 +71,16 @@ function reelLocation(editMetadata: unknown, listingReference: string | null) {
   return listingReference || "Homzie";
 }
 
-export default async function ReelsPage() {
+export default async function ReelsPage({ searchParams }: ReelsPageProps) {
   const session = await getServerSession(authOptions);
   const viewerId = session?.user?.id || null;
+  const query = searchParams ? await searchParams : {};
+  const preferredReelId =
+    typeof query.reel === "string" && query.reel.trim() ? query.reel.trim() : null;
+  const cookieStore = await cookies();
+  const countryPreference = parseCountryPreference(
+    cookieStore.get(countryPreferenceCookie)?.value,
+  );
   const rows = await db
     .select({
       agentName: users.name,
@@ -70,9 +89,13 @@ export default async function ReelsPage() {
       editMetadata: reels.editMetadata,
       id: reels.id,
       listingAskingPriceCents: propertyListings.askingPriceCents,
+      listingCoverImageUrl: propertyListings.coverImageUrl,
       listingId: reels.listingId,
+      listingLocation: propertyListings.location,
       listingPriceLabel: propertyListings.priceLabel,
       listingReference: reels.listingReference,
+      listingStatus: propertyListings.status,
+      listingTitle: propertyListings.title,
       ownerId: reels.userId,
       videoPath: reels.videoPath,
     })
@@ -149,6 +172,17 @@ export default async function ReelsPage() {
         likeCount,
         likedByViewer: Boolean(viewerLike),
         linkedListingId: reel.listingId,
+        linkedListing: reel.listingId
+          ? {
+              coverImageUrl: toPublicMediaUrl(reel.listingCoverImageUrl),
+              id: reel.listingId,
+              location: reel.listingLocation,
+              priceCents: reel.listingAskingPriceCents,
+              priceLabel: reel.listingPriceLabel,
+              status: reel.listingStatus || "published",
+              title: reel.listingTitle || reel.listingReference || "Linked listing",
+            }
+          : null,
         likes: formatCompactCount(likeCount),
         location: reelLocation(reel.editMetadata, reel.listingReference),
         posterUrl: reelPosterUrl(reel.editMetadata),
@@ -168,5 +202,28 @@ export default async function ReelsPage() {
     }),
   );
 
-  return <ReelsFeed reels={feedReels} scope="global" />;
+  const rankedFeedReels = countryPreference
+    ? feedReels.toSorted((first, second) => {
+        const firstMatches = locationMatchesCountry(
+          [first.location, first.linkedListing?.location].filter(Boolean).join(", "),
+          countryPreference,
+        );
+        const secondMatches = locationMatchesCountry(
+          [second.location, second.linkedListing?.location].filter(Boolean).join(", "),
+          countryPreference,
+        );
+
+        if (firstMatches === secondMatches) return 0;
+
+        return firstMatches ? -1 : 1;
+      })
+    : feedReels;
+
+  return (
+    <ReelsFeed
+      preferredReelId={preferredReelId}
+      reels={rankedFeedReels}
+      scope="global"
+    />
+  );
 }
