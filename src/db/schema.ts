@@ -339,6 +339,36 @@ export const reelWatchEvents = pgTable(
   ],
 );
 
+export const reelFeedback = pgTable(
+  "reel_feedback",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    reelId: uuid("reel_id")
+      .notNull()
+      .references(() => reels.id, { onDelete: "cascade" }),
+    viewerUserId: uuid("viewer_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    viewerSessionId: text("viewer_session_id").notNull(),
+    feedbackType: text("feedback_type").notNull(),
+    source: text("source").notNull().default("feed"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("reel_feedback_reel_session_type_unique").on(
+      table.reelId,
+      table.viewerSessionId,
+      table.feedbackType,
+    ),
+    index("reel_feedback_reel_id_idx").on(table.reelId),
+    index("reel_feedback_viewer_user_id_idx").on(table.viewerUserId),
+    index("reel_feedback_viewer_session_id_idx").on(table.viewerSessionId),
+    index("reel_feedback_feedback_type_idx").on(table.feedbackType),
+    index("reel_feedback_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const reelListingClicks = pgTable(
   "reel_listing_clicks",
   {
@@ -629,6 +659,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   reelCommentDislikes: many(reelCommentDislikes),
   reelCommentLikes: many(reelCommentLikes),
   reelComments: many(reelComments),
+  reelFeedback: many(reelFeedback),
   reelLikes: many(reelLikes),
   reelReshares: many(reelReshares),
   reelSaves: many(reelSaves),
@@ -748,6 +779,7 @@ export const reelsRelations = relations(reels, ({ one, many }) => ({
     fields: [reels.listingId],
     references: [propertyListings.id],
   }),
+  feedback: many(reelFeedback),
   listingClicks: many(reelListingClicks),
   watchEvents: many(reelWatchEvents),
   watchSessions: many(reelWatchSessions),
@@ -775,6 +807,17 @@ export const reelWatchEventsRelations = relations(reelWatchEvents, ({ one }) => 
   }),
   viewer: one(users, {
     fields: [reelWatchEvents.viewerUserId],
+    references: [users.id],
+  }),
+}));
+
+export const reelFeedbackRelations = relations(reelFeedback, ({ one }) => ({
+  reel: one(reels, {
+    fields: [reelFeedback.reelId],
+    references: [reels.id],
+  }),
+  viewer: one(users, {
+    fields: [reelFeedback.viewerUserId],
     references: [users.id],
   }),
 }));
@@ -958,6 +1001,8 @@ export type ReelWatchSession = typeof reelWatchSessions.$inferSelect;
 export type NewReelWatchSession = typeof reelWatchSessions.$inferInsert;
 export type ReelWatchEvent = typeof reelWatchEvents.$inferSelect;
 export type NewReelWatchEvent = typeof reelWatchEvents.$inferInsert;
+export type ReelFeedback = typeof reelFeedback.$inferSelect;
+export type NewReelFeedback = typeof reelFeedback.$inferInsert;
 export type ReelListingClick = typeof reelListingClicks.$inferSelect;
 export type NewReelListingClick = typeof reelListingClicks.$inferInsert;
 export type ListingViewEvent = typeof listingViewEvents.$inferSelect;

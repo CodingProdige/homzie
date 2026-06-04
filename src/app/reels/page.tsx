@@ -1,10 +1,11 @@
 import { getServerSession } from "next-auth";
 import { cookies } from "next/headers";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   reelComments,
+  reelFeedback,
   reelLikes,
   reelReshares,
   reelSaves,
@@ -81,6 +82,19 @@ export default async function ReelsPage({ searchParams }: ReelsPageProps) {
   const countryPreference = parseCountryPreference(
     cookieStore.get(countryPreferenceCookie)?.value,
   );
+  const hiddenFeedbackRows = viewerId
+    ? await db
+        .select({ reelId: reelFeedback.reelId })
+        .from(reelFeedback)
+        .where(
+          and(
+            eq(reelFeedback.viewerUserId, viewerId),
+            eq(reelFeedback.feedbackType, "not_interested"),
+          ),
+        )
+        .limit(200)
+    : [];
+  const hiddenFeedbackReelIds = hiddenFeedbackRows.map((row) => row.reelId);
   const rows = await db
     .select({
       agentName: users.name,
@@ -102,7 +116,14 @@ export default async function ReelsPage({ searchParams }: ReelsPageProps) {
     .from(reels)
     .innerJoin(users, eq(users.id, reels.userId))
     .leftJoin(propertyListings, eq(propertyListings.id, reels.listingId))
-    .where(eq(reels.status, "published"))
+    .where(
+      and(
+        eq(reels.status, "published"),
+        hiddenFeedbackReelIds.length
+          ? notInArray(reels.id, hiddenFeedbackReelIds)
+          : undefined,
+      ),
+    )
     .orderBy(desc(reels.createdAt))
     .limit(24);
 

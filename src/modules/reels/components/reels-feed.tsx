@@ -40,6 +40,7 @@ import {
   getReelComments,
   getReelMentionSuggestions,
   linkReelListing,
+  recordReelFeedback,
   trackReelListingClick,
   toggleReelCommentDislike,
   toggleProfileFollow,
@@ -145,8 +146,10 @@ function orderReelsForSession(
   reels: ReelFeedItem[],
   scope: string,
   preferredReelId?: string | null,
+  hiddenReelIds = new Set<string>(),
 ) {
-  const prioritizedReels = prioritizeReel(reels, preferredReelId);
+  const visibleReels = reels.filter((reel) => !hiddenReelIds.has(reel.id));
+  const prioritizedReels = prioritizeReel(visibleReels, preferredReelId);
 
   if (typeof window === "undefined") {
     return prioritizedReels;
@@ -161,6 +164,25 @@ function orderReelsForSession(
   const ordered = [...unseen, ...seen];
 
   return prioritizeReel(ordered, preferredReelId);
+}
+
+function readHiddenReelIds() {
+  if (typeof window === "undefined") return new Set<string>();
+
+  const storageKeys = [
+    "homzie-hidden-reels:not_interested",
+    "homzie-hidden-reels:dismissed_home",
+  ];
+
+  return new Set(
+    storageKeys.flatMap((storageKey) => {
+      try {
+        return JSON.parse(window.localStorage.getItem(storageKey) || "[]") as string[];
+      } catch {
+        return [];
+      }
+    }),
+  );
 }
 
 function rememberWatchedReel(scope: string, reelId: string) {
@@ -178,6 +200,18 @@ function rememberWatchedReel(scope: string, reelId: string) {
     watchedIds.add(reelId);
     window.sessionStorage.setItem(storageKey, JSON.stringify([...watchedIds]));
   });
+}
+
+function rememberHiddenReel(reelId: string, reason: "dismissed_home" | "not_interested") {
+  if (typeof window === "undefined") return;
+
+  const storageKey = `homzie-hidden-reels:${reason}`;
+  const hiddenIds = new Set(
+    JSON.parse(window.localStorage.getItem(storageKey) || "[]") as string[],
+  );
+
+  hiddenIds.add(reelId);
+  window.localStorage.setItem(storageKey, JSON.stringify([...hiddenIds].slice(-200)));
 }
 
 function getViewerSessionId() {
@@ -911,6 +945,42 @@ function OwnerReelMenu({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+    </div>
+  );
+}
+
+function ViewerReelMenu({
+  onNotInterested,
+}: {
+  onNotInterested: () => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="Reel options"
+        className="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreHorizontal className="size-5" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-12 w-52 overflow-hidden rounded-2xl bg-white text-sm font-black text-black shadow-2xl ring-1 ring-black/10">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-black/5"
+            onClick={() => {
+              setOpen(false);
+              void onNotInterested();
+            }}
+          >
+            <ThumbsDown className="size-4" />
+            Not interested
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2209,9 +2279,12 @@ export function ReelsFeed({
   reels: ReelFeedItem[];
   scope: string;
 }) {
+  const [hiddenReelIds, setHiddenReelIds] = useState<Set<string>>(() =>
+    readHiddenReelIds(),
+  );
   const orderedReels = useMemo(
-    () => orderReelsForSession(reels, scope, preferredReelId),
-    [preferredReelId, reels, scope],
+    () => orderReelsForSession(reels, scope, preferredReelId, hiddenReelIds),
+    [hiddenReelIds, preferredReelId, reels, scope],
   );
   const feedRef = useRef<HTMLElement | null>(null);
   const [activeReelId, setActiveReelId] = useState(orderedReels[0]?.id || "");
@@ -2229,6 +2302,24 @@ export function ReelsFeed({
 
       setIsOwnerMenuOpen(false);
       return reelId;
+    });
+  };
+  const hideActiveReel = async () => {
+    if (!activeReel) return;
+
+    const reelId = activeReel.id;
+    const nextActiveReelId =
+      orderedReels.find((reel) => reel.id !== reelId)?.id || "";
+
+    rememberHiddenReel(reelId, "not_interested");
+    setHiddenReelIds((currentIds) => new Set([...currentIds, reelId]));
+    setActiveReelId(nextActiveReelId);
+
+    await recordReelFeedback({
+      feedbackType: "not_interested",
+      reelId,
+      source: scope === "global" ? "global-feed" : "profile-feed",
+      viewerSessionId: getViewerSessionId(),
     });
   };
 
@@ -2317,6 +2408,8 @@ export function ReelsFeed({
               reelId={activeReel.id}
               onOpenChange={setIsOwnerMenuOpen}
             />
+          ) : activeReel ? (
+            <ViewerReelMenu onNotInterested={hideActiveReel} />
           ) : null}
           <button
             type="button"

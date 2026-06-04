@@ -11,6 +11,7 @@ import {
   reelCommentDislikes,
   reelCommentLikes,
   reelComments,
+  reelFeedback,
   reelListingClicks,
   reelLikes,
   reelReshares,
@@ -53,6 +54,12 @@ const reelListingLinkSchema = z.object({
 });
 const reelListingClickSchema = z.object({
   listingId: z.string().uuid(),
+  reelId: z.string().uuid(),
+  source: z.string().trim().min(1).max(64).optional(),
+  viewerSessionId: z.string().trim().min(8).max(128),
+});
+const reelFeedbackSchema = z.object({
+  feedbackType: z.enum(["not_interested", "dismiss_home_popup"]),
   reelId: z.string().uuid(),
   source: z.string().trim().min(1).max(64).optional(),
   viewerSessionId: z.string().trim().min(8).max(128),
@@ -254,6 +261,51 @@ export async function trackReelWatchProgress(input: unknown) {
     viewerUserId: session?.user?.id || null,
     watchSeconds,
   });
+
+  return { ok: true as const };
+}
+
+export async function recordReelFeedback(input: unknown) {
+  const parsed = reelFeedbackSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false as const };
+  }
+
+  const session = await getServerSession(authOptions);
+  const source = parsed.data.source || "feed";
+
+  const [reel] = await db
+    .select({ id: reels.id })
+    .from(reels)
+    .where(and(eq(reels.id, parsed.data.reelId), eq(reels.status, "published")))
+    .limit(1);
+
+  if (!reel) {
+    return { ok: false as const };
+  }
+
+  await db
+    .insert(reelFeedback)
+    .values({
+      feedbackType: parsed.data.feedbackType,
+      reelId: parsed.data.reelId,
+      source,
+      viewerSessionId: parsed.data.viewerSessionId,
+      viewerUserId: session?.user?.id || null,
+    })
+    .onConflictDoUpdate({
+      target: [
+        reelFeedback.reelId,
+        reelFeedback.viewerSessionId,
+        reelFeedback.feedbackType,
+      ],
+      set: {
+        source,
+        updatedAt: new Date(),
+        viewerUserId: session?.user?.id || null,
+      },
+    });
 
   return { ok: true as const };
 }

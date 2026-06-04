@@ -632,6 +632,49 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS reel_feedback (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      feedback_type text NOT NULL,
+      source text NOT NULL DEFAULT 'feed',
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS reel_feedback_reel_session_type_unique
+    ON reel_feedback (reel_id, viewer_session_id, feedback_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_feedback_reel_id_idx
+    ON reel_feedback (reel_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_feedback_viewer_user_id_idx
+    ON reel_feedback (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_feedback_viewer_session_id_idx
+    ON reel_feedback (viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_feedback_feedback_type_idx
+    ON reel_feedback (feedback_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS reel_feedback_created_at_idx
+    ON reel_feedback (created_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS reel_listing_clicks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
