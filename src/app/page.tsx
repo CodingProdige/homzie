@@ -14,17 +14,14 @@ import {
   sql,
 } from "drizzle-orm";
 import {
-  CheckCircle2,
   ChevronRight,
   LocateFixed,
   Search,
   SlidersHorizontal,
   Tag,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 
-import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { HorizontalScrollRail } from "@/components/horizontal-scroll-rail";
@@ -61,6 +58,8 @@ import {
   getDiscoverListingFilterOptions,
   normalizeDiscoverListingFilters,
 } from "@/modules/listings/server/discover-listings";
+import { getPlatformStats } from "@/modules/platform-stats/actions";
+import { LivePlatformStats } from "@/modules/platform-stats/components/live-platform-stats";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
 
 type HomePageProps = {
@@ -73,7 +72,7 @@ type HomePageProps = {
     features?: string[] | string;
     furnishedStatus?: string;
     garages?: string;
-    listingType?: string;
+    listingType?: string[] | string;
     maxErfSize?: string;
     maxFloorSize?: string;
     maxPrice?: string;
@@ -82,7 +81,7 @@ type HomePageProps = {
     minPrice?: string;
     parking?: string;
     petsAllowed?: string;
-    propertyType?: string;
+    propertyType?: string[] | string;
     shortLetAllowed?: string;
   }>;
 };
@@ -117,6 +116,7 @@ type TopAgent = {
 
 const heroImage =
   "https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1600&q=85";
+const homeDiscoverListingsPageSize = 24;
 
 async function getViewerUsername(userId?: string) {
   if (!userId) return undefined;
@@ -462,15 +462,6 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
     .slice(0, 10);
 }
 
-async function getActiveUserCount() {
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(users)
-    .where(eq(users.status, "active"));
-
-  return count;
-}
-
 function buildHomeListingStats(listings: HomeListingSummary[]) {
   const listingTypeCounts = new Map<string, number>();
   const propertyTypeCounts = new Map<string, number>();
@@ -810,7 +801,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     filterOptions,
     homeReels,
     topAgents,
-    totalUserCount,
+    platformStats,
     propertyFeed,
   ] = await Promise.all([
     getHomeListings(countryLabel),
@@ -822,10 +813,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       countryPreference,
     }),
     getTopSubscribedAgents(countryLabel),
-    getActiveUserCount(),
+    getPlatformStats(),
     getDiscoverListings({
       filters: discoverFilters,
-      limit: 8,
+      limit: homeDiscoverListingsPageSize,
       viewerUserId: session?.user?.id || null,
     }),
   ]);
@@ -834,7 +825,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <CountryPreferenceBootstrap />
       <GlobalHeader transparentUntilScroll viewerUsername={viewerUsername} />
       <main className="pb-14">
         <section className="relative isolate min-h-[760px] overflow-hidden pt-16 sm:min-h-[820px] sm:pt-28">
@@ -859,7 +849,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </div>
 
             <PropertySearchBar
-              action="/"
+              action="/listings"
               className="mt-8 w-full max-w-5xl sm:mt-12"
               countryName={discoverFilters.countryName}
               filters={discoverFilters}
@@ -868,18 +858,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               variant="hero"
             />
 
-            <div className="mt-7 flex flex-wrap items-center justify-start gap-3 sm:justify-center">
-              {typeof propertyFeed.totalCount === "number" ? (
-                <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-4 py-2 text-sm font-black text-foreground shadow-sm backdrop-blur">
-                  <CheckCircle2 className="size-5 text-emerald-500" />
-                  {propertyFeed.totalCount.toLocaleString()}+ listings
-                </div>
-              ) : null}
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-4 py-2 text-sm font-black text-foreground shadow-sm backdrop-blur">
-                <Users className="size-5 text-primary" />
-                {totalUserCount.toLocaleString()}+ users
-              </div>
-            </div>
+            <LivePlatformStats initialStats={platformStats} />
           </div>
         </section>
 
@@ -1024,6 +1003,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               initialHasMore={propertyFeed.hasMore}
               initialListings={propertyFeed.listings}
               initialNextOffset={propertyFeed.nextOffset}
+              loadMoreLimit={homeDiscoverListingsPageSize}
               totalCount={propertyFeed.totalCount}
             />
           ) : (

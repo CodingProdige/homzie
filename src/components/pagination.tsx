@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type PaginationProps = {
+  alwaysShow?: boolean;
   currentPage: number;
   hrefForPage: (page: number) => string;
   totalPages: number;
@@ -22,11 +23,12 @@ function pageWindow(currentPage: number, totalPages: number) {
 }
 
 export function Pagination({
+  alwaysShow = false,
   currentPage,
   hrefForPage,
   totalPages,
 }: PaginationProps) {
-  if (totalPages <= 1) return null;
+  if (totalPages <= 1 && !alwaysShow) return null;
 
   const pages = pageWindow(currentPage, totalPages);
 

@@ -543,6 +543,19 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS platform_visitor_sessions (
+      id text PRIMARY KEY,
+      last_seen_at timestamptz NOT NULL DEFAULT now(),
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS platform_visitor_sessions_last_seen_at_idx
+    ON platform_visitor_sessions (last_seen_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS reel_watch_sessions (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       reel_id uuid NOT NULL REFERENCES reels(id) ON DELETE CASCADE,

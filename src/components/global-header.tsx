@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useState } from "react";
 import { Heart, Menu, Send, X } from "lucide-react";
 
+import { CountryPreferenceSelector } from "@/components/country-preference-selector";
 import { GlobalUserSearchTrigger } from "@/components/global-user-search";
 import { HomzieLogo } from "@/components/homzie-logo";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ export function GlobalHeader({
           <div className="hidden sm:block">
             <ThemeToggle />
           </div>
+          <CountryPreferenceSelector compact className="shrink-0" />
           <CurrencySelector compact className="shrink-0" />
           <GlobalUserSearchTrigger className="hidden lg:inline-flex" />
           <Button
@@ -175,6 +177,12 @@ export function GlobalHeader({
                     Theme
                   </span>
                   <ThemeToggle />
+                </div>
+                <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Country
+                  </span>
+                  <CountryPreferenceSelector />
                 </div>
                 <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
                   <span className="text-sm font-medium text-muted-foreground">

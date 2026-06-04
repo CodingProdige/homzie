@@ -3,14 +3,11 @@
 import { useEffect } from "react";
 
 import {
-  countryPreferenceCookie,
   countryPreferenceStorageKey,
-  encodeCountryPreference,
   parseCountryPreference,
+  persistCountryPreference,
   type CountryPreference,
 } from "@/modules/location/country-preference";
-
-const oneYearSeconds = 60 * 60 * 24 * 365;
 
 const timezoneCountryCodes: Record<string, string> = {
   "Africa/Johannesburg": "ZA",
@@ -42,16 +39,6 @@ const timezoneCountryCodes: Record<string, string> = {
   "Europe/Madrid": "ES",
   "Europe/Paris": "FR",
 };
-
-function persistCountryPreference(preference: CountryPreference) {
-  const encoded = encodeCountryPreference(preference);
-
-  localStorage.setItem(countryPreferenceStorageKey, encoded);
-  document.cookie = `${countryPreferenceCookie}=${encoded}; path=/; max-age=${oneYearSeconds}; SameSite=Lax`;
-  window.dispatchEvent(
-    new CustomEvent("homzie:country-preference", { detail: preference }),
-  );
-}
 
 function countryNameFromCode(countryCode: string) {
   try {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Poppins } from "next/font/google";
+import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
 import "./globals.css";
 
@@ -30,7 +31,10 @@ export default function RootLayout({
       className={`${poppins.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <CurrencyProvider>{children}</CurrencyProvider>
+        <CurrencyProvider>
+          <CountryPreferenceBootstrap />
+          {children}
+        </CurrencyProvider>
       </body>
     </html>
   );

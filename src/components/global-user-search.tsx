@@ -13,6 +13,8 @@ type UserSearchResult = {
   username: string;
 };
 
+const globalSearchSessionKey = "homzie.globalSearch.query";
+
 function initialsFromName(name: string) {
   return (
     name
@@ -42,12 +44,20 @@ function userSearchResults(value: unknown): UserSearchResult[] {
 
 export function GlobalUserSearchTrigger({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    if (typeof window === "undefined") return "";
+
+    return window.sessionStorage.getItem(globalSearchSessionKey) || "";
+  });
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle",
   );
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    window.sessionStorage.setItem(globalSearchSessionKey, query);
+  }, [query]);
 
   useEffect(() => {
     if (!open) return;

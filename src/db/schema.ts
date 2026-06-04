@@ -262,6 +262,20 @@ export const reels = pgTable("reels", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const platformVisitorSessions = pgTable(
+  "platform_visitor_sessions",
+  {
+    id: text("id").primaryKey(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("platform_visitor_sessions_last_seen_at_idx").on(table.lastSeenAt),
+  ],
+);
+
 export const reelWatchSessions = pgTable(
   "reel_watch_sessions",
   {

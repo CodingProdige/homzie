@@ -11,8 +11,10 @@ import {
 
 import {
   CURRENCY_RATES_STORAGE_KEY,
+  CURRENCY_SOURCE_STORAGE_KEY,
   convertFromZar,
   convertToZar,
+  currencyForCountryCode,
   CURRENCY_STORAGE_KEY,
   fallbackCurrencyRates,
   formatZarCents,
@@ -23,6 +25,11 @@ import {
   type CurrencyRates,
   type SupportedCurrency,
 } from "./currency";
+import {
+  countryPreferenceStorageKey,
+  parseCountryPreference,
+  type CountryPreference,
+} from "@/modules/location/country-preference";
 
 type StoredRates = {
   fetchedAt: number;
@@ -42,6 +49,8 @@ type CurrencyContextValue = {
   setCurrency: (currency: SupportedCurrency) => void;
 };
 
+type CurrencySource = "auto" | "manual";
+
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -51,6 +60,28 @@ function readStoredCurrency() {
   const stored = window.localStorage.getItem(CURRENCY_STORAGE_KEY);
 
   return stored && isSupportedCurrency(stored) ? stored : "ZAR";
+}
+
+function readCurrencySource(): CurrencySource {
+  if (typeof window === "undefined") return "auto";
+
+  const source = window.localStorage.getItem(CURRENCY_SOURCE_STORAGE_KEY);
+
+  if (source === "manual" || source === "auto") return source;
+  if (window.localStorage.getItem(CURRENCY_STORAGE_KEY)) return "manual";
+
+  return "auto";
+}
+
+function readCountryPreferenceCurrency() {
+  if (typeof window === "undefined") return null;
+
+  const preference = parseCountryPreference(
+    window.localStorage.getItem(countryPreferenceStorageKey),
+  );
+  const currency = currencyForCountryCode(preference?.countryCode);
+
+  return currency && isSupportedCurrency(currency) ? currency : null;
 }
 
 function readStoredRates() {
@@ -150,7 +181,14 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
-      setCurrencyState(readStoredCurrency());
+      const countryCurrency = readCountryPreferenceCurrency();
+      const storedCurrency = readStoredCurrency();
+
+      setCurrencyState(
+        readCurrencySource() === "auto" && countryCurrency
+          ? countryCurrency
+          : storedCurrency,
+      );
 
       const storedRates = readStoredRates();
 
@@ -211,11 +249,39 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    function handleCountryPreference(event: Event) {
+      if (readCurrencySource() === "manual") return;
+
+      const preference = (event as CustomEvent<CountryPreference>).detail;
+      const countryCurrency = currencyForCountryCode(preference?.countryCode);
+
+      if (!countryCurrency || !isSupportedCurrency(countryCurrency)) return;
+
+      setCurrencyState(countryCurrency);
+      window.localStorage.setItem(CURRENCY_STORAGE_KEY, countryCurrency);
+      window.localStorage.setItem(CURRENCY_SOURCE_STORAGE_KEY, "auto");
+    }
+
+    window.addEventListener(
+      "homzie:country-preference",
+      handleCountryPreference,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "homzie:country-preference",
+        handleCountryPreference,
+      );
+    };
+  }, []);
+
   const setCurrency = (nextCurrency: SupportedCurrency) => {
     setCurrencyState(nextCurrency);
 
     if (typeof window !== "undefined") {
       window.localStorage.setItem(CURRENCY_STORAGE_KEY, nextCurrency);
+      window.localStorage.setItem(CURRENCY_SOURCE_STORAGE_KEY, "manual");
     }
   };
 

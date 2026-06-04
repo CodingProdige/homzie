@@ -34,6 +34,7 @@ import {
   propertyTypeOptions,
 } from "@/modules/listings/options";
 import {
+  getDiscoverListingCount,
   getDiscoverListings,
   type DiscoverListingFilters,
 } from "@/modules/listings/server/discover-listings";
@@ -1532,4 +1533,8 @@ export async function loadDiscoverListings({
     offset,
     viewerUserId: session?.user?.id || null,
   });
+}
+
+export async function loadDiscoverListingCount(filters?: DiscoverListingFilters) {
+  return getDiscoverListingCount(filters);
 }

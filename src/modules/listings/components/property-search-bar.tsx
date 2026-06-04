@@ -2,11 +2,10 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
-  Map,
   MapPin,
   Search,
   SlidersHorizontal,
@@ -15,6 +14,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { loadDiscoverListingCount } from "@/modules/listings/actions";
 import {
   featureOptions,
   listingTypeOptions,
@@ -32,6 +32,7 @@ type PropertySearchBarProps = {
   filters: DiscoverListingFilters & { areas?: string[]; features?: string[] };
   options: ListingFilterOptions;
   resultCount?: number;
+  submitLabel?: string;
   variant?: "default" | "hero";
 };
 
@@ -39,6 +40,47 @@ type SelectOption = {
   label: string;
   value: string;
 };
+
+type GoogleAutocompletePrediction = {
+  description: string;
+  place_id: string;
+  structured_formatting?: {
+    main_text?: string;
+    secondary_text?: string;
+  };
+};
+
+type GooglePlaces = {
+  AutocompleteService: new () => {
+    getPlacePredictions: (
+      request: {
+        input: string;
+        sessionToken?: unknown;
+        types?: string[];
+      },
+      callback: (
+        results: GoogleAutocompletePrediction[] | null,
+        status: string,
+      ) => void,
+    ) => void;
+  };
+  AutocompleteSessionToken: new () => unknown;
+  PlacesServiceStatus: {
+    OK: string;
+  };
+};
+
+type GoogleWindow = Window & {
+  __homzieGoogleMapsPromise?: Promise<void>;
+  google?: {
+    maps?: {
+      places?: GooglePlaces;
+    };
+  };
+};
+
+const googleMapsScriptId = "homzie-google-maps-places";
+const propertySearchSessionKey = "homzie.propertySearch.filters";
 
 const bedroomOptions = ["1", "2", "3", "4", "5"].map((value) => ({
   label: `${value}+`,
@@ -53,6 +95,91 @@ function selectedAreas(filters: PropertySearchBarProps["filters"]) {
   return [];
 }
 
+function selectedFeatures(filters: PropertySearchBarProps["filters"]) {
+  if (Array.isArray(filters.features)) return filters.features;
+  if (typeof filters.features === "string" && filters.features) {
+    return [filters.features];
+  }
+
+  return [];
+}
+
+function selectedOptionValues<T extends { value: string }>(
+  options: readonly T[],
+  value?: string[] | string,
+) {
+  const allowedValues = new Set(options.map((option) => option.value));
+
+  return (Array.isArray(value) ? value : value ? [value] : [])
+    .filter((item): item is string => typeof item === "string")
+    .filter((item) => allowedValues.has(item));
+}
+
+function stringList(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function hasExplicitPropertySearchState(filters: PropertySearchBarProps["filters"]) {
+  return Boolean(
+    selectedAreas(filters).length ||
+      selectedOptionValues(listingTypeOptions, filters.listingType).length ||
+      selectedOptionValues(propertyTypeOptions, filters.propertyType).length ||
+      filters.minPrice ||
+      filters.maxPrice ||
+      filters.bedrooms ||
+      filters.bathrooms ||
+      filters.garages ||
+      filters.parking ||
+      filters.minFloorSize ||
+      filters.minErfSize ||
+      filters.buyerIncentive ||
+      selectedFeatures(filters).length,
+  );
+}
+
+function readSessionSearchState() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const rawValue = window.sessionStorage.getItem(propertySearchSessionKey);
+
+    if (!rawValue) return null;
+
+    const value = JSON.parse(rawValue) as Record<string, unknown>;
+
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+    return {
+      areas: stringList(value.areas).slice(0, 8),
+      bathrooms: stringValue(value.bathrooms),
+      bedrooms: stringValue(value.bedrooms),
+      buyerIncentive: stringValue(value.buyerIncentive),
+      features: stringList(value.features).filter((feature) =>
+        (featureOptions as readonly string[]).includes(feature),
+      ),
+      garages: stringValue(value.garages),
+      listingTypes: selectedOptionValues(listingTypeOptions, stringList(value.listingTypes)),
+      maxPrice: stringValue(value.maxPrice),
+      minErfSize: stringValue(value.minErfSize),
+      minFloorSize: stringValue(value.minFloorSize),
+      minPrice: stringValue(value.minPrice),
+      parking: stringValue(value.parking),
+      propertyTypes: selectedOptionValues(
+        propertyTypeOptions,
+        stringList(value.propertyTypes),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function formatPrice(value: string) {
   const number = Number(value);
 
@@ -65,8 +192,66 @@ function formatPrice(value: string) {
   }).format(number);
 }
 
+function formatListingCount(count: number) {
+  return `${count.toLocaleString()} ${count === 1 ? "listing" : "listings"}`;
+}
+
 function optionLabel(options: SelectOption[], value?: string, fallback = "Any") {
   return options.find((option) => option.value === value)?.label || fallback;
+}
+
+function placeRegionLabel(place: GoogleAutocompletePrediction) {
+  const mainText = place.structured_formatting?.main_text?.trim();
+
+  if (mainText) return mainText;
+
+  return place.description.split(",")[0]?.trim() || place.description;
+}
+
+function loadGooglePlaces() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Google Places is only available in browser."));
+  }
+
+  const googleWindow = window as GoogleWindow;
+
+  if (googleWindow.google?.maps?.places) {
+    return Promise.resolve();
+  }
+
+  if (googleWindow.__homzieGoogleMapsPromise) {
+    return googleWindow.__homzieGoogleMapsPromise;
+  }
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    return Promise.reject(new Error("Google Places is not configured."));
+  }
+
+  googleWindow.__homzieGoogleMapsPromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.getElementById(googleMapsScriptId);
+
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener(
+        "error",
+        () => reject(new Error("Could not load Google Places.")),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = googleMapsScriptId;
+    script.async = true;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&v=weekly`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Could not load Google Places."));
+    document.head.appendChild(script);
+  });
+
+  return googleWindow.__homzieGoogleMapsPromise;
 }
 
 function SearchSelect({
@@ -125,6 +310,100 @@ function SearchSelect({
   );
 }
 
+function MultiSearchSelect({
+  allLabel,
+  className,
+  label,
+  onChange,
+  options,
+  values,
+}: {
+  allLabel: string;
+  className?: string;
+  label: string;
+  onChange: (values: string[]) => void;
+  options: SelectOption[];
+  values: string[];
+}) {
+  const selected = new Set(values);
+  const activeLabel =
+    values.length === 0
+      ? allLabel
+      : values.length === 1
+        ? optionLabel(options, values[0], label)
+        : `${values.length} selected`;
+
+  function toggleValue(value: string) {
+    if (!value) {
+      onChange([]);
+      return;
+    }
+
+    const nextValues = selected.has(value)
+      ? values.filter((item) => item !== value)
+      : [...values, value];
+
+    onChange(nextValues);
+  }
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-12 min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-black text-foreground shadow-sm transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            className,
+          )}
+        >
+          <span className="min-w-0 truncate">{activeLabel}</span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={8}
+          className="z-[130] max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] min-w-48 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-xl"
+        >
+          <DropdownMenu.Item
+            className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2.5 text-sm font-semibold outline-none transition hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+            onSelect={(event) => {
+              event.preventDefault();
+              toggleValue("");
+            }}
+          >
+            <Check
+              className={cn(
+                "size-4",
+                values.length === 0 ? "text-primary" : "text-transparent",
+              )}
+            />
+            <span className="min-w-0 truncate">{allLabel}</span>
+          </DropdownMenu.Item>
+          {options.map((option) => (
+            <DropdownMenu.CheckboxItem
+              key={`${label}-${option.value}`}
+              checked={selected.has(option.value)}
+              className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-2.5 text-sm font-semibold outline-none transition hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+              onCheckedChange={() => toggleValue(option.value)}
+              onSelect={(event) => event.preventDefault()}
+            >
+              <Check
+                className={cn(
+                  "size-4",
+                  selected.has(option.value) ? "text-primary" : "text-transparent",
+                )}
+              />
+              <span className="min-w-0 truncate">{option.label}</span>
+            </DropdownMenu.CheckboxItem>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 function FieldSelect({
   label,
   onChange,
@@ -156,12 +435,20 @@ export function PropertySearchBar({
   filters,
   options,
   resultCount,
+  submitLabel = "Show me",
   variant = "default",
 }: PropertySearchBarProps) {
+  const shouldHydrateFromSession = !hasExplicitPropertySearchState(filters);
   const [areas, setAreas] = useState(() => selectedAreas(filters));
   const [areaQuery, setAreaQuery] = useState("");
-  const [listingType, setListingType] = useState(filters.listingType || "sale");
-  const [propertyType, setPropertyType] = useState(filters.propertyType || "");
+  const [listingTypes, setListingTypes] = useState(() => {
+    const selected = selectedOptionValues(listingTypeOptions, filters.listingType);
+
+    return selected.length ? selected : ["sale"];
+  });
+  const [propertyTypes, setPropertyTypes] = useState(() =>
+    selectedOptionValues(propertyTypeOptions, filters.propertyType),
+  );
   const [minPrice, setMinPrice] = useState(filters.minPrice || "");
   const [maxPrice, setMaxPrice] = useState(filters.maxPrice || "");
   const [bedrooms, setBedrooms] = useState(filters.bedrooms || "");
@@ -173,7 +460,18 @@ export function PropertySearchBar({
   const [buyerIncentive, setBuyerIncentive] = useState(
     filters.buyerIncentive || "",
   );
-  const [features, setFeatures] = useState(() => new Set(filters.features || []));
+  const [features, setFeatures] = useState(() => new Set(selectedFeatures(filters)));
+  const hasLoadedSessionStateRef = useRef(!shouldHydrateFromSession);
+  const didHydrateSessionStateRef = useRef(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [placePredictions, setPlacePredictions] = useState<
+    GoogleAutocompletePrediction[]
+  >([]);
+  const [placesStatus, setPlacesStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [liveResultCount, setLiveResultCount] = useState(resultCount);
+  const [isCountPending, setIsCountPending] = useState(false);
 
   const areaSuggestions = useMemo(() => {
     const query = areaQuery.trim().toLowerCase();
@@ -189,22 +487,26 @@ export function PropertySearchBar({
     label: formatPrice(price),
     value: price,
   }));
-  const listingTypeLabel = optionLabel(
-    listingTypeOptions.map((option) => ({
-      label: option.label,
-      value: option.value,
-    })),
-    listingType,
-    "Buy",
-  );
-  const propertyTypeLabel = optionLabel(
-    propertyTypeOptions.map((option) => ({
-      label: option.label,
-      value: option.value,
-    })),
-    propertyType,
-    "All types",
-  );
+  const listingTypeSelectOptions = listingTypeOptions.map((option) => ({
+    label: option.label,
+    value: option.value,
+  }));
+  const propertyTypeSelectOptions = propertyTypeOptions.map((option) => ({
+    label: option.label,
+    value: option.value,
+  }));
+  const listingTypeLabel =
+    listingTypes.length === 0
+      ? "All listing types"
+      : listingTypes
+          .map((value) => optionLabel(listingTypeSelectOptions, value, value))
+          .join(", ");
+  const propertyTypeLabel =
+    propertyTypes.length === 0
+      ? "All property types"
+      : propertyTypes
+          .map((value) => optionLabel(propertyTypeSelectOptions, value, value))
+          .join(", ");
   const priceLabel =
     minPrice || maxPrice
       ? `${minPrice ? formatPrice(minPrice) : "Any"} - ${
@@ -221,6 +523,265 @@ export function PropertySearchBar({
       minFloorSize,
       minErfSize,
     ].filter(Boolean).length + features.size;
+  const currentFilters = useMemo<DiscoverListingFilters>(
+    () => ({
+      area: areas,
+      bathrooms,
+      bedrooms,
+      buyerIncentive,
+      countryName,
+      features: Array.from(features),
+      garages,
+      listingType: listingTypes,
+      maxPrice,
+      minErfSize,
+      minFloorSize,
+      minPrice,
+      parking,
+      propertyType: propertyTypes,
+    }),
+    [
+      areas,
+      bathrooms,
+      bedrooms,
+      buyerIncentive,
+      countryName,
+      features,
+      garages,
+      listingTypes,
+      maxPrice,
+      minErfSize,
+      minFloorSize,
+      minPrice,
+      parking,
+      propertyTypes,
+    ],
+  );
+  const hasActiveCriteria = Boolean(
+    areas.length ||
+      propertyTypes.length ||
+      minPrice ||
+      maxPrice ||
+      bedrooms ||
+      bathrooms ||
+      garages ||
+      parking ||
+      minFloorSize ||
+      minErfSize ||
+      buyerIncentive ||
+      features.size ||
+      listingTypes.length !== 1 ||
+      listingTypes[0] !== "sale",
+  );
+  const countLabel = hasActiveCriteria ? "match your filters" : "available";
+  const countMessage =
+    typeof liveResultCount === "number"
+      ? `${formatListingCount(liveResultCount)} ${countLabel}`
+      : "Listings available";
+
+  useEffect(() => {
+    if (!shouldHydrateFromSession) {
+      hasLoadedSessionStateRef.current = true;
+      return;
+    }
+
+    const sessionState = readSessionSearchState();
+
+    if (!sessionState) {
+      hasLoadedSessionStateRef.current = true;
+      return;
+    }
+
+    didHydrateSessionStateRef.current = true;
+    const timeout = window.setTimeout(() => {
+      setAreas(sessionState.areas);
+      setBathrooms(sessionState.bathrooms);
+      setBedrooms(sessionState.bedrooms);
+      setBuyerIncentive(sessionState.buyerIncentive);
+      setFeatures(new Set(sessionState.features));
+      setGarages(sessionState.garages);
+      setListingTypes(sessionState.listingTypes.length ? sessionState.listingTypes : ["sale"]);
+      setMaxPrice(sessionState.maxPrice);
+      setMinErfSize(sessionState.minErfSize);
+      setMinFloorSize(sessionState.minFloorSize);
+      setMinPrice(sessionState.minPrice);
+      setParking(sessionState.parking);
+      setPropertyTypes(sessionState.propertyTypes);
+      hasLoadedSessionStateRef.current = true;
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [shouldHydrateFromSession]);
+
+  useEffect(() => {
+    if (!hasLoadedSessionStateRef.current) return;
+    if (didHydrateSessionStateRef.current) {
+      didHydrateSessionStateRef.current = false;
+      return;
+    }
+
+    window.sessionStorage.setItem(
+      propertySearchSessionKey,
+      JSON.stringify({
+        areas,
+        bathrooms,
+        bedrooms,
+        buyerIncentive,
+        features: Array.from(features),
+        garages,
+        listingTypes,
+        maxPrice,
+        minErfSize,
+        minFloorSize,
+        minPrice,
+        parking,
+        propertyTypes,
+      }),
+    );
+  }, [
+    areas,
+    bathrooms,
+    bedrooms,
+    buyerIncentive,
+    features,
+    garages,
+    listingTypes,
+    maxPrice,
+    minErfSize,
+    minFloorSize,
+    minPrice,
+    parking,
+    propertyTypes,
+  ]);
+
+  useEffect(() => {
+    if (!hasLoadedSessionStateRef.current) return;
+
+    let isCurrent = true;
+    const timeout = window.setTimeout(() => {
+      setIsCountPending(true);
+
+      void loadDiscoverListingCount(currentFilters)
+        .then((count) => {
+          if (isCurrent) {
+            setLiveResultCount(count);
+          }
+        })
+        .catch(() => {
+          if (isCurrent) {
+            setLiveResultCount(resultCount);
+          }
+        })
+        .finally(() => {
+          if (isCurrent) {
+            setIsCountPending(false);
+          }
+        });
+    }, 220);
+
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(timeout);
+    };
+  }, [currentFilters, resultCount]);
+
+  useEffect(() => {
+    if (!isHero) return;
+
+    let isCurrent = true;
+
+    async function refreshCount() {
+      try {
+        const count = await loadDiscoverListingCount(currentFilters);
+
+        if (isCurrent) {
+          setLiveResultCount(count);
+        }
+      } catch {
+        if (isCurrent) {
+          setLiveResultCount((currentCount) => currentCount ?? resultCount);
+        }
+      }
+    }
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshCount();
+      }
+    }, 15_000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshCount();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      isCurrent = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentFilters, isHero, resultCount]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    const timeout = window.setTimeout(() => {
+      const query = areaQuery.trim();
+
+      if (query.length < 2) {
+        setPlacePredictions([]);
+        setPlacesStatus("idle");
+        return;
+      }
+
+      setPlacesStatus("loading");
+
+      void loadGooglePlaces()
+        .then(() => {
+          const places = (window as GoogleWindow).google?.maps?.places;
+
+          if (!places) {
+            throw new Error("Google Places is not available.");
+          }
+
+          const service = new places.AutocompleteService();
+          const sessionToken = new places.AutocompleteSessionToken();
+
+          service.getPlacePredictions(
+            {
+              input: query,
+              sessionToken,
+              types: ["(regions)"],
+            },
+            (results, status) => {
+              if (!isCurrent) return;
+
+              if (status !== places.PlacesServiceStatus.OK || !results?.length) {
+                setPlacePredictions([]);
+                setPlacesStatus("ready");
+                return;
+              }
+
+              setPlacePredictions(results.slice(0, 5));
+              setPlacesStatus("ready");
+            },
+          );
+        })
+        .catch(() => {
+          if (!isCurrent) return;
+
+          setPlacePredictions([]);
+          setPlacesStatus("error");
+        });
+    }, 180);
+
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(timeout);
+    };
+  }, [areaQuery]);
 
   function addArea(area: string) {
     const cleanArea = area.trim();
@@ -235,6 +796,11 @@ export function PropertySearchBar({
         : [...currentAreas, cleanArea].slice(0, 8),
     );
     setAreaQuery("");
+  }
+
+  function addPlaceArea(place: GoogleAutocompletePrediction) {
+    addArea(placeRegionLabel(place));
+    setPlacePredictions([]);
   }
 
   function removeArea(area: string) {
@@ -254,91 +820,6 @@ export function PropertySearchBar({
       return nextFeatures;
     });
   }
-
-  const mapDialog = (
-    <Dialog.Root>
-      <Dialog.Trigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn("h-12", isHero && "h-14 px-5 text-base")}
-        >
-          <Map className="size-4" />
-          Map
-        </Button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-3 z-[101] overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl outline-none sm:inset-6">
-          <div className="flex items-center justify-between gap-3 border-b border-border p-4">
-            <div>
-              <Dialog.Title className="text-base font-black">
-                Pick areas on the map
-              </Dialog.Title>
-              <Dialog.Description className="mt-1 text-xs font-semibold text-muted-foreground">
-                Select available areas from {countryName || "your search"}.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <Button type="button" size="icon" variant="ghost" aria-label="Close">
-                <X className="size-5" />
-              </Button>
-            </Dialog.Close>
-          </div>
-          <div className="grid h-[calc(100%-4.5rem)] lg:grid-cols-[22rem_minmax(0,1fr)]">
-            <div className="overflow-y-auto border-b border-border p-4 lg:border-b-0 lg:border-r">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
-                Available areas
-              </p>
-              <div className="mt-3 grid gap-2">
-                {options.areas.map((area) => {
-                  const active = areas.includes(area);
-
-                  return (
-                    <button
-                      key={`map-${area}`}
-                      type="button"
-                      className={cn(
-                        "flex items-center justify-between rounded-md border border-border bg-card px-3 py-2.5 text-left text-sm font-black transition hover:border-primary hover:text-primary",
-                        active && "border-primary bg-primary/10 text-primary",
-                      )}
-                      onClick={() => (active ? removeArea(area) : addArea(area))}
-                    >
-                      <span>{area}</span>
-                      <MapPin className="size-4" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="relative min-h-80 overflow-hidden bg-muted">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(126,87,255,0.24),transparent_28%),radial-gradient(circle_at_80%_35%,rgba(235,62,188,0.18),transparent_26%),linear-gradient(135deg,rgba(126,87,255,0.10),rgba(8,145,178,0.12))]" />
-              <div className="absolute inset-0 grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-4">
-                {options.areas.slice(0, 16).map((area) => {
-                  const active = areas.includes(area);
-
-                  return (
-                    <button
-                      key={`map-pin-${area}`}
-                      type="button"
-                      className={cn(
-                        "self-center rounded-full border border-border bg-background/90 px-3 py-2 text-xs font-black text-foreground shadow-lg backdrop-blur transition hover:border-primary hover:text-primary",
-                        active &&
-                          "border-primary bg-primary text-primary-foreground hover:text-primary-foreground",
-                      )}
-                      onClick={() => (active ? removeArea(area) : addArea(area))}
-                    >
-                      {area}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
 
   const filtersDialog = (
     <Dialog.Root>
@@ -464,8 +945,8 @@ export function PropertySearchBar({
             <Dialog.Close asChild>
               <Button type="button">
                 Done
-                {typeof resultCount === "number"
-                  ? ` (${resultCount} ${resultCount === 1 ? "result" : "results"})`
+                {typeof liveResultCount === "number"
+                  ? ` (${formatListingCount(liveResultCount)})`
                   : null}
               </Button>
             </Dialog.Close>
@@ -475,14 +956,15 @@ export function PropertySearchBar({
     </Dialog.Root>
   );
 
-  const areaInput = (
-    <div
-      className={cn(
-        "relative flex min-h-12 min-w-0 flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary",
-        isHero &&
-          "min-h-16 border-border/80 bg-white px-5 text-brand-black shadow-sm dark:bg-background dark:text-foreground",
-      )}
-    >
+  function renderAreaInput() {
+    return (
+      <div
+        className={cn(
+          "relative flex min-h-12 min-w-0 flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary",
+          isHero &&
+            "min-h-16 border-border/80 bg-white px-5 text-brand-black shadow-sm dark:bg-background dark:text-foreground",
+        )}
+      >
       <Search className={cn("size-4 shrink-0 text-muted-foreground", isHero && "size-5")} />
       {areas.map((area) => (
         <span
@@ -513,7 +995,7 @@ export function PropertySearchBar({
           areas.length
             ? "Add area"
             : isHero
-              ? "Search by area, suburb or address"
+              ? "Search city, town, region or country"
               : "Search country, city or suburb"
         }
         className={cn(
@@ -521,48 +1003,74 @@ export function PropertySearchBar({
           isHero && "text-base",
         )}
       />
-      {areas[0] && isHero ? (
-        <span className="inline-flex min-w-0 items-center gap-1 border-l border-border pl-2 text-xs font-black text-primary sm:gap-2 sm:pl-4 sm:text-sm">
-          <MapPin className="size-5" />
-          <span className="max-w-24 truncate sm:max-w-36">{areas[0]}</span>
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </span>
-      ) : null}
       {areaQuery.trim() ? (
         <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[80] max-h-72 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl">
           {areaSuggestions.length ? (
-            areaSuggestions.map((area) => (
-              <button
-                key={area}
-                type="button"
-                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
-                onClick={() => addArea(area)}
-              >
-                <span>{area}</span>
-                <span className="text-xs font-black text-muted-foreground">Area</span>
-              </button>
-            ))
-          ) : (
+            <>
+              {areaSuggestions.map((area) => (
+                <button
+                  key={area}
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => addArea(area)}
+                >
+                  <span>{area}</span>
+                  <span className="text-xs font-black text-muted-foreground">Area</span>
+                </button>
+              ))}
+            </>
+          ) : null}
+          {placePredictions.map((place) => (
             <button
+              key={place.place_id}
               type="button"
-              className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
-              onClick={() => addArea(areaQuery)}
+              className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
+              onClick={() => addPlaceArea(place)}
             >
-              <span>Add &quot;{areaQuery.trim()}&quot;</span>
-              <span className="text-xs font-black text-muted-foreground">Custom</span>
+              <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">
+                  {placeRegionLabel(place)}
+                </span>
+                <span className="block truncate text-xs font-semibold text-muted-foreground">
+                  {place.structured_formatting?.secondary_text || "Google Places"}
+                </span>
+              </span>
             </button>
-          )}
+          ))}
+          {placesStatus === "loading" ? (
+            <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Searching places
+            </p>
+          ) : null}
+          {placePredictions.length ? (
+            <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+              Powered by Google
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
+            onClick={() => addArea(areaQuery)}
+          >
+            <span>Add &quot;{areaQuery.trim()}&quot;</span>
+            <span className="text-xs font-black text-muted-foreground">Custom</span>
+          </button>
         </div>
       ) : null}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  const areaInput = renderAreaInput();
 
   if (isHero) {
     return (
       <form
+        ref={formRef}
         action={action}
         className={cn(
-          "rounded-xl border border-white/80 bg-white/94 p-5 text-brand-black shadow-[0_18px_46px_rgba(126,87,255,0.16),0_0_22px_rgba(235,62,188,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-background/92 dark:text-foreground",
+          "relative z-20 rounded-xl border border-white/80 bg-white/94 p-5 text-brand-black shadow-[0_18px_46px_rgba(126,87,255,0.16),0_0_22px_rgba(235,62,188,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-background/92 dark:text-foreground",
           className,
         )}
       >
@@ -580,8 +1088,22 @@ export function PropertySearchBar({
             value={feature}
           />
         ))}
-        <input type="hidden" name="listingType" value={listingType} />
-        <input type="hidden" name="propertyType" value={propertyType} />
+        {listingTypes.map((listingType) => (
+          <input
+            key={`listing-type-input-${listingType}`}
+            type="hidden"
+            name="listingType"
+            value={listingType}
+          />
+        ))}
+        {propertyTypes.map((propertyType) => (
+          <input
+            key={`property-type-input-${propertyType}`}
+            type="hidden"
+            name="propertyType"
+            value={propertyType}
+          />
+        ))}
         <input type="hidden" name="minPrice" value={minPrice} />
         <input type="hidden" name="maxPrice" value={maxPrice} />
         <input type="hidden" name="bedrooms" value={bedrooms} />
@@ -592,38 +1114,48 @@ export function PropertySearchBar({
         <input type="hidden" name="minErfSize" value={minErfSize} />
         <input type="hidden" name="buyerIncentive" value={buyerIncentive} />
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_8rem_10rem]">
+        <div
+          aria-live="polite"
+          className="mb-4 flex items-center justify-center text-center text-xs font-black text-muted-foreground sm:text-sm"
+        >
+          {typeof liveResultCount === "number" ? (
+            <span>
+              <span className="text-primary">
+                {formatListingCount(liveResultCount)}
+              </span>{" "}
+              <span>{countLabel}</span>
+            </span>
+          ) : (
+            <span>{countMessage}</span>
+          )}
+          {isCountPending ? (
+            <span className="ml-2 inline-block size-1.5 animate-pulse rounded-full bg-primary" />
+          ) : null}
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem]">
           {areaInput}
-          {mapDialog}
           <Button type="submit" className="h-14 px-8 text-sm shadow-lg shadow-primary/25 sm:h-16 sm:text-base">
-            <Search className="size-5" />
-            Search
+            {submitLabel}
           </Button>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
-          <SearchSelect
+          <MultiSearchSelect
+            allLabel="All listing types"
             className="h-12 bg-white text-sm dark:bg-background sm:h-14 sm:text-base"
             label="Listing type"
-            onChange={setListingType}
-            options={listingTypeOptions.map((option) => ({
-              label: option.label,
-              value: option.value,
-            }))}
-            value={listingType}
+            onChange={setListingTypes}
+            options={listingTypeSelectOptions}
+            values={listingTypes}
           />
-          <SearchSelect
+          <MultiSearchSelect
+            allLabel="All types"
             className="h-12 bg-white text-sm dark:bg-background sm:h-14 sm:text-base"
             label="All types"
-            onChange={setPropertyType}
-            options={[
-              { label: "All types", value: "" },
-              ...propertyTypeOptions.map((option) => ({
-                label: option.label,
-                value: option.value,
-              })),
-            ]}
-            value={propertyType}
+            onChange={setPropertyTypes}
+            options={propertyTypeSelectOptions}
+            values={propertyTypes}
           />
           <SearchSelect
             className="h-12 bg-white text-sm dark:bg-background sm:h-14 sm:text-base lg:col-start-3"
@@ -656,6 +1188,7 @@ export function PropertySearchBar({
 
   return (
     <form
+      ref={formRef}
       action={action}
       className={cn(
         isHero
@@ -678,8 +1211,22 @@ export function PropertySearchBar({
           value={feature}
         />
       ))}
-      <input type="hidden" name="listingType" value={listingType} />
-      <input type="hidden" name="propertyType" value={propertyType} />
+      {listingTypes.map((listingType) => (
+        <input
+          key={`listing-type-input-${listingType}`}
+          type="hidden"
+          name="listingType"
+          value={listingType}
+        />
+      ))}
+      {propertyTypes.map((propertyType) => (
+        <input
+          key={`property-type-input-${propertyType}`}
+          type="hidden"
+          name="propertyType"
+          value={propertyType}
+        />
+      ))}
       <input type="hidden" name="minPrice" value={minPrice} />
       <input type="hidden" name="maxPrice" value={maxPrice} />
       <input type="hidden" name="bedrooms" value={bedrooms} />
@@ -698,39 +1245,22 @@ export function PropertySearchBar({
             : "lg:grid-cols-[11rem_minmax(18rem,1fr)_auto]",
         )}
       >
-        <SearchSelect
-          className={
-            isHero
-              ? "h-12 border-transparent bg-[var(--homzie-gradient)] px-5 text-white shadow-lg shadow-primary/25 hover:brightness-105"
-              : undefined
-          }
+        <MultiSearchSelect
+          allLabel="All listing types"
+          className={cn(
+            "order-2 lg:order-1",
+            isHero &&
+              "h-12 border-transparent bg-[var(--homzie-gradient)] px-5 text-white shadow-lg shadow-primary/25 hover:brightness-105",
+          )}
           label="For sale"
-          onChange={setListingType}
-          options={listingTypeOptions.map((option) => ({
-            label: option.label,
-            value: option.value,
-          }))}
-          value={listingType}
+          onChange={setListingTypes}
+          options={listingTypeSelectOptions}
+          values={listingTypes}
         />
-
-        {isHero ? (
-          <SearchSelect
-            className="h-12 border-transparent bg-muted/70 px-5 text-foreground shadow-none hover:bg-muted"
-            label="To rent"
-            onChange={setListingType}
-            options={[
-              { label: "To rent", value: "rental" },
-              { label: "For sale", value: "sale" },
-              { label: "Development", value: "development" },
-              { label: "Commercial", value: "commercial" },
-            ]}
-            value={listingType === "rental" ? "rental" : ""}
-          />
-        ) : null}
 
         <div
           className={cn(
-            "relative flex min-h-12 min-w-0 flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary",
+            "relative order-1 flex min-h-12 min-w-0 flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-primary lg:order-2",
             isHero && "min-h-14 border-border/70 bg-white text-brand-black dark:bg-background dark:text-foreground lg:col-span-2",
           )}
         >
@@ -764,7 +1294,7 @@ export function PropertySearchBar({
               areas.length
                 ? "Add area"
                 : isHero
-                  ? "Search by area, suburb or address"
+                  ? "Search city, town, region or country"
                   : "Search country, city or suburb"
             }
             className="min-w-32 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
@@ -772,127 +1302,70 @@ export function PropertySearchBar({
           {areaQuery.trim() ? (
             <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[80] max-h-72 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl">
               {areaSuggestions.length ? (
-                areaSuggestions.map((area) => (
-                  <button
-                    key={area}
-                    type="button"
-                    className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
-                    onClick={() => addArea(area)}
-                  >
-                    <span>{area}</span>
-                    <span className="text-xs font-black text-muted-foreground">
-                      Area
-                    </span>
-                  </button>
-                ))
-              ) : (
+                <>
+                  {areaSuggestions.map((area) => (
+                    <button
+                      key={area}
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => addArea(area)}
+                    >
+                      <span>{area}</span>
+                      <span className="text-xs font-black text-muted-foreground">
+                        Area
+                      </span>
+                    </button>
+                  ))}
+                </>
+              ) : null}
+              {placePredictions.map((place) => (
                 <button
+                  key={place.place_id}
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
-                  onClick={() => addArea(areaQuery)}
+                  className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => addPlaceArea(place)}
                 >
-                  <span>Add &quot;{areaQuery.trim()}&quot;</span>
-                  <span className="text-xs font-black text-muted-foreground">
-                    Custom
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      {placeRegionLabel(place)}
+                    </span>
+                    <span className="block truncate text-xs font-semibold text-muted-foreground">
+                      {place.structured_formatting?.secondary_text || "Google Places"}
+                    </span>
                   </span>
                 </button>
-              )}
+              ))}
+              {placesStatus === "loading" ? (
+                <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                  Searching places
+                </p>
+              ) : null}
+              {placePredictions.length ? (
+                <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+                  Powered by Google
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition hover:bg-accent hover:text-accent-foreground"
+                onClick={() => addArea(areaQuery)}
+              >
+                <span>Add &quot;{areaQuery.trim()}&quot;</span>
+                <span className="text-xs font-black text-muted-foreground">
+                  Custom
+                </span>
+              </button>
             </div>
           ) : null}
         </div>
 
         <div
           className={cn(
-            "grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:grid-cols-[auto_auto]",
+            "order-3 grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:grid-cols-[auto_auto]",
             isHero && "lg:col-start-4 lg:row-start-1",
           )}
         >
-          <Dialog.Root>
-            <Dialog.Trigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className={cn("h-12", isHero && "h-14 px-5")}
-              >
-                <Map className="size-4" />
-                Map
-              </Button>
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm" />
-              <Dialog.Content className="fixed inset-3 z-[101] overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl outline-none sm:inset-6">
-                <div className="flex items-center justify-between gap-3 border-b border-border p-4">
-                  <div>
-                    <Dialog.Title className="text-base font-black">
-                      Pick areas on the map
-                    </Dialog.Title>
-                    <Dialog.Description className="mt-1 text-xs font-semibold text-muted-foreground">
-                      Select available areas from {countryName || "your search"}.
-                    </Dialog.Description>
-                  </div>
-                  <Dialog.Close asChild>
-                    <Button type="button" size="icon" variant="ghost" aria-label="Close">
-                      <X className="size-5" />
-                    </Button>
-                  </Dialog.Close>
-                </div>
-                <div className="grid h-[calc(100%-4.5rem)] lg:grid-cols-[22rem_minmax(0,1fr)]">
-                  <div className="overflow-y-auto border-b border-border p-4 lg:border-b-0 lg:border-r">
-                    <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
-                      Available areas
-                    </p>
-                    <div className="mt-3 grid gap-2">
-                      {options.areas.map((area) => {
-                        const active = areas.includes(area);
-
-                        return (
-                          <button
-                            key={`map-${area}`}
-                            type="button"
-                            className={cn(
-                              "flex items-center justify-between rounded-md border border-border bg-card px-3 py-2.5 text-left text-sm font-black transition hover:border-primary hover:text-primary",
-                              active && "border-primary bg-primary/10 text-primary",
-                            )}
-                            onClick={() =>
-                              active ? removeArea(area) : addArea(area)
-                            }
-                          >
-                            <span>{area}</span>
-                            <MapPin className="size-4" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="relative min-h-80 overflow-hidden bg-muted">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(126,87,255,0.24),transparent_28%),radial-gradient(circle_at_80%_35%,rgba(235,62,188,0.18),transparent_26%),linear-gradient(135deg,rgba(126,87,255,0.10),rgba(8,145,178,0.12))]" />
-                    <div className="absolute inset-0 grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-4">
-                      {options.areas.slice(0, 16).map((area) => {
-                        const active = areas.includes(area);
-
-                        return (
-                          <button
-                            key={`map-pin-${area}`}
-                            type="button"
-                            className={cn(
-                              "self-center rounded-full border border-border bg-background/90 px-3 py-2 text-xs font-black text-foreground shadow-lg backdrop-blur transition hover:border-primary hover:text-primary",
-                              active && "border-primary bg-primary text-primary-foreground hover:text-primary-foreground",
-                            )}
-                            onClick={() =>
-                              active ? removeArea(area) : addArea(area)
-                            }
-                          >
-                            {area}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-
           <Button
             type="submit"
             className={cn(
@@ -900,25 +1373,19 @@ export function PropertySearchBar({
               isHero && "h-14 px-8 shadow-lg shadow-primary/25",
             )}
           >
-            <Search className="size-4" />
-            Search
+            {submitLabel}
           </Button>
         </div>
       </div>
 
       <div className={cn("mt-2 grid gap-2 md:grid-cols-5", isHero && "mt-4")}>
-        <SearchSelect
+        <MultiSearchSelect
+          allLabel="All types"
           className={isHero ? "h-14 bg-white dark:bg-background" : undefined}
           label="Property type"
-          onChange={setPropertyType}
-          options={[
-            { label: "All types", value: "" },
-            ...propertyTypeOptions.map((option) => ({
-              label: option.label,
-              value: option.value,
-            })),
-          ]}
-          value={propertyType}
+          onChange={setPropertyTypes}
+          options={propertyTypeSelectOptions}
+          values={propertyTypes}
         />
         <SearchSelect
           className={isHero ? "h-14 bg-white dark:bg-background" : undefined}
@@ -1064,8 +1531,8 @@ export function PropertySearchBar({
                 <Dialog.Close asChild>
                   <Button type="button">
                     Done
-                    {typeof resultCount === "number"
-                      ? ` (${resultCount} ${resultCount === 1 ? "result" : "results"})`
+                    {typeof liveResultCount === "number"
+                      ? ` (${formatListingCount(liveResultCount)})`
                       : null}
                   </Button>
                 </Dialog.Close>
@@ -1086,10 +1553,10 @@ export function PropertySearchBar({
         <span>{propertyTypeLabel}</span>
         <span>•</span>
         <span>{priceLabel}</span>
-        {typeof resultCount === "number" ? (
+        {typeof liveResultCount === "number" ? (
           <>
             <span>•</span>
-            <span>{resultCount} {resultCount === 1 ? "result" : "results"}</span>
+            <span>{formatListingCount(liveResultCount)}</span>
           </>
         ) : null}
       </div>

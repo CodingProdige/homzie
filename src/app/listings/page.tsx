@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { eq } from "drizzle-orm";
 import { MapPin, Search } from "lucide-react";
@@ -6,14 +6,15 @@ import { MapPin, Search } from "lucide-react";
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { Pagination } from "@/components/pagination";
-import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
+import { ClearListingFiltersLink } from "@/modules/listings/components/clear-listing-filters-link";
 import {
-  ListingFilters,
-  ListingFiltersSidebar,
-} from "@/modules/listings/components/listing-filters";
+  appendCountryPreference,
+  countryPreferenceCookie,
+  parseCountryPreference,
+} from "@/modules/location/country-preference";
 import { ListingCard } from "@/modules/listings/components/listing-card";
 import { PropertySearchBar } from "@/modules/listings/components/property-search-bar";
 import {
@@ -38,7 +39,7 @@ type ListingsPageProps = {
     features?: string[] | string;
     furnishedStatus?: string;
     garages?: string;
-    listingType?: string;
+    listingType?: string[] | string;
     maxErfSize?: string;
     maxFloorSize?: string;
     maxPrice?: string;
@@ -48,7 +49,7 @@ type ListingsPageProps = {
     parking?: string;
     page?: string;
     petsAllowed?: string;
-    propertyType?: string;
+    propertyType?: string[] | string;
     shortLetAllowed?: string;
   }>;
 };
@@ -65,11 +66,14 @@ async function getViewerUsername(userId?: string) {
   return viewer?.username || undefined;
 }
 
-function optionLabel<T extends { label: string; value: string }>(
+function optionLabels<T extends { label: string; value: string }>(
   options: readonly T[],
-  value: string,
+  values: string[],
 ) {
-  return options.find((option) => option.value === value)?.label || "";
+  return values
+    .map((value) => options.find((option) => option.value === value)?.label || "")
+    .filter(Boolean)
+    .join(", ");
 }
 
 function pageNumber(value?: string) {
@@ -108,11 +112,22 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
   const viewerId = session?.user?.id || null;
   const viewerUsername = await getViewerUsername(viewerId || undefined);
   const query = searchParams ? await searchParams : {};
+  const cookieStore = await cookies();
+  const countryPreference = parseCountryPreference(
+    cookieStore.get(countryPreferenceCookie)?.value,
+  );
+  const resetListingsHref = appendCountryPreference("/listings", countryPreference);
   const currentPage = pageNumber(query.page);
   const pageSize = 12;
   const filters = normalizeDiscoverListingFilters(query);
-  const activeListingTypeLabel = optionLabel(listingTypeOptions, filters.listingType);
-  const activePropertyTypeLabel = optionLabel(propertyTypeOptions, filters.propertyType);
+  const activeListingTypeLabel = optionLabels(
+    listingTypeOptions,
+    filters.listingTypes,
+  );
+  const activePropertyTypeLabel = optionLabels(
+    propertyTypeOptions,
+    filters.propertyTypes,
+  );
   const listingFeed = await getDiscoverListings({
     filters,
     limit: pageSize,
@@ -150,90 +165,72 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
           filters={filters}
           options={filterOptions}
           resultCount={listingFeed.totalCount}
+          submitLabel="Update"
         />
 
-        <div className="grid gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
-          <ListingFiltersSidebar
-            action="/listings"
-            filters={filters}
-            options={filterOptions}
-            preserveCountryName={filters.countryName}
-            resetHref="/listings"
-          />
-          <div className="min-w-0">
-            <div className="mb-5">
-              <ListingFilters
-                action="/listings"
-                filters={filters}
-                options={filterOptions}
-                preserveCountryName={filters.countryName}
-                resetHref="/listings"
-              />
-            </div>
-
-            <div className="mb-5 flex flex-wrap gap-2 text-sm font-bold">
-              <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
-                {listingFeed.totalCount}{" "}
-                {listingFeed.totalCount === 1 ? "result" : "results"}
-              </span>
-              {filters.area || filters.countryName || filters.listingType || filters.propertyType ? (
-                <>
-                  {filters.area ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-primary">
-                      <MapPin className="size-3.5" />
-                      {filters.area}
-                    </span>
-                  ) : null}
-                  {!filters.area && filters.countryName ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-primary">
-                      <MapPin className="size-3.5" />
-                      {filters.countryName}
-                    </span>
-                  ) : null}
-                  {activeListingTypeLabel ? (
-                    <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
-                      {activeListingTypeLabel}
-                    </span>
-                  ) : null}
-                  {activePropertyTypeLabel ? (
-                    <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
-                      {activePropertyTypeLabel}
-                    </span>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-
-            {listingFeed.listings.length ? (
+        <div className="min-w-0">
+          <div className="mb-5 flex flex-wrap gap-2 text-sm font-bold">
+            <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
+              {listingFeed.totalCount}{" "}
+              {listingFeed.totalCount === 1 ? "result" : "results"}
+            </span>
+            {filters.area ||
+            filters.countryName ||
+            filters.listingTypes.length ||
+            filters.propertyTypes.length ? (
               <>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {listingFeed.listings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} />
-                  ))}
-                </div>
-                <Pagination
-                  currentPage={Math.min(currentPage, totalPages)}
-                  hrefForPage={hrefForPage(query)}
-                  totalPages={totalPages}
-                />
-              </>
-            ) : (
-              <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-border bg-card p-8 text-center text-card-foreground">
-                <div>
-                  <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
-                    <Search className="size-5" />
+                {filters.area ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-primary">
+                    <MapPin className="size-3.5" />
+                    {filters.area}
                   </span>
-                  <h2 className="mt-4 text-lg font-black">No listings found</h2>
-                  <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
-                    There are no published listings matching this shortcut yet.
-                  </p>
-                  <Button asChild className="mt-5">
-                    <Link href="/listings">View all listings</Link>
-                  </Button>
-                </div>
-              </div>
-            )}
+                ) : null}
+                {!filters.area && filters.countryName ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-primary">
+                    <MapPin className="size-3.5" />
+                    {filters.countryName}
+                  </span>
+                ) : null}
+                {activeListingTypeLabel ? (
+                  <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
+                    {activeListingTypeLabel}
+                  </span>
+                ) : null}
+                {activePropertyTypeLabel ? (
+                  <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
+                    {activePropertyTypeLabel}
+                  </span>
+                ) : null}
+              </>
+            ) : null}
           </div>
+
+          {listingFeed.listings.length ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {listingFeed.listings.map((listing) => (
+                <ListingCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-border bg-card p-8 text-center text-card-foreground">
+              <div>
+                <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+                  <Search className="size-5" />
+                </span>
+                <h2 className="mt-4 text-lg font-black">No listings found</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+                  There are no published listings matching these filters yet.
+                </p>
+                <ClearListingFiltersLink href={resetListingsHref} />
+              </div>
+            </div>
+          )}
+          <Pagination
+            alwaysShow
+            currentPage={Math.min(currentPage, totalPages)}
+            hrefForPage={hrefForPage(query)}
+            totalPages={totalPages}
+          />
         </div>
       </main>
       <GlobalFooter viewerUsername={viewerUsername} />

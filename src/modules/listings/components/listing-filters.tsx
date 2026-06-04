@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Check, ChevronDown, SlidersHorizontal, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,15 @@ function fieldValue(filters: ListingFiltersProps["filters"], name: string) {
   if (Array.isArray(value)) return value[0] || "";
 
   return typeof value === "string" ? value : "";
+}
+
+function fieldValues(filters: ListingFiltersProps["filters"], name: string) {
+  const value = filters[name as keyof typeof filters];
+
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string" && value) return [value];
+
+  return [];
 }
 
 function formatOptionLabel(name: string, value: string) {
@@ -157,6 +166,113 @@ function SelectField({
   );
 }
 
+function MultiSelectField({
+  allLabel,
+  label,
+  name,
+  options,
+  values,
+}: {
+  allLabel: string;
+  label: string;
+  name: string;
+  options: SelectOption[];
+  values: string[];
+}) {
+  const [selectedValues, setSelectedValues] = useState(values);
+  const selected = new Set(selectedValues);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const activeLabel =
+    selectedValues.length === 0
+      ? allLabel
+      : selectedValues.length === 1
+        ? options.find((option) => option.value === selectedValues[0])?.label ||
+          allLabel
+        : `${selectedValues.length} selected`;
+
+  function updateValues(nextValues: string[]) {
+    setSelectedValues(nextValues);
+    window.setTimeout(() => formRef.current?.requestSubmit(), 0);
+  }
+
+  function toggleValue(value: string) {
+    if (!value) {
+      updateValues([]);
+      return;
+    }
+
+    updateValues(
+      selected.has(value)
+        ? selectedValues.filter((item) => item !== value)
+        : [...selectedValues, value],
+    );
+  }
+
+  return (
+    <label className="grid gap-1.5 text-xs font-black">
+      <span>{label}</span>
+      <span ref={(node) => void (formRef.current = node?.closest("form") || null)}>
+        {selectedValues.map((value) => (
+          <input key={`${name}-${value}`} type="hidden" name={name} value={value} />
+        ))}
+      </span>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            className="flex h-11 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm font-semibold text-foreground outline-none transition hover:bg-muted/45 focus:border-primary"
+          >
+            <span className="min-w-0 truncate">{activeLabel}</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="start"
+            sideOffset={6}
+            className="z-[120] max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] min-w-44 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-xl"
+          >
+            <DropdownMenu.Item
+              className="flex cursor-pointer items-center gap-2 rounded-sm px-2.5 py-2 text-sm font-semibold outline-none transition hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+              onSelect={(event) => {
+                event.preventDefault();
+                toggleValue("");
+              }}
+            >
+              <Check
+                className={
+                  selectedValues.length === 0
+                    ? "size-4 text-primary"
+                    : "size-4 text-transparent"
+                }
+              />
+              <span className="min-w-0 truncate">{allLabel}</span>
+            </DropdownMenu.Item>
+            {options.map((option) => (
+              <DropdownMenu.CheckboxItem
+                key={`${name}-${option.value}`}
+                checked={selected.has(option.value)}
+                className="flex cursor-pointer items-center gap-2 rounded-sm px-2.5 py-2 text-sm font-semibold outline-none transition hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                onCheckedChange={() => toggleValue(option.value)}
+                onSelect={(event) => event.preventDefault()}
+              >
+                <Check
+                  className={
+                    selected.has(option.value)
+                      ? "size-4 text-primary"
+                      : "size-4 text-transparent"
+                  }
+                />
+                <span className="min-w-0 truncate">{option.label}</span>
+              </DropdownMenu.CheckboxItem>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </label>
+  );
+}
+
 function FiltersFields({
   layout = "grid",
   filters,
@@ -193,29 +309,25 @@ function FiltersFields({
           ]}
           value={fieldValue(filters, "area")}
         />
-        <SelectField
+        <MultiSelectField
+          allLabel="All listing types"
           label="Listing type"
           name="listingType"
-          options={[
-            { label: "All listing types", value: "" },
-            ...listingTypeOptions.map((option) => ({
-              label: option.label,
-              value: option.value,
-            })),
-          ]}
-          value={fieldValue(filters, "listingType")}
+          options={listingTypeOptions.map((option) => ({
+            label: option.label,
+            value: option.value,
+          }))}
+          values={fieldValues(filters, "listingType")}
         />
-        <SelectField
+        <MultiSelectField
+          allLabel="All property types"
           label="Property type"
           name="propertyType"
-          options={[
-            { label: "All property types", value: "" },
-            ...propertyTypeOptions.map((option) => ({
-              label: option.label,
-              value: option.value,
-            })),
-          ]}
-          value={fieldValue(filters, "propertyType")}
+          options={propertyTypeOptions.map((option) => ({
+            label: option.label,
+            value: option.value,
+          }))}
+          values={fieldValues(filters, "propertyType")}
         />
         <SelectField
           label="Buyer badge"

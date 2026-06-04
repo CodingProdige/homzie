@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -23,7 +23,7 @@ export type DiscoverListingFilters = {
   features?: string[] | string;
   furnishedStatus?: string;
   garages?: string;
-  listingType?: string;
+  listingType?: string[] | string;
   maxErfSize?: string;
   maxFloorSize?: string;
   maxPrice?: string;
@@ -32,7 +32,7 @@ export type DiscoverListingFilters = {
   minPrice?: string;
   parking?: string;
   petsAllowed?: string;
-  propertyType?: string;
+  propertyType?: string[] | string;
   shortLetAllowed?: string;
 };
 
@@ -64,6 +64,15 @@ function cleanStringList(value?: string[] | string) {
     .map(cleanParam)
     .filter(Boolean)
     .slice(0, 8);
+}
+
+function cleanOptionList<T extends { value: string }>(
+  options: readonly T[],
+  value?: string[] | string,
+) {
+  const allowedValues = new Set(options.map((option) => option.value));
+
+  return cleanStringList(value).filter((item) => allowedValues.has(item));
 }
 
 function cleanNumberParam(value?: string) {
@@ -139,11 +148,8 @@ export function normalizeDiscoverListingFilters(
     ? cleanParam(filters.furnishedStatus)
     : "";
   const garages = cleanNumberParam(filters.garages);
-  const listingType = listingTypeOptions.some(
-    (option) => option.value === filters.listingType,
-  )
-    ? filters.listingType || ""
-    : "";
+  const listingTypes = cleanOptionList(listingTypeOptions, filters.listingType);
+  const listingType = listingTypes[0] || "";
   const maxErfSize = cleanNumberParam(filters.maxErfSize);
   const maxFloorSize = cleanNumberParam(filters.maxFloorSize);
   const maxPrice = cleanNumberParam(filters.maxPrice);
@@ -152,11 +158,8 @@ export function normalizeDiscoverListingFilters(
   const minPrice = cleanNumberParam(filters.minPrice);
   const parking = cleanNumberParam(filters.parking);
   const petsAllowed = cleanBooleanChoice(filters.petsAllowed);
-  const propertyType = propertyTypeOptions.some(
-    (option) => option.value === filters.propertyType,
-  )
-    ? filters.propertyType || ""
-    : "";
+  const propertyTypes = cleanOptionList(propertyTypeOptions, filters.propertyType);
+  const propertyType = propertyTypes[0] || "";
   const shortLetAllowed = cleanBooleanChoice(filters.shortLetAllowed);
   const features = (Array.isArray(filters.features)
     ? filters.features
@@ -183,6 +186,7 @@ export function normalizeDiscoverListingFilters(
     furnishedStatus,
     garages,
     listingType,
+    listingTypes,
     maxErfSize,
     maxFloorSize,
     maxPrice,
@@ -192,17 +196,22 @@ export function normalizeDiscoverListingFilters(
     parking,
     petsAllowed,
     propertyType,
+    propertyTypes,
     shortLetAllowed,
   };
 }
 
 export function discoverListingHeading(filters: DiscoverListingFilters = {}) {
   const normalized = normalizeDiscoverListingFilters(filters);
-  const activeListingTypeLabel = normalized.listingType
-    ? optionLabel(listingTypeOptions, normalized.listingType, normalized.listingType)
+  const activeListingTypeLabel = normalized.listingTypes.length
+    ? normalized.listingTypes
+        .map((value) => optionLabel(listingTypeOptions, value, value))
+        .join(", ")
     : "";
-  const activePropertyTypeLabel = normalized.propertyType
-    ? optionLabel(propertyTypeOptions, normalized.propertyType, normalized.propertyType)
+  const activePropertyTypeLabel = normalized.propertyTypes.length
+    ? normalized.propertyTypes
+        .map((value) => optionLabel(propertyTypeOptions, value, value))
+        .join(", ")
     : "";
 
   return (
@@ -225,11 +234,11 @@ function discoverWhere(filters: ReturnType<typeof normalizeDiscoverListingFilter
 
   return [
     eq(propertyListings.status, "published"),
-    filters.listingType
-      ? eq(propertyListings.listingType, filters.listingType)
+    filters.listingTypes.length
+      ? inArray(propertyListings.listingType, filters.listingTypes)
       : undefined,
-    filters.propertyType
-      ? eq(propertyListings.propertyType, filters.propertyType)
+    filters.propertyTypes.length
+      ? inArray(propertyListings.propertyType, filters.propertyTypes)
       : undefined,
     areaFilters.length ? or(...areaFilters) : undefined,
     !filters.areas.length && filters.countryName
@@ -284,6 +293,19 @@ function discoverWhere(filters: ReturnType<typeof normalizeDiscoverListingFilter
       (feature) => sql`${propertyListings.features} @> ${JSON.stringify([feature])}::jsonb`,
     ),
   ].filter((filter): filter is SQL => Boolean(filter));
+}
+
+export async function getDiscoverListingCount(
+  filters: DiscoverListingFilters = {},
+) {
+  const normalizedFilters = normalizeDiscoverListingFilters(filters);
+  const where = discoverWhere(normalizedFilters);
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(propertyListings)
+    .where(and(...where));
+
+  return count;
 }
 
 function listingAreaName(location: string | null, details: unknown) {

@@ -2,8 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
-  useRef,
   useState,
   useTransition,
 } from "react";
@@ -19,6 +17,7 @@ type ListingsInfiniteGridProps = {
   initialHasMore: boolean;
   initialListings: ListingCardData[];
   initialNextOffset: number;
+  loadMoreLimit?: number;
   totalCount?: number;
 };
 
@@ -27,13 +26,13 @@ export function ListingsInfiniteGrid({
   initialHasMore,
   initialListings,
   initialNextOffset,
+  loadMoreLimit = 8,
   totalCount,
 }: ListingsInfiniteGridProps) {
   const [listings, setListings] = useState(initialListings);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [nextOffset, setNextOffset] = useState(initialNextOffset);
   const [isPending, startTransition] = useTransition();
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const loadMore = useCallback(() => {
     if (!hasMore || isPending) return;
@@ -41,7 +40,7 @@ export function ListingsInfiniteGrid({
     startTransition(async () => {
       const data = await loadDiscoverListings({
         filters,
-        limit: 8,
+        limit: loadMoreLimit,
         offset: nextOffset,
       });
 
@@ -49,26 +48,7 @@ export function ListingsInfiniteGrid({
       setHasMore(data.hasMore);
       setNextOffset(data.nextOffset);
     });
-  }, [filters, hasMore, isPending, nextOffset]);
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-
-    if (!sentinel || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          loadMore();
-        }
-      },
-      { rootMargin: "480px 0px" },
-    );
-
-    observer.observe(sentinel);
-
-    return () => observer.disconnect();
-  }, [hasMore, loadMore]);
+  }, [filters, hasMore, isPending, loadMoreLimit, nextOffset]);
 
   if (!listings.length) return null;
 
@@ -88,7 +68,7 @@ export function ListingsInfiniteGrid({
       </div>
 
       {hasMore ? (
-        <div ref={sentinelRef} className="mt-8 grid place-items-center">
+        <div className="mt-8 grid place-items-center">
           <Button
             type="button"
             variant="outline"
