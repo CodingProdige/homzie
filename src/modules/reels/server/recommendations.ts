@@ -34,12 +34,12 @@ type RecommendedReelRow = {
   agentUsername: string | null;
   caption: string | null;
   commentCount: number | string;
-  createdAt: Date;
+  createdAt: Date | string;
   editMetadata: unknown;
   fastSkipCount: number | string | null;
   followingAgent: boolean | null;
   id: string;
-  lastWatchedAt: Date | null;
+  lastWatchedAt: Date | string | null;
   likeCount: number | string;
   listingAskingPriceCents: number | null;
   listingCoverImageUrl: string | null;
@@ -81,6 +81,15 @@ function stringValue(value: unknown) {
 
 function numberValue(value: number | string | null | undefined) {
   return Number(value || 0);
+}
+
+function dateMs(value: Date | string | null | undefined) {
+  if (!value) return null;
+  if (value instanceof Date) return value.getTime();
+
+  const parsed = Date.parse(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function formatCompactCount(value: number) {
@@ -175,7 +184,8 @@ function scoreReel({
     reasons.push("followed agent");
   }
 
-  const ageHours = Math.max(0, Date.now() - row.createdAt.getTime()) / 3_600_000;
+  const createdAtMs = dateMs(row.createdAt) || Date.now();
+  const ageHours = Math.max(0, Date.now() - createdAtMs) / 3_600_000;
 
   if (ageHours <= 72) {
     score += 10;
@@ -204,15 +214,19 @@ function scoreReel({
   }
 
   if (row.lastWatchedAt) {
-    const watchedAgeHours =
-      Math.max(0, Date.now() - row.lastWatchedAt.getTime()) / 3_600_000;
+    const lastWatchedAtMs = dateMs(row.lastWatchedAt);
 
-    if (watchedAgeHours <= 24) {
-      score -= 30;
-      reasons.push("watched recently");
-    } else if (watchedAgeHours <= 168) {
-      score -= 12;
-      reasons.push("watched this week");
+    if (lastWatchedAtMs) {
+      const watchedAgeHours =
+        Math.max(0, Date.now() - lastWatchedAtMs) / 3_600_000;
+
+      if (watchedAgeHours <= 24) {
+        score -= 30;
+        reasons.push("watched recently");
+      } else if (watchedAgeHours <= 168) {
+        score -= 12;
+        reasons.push("watched this week");
+      }
     }
   }
 
@@ -412,7 +426,9 @@ export async function getRecommendedReels({
     .toSorted((first, second) => {
       if (second.score !== first.score) return second.score - first.score;
 
-      return second.row.createdAt.getTime() - first.row.createdAt.getTime();
+      return (
+        (dateMs(second.row.createdAt) || 0) - (dateMs(first.row.createdAt) || 0)
+      );
     })
     .slice(0, limit)
     .map(({ reasons, row }) =>
@@ -452,7 +468,9 @@ export async function getRecommendedReelPreviews({
     .toSorted((first, second) => {
       if (second.score !== first.score) return second.score - first.score;
 
-      return second.row.createdAt.getTime() - first.row.createdAt.getTime();
+      return (
+        (dateMs(second.row.createdAt) || 0) - (dateMs(first.row.createdAt) || 0)
+      );
     })
     .slice(0, limit)
     .map(({ row }) => mapPreviewItem(row));
