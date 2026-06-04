@@ -60,6 +60,7 @@ export type ReelFeedItem = {
   location: string;
   price?: string;
   priceZarCents?: number | null;
+  recommendationReasons?: string[];
   beds?: string;
   baths?: string;
   size?: string;
@@ -270,10 +271,13 @@ function ReelCard({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captionRef = useRef<HTMLDivElement | null>(null);
   const hasRecordedViewRef = useRef(false);
+  const fastSkipRecordedRef = useRef(false);
   const isSeekingRef = useRef(false);
   const lastTapRef = useRef(0);
   const tapTimeoutRef = useRef<number | null>(null);
   const progressFrameRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
+  const visibleSinceRef = useRef<number | null>(null);
   const lastAnalyticsRef = useRef({
     currentTime: 0,
     sentAt: 0,
@@ -353,6 +357,7 @@ function ReelCard({
     const nextProgress = Math.min(1, Math.max(0, value));
     video.currentTime = nextProgress * video.duration;
     setProgress(nextProgress);
+    progressRef.current = nextProgress;
   };
 
   const commitSeekProgress = (value: number) => {
@@ -443,6 +448,7 @@ function ReelCard({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {
+          visibleSinceRef.current = Date.now();
           onVisible?.(reel.id);
           rememberWatchedReel(scope, reel.id);
 
@@ -450,6 +456,19 @@ function ReelCard({
             hasRecordedViewRef.current = true;
             void trackReelWatchProgress({
               eventType: "view",
+              reelId: reel.id,
+              source: analyticsSource,
+              viewerSessionId: getViewerSessionId(),
+            });
+          }
+        } else if (visibleSinceRef.current && !fastSkipRecordedRef.current) {
+          const visibleMs = Date.now() - visibleSinceRef.current;
+          visibleSinceRef.current = null;
+
+          if (visibleMs < 2200 && progressRef.current < 0.1) {
+            fastSkipRecordedRef.current = true;
+            void recordReelFeedback({
+              feedbackType: "fast_skip",
               reelId: reel.id,
               source: analyticsSource,
               viewerSessionId: getViewerSessionId(),
@@ -515,6 +534,10 @@ function ReelCard({
         video.duration > 0
       ) {
         setProgress(Math.min(1, Math.max(0, video.currentTime / video.duration)));
+        progressRef.current = Math.min(
+          1,
+          Math.max(0, video.currentTime / video.duration),
+        );
       }
 
       progressFrameRef.current = window.requestAnimationFrame(syncVisualProgress);
@@ -529,6 +552,7 @@ function ReelCard({
       }
 
       const nextProgress = Math.min(1, Math.max(0, video.currentTime / video.duration));
+      progressRef.current = nextProgress;
       const now = Date.now();
       const last = lastAnalyticsRef.current;
       const watchSeconds =
@@ -624,6 +648,13 @@ function ReelCard({
       )}
 
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.45)_0%,rgba(0,0,0,0.08)_24%,rgba(0,0,0,0.12)_54%,rgba(0,0,0,0.82)_100%)]" />
+
+      {process.env.NODE_ENV === "development" &&
+      reel.recommendationReasons?.length ? (
+        <div className="pointer-events-none absolute left-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-20 max-w-[70%] rounded-full bg-black/45 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white/80 backdrop-blur">
+          {reel.recommendationReasons.slice(0, 3).join(" · ")}
+        </div>
+      ) : null}
 
       {!isPlaying ? (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">

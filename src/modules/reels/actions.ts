@@ -59,7 +59,7 @@ const reelListingClickSchema = z.object({
   viewerSessionId: z.string().trim().min(8).max(128),
 });
 const reelFeedbackSchema = z.object({
-  feedbackType: z.enum(["not_interested", "dismiss_home_popup"]),
+  feedbackType: z.enum(["not_interested", "dismiss_home_popup", "fast_skip"]),
   reelId: z.string().uuid(),
   source: z.string().trim().min(1).max(64).optional(),
   viewerSessionId: z.string().trim().min(8).max(128),

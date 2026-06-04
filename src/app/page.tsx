@@ -30,7 +30,6 @@ import { db } from "@/db";
 import {
   agentProfiles,
   propertyListings,
-  reels,
   subscriptions,
   users,
 } from "@/db/schema";
@@ -39,7 +38,6 @@ import { authOptions } from "@/modules/auth/config";
 import {
   appendCountryPreference,
   countryPreferenceCookie,
-  locationMatchesCountry,
   parseCountryPreference,
   type CountryPreference,
 } from "@/modules/location/country-preference";
@@ -61,6 +59,7 @@ import {
 import { getPlatformStats } from "@/modules/platform-stats/actions";
 import { LivePlatformStats } from "@/modules/platform-stats/components/live-platform-stats";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
+import { getRecommendedReelPreviews } from "@/modules/reels/server/recommendations";
 
 type HomePageProps = {
   searchParams?: Promise<{
@@ -182,22 +181,6 @@ function listingCountLabel(count: number) {
   return `${count} ${count === 1 ? "listing" : "listings"}`;
 }
 
-function formatCompactCount(value: number) {
-  if (value < 1000) return String(value);
-
-  const compactValue = value / 1000;
-
-  return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
-}
-
-function formatDuration(value: unknown) {
-  const seconds = typeof value === "number" && Number.isFinite(value) ? value : 0;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-
-  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
-}
-
 function formatCurrencyCompact(cents: number) {
   if (!cents) return "No recorded sales";
 
@@ -251,96 +234,18 @@ async function getHomeListings(countryName?: string) {
 async function getHomeReels({
   areas,
   countryPreference,
+  viewerUserId,
 }: {
   areas: string[];
   countryPreference?: CountryPreference | null;
+  viewerUserId?: string | null;
 }) {
-  const rows = await db
-    .select({
-      agentUsername: users.username,
-      caption: reels.caption,
-      editMetadata: reels.editMetadata,
-      id: reels.id,
-      listingLocation: propertyListings.location,
-      listingReference: reels.listingReference,
-      viewCount: reels.viewCount,
-    })
-    .from(reels)
-    .innerJoin(users, eq(users.id, reels.userId))
-    .leftJoin(propertyListings, eq(propertyListings.id, reels.listingId))
-    .where(eq(reels.status, "published"))
-    .orderBy(desc(reels.createdAt))
-    .limit(32);
-
-  const activeAreas = areas.map((area) => area.toLowerCase());
-
-  return rows
-    .filter((reel) => {
-      const locationText = [
-        stringValue(metadataObject(reel.editMetadata).location),
-        reel.listingLocation,
-        reel.listingReference,
-      ]
-        .filter(Boolean)
-        .join(", ");
-
-      if (activeAreas.length) {
-        const normalizedLocation = locationText.toLowerCase();
-
-        return activeAreas.some((area) => normalizedLocation.includes(area));
-      }
-
-      return true;
-    })
-    .toSorted((first, second) => {
-      if (!countryPreference) return 0;
-
-      const firstMatches = locationMatchesCountry(
-        [
-          stringValue(metadataObject(first.editMetadata).location),
-          first.listingLocation,
-          first.listingReference,
-        ]
-          .filter(Boolean)
-          .join(", "),
-        countryPreference,
-      );
-      const secondMatches = locationMatchesCountry(
-        [
-          stringValue(metadataObject(second.editMetadata).location),
-          second.listingLocation,
-          second.listingReference,
-        ]
-          .filter(Boolean)
-          .join(", "),
-        countryPreference,
-      );
-
-      if (firstMatches === secondMatches) return 0;
-
-      return firstMatches ? -1 : 1;
-    })
-    .slice(0, 12)
-    .map((reel) => {
-      const metadata = metadataObject(reel.editMetadata);
-      const coverFrame = metadataObject(metadata.coverFrame);
-      const render = metadataObject(metadata.render);
-      const coverUrl =
-        stringValue(coverFrame.src) ||
-        toPublicMediaUrl(render.mediaPath as string) ||
-        null;
-
-      return {
-        coverUrl,
-        durationLabel: formatDuration(metadata.totalDuration),
-        href: `/reels?reel=${encodeURIComponent(reel.id)}`,
-        id: reel.id,
-        status: "published" as const,
-        title: reel.caption || "Homzie reel",
-        username: reel.agentUsername || "homzie",
-        viewCountLabel: `${formatCompactCount(reel.viewCount)} views`,
-      };
-    });
+  return getRecommendedReelPreviews({
+    areas,
+    countryPreference,
+    limit: 12,
+    viewerUserId,
+  });
 }
 
 async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]> {
@@ -811,6 +716,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     getHomeReels({
       areas: discoverFilters.areas,
       countryPreference,
+      viewerUserId: session?.user?.id || null,
     }),
     getTopSubscribedAgents(countryLabel),
     getPlatformStats(),
