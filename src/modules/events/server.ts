@@ -96,9 +96,7 @@ export async function createUserEvent({
 }) {
   if (actorUserId && actorUserId === userId) return;
 
-  const eventMetadata = metadata
-    ? sql.json(metadata as Parameters<typeof sql.json>[0])
-    : null;
+  const eventMetadata = metadata ? JSON.stringify(metadata) : null;
 
   await sql`
     INSERT INTO user_events (
@@ -123,7 +121,7 @@ export async function createUserEvent({
       ${messageId || null},
       ${listingId || null},
       ${reelId || null},
-      ${eventMetadata}
+      ${eventMetadata}::jsonb
     )
   `;
 }

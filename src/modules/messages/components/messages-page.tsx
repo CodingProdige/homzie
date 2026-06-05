@@ -2,6 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import EmojiPicker, {
+  EmojiStyle,
+  SkinTonePickerLocation,
+  Theme,
+  type EmojiClickData,
+} from "emoji-picker-react";
 import { useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -25,8 +31,10 @@ import {
   Loader2,
   MessageCircle,
   Mic,
+  Pause,
   Phone,
   PhoneOff,
+  Play,
   Search,
   Send,
   Smile,
@@ -81,6 +89,13 @@ type CallState = {
   remoteOffer?: RTCSessionDescriptionInit;
   status: "incoming" | "calling" | "connected";
   type: "audio" | "video";
+};
+
+type VoicePreview = {
+  blob: Blob;
+  durationSeconds: number;
+  url: string;
+  waveform: number[];
 };
 
 function initials(name: string) {
@@ -147,6 +162,13 @@ function formatTime(value: string | null) {
   });
 }
 
+function formatDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 function offerLabel(amountCents: number, currency: string) {
   return new Intl.NumberFormat(undefined, {
     currency,
@@ -196,16 +218,36 @@ export function MessagesPage({
   const [mobileThreadOpen, setMobileThreadOpen] = useState(Boolean(initialConversationId));
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
+  const [voicePreviewPlaying, setVoicePreviewPlaying] = useState(false);
+  const [voiceWaveform, setVoiceWaveform] = useState<number[]>(
+    Array.from({ length: 24 }, () => 0.22),
+  );
   const [callState, setCallState] = useState<CallState | null>(null);
   const [isPending, startTransition] = useTransition();
   const socketRef = useRef<Socket | null>(null);
+  const activeConversationIdRef = useRef<string | null>(activeConversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
+  const recordingTimerRef = useRef<number | null>(null);
+  const recordingAnimationRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const discardRecordingRef = useRef(false);
+  const voiceWaveformRef = useRef<number[]>(voiceWaveform);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -278,6 +320,10 @@ export function MessagesPage({
   );
 
   useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
@@ -293,6 +339,52 @@ export function MessagesPage({
   }, [activeConversationId]);
 
   useEffect(() => {
+    if (!emojiPickerOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+
+      if (
+        emojiPickerRef.current?.contains(target) ||
+        emojiButtonRef.current?.contains(target) ||
+        messageInputRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setEmojiPickerOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [emojiPickerOpen]);
+
+  useEffect(() => {
+    voiceWaveformRef.current = voiceWaveform;
+  }, [voiceWaveform]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        window.clearInterval(recordingTimerRef.current);
+      }
+
+      if (recordingAnimationRef.current) {
+        window.cancelAnimationFrame(recordingAnimationRef.current);
+      }
+
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      void audioContextRef.current?.close();
+      if (voicePreview?.url) {
+        URL.revokeObjectURL(voicePreview.url);
+      }
+    };
+  }, [voicePreview]);
+
+  useEffect(() => {
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || undefined, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
@@ -302,20 +394,25 @@ export function MessagesPage({
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      if (activeConversationId) {
-        socket.emit("conversation:join", activeConversationId);
+      const conversationId = activeConversationIdRef.current;
+
+      if (conversationId) {
+        socket.emit("conversation:join", conversationId);
 
         if (pendingCallId) {
           socket.emit("call:callee-ready", {
             callId: pendingCallId,
-            conversationId: activeConversationId,
+            conversationId,
           });
         }
       }
     });
 
     socket.on("message.created", (event) => {
-      if (event.messageId && event.conversationId === activeConversationId) {
+      if (
+        event.messageId &&
+        event.conversationId === activeConversationIdRef.current
+      ) {
         markMessageDeliveredAction({ messageId: event.messageId });
         refreshConversation(event.conversationId);
       } else {
@@ -330,19 +427,44 @@ export function MessagesPage({
     });
 
     socket.on("conversation.read", (event) => {
-      if (event.conversationId === activeConversationId) {
+      if (event.conversationId === activeConversationIdRef.current) {
+        if (event.readerUserId !== viewer.id) {
+          const readAt = new Date(event.readAt).getTime();
+
+          setMessages((current) =>
+            current.map((message) =>
+              message.senderUserId === viewer.id &&
+              new Date(message.createdAt).getTime() <= readAt
+                ? { ...message, status: "read" }
+                : message,
+            ),
+          );
+        }
+
         refreshConversation(event.conversationId);
       }
     });
 
     socket.on("message.delivered", (event) => {
-      if (event.conversationId === activeConversationId) {
+      if (event.conversationId === activeConversationIdRef.current) {
+        if (event.userId !== viewer.id) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === event.messageId &&
+              message.senderUserId === viewer.id &&
+              message.status !== "read"
+                ? { ...message, status: "delivered" }
+                : message,
+            ),
+          );
+        }
+
         refreshConversation(event.conversationId);
       }
     });
 
     socket.on("typing:start", (event) => {
-      if (event.conversationId !== activeConversationId) return;
+      if (event.conversationId !== activeConversationIdRef.current) return;
 
       setTypingUserIds((current) =>
         current.includes(event.userId) ? current : [...current, event.userId],
@@ -428,7 +550,31 @@ export function MessagesPage({
     return () => {
       socket.disconnect();
     };
-  }, [activeConversationId, endLocalCall, pendingCallId, refreshConversation]);
+  }, [endLocalCall, pendingCallId, refreshConversation, viewer.id]);
+
+  useEffect(() => {
+    function refreshActiveConversation() {
+      const conversationId = activeConversationIdRef.current;
+
+      if (!conversationId) return;
+
+      refreshConversation(conversationId);
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        refreshActiveConversation();
+      }
+    }
+
+    window.addEventListener("focus", refreshActiveConversation);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", refreshActiveConversation);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [refreshConversation]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -514,6 +660,21 @@ export function MessagesPage({
     }, 900);
   }
 
+  function insertEmoji(emoji: string) {
+    const input = messageInputRef.current;
+    const selectionStart = input?.selectionStart ?? body.length;
+    const selectionEnd = input?.selectionEnd ?? selectionStart;
+    const nextBody =
+      body.slice(0, selectionStart) + emoji + body.slice(selectionEnd);
+    const nextCursor = selectionStart + emoji.length;
+
+    handleTyping(nextBody);
+    window.requestAnimationFrame(() => {
+      messageInputRef.current?.focus();
+      messageInputRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
+
   async function sendMediaMessage(mediaType: "audio" | "image" | "voice", file: Blob | File) {
     const conversationId = activeConversationId;
 
@@ -543,15 +704,118 @@ export function MessagesPage({
     }
   }
 
-  async function toggleRecording() {
-    if (recording) {
-      mediaRecorderRef.current?.stop();
-      setRecording(false);
+  function stopRecordingMeters() {
+    if (recordingTimerRef.current) {
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    if (recordingAnimationRef.current) {
+      window.cancelAnimationFrame(recordingAnimationRef.current);
+      recordingAnimationRef.current = null;
+    }
+
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    audioAnalyserRef.current = null;
+  }
+
+  function stopRecordingStream() {
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recordingStreamRef.current = null;
+  }
+
+  function startVoiceWaveform(stream: MediaStream) {
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    const samples = new Uint8Array(analyser.frequencyBinCount);
+
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    audioContextRef.current = audioContext;
+    audioAnalyserRef.current = analyser;
+
+    function draw() {
+      analyser.getByteFrequencyData(samples);
+
+      const nextWaveform = Array.from({ length: 24 }, (_, index) => {
+        const start = Math.floor((index / 24) * samples.length);
+        const end = Math.max(start + 1, Math.floor(((index + 1) / 24) * samples.length));
+        const slice = samples.slice(start, end);
+        const average =
+          slice.reduce((total, value) => total + value, 0) / Math.max(slice.length, 1);
+
+        return Math.min(1, Math.max(0.18, average / 140));
+      });
+
+      setVoiceWaveform(nextWaveform);
+      recordingAnimationRef.current = window.requestAnimationFrame(draw);
+    }
+
+    draw();
+  }
+
+  function clearVoicePreview() {
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current.currentTime = 0;
+    }
+
+    if (voicePreview?.url) {
+      URL.revokeObjectURL(voicePreview.url);
+    }
+
+    setVoicePreview(null);
+    setVoicePreviewPlaying(false);
+  }
+
+  async function sendVoicePreview() {
+    if (!voicePreview) return;
+
+    const { blob } = voicePreview;
+
+    clearVoicePreview();
+    await sendMediaMessage("voice", blob);
+  }
+
+  function stopRecording({ discard = false }: { discard?: boolean } = {}) {
+    if (!mediaRecorderRef.current || !recording) return;
+
+    discardRecordingRef.current = discard;
+    mediaRecorderRef.current.stop();
+  }
+
+  async function toggleVoicePreviewPlayback() {
+    const audio = voicePreviewAudioRef.current;
+
+    if (!audio) return;
+
+    if (voicePreviewPlaying) {
+      audio.pause();
+      setVoicePreviewPlaying(false);
       return;
     }
 
+    await audio.play();
+    setVoicePreviewPlaying(true);
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      stopRecording();
+      return;
+    }
+
+    clearVoicePreview();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunksRef.current = [];
+    discardRecordingRef.current = false;
+    recordingStreamRef.current = stream;
+    recordingStartedAtRef.current = Date.now();
+    setRecordingSeconds(0);
+    setVoiceWaveform(Array.from({ length: 24 }, () => 0.22));
+
     const recorder = new MediaRecorder(stream);
     mediaRecorderRef.current = recorder;
 
@@ -559,15 +823,52 @@ export function MessagesPage({
       if (event.data.size > 0) recordedChunksRef.current.push(event.data);
     };
     recorder.onstop = async () => {
-      stream.getTracks().forEach((track) => track.stop());
+      const durationSeconds = Math.max(
+        1,
+        Math.round((Date.now() - (recordingStartedAtRef.current || Date.now())) / 1000),
+      );
+      const waveform = voiceWaveformRef.current;
+
+      stopRecordingMeters();
+      stopRecordingStream();
+      setRecording(false);
+      mediaRecorderRef.current = null;
+      recordingStartedAtRef.current = null;
+
+      if (discardRecordingRef.current) {
+        recordedChunksRef.current = [];
+        discardRecordingRef.current = false;
+        setRecordingSeconds(0);
+        setVoiceWaveform(Array.from({ length: 24 }, () => 0.22));
+        return;
+      }
+
       const blob = new Blob(recordedChunksRef.current, {
         type: recorder.mimeType || "audio/webm",
       });
-      await sendMediaMessage("voice", blob);
       recordedChunksRef.current = [];
+
+      if (!blob.size) return;
+
+      setVoicePreview({
+        blob,
+        durationSeconds,
+        url: URL.createObjectURL(blob),
+        waveform,
+      });
     };
 
-    recorder.start();
+    startVoiceWaveform(stream);
+    recordingTimerRef.current = window.setInterval(() => {
+      setRecordingSeconds(
+        Math.max(
+          0,
+          Math.floor((Date.now() - (recordingStartedAtRef.current || Date.now())) / 1000),
+        ),
+      );
+    }, 250);
+
+    recorder.start(250);
     setRecording(true);
   }
 
@@ -735,7 +1036,7 @@ export function MessagesPage({
       <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-[1800px] border-t border-border lg:h-[calc(100vh-5rem)]">
         <aside
           className={cn(
-            "flex w-full shrink-0 flex-col border-r border-border bg-background md:w-[24rem]",
+            "flex h-full min-h-0 w-full shrink-0 flex-col border-r border-border bg-background md:w-[24rem]",
             mobileThreadOpen && "hidden md:flex",
           )}
         >
@@ -793,7 +1094,7 @@ export function MessagesPage({
             </label>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-4">
             {filteredConversations.length ? (
               filteredConversations.map((conversation) => {
                 const participant = conversation.otherParticipants[0] || null;
@@ -842,8 +1143,9 @@ export function MessagesPage({
 
         <section
           className={cn(
-            "min-w-0 flex-1 bg-background",
-            !mobileThreadOpen && "hidden md:block",
+            "min-h-0 min-w-0 flex-1 flex-col bg-background",
+            !mobileThreadOpen && "hidden md:flex",
+            mobileThreadOpen && "flex",
           )}
         >
           {activeConversation ? (
@@ -886,7 +1188,7 @@ export function MessagesPage({
                 onReport={() => setReportOpen(true)}
               />
             ) : (
-              <div className="flex h-full min-h-0 flex-col">
+              <div className="flex h-full min-h-0 w-full flex-1 flex-col">
                 <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <Button
@@ -987,8 +1289,11 @@ export function MessagesPage({
                   </div>
                 ) : null}
 
-                <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-                  <div className="mx-auto flex max-w-4xl flex-col gap-3">
+                <div
+                  ref={scrollRef}
+                  className="relative isolate min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-4 py-6 before:pointer-events-none before:absolute before:inset-0 before:-z-20 before:bg-[url('/backgrounds/chat-window-background-clipped.png')] before:bg-cover before:bg-center before:bg-no-repeat before:opacity-[0.18] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-background/70 dark:before:opacity-[0.2] dark:before:invert dark:before:brightness-150 dark:after:bg-background/82"
+                >
+                  <div className="relative z-10 mx-auto flex max-w-4xl flex-col gap-3">
                     {messages.map((message) => {
                       const mine = message.senderUserId === viewer.id;
 
@@ -1045,7 +1350,7 @@ export function MessagesPage({
                 </div>
 
                 <footer className="shrink-0 border-t border-border p-3">
-                  <div className="mx-auto flex max-w-4xl items-center gap-2 rounded-full border border-border bg-background px-3 py-2">
+                  <div className="relative mx-auto flex max-w-4xl items-center gap-2 rounded-full border border-border bg-background px-3 py-2">
                     <input
                       ref={imageInputRef}
                       type="file"
@@ -1055,42 +1360,164 @@ export function MessagesPage({
                         handleImageSelected(event.currentTarget.files?.[0] || null)
                       }
                     />
-                    <Smile className="size-5 shrink-0 text-muted-foreground" />
-                    <input
-                      value={body}
-                      onChange={(event) => handleTyping(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          sendCurrentMessage();
-                        }
-                      }}
-                      placeholder="Message..."
-                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
-                    />
                     <Button
-                      variant={recording ? "default" : "ghost"}
-                      size="icon"
-                      aria-label={recording ? "Stop recording" : "Voice note"}
-                      onClick={toggleRecording}
-                    >
-                      <Mic className="size-5" />
-                    </Button>
-                    <Button
+                      ref={emojiButtonRef}
+                      type="button"
                       variant="ghost"
                       size="icon"
-                      aria-label="Attach image"
-                      onClick={() => imageInputRef.current?.click()}
+                      aria-label="Open emoji picker"
+                      aria-expanded={emojiPickerOpen}
+                      onClick={() => setEmojiPickerOpen((open) => !open)}
                     >
-                      <ImageIcon className="size-5" />
+                      <Smile className="size-5" />
                     </Button>
+                    {emojiPickerOpen ? (
+                      <div
+                        ref={emojiPickerRef}
+                        className="absolute bottom-[calc(100%+0.75rem)] left-0 z-30 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-2xl shadow-black/20"
+                      >
+                        <EmojiPicker
+                          autoFocusSearch={false}
+                          emojiStyle={EmojiStyle.NATIVE}
+                          height={380}
+                          lazyLoadEmojis
+                          onEmojiClick={(emojiData: EmojiClickData) =>
+                            insertEmoji(emojiData.emoji)
+                          }
+                          previewConfig={{ showPreview: false }}
+                          searchPlaceHolder="Search emojis"
+                          skinTonePickerLocation={SkinTonePickerLocation.SEARCH}
+                          theme={Theme.AUTO}
+                          width="100%"
+                        />
+                      </div>
+                    ) : null}
+                    {recording ? (
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <span className="size-2 shrink-0 animate-pulse rounded-full bg-destructive" />
+                        <span className="w-10 text-xs font-black tabular-nums text-destructive">
+                          {formatDuration(recordingSeconds)}
+                        </span>
+                        <div className="flex h-8 min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                          {voiceWaveform.map((level, index) => (
+                            <span
+                              key={`${index}-${level}`}
+                              className="w-1 rounded-full bg-primary/80 transition-[height] duration-100"
+                              style={{ height: `${Math.round(8 + level * 24)}px` }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : voicePreview ? (
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <audio
+                          ref={voicePreviewAudioRef}
+                          src={voicePreview.url}
+                          className="hidden"
+                          onEnded={() => setVoicePreviewPlaying(false)}
+                          onPause={() => setVoicePreviewPlaying(false)}
+                          onPlay={() => setVoicePreviewPlaying(true)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={voicePreviewPlaying ? "Pause voice note" : "Play voice note"}
+                          onClick={toggleVoicePreviewPlayback}
+                        >
+                          {voicePreviewPlaying ? (
+                            <Pause className="size-4" />
+                          ) : (
+                            <Play className="size-4" />
+                          )}
+                        </Button>
+                        <div className="flex h-8 min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                          {voicePreview.waveform.map((level, index) => (
+                            <span
+                              key={`${index}-${level}`}
+                              className="w-1 rounded-full bg-primary/70"
+                              style={{ height: `${Math.round(8 + level * 24)}px` }}
+                            />
+                          ))}
+                        </div>
+                        <span className="w-10 text-xs font-black tabular-nums text-muted-foreground">
+                          {formatDuration(voicePreview.durationSeconds)}
+                        </span>
+                      </div>
+                    ) : (
+                      <input
+                        ref={messageInputRef}
+                        value={body}
+                        onChange={(event) => handleTyping(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            sendCurrentMessage();
+                          }
+                        }}
+                        placeholder="Message..."
+                        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                      />
+                    )}
+                    {recording || voicePreview ? (
+                      <>
+                        {recording ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="icon"
+                            aria-label="Stop recording"
+                            onClick={() => stopRecording()}
+                          >
+                            <Mic className="size-5" />
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={recording ? "Delete recording" : "Delete voice note"}
+                          onClick={() =>
+                            recording ? stopRecording({ discard: true }) : clearVoicePreview()
+                          }
+                        >
+                          <Trash2 className="size-5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Voice note"
+                          onClick={toggleRecording}
+                        >
+                          <Mic className="size-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Attach image"
+                          onClick={() => imageInputRef.current?.click()}
+                        >
+                          <ImageIcon className="size-5" />
+                        </Button>
+                      </>
+                    )}
                     <Button
                       type="button"
-                      variant={body.trim() ? "default" : "ghost"}
+                      variant={body.trim() || voicePreview ? "default" : "ghost"}
                       size="icon"
-                      aria-label="Send message"
-                      disabled={!body.trim() || isPending}
-                      onClick={sendCurrentMessage}
+                      aria-label={voicePreview ? "Send voice note" : "Send message"}
+                      disabled={recording || (!body.trim() && !voicePreview) || isPending}
+                      onClick={() => {
+                        if (voicePreview) {
+                          void sendVoicePreview();
+                          return;
+                        }
+
+                        sendCurrentMessage();
+                      }}
                     >
                       {isPending ? (
                         <Loader2 className="size-4 animate-spin" />

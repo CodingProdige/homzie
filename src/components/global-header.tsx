@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import {
   Building2,
   Clapperboard,
+  CircleHelp,
   Heart,
   Home,
   Menu,
@@ -35,6 +36,8 @@ const navItems: Array<{
   { href: "/agents", icon: UsersRound, label: "Agents" },
   { href: "/reels", icon: Clapperboard, label: "Reels" },
   { href: "/listings", icon: Building2, label: "Listings" },
+  { href: "/about", icon: CircleHelp, label: "About" },
+  { href: "/contact", icon: Send, label: "Contact" },
 ];
 
 export function GlobalHeader({
@@ -291,59 +294,63 @@ export function GlobalHeader({
                   </Dialog.Close>
                 </div>
 
-                <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-                  <GlobalUserSearchTrigger
-                    display="menu-item"
-                    onOpen={() => setMenuOpen(false)}
-                  />
-                  {mobileItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = isActiveHref(item.href);
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+                  <nav className="flex flex-col gap-1">
+                    <GlobalUserSearchTrigger
+                      display="menu-item"
+                      onOpen={() => setMenuOpen(false)}
+                    />
+                    {mobileItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = isActiveHref(item.href);
 
-                    return (
-                      <Dialog.Close key={item.label} asChild>
-                        <Link
-                          href={item.href}
-                          aria-current={isActive ? "page" : undefined}
-                          className={cn(
-                            "flex min-h-12 items-center justify-between rounded-md px-3 text-base font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                            isActive &&
-                              "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus:bg-primary/15 focus:text-primary",
-                          )}
-                        >
-                          <span className="flex min-w-0 items-center gap-3">
-                            <Icon className="size-5 shrink-0 text-current" />
-                            <span>{item.label}</span>
-                          </span>
-                          {item.label === "Events" && viewerUsername ? (
-                            <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
-                          ) : null}
-                          {item.label === "Messages" && viewerUsername ? (
-                            <MessageCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
-                          ) : null}
-                        </Link>
-                      </Dialog.Close>
-                    );
-                  })}
-                </nav>
+                      return (
+                        <Dialog.Close key={item.label} asChild>
+                          <Link
+                            href={item.href}
+                            aria-current={isActive ? "page" : undefined}
+                            className={cn(
+                              "flex min-h-12 items-center justify-between rounded-md px-3 text-base font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                              isActive &&
+                                "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus:bg-primary/15 focus:text-primary",
+                            )}
+                          >
+                            <span className="flex min-w-0 items-center gap-3">
+                              <Icon className="size-5 shrink-0 text-current" />
+                              <span>{item.label}</span>
+                            </span>
+                            {item.label === "Events" && viewerUsername ? (
+                              <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                            ) : null}
+                            {item.label === "Messages" && viewerUsername ? (
+                              <MessageCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                            ) : null}
+                          </Link>
+                        </Dialog.Close>
+                      );
+                    })}
+                  </nav>
+                </div>
 
-                <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Theme
-                  </span>
-                  <ThemeToggle />
-                </div>
-                <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Country
-                  </span>
-                  <CountryPreferenceSelector />
-                </div>
-                <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Currency
-                  </span>
-                  <CurrencySelector />
+                <div className="shrink-0 bg-background">
+                  <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Theme
+                    </span>
+                    <ThemeToggle />
+                  </div>
+                  <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Country
+                    </span>
+                    <CountryPreferenceSelector />
+                  </div>
+                  <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Currency
+                    </span>
+                    <CurrencySelector />
+                  </div>
                 </div>
               </Dialog.Content>
             </Dialog.Portal>

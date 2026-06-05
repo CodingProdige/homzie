@@ -2822,7 +2822,10 @@ function TimelineScreen({
     if (!isTimelineDraggingRef.current) return;
 
     isTimelineDraggingRef.current = false;
-    event.currentTarget.releasePointerCapture(event.pointerId);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function handleTimelinePointerCancel(event: PointerEvent<HTMLDivElement>) {

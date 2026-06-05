@@ -7,12 +7,19 @@ import { HomzieLogo } from "@/components/homzie-logo";
 
 const footerSections = [
   {
+    title: "Company",
+    links: [
+      { href: "/about", label: "About us" },
+      { href: "/contact", label: "Contact us" },
+      { href: "/become-agent", label: "Become an agent" },
+    ],
+  },
+  {
     title: "Explore",
     links: [
       { href: "/agents", label: "Agents" },
-      { href: "/listings", label: "Listings" },
       { href: "/reels", label: "Reels" },
-      { href: "/become-agent", label: "Become an agent" },
+      { href: "/listings", label: "Listings" },
     ],
   },
   {
@@ -23,12 +30,21 @@ const footerSections = [
       { href: "/settings/billing", label: "Billing" },
     ],
   },
+  {
+    title: "Policies",
+    links: [
+      { href: "/privacy-policy", label: "Privacy policy" },
+      { href: "/terms-of-service", label: "Terms of service" },
+      { href: "/cookie-policy", label: "Cookie policy" },
+      { href: "/community-guidelines", label: "Community guidelines" },
+    ],
+  },
 ];
 
 export function GlobalFooter({ viewerUsername }: { viewerUsername?: string }) {
   return (
     <footer className="border-t border-border bg-card text-card-foreground">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr] lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:px-8">
         <div>
           <Link href="/" aria-label="Homzie home" className="inline-flex">
             <HomzieLogo variant="tight" className="h-10" />
