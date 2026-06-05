@@ -67,3 +67,7 @@ USER nextjs
 EXPOSE 3000
 
 CMD ["node", "server.js"]
+
+FROM caddy:2-alpine AS caddy
+
+COPY Caddyfile /etc/caddy/Caddyfile

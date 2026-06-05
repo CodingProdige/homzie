@@ -146,12 +146,14 @@ services:
   caddy:
     profiles:
       - selfhost
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: caddy
     restart: unless-stopped
     expose:
       - "80"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - homzie_caddy_data:/data
       - homzie_caddy_config:/config
       - /mnt/c/Homzie/storage/media:/data/media:ro
