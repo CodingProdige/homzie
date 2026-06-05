@@ -1,18 +1,39 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useState } from "react";
-import { Heart, Menu, Send, X } from "lucide-react";
+import {
+  Building2,
+  Clapperboard,
+  Heart,
+  Home,
+  Menu,
+  Send,
+  UserRound,
+  UsersRound,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
 import { CountryPreferenceSelector } from "@/components/country-preference-selector";
 import { GlobalUserSearchTrigger } from "@/components/global-user-search";
 import { HomzieLogo } from "@/components/homzie-logo";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 
-const navItems = ["Agents", "Reels", "Listings"];
+const navItems: Array<{
+  href: string;
+  icon: LucideIcon;
+  label: string;
+}> = [
+  { href: "/agents", icon: UsersRound, label: "Agents" },
+  { href: "/reels", icon: Clapperboard, label: "Reels" },
+  { href: "/listings", icon: Building2, label: "Listings" },
+];
 
 export function GlobalHeader({
   transparentUntilScroll = false,
@@ -21,21 +42,27 @@ export function GlobalHeader({
   transparentUntilScroll?: boolean;
   viewerUsername?: string;
 }) {
+  const pathname = usePathname();
   const [hasScrolled, setHasScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const scrolled = !transparentUntilScroll || hasScrolled;
+  const isActiveHref = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
+  const profileHref = viewerUsername ? `/users/${viewerUsername}` : "/sign-in";
+  const messagesHref = "/messages";
+  const isProfileActive = isActiveHref(profileHref);
+  const isMessagesActive = isActiveHref(messagesHref);
   const mobileItems = [
-    ...navItems.map((item) => ({
-      label: item,
-      href:
-        item === "Agents"
-          ? "/agents"
-          : item === "Reels"
-            ? "/reels"
-            : "/listings",
-    })),
+    {
+      label: "Messages",
+      href: messagesHref,
+      icon: Send,
+    },
+    ...navItems,
     {
       label: viewerUsername ? "Profile" : "Sign in",
-      href: viewerUsername ? `/users/${viewerUsername}` : "/sign-in",
+      href: profileHref,
+      icon: viewerUsername ? UserRound : Home,
     },
   ];
 
@@ -77,26 +104,30 @@ export function GlobalHeader({
         </Link>
 
         <nav className="hidden items-center gap-10 text-sm font-semibold text-foreground lg:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item}
-              href={
-                item === "Agents"
-                  ? "/agents"
-                  : item === "Reels"
-                    ? "/reels"
-                    : "/listings"
-              }
-              className="flex items-center gap-2 transition-colors hover:text-primary"
-            >
-              {item}
-              {item === "Reels" ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">
-                  New
-                </span>
-              ) : null}
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = isActiveHref(item.href);
+
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "relative flex items-center gap-2 py-2 transition-colors hover:text-primary",
+                  isActive && "text-primary",
+                )}
+              >
+                {item.label === "Reels" ? (
+                  <Icon className="size-4 text-current" />
+                ) : null}
+                {item.label}
+                {isActive ? (
+                  <span className="absolute -bottom-1 left-0 h-0.5 w-full rounded-full bg-primary" />
+                ) : null}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 lg:gap-3">
@@ -109,29 +140,60 @@ export function GlobalHeader({
           <Button
             variant="ghost"
             size="icon"
-            className="hidden lg:inline-flex"
+            asChild
+            className={cn(
+              "hidden lg:inline-flex",
+              isMessagesActive && "bg-primary/10 text-primary",
+            )}
             aria-label="Messages"
           >
-            <Send className="size-5" />
+            <Link
+              href={messagesHref}
+              aria-current={isMessagesActive ? "page" : undefined}
+            >
+              <Send className="size-5" />
+            </Link>
           </Button>
           <Button
             variant="ghost"
             size="icon"
             className="hidden lg:inline-flex"
-            aria-label="Saved properties"
+            aria-label="Notifications"
           >
             <Heart className="size-5" />
           </Button>
           {viewerUsername ? (
-            <Button asChild className="hidden px-6 sm:inline-flex">
-              <Link href={`/users/${viewerUsername}`}>Profile</Link>
+            <Button
+              asChild
+              className={cn(
+                "hidden px-6 sm:inline-flex",
+                isProfileActive && "ring-2 ring-primary/35 ring-offset-2",
+              )}
+            >
+              <Link
+                href={`/users/${viewerUsername}`}
+                aria-current={isProfileActive ? "page" : undefined}
+              >
+                Profile
+              </Link>
             </Button>
           ) : (
-            <Button asChild className="hidden px-6 sm:inline-flex">
-              <Link href="/sign-in">Sign in</Link>
+            <Button
+              asChild
+              className={cn(
+                "hidden px-6 sm:inline-flex",
+                isProfileActive && "ring-2 ring-primary/35 ring-offset-2",
+              )}
+            >
+              <Link
+                href="/sign-in"
+                aria-current={isProfileActive ? "page" : undefined}
+              >
+                Sign in
+              </Link>
             </Button>
           )}
-          <Dialog.Root>
+          <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
             <Dialog.Trigger asChild>
               <Button
                 variant="ghost"
@@ -155,21 +217,33 @@ export function GlobalHeader({
                 </div>
 
                 <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-                  {mobileItems.map((item) => (
-                    <Dialog.Close key={item.label} asChild>
-                      <Link
-                        href={item.href}
-                        className="flex min-h-12 items-center justify-between rounded-md px-3 text-base font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                      >
-                        {item.label}
-                        {item.label === "Reels" ? (
-                          <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">
-                            New
+                  <GlobalUserSearchTrigger
+                    display="menu-item"
+                    onOpen={() => setMenuOpen(false)}
+                  />
+                  {mobileItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = isActiveHref(item.href);
+
+                    return (
+                      <Dialog.Close key={item.label} asChild>
+                        <Link
+                          href={item.href}
+                          aria-current={isActive ? "page" : undefined}
+                          className={cn(
+                            "flex min-h-12 items-center justify-between rounded-md px-3 text-base font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                            isActive &&
+                              "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus:bg-primary/15 focus:text-primary",
+                          )}
+                        >
+                          <span className="flex min-w-0 items-center gap-3">
+                            <Icon className="size-5 shrink-0 text-current" />
+                            <span>{item.label}</span>
                           </span>
-                        ) : null}
-                      </Link>
-                    </Dialog.Close>
-                  ))}
+                        </Link>
+                      </Dialog.Close>
+                    );
+                  })}
                 </nav>
 
                 <div className="flex items-center justify-between gap-4 border-t border-border/70 px-5 py-4">

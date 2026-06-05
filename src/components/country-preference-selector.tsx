@@ -84,7 +84,7 @@ export function CountryPreferenceSelector({
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="z-[80] w-72 overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl shadow-black/20 outline-none"
+          className="z-[120] w-72 overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl shadow-black/20 outline-none"
         >
           <div className="px-2 py-2">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">

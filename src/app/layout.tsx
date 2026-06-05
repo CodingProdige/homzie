@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Poppins } from "next/font/google";
+import Script from "next/script";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
 import "./globals.css";
@@ -20,6 +21,9 @@ export const metadata: Metadata = {
   description: "Find it. Love it. Live it.",
 };
 
+const googleAnalyticsId =
+  process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || "G-R76VMT2VVG";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,6 +35,18 @@ export default function RootLayout({
       className={`${poppins.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${googleAnalyticsId}');
+          `}
+        </Script>
         <CurrencyProvider>
           <CountryPreferenceBootstrap />
           {children}

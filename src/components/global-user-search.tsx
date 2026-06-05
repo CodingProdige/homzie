@@ -42,7 +42,15 @@ function userSearchResults(value: unknown): UserSearchResult[] {
   });
 }
 
-export function GlobalUserSearchTrigger({ className }: { className?: string }) {
+export function GlobalUserSearchTrigger({
+  className,
+  display = "icon",
+  onOpen,
+}: {
+  className?: string;
+  display?: "icon" | "menu-item";
+  onOpen?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -119,13 +127,22 @@ export function GlobalUserSearchTrigger({ className }: { className?: string }) {
     <>
       <Button
         variant="ghost"
-        size="icon"
-        className={className}
+        size={display === "icon" ? "icon" : "default"}
+        className={
+          className ||
+          (display === "menu-item"
+            ? "flex min-h-12 w-full justify-start rounded-md px-3 text-base font-semibold"
+            : undefined)
+        }
         aria-label="Search users"
         aria-expanded={open}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          onOpen?.();
+          setOpen(true);
+        }}
       >
         <Search className="size-5" />
+        {display === "menu-item" ? <span>Search</span> : null}
       </Button>
 
       {open ? (

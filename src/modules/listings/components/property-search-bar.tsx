@@ -827,7 +827,7 @@ export function PropertySearchBar({
         <Button
           type="button"
           variant="outline"
-          className={cn("h-12", isHero && "h-14 bg-white text-base dark:bg-background")}
+          className={cn("h-12 w-full", isHero && "h-14 bg-white text-base dark:bg-background")}
         >
           <SlidersHorizontal className="size-4" />
           {isHero ? "More filters" : "Filters"}
@@ -1172,7 +1172,7 @@ export function PropertySearchBar({
             value={minPrice}
           />
           <SearchSelect
-            className="h-12 bg-white text-sm dark:bg-background sm:h-14 sm:text-base lg:col-start-5 lg:row-start-1"
+            className="col-span-2 h-12 bg-white text-sm dark:bg-background sm:col-span-1 sm:h-14 sm:text-base lg:col-start-5 lg:row-start-1"
             label="Max price"
             onChange={setMaxPrice}
             options={[{ label: "Max price", value: "" }, ...priceOptions]}
