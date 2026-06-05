@@ -125,7 +125,6 @@ services:
       - selfhost
     image: coturn/coturn:4.6.3
     restart: unless-stopped
-    network_mode: host
     command:
       - --listening-port=3478
       - --fingerprint
@@ -142,6 +141,9 @@ services:
       - --no-tls
       - --no-dtls
       - --log-file=-
+    ports:
+      - "${TURN_PORT:-3478}:3478/tcp"
+      - "${TURN_PORT:-3478}:3478/udp"
 
   caddy:
     profiles:
