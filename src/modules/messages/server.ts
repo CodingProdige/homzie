@@ -551,17 +551,18 @@ export async function markConversationRead(
   await assertConversationMember(conversationId, readerUserId);
 
   const readAt = new Date();
+  const readAtIso = readAt.toISOString();
 
   await sql`
     UPDATE conversation_participants
-    SET last_read_at = ${readAt}, updated_at = now()
+    SET last_read_at = ${readAtIso}, updated_at = now()
     WHERE conversation_id = ${conversationId}
       AND user_id = ${readerUserId}
   `;
 
   await sql`
     INSERT INTO message_receipts (message_id, user_id, delivered_at, read_at, updated_at)
-    SELECT id, ${readerUserId}, now(), ${readAt}, now()
+    SELECT id, ${readerUserId}, now(), ${readAtIso}, now()
     FROM messages
     WHERE conversation_id = ${conversationId}
       AND sender_user_id IS DISTINCT FROM ${readerUserId}
@@ -578,7 +579,7 @@ export async function markConversationRead(
   await publishMessageEvent({
     conversationId,
     participantUserIds,
-    readAt: readAt.toISOString(),
+    readAt: readAtIso,
     readerUserId,
     type: "conversation.read",
   });
@@ -603,10 +604,11 @@ export async function markMessageDelivered(
   if (!row) return;
 
   const deliveredAt = new Date();
+  const deliveredAtIso = deliveredAt.toISOString();
 
   await sql`
     INSERT INTO message_receipts (message_id, user_id, delivered_at, updated_at)
-    VALUES (${messageId}, ${userId}, ${deliveredAt}, now())
+    VALUES (${messageId}, ${userId}, ${deliveredAtIso}, now())
     ON CONFLICT (message_id, user_id)
     DO UPDATE SET
       delivered_at = COALESCE(message_receipts.delivered_at, EXCLUDED.delivered_at),
@@ -615,7 +617,7 @@ export async function markMessageDelivered(
 
   await publishMessageEvent({
     conversationId: row.conversation_id,
-    deliveredAt: deliveredAt.toISOString(),
+    deliveredAt: deliveredAtIso,
     messageId,
     participantUserIds: await getParticipantUserIds(row.conversation_id),
     type: "message.delivered",
@@ -630,9 +632,11 @@ export async function setConversationMuted(
 ) {
   await assertConversationMember(conversationId, userId);
 
+  const mutedAt = muted ? new Date().toISOString() : null;
+
   await sql`
     UPDATE conversation_participants
-    SET muted_at = ${muted ? new Date() : null}, updated_at = now()
+    SET muted_at = ${mutedAt}, updated_at = now()
     WHERE conversation_id = ${conversationId}
       AND user_id = ${userId}
   `;

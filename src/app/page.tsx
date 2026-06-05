@@ -25,6 +25,7 @@ import {
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { HorizontalScrollRail } from "@/components/horizontal-scroll-rail";
+import { RotatingHeroCopy } from "@/components/rotating-hero-copy";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import {
@@ -740,18 +741,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           />
           <div className="hero-theme-overlay absolute inset-0" />
 
-          <div className="page-body relative z-10 flex min-h-[700px] flex-col items-start justify-center pb-8 pt-8 text-left sm:min-h-[740px] sm:items-center sm:text-center">
+          <div className="page-body relative z-10 flex min-h-[700px] flex-col items-center justify-center pb-8 pt-8 text-center sm:min-h-[740px]">
             <div className="max-w-5xl">
               <h1 className="text-balance text-4xl font-black leading-[0.95] tracking-tight text-brand-black dark:text-foreground sm:text-6xl lg:text-7xl">
                 <span className="block sm:inline">Find it.</span>{" "}
-                <span className="homzie-gradient-text block sm:inline">
+                <span className="homzie-gradient-text block text-5xl sm:inline sm:text-6xl lg:text-7xl">
                   Love it.
                 </span>{" "}
                 <span className="block sm:inline">Live it.</span>
               </h1>
-              <p className="mt-4 max-w-xs text-sm font-semibold leading-6 text-muted-foreground sm:mx-auto sm:mt-6 sm:max-w-2xl sm:text-balance sm:text-lg sm:leading-7">
-                Discover your perfect property with top agents and exclusive listings.
-              </p>
+              <RotatingHeroCopy className="mx-auto mt-4 max-w-xs text-sm font-semibold leading-6 text-muted-foreground sm:mt-6 sm:max-w-2xl sm:text-balance sm:text-lg sm:leading-7" />
             </div>
 
             <PropertySearchBar
