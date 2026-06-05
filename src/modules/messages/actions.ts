@@ -13,6 +13,7 @@ import { authOptions } from "@/modules/auth/config";
 import {
   acceptConversationRequest,
   blockUser,
+  createListingInquiryMessage,
   createOfferMessage,
   deleteConversationForUser,
   findOrCreateDirectConversation,
@@ -22,6 +23,7 @@ import {
   markConversationRead,
   markMessageDelivered,
   reportConversation,
+  respondToPropertyOffer,
   sendAttachmentMessage,
   sendMessage,
   setConversationMuted,
@@ -199,6 +201,33 @@ export async function startConversationAction(
   };
 }
 
+const listingInquirySchema = z.object({
+  body: z.string().trim().min(1).max(4000),
+  clientId: z.string().trim().max(120).optional(),
+  listingId: uuidSchema,
+});
+
+export async function startListingInquiryAction(
+  input: z.input<typeof listingInquirySchema>,
+) {
+  const userId = await requireUserId();
+  const parsed = listingInquirySchema.parse(input);
+  const result = await createListingInquiryMessage({
+    body: parsed.body,
+    buyerUserId: userId,
+    clientId: parsed.clientId,
+    listingId: parsed.listingId,
+  });
+
+  revalidatePath("/messages");
+
+  return {
+    conversationId: result.conversationId,
+    conversations: await getConversationSummaries(userId),
+    messages: await getConversationMessages(result.conversationId, userId),
+  };
+}
+
 const conversationSchema = z.object({
   conversationId: uuidSchema,
 });
@@ -237,6 +266,31 @@ export async function markMessageDeliveredAction(input: z.input<typeof messageSc
   const parsed = messageSchema.parse(input);
 
   await markMessageDelivered(parsed.messageId, userId);
+}
+
+const offerResponseSchema = z.object({
+  offerId: uuidSchema,
+  status: z.enum(["accepted", "declined"]),
+});
+
+export async function respondToOfferAction(
+  input: z.input<typeof offerResponseSchema>,
+) {
+  const userId = await requireUserId();
+  const parsed = offerResponseSchema.parse(input);
+  const result = await respondToPropertyOffer({
+    offerId: parsed.offerId,
+    responderUserId: userId,
+    status: parsed.status,
+  });
+
+  revalidatePath("/messages");
+
+  return {
+    conversationId: result.conversationId,
+    conversations: await getConversationSummaries(userId),
+    messages: await getConversationMessages(result.conversationId, userId),
+  };
 }
 
 const mutedSchema = z.object({

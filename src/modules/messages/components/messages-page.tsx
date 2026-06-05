@@ -55,6 +55,7 @@ import {
   markConversationReadAction,
   markMessageDeliveredAction,
   reportConversationAction,
+  respondToOfferAction,
   sendAttachmentMessageAction,
   sendMessageAction,
   setConversationMutedAction,
@@ -642,6 +643,16 @@ export function MessagesPage({
     });
   }
 
+  function respondToOffer(offerId: string, status: "accepted" | "declined") {
+    startTransition(async () => {
+      const result = await respondToOfferAction({ offerId, status });
+
+      setConversations(result.conversations);
+      setMessages(result.messages);
+      setActiveConversationId(result.conversationId);
+    });
+  }
+
   function handleTyping(value: string) {
     setBody(value);
 
@@ -1032,8 +1043,8 @@ export function MessagesPage({
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-[1800px] border-t border-border lg:h-[calc(100vh-5rem)]">
+    <div className="flex h-full min-h-0 bg-background text-foreground">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-[1800px] border-t border-border">
         <aside
           className={cn(
             "flex h-full min-h-0 w-full shrink-0 flex-col border-r border-border bg-background md:w-[24rem]",
@@ -1312,7 +1323,12 @@ export function MessagesPage({
                             )}
                           >
                             {message.offer ? (
-                              <OfferBubble message={message} mine={mine} />
+                              <OfferBubble
+                                message={message}
+                                mine={mine}
+                                onRespond={respondToOffer}
+                                pending={isPending}
+                              />
                             ) : message.attachments.length ? (
                               <AttachmentBubble message={message} mine={mine} />
                             ) : null}
@@ -1349,7 +1365,7 @@ export function MessagesPage({
                   </div>
                 </div>
 
-                <footer className="shrink-0 border-t border-border p-3">
+                <footer className="sticky bottom-0 z-20 shrink-0 border-t border-border bg-background/95 p-3 backdrop-blur">
                   <div className="relative mx-auto flex max-w-4xl items-center gap-2 rounded-full border border-border bg-background px-3 py-2">
                     <input
                       ref={imageInputRef}
@@ -1676,14 +1692,25 @@ function AttachmentBubble({
 function OfferBubble({
   message,
   mine,
+  onRespond,
+  pending,
 }: {
   message: MessageThreadItem;
   mine: boolean;
+  onRespond?: (offerId: string, status: "accepted" | "declined") => void;
+  pending?: boolean;
 }) {
   const offer = message.offer;
   if (!offer) return null;
 
   const listing = message.attachments[0];
+  const canRespond = !mine && offer.status === "pending";
+  const statusClassName =
+    offer.status === "accepted"
+      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+      : offer.status === "declined"
+        ? "bg-destructive/10 text-destructive"
+        : "bg-primary/10 text-primary";
 
   return (
     <div
@@ -1713,9 +1740,35 @@ function OfferBubble({
             {listing.title}
           </p>
         ) : null}
-        <span className="mt-3 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-black capitalize text-primary">
+        <span
+          className={cn(
+            "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black capitalize",
+            statusClassName,
+          )}
+        >
           {offer.status}
         </span>
+        {canRespond ? (
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              className="h-10 rounded-md border-transparent bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700"
+              disabled={pending}
+              onClick={() => onRespond?.(offer.id, "accepted")}
+            >
+              Accept
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-md text-xs font-black text-destructive hover:text-destructive"
+              disabled={pending}
+              onClick={() => onRespond?.(offer.id, "declined")}
+            >
+              Decline
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

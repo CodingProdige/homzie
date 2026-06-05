@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { eq } from "drizzle-orm";
-import { Bell, Heart, MessageCircle } from "lucide-react";
+import { Bell, Bookmark, Eye, Heart, MessageCircle, Send, UserPlus, Video } from "lucide-react";
 
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
@@ -102,14 +102,26 @@ export default async function EventsPage() {
                       ? `/messages?conversation=${event.conversationId}`
                       : event.listingId
                         ? `/listings/${event.listingId}`
-                        : null;
+                        : event.reelId
+                          ? `/reels/${event.reelId}`
+                          : null;
                     const Icon =
                       event.eventType === "message.created" ||
-                      event.eventType === "offer.created"
+                      event.eventType.startsWith("offer.")
                         ? MessageCircle
                         : event.eventType.startsWith("call.")
                           ? Bell
-                          : Heart;
+                          : event.eventType === "profile.followed"
+                            ? UserPlus
+                            : event.eventType.endsWith(".saved")
+                              ? Bookmark
+                              : event.eventType.endsWith(".contacted")
+                                ? Send
+                                : event.eventType.endsWith(".views.milestone")
+                                  ? Eye
+                                  : event.eventType.startsWith("reel.")
+                                    ? Video
+                                    : Heart;
 
                     const content = (
                       <div className="flex items-center gap-4 p-4 text-left transition-colors hover:bg-muted/60">

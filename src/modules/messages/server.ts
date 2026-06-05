@@ -210,18 +210,18 @@ export async function getConversationSummaries(userId: string) {
       lm.body AS last_message_body,
       lm.type AS last_message_type,
       COALESCE(
-        json_agg(
-          json_build_object(
+        jsonb_agg(
+          DISTINCT jsonb_build_object(
             'id', u.id,
             'name', u.name,
             'username', u.username,
             'avatar_url', u.avatar_url
           )
         ) FILTER (WHERE u.id IS NOT NULL),
-        '[]'::json
+        '[]'::jsonb
       ) AS other_users,
       COALESCE(
-        COUNT(m.id) FILTER (
+        COUNT(DISTINCT m.id) FILTER (
           WHERE m.sender_user_id IS DISTINCT FROM ${userId}
             AND m.deleted_at IS NULL
             AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
@@ -509,6 +509,7 @@ export async function sendAttachmentMessage({
   senderUserId: string;
 }) {
   const cleanBody = (body || "").trim().slice(0, 1000);
+  const attachmentMetadata = JSON.stringify({ source: "message-upload" });
 
   if (!mediaUrl.startsWith("/media/")) {
     throw new Error("Invalid message media.");
@@ -535,13 +536,100 @@ export async function sendAttachmentMessage({
       ${message.id},
       ${mediaType},
       ${mediaUrl},
-      ${sql.json({ source: "message-upload" })}
+      ${attachmentMetadata}::jsonb
     )
   `;
 
   await afterMessageCreated(conversationId, message.id, senderUserId);
 
   return message.id;
+}
+
+export async function createListingInquiryMessage({
+  body,
+  buyerUserId,
+  clientId,
+  listingId,
+}: {
+  body: string;
+  buyerUserId: string;
+  clientId?: string;
+  listingId: string;
+}) {
+  const [listing] = await sql<{
+    asking_price_cents: number | null;
+    cover_image_url: string | null;
+    location: string | null;
+    title: string;
+    user_id: string;
+  }[]>`
+    SELECT user_id, title, location, asking_price_cents, cover_image_url
+    FROM property_listings
+    WHERE id = ${listingId}
+      AND status = 'published'
+    LIMIT 1
+  `;
+
+  if (!listing) {
+    throw new Error("Listing not found.");
+  }
+
+  const conversationId = await findOrCreateDirectConversation(
+    buyerUserId,
+    listing.user_id,
+    listingId,
+  );
+  const cleanBody = body.trim().slice(0, 4000);
+  const messageMetadata = JSON.stringify({
+    listingId,
+    source: "listing_detail_agent_card",
+  });
+  const attachmentMetadata = JSON.stringify({
+    askingPriceCents: listing.asking_price_cents,
+    location: listing.location,
+    source: "listing_detail_agent_card",
+  });
+
+  if (!cleanBody) {
+    throw new Error("Message cannot be empty.");
+  }
+
+  const [message] = await sql<{ id: string }[]>`
+    INSERT INTO messages (conversation_id, sender_user_id, type, body, client_id, metadata)
+    VALUES (
+      ${conversationId},
+      ${buyerUserId},
+      'text',
+      ${cleanBody},
+      ${clientId || null},
+      ${messageMetadata}::jsonb
+    )
+    ON CONFLICT (client_id) DO UPDATE SET client_id = EXCLUDED.client_id
+    RETURNING id
+  `;
+
+  await sql`
+    INSERT INTO message_attachments (
+      message_id,
+      type,
+      title,
+      preview_image_url,
+      listing_id,
+      metadata
+    )
+    VALUES (
+      ${message.id},
+      'listing',
+      ${listing.title},
+      ${listing.cover_image_url},
+      ${listingId},
+      ${attachmentMetadata}::jsonb
+    )
+  `;
+
+  await afterMessageCreated(conversationId, message.id, buyerUserId);
+
+  return { conversationId, messageId: message.id };
 }
 
 export async function markConversationRead(
@@ -816,6 +904,70 @@ export async function updateCallSession({
   `;
 }
 
+export async function respondToPropertyOffer({
+  offerId,
+  responderUserId,
+  status,
+}: {
+  offerId: string;
+  responderUserId: string;
+  status: "accepted" | "declined";
+}) {
+  const [offer] = await sql<{
+    amount_cents: number;
+    conversation_id: string;
+    currency: string;
+    listing_id: string;
+    listing_title: string | null;
+  }[]>`
+    UPDATE property_offers
+    SET status = ${status}, responded_at = now(), updated_at = now()
+    WHERE id = ${offerId}
+      AND agent_user_id = ${responderUserId}
+      AND status = 'pending'
+    RETURNING
+      conversation_id,
+      amount_cents,
+      currency,
+      listing_id,
+      (SELECT title FROM property_listings WHERE id = property_offers.listing_id) AS listing_title
+  `;
+
+  if (!offer) {
+    throw new Error("This offer cannot be updated.");
+  }
+
+  const amountLabel = new Intl.NumberFormat(undefined, {
+    currency: offer.currency,
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(offer.amount_cents / 100);
+  const messageMetadata = JSON.stringify({
+    listingId: offer.listing_id,
+    listingTitle: offer.listing_title,
+    offerAmount: amountLabel,
+    offerId,
+    offerStatus: status,
+  });
+  const [message] = await sql<{ id: string }[]>`
+    INSERT INTO messages (conversation_id, sender_user_id, type, body, metadata)
+    VALUES (
+      ${offer.conversation_id},
+      ${responderUserId},
+      'system',
+      ${status === "accepted"
+        ? `Offer accepted: ${amountLabel}`
+        : `Offer declined: ${amountLabel}`},
+      ${messageMetadata}::jsonb
+    )
+    RETURNING id
+  `;
+
+  await afterMessageCreated(offer.conversation_id, message.id, responderUserId);
+
+  return { conversationId: offer.conversation_id };
+}
+
 export async function createOfferMessage({
   amountCents,
   buyerUserId,
@@ -854,6 +1006,18 @@ export async function createOfferMessage({
   );
 
   const cleanNote = (note || "").trim().slice(0, 1000);
+  const offerAmount = new Intl.NumberFormat(undefined, {
+    currency,
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(amountCents / 100);
+  const messageMetadata = JSON.stringify({
+    amountCents,
+    currency,
+    listingId,
+    listingTitle: listing.title,
+    offerAmount,
+  });
   const [message] = await sql<{ id: string }[]>`
     INSERT INTO messages (conversation_id, sender_user_id, type, body, metadata)
     VALUES (
@@ -861,17 +1025,7 @@ export async function createOfferMessage({
       ${buyerUserId},
       'offer',
       ${cleanNote || null},
-      ${sql.json({
-        amountCents,
-        currency,
-        listingId,
-        listingTitle: listing.title,
-        offerAmount: new Intl.NumberFormat(undefined, {
-          currency,
-          maximumFractionDigits: 0,
-          style: "currency",
-        }).format(amountCents / 100),
-      })}
+      ${messageMetadata}::jsonb
     )
     RETURNING id
   `;
@@ -900,6 +1054,12 @@ export async function createOfferMessage({
     RETURNING id
   `;
 
+  const attachmentMetadata = JSON.stringify({
+    askingPriceCents: listing.asking_price_cents,
+    location: listing.location,
+    offerId: offer.id,
+  });
+
   await sql`
     INSERT INTO message_attachments (
       message_id,
@@ -915,11 +1075,7 @@ export async function createOfferMessage({
       ${listing.title},
       ${listing.cover_image_url},
       ${listingId},
-      ${sql.json({
-        askingPriceCents: listing.asking_price_cents,
-        location: listing.location,
-        offerId: offer.id,
-      })}
+      ${attachmentMetadata}::jsonb
     )
   `;
 
@@ -966,12 +1122,18 @@ async function afterMessageCreated(
     LIMIT 1
   `;
 
+  const offerStatus =
+    typeof message?.metadata?.offerStatus === "string"
+      ? message.metadata.offerStatus
+      : null;
   const eventType =
     message?.type === "offer"
       ? "offer.created"
-      : message?.type === "text"
-        ? "message.created"
-        : "message.created";
+      : message?.type === "system" && offerStatus === "accepted"
+        ? "offer.accepted"
+        : message?.type === "system" && offerStatus === "declined"
+          ? "offer.declined"
+          : "message.created";
 
   await Promise.all(
     users
@@ -987,6 +1149,9 @@ async function afterMessageCreated(
           messageId,
           metadata: {
             body: message?.body,
+            offerAmount: message?.metadata?.offerAmount,
+            offerId: message?.metadata?.offerId,
+            offerStatus,
             listingId: message?.metadata?.listingId || message?.listing_id,
             listingTitle: message?.metadata?.listingTitle,
           },

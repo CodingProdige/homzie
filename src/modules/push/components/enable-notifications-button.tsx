@@ -46,11 +46,14 @@ export function EnableNotificationsButton() {
         ) : (
           <Bell className="size-4" />
         )}
-        Enable call notifications
+        Enable browser notifications
       </Button>
-      {error ? (
-        <p className="text-xs font-semibold text-muted-foreground">{error}</p>
-      ) : null}
+      <p className="max-w-md text-xs font-semibold text-muted-foreground">
+        {permission === "denied"
+          ? "Notifications are blocked in your browser settings."
+          : error ||
+            "Optional: get alerts for calls and important activity when Homzie is not open."}
+      </p>
     </div>
   );
 }

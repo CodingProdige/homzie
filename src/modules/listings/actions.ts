@@ -18,12 +18,17 @@ import {
   propertyIdentities,
   propertyListingStatusHistory,
   propertyListings,
+  propertyOffers,
   users,
 } from "@/db/schema";
 import { isSafeMediaPath } from "@/media/paths";
 import { getMediaStorageRoot } from "@/media/storage";
 import { getAgentProfileForUser } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
+import {
+  createUserEvent,
+  createUserEventOnce,
+} from "@/modules/events/server";
 import {
   extractHashtags,
   recordHashtagUsage,
@@ -93,6 +98,13 @@ function formatCompactCount(value: number) {
   const compactValue = value / 1000;
 
   return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
+}
+
+function viewMilestoneForCount(count: number) {
+  if ([10, 25, 50, 100, 250, 500].includes(count)) return count;
+  if (count >= 1000 && count % 1000 === 0) return count;
+
+  return null;
 }
 
 const listingSchema = z.object({
@@ -831,6 +843,7 @@ export async function toggleListingSave(listingId: string) {
     .select({
       id: propertyListings.id,
       status: propertyListings.status,
+      title: propertyListings.title,
       userId: propertyListings.userId,
     })
     .from(propertyListings)
@@ -852,6 +865,16 @@ export async function toggleListingSave(listingId: string) {
       );
   } else {
     await db.insert(listingSaves).values({ listingId: parsed.data, userId });
+
+    await createUserEvent({
+      actorUserId: userId,
+      entityId: listing.id,
+      entityType: "listing",
+      eventType: "listing.saved",
+      listingId: listing.id,
+      metadata: { listingTitle: listing.title },
+      userId: listing.userId,
+    });
   }
 
   const [{ count }] = await db
@@ -882,6 +905,7 @@ export async function toggleListingLike(listingId: string) {
     .select({
       id: propertyListings.id,
       status: propertyListings.status,
+      title: propertyListings.title,
       userId: propertyListings.userId,
     })
     .from(propertyListings)
@@ -908,6 +932,16 @@ export async function toggleListingLike(listingId: string) {
       );
   } else {
     await db.insert(listingLikes).values({ listingId: parsed.data, userId });
+
+    await createUserEvent({
+      actorUserId: userId,
+      entityId: listing.id,
+      entityType: "listing",
+      eventType: "listing.liked",
+      listingId: listing.id,
+      metadata: { listingTitle: listing.title },
+      userId: listing.userId,
+    });
   }
 
   const [{ count }] = await db
@@ -925,22 +959,61 @@ export async function toggleListingLike(listingId: string) {
   };
 }
 
-async function canTrackListing(listingId: string, viewerUserId?: string | null) {
+const offerStatsSchema = z.object({
+  currency: z.string().trim().min(3).max(3),
+  listingId: listingIdSchema,
+});
+
+export async function getListingOfferStatsAction(
+  input: z.input<typeof offerStatsSchema>,
+) {
+  const parsed = offerStatsSchema.parse(input);
+  const currency = parsed.currency.toUpperCase();
+  const [stats] = await db
+    .select({
+      averageAmountCents: sql<number | null>`round(avg(${propertyOffers.amountCents}))::int`,
+      count: sql<number>`count(*)::int`,
+      maxAmountCents: sql<number | null>`max(${propertyOffers.amountCents})`,
+      minAmountCents: sql<number | null>`min(${propertyOffers.amountCents})`,
+    })
+    .from(propertyOffers)
+    .where(
+      and(
+        eq(propertyOffers.listingId, parsed.listingId),
+        eq(propertyOffers.currency, currency),
+        eq(propertyOffers.status, "pending"),
+      ),
+    );
+
+  return {
+    averageAmountCents: stats?.averageAmountCents ?? null,
+    count: stats?.count ?? 0,
+    currency,
+    maxAmountCents: stats?.maxAmountCents ?? null,
+    minAmountCents: stats?.minAmountCents ?? null,
+  };
+}
+
+async function getTrackableListing(listingId: string, viewerUserId?: string | null) {
   const [listing] = await db
     .select({
       id: propertyListings.id,
       status: propertyListings.status,
+      title: propertyListings.title,
       userId: propertyListings.userId,
     })
     .from(propertyListings)
     .where(eq(propertyListings.id, listingId))
     .limit(1);
 
-  return Boolean(
-    listing &&
-      (listing.status === "published" ||
-        (viewerUserId && listing.userId === viewerUserId)),
-  );
+  if (
+    !listing ||
+    (listing.status !== "published" && (!viewerUserId || listing.userId !== viewerUserId))
+  ) {
+    return null;
+  }
+
+  return listing;
 }
 
 export async function trackListingView(input: unknown) {
@@ -953,7 +1026,9 @@ export async function trackListingView(input: unknown) {
   const session = await getServerSession(authOptions);
   const viewerUserId = session?.user?.id || null;
 
-  if (!(await canTrackListing(parsed.data.listingId, viewerUserId))) {
+  const listing = await getTrackableListing(parsed.data.listingId, viewerUserId);
+
+  if (!listing) {
     return { ok: false as const };
   }
 
@@ -963,6 +1038,24 @@ export async function trackListingView(input: unknown) {
     viewerSessionId: parsed.data.viewerSessionId,
     viewerUserId,
   });
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingViewEvents)
+    .where(eq(listingViewEvents.listingId, parsed.data.listingId));
+  const milestone = viewMilestoneForCount(count);
+
+  if (milestone && listing.userId !== viewerUserId) {
+    await createUserEventOnce({
+      dedupeKey: `listing:${listing.id}:views:${milestone}`,
+      entityId: listing.id,
+      entityType: "listing",
+      eventType: "listing.views.milestone",
+      listingId: listing.id,
+      metadata: { count: milestone, listingTitle: listing.title },
+      userId: listing.userId,
+    });
+  }
 
   return { ok: true as const };
 }
@@ -977,7 +1070,9 @@ export async function trackListingAction(input: unknown) {
   const session = await getServerSession(authOptions);
   const viewerUserId = session?.user?.id || null;
 
-  if (!(await canTrackListing(parsed.data.listingId, viewerUserId))) {
+  const listing = await getTrackableListing(parsed.data.listingId, viewerUserId);
+
+  if (!listing) {
     return { ok: false as const };
   }
 
@@ -988,6 +1083,28 @@ export async function trackListingAction(input: unknown) {
     viewerSessionId: parsed.data.viewerSessionId,
     viewerUserId,
   });
+
+  if (
+    viewerUserId &&
+    listing.userId !== viewerUserId &&
+    ["call_agent", "contact_agent", "email_agent", "whatsapp_agent"].includes(
+      parsed.data.actionType,
+    )
+  ) {
+    await createUserEvent({
+      actorUserId: viewerUserId,
+      entityId: listing.id,
+      entityType: "listing",
+      eventType: "listing.contacted",
+      listingId: listing.id,
+      metadata: {
+        actionType: parsed.data.actionType,
+        listingTitle: listing.title,
+        source: parsed.data.source || "listing_detail",
+      },
+      userId: listing.userId,
+    });
+  }
 
   return { ok: true as const };
 }

@@ -14,6 +14,7 @@ export type UserEventItem = {
   id: string;
   listingId: string | null;
   message: string;
+  reelId: string | null;
   seen: boolean;
 };
 
@@ -28,6 +29,7 @@ type EventRow = {
   id: string;
   listing_id: string | null;
   metadata: Record<string, unknown> | null;
+  reel_id: string | null;
   seen_at: Date | string | null;
 };
 
@@ -39,8 +41,16 @@ function eventMessage(row: EventRow) {
   const actor = row.actor_name || "Someone";
   const title =
     typeof row.metadata?.listingTitle === "string" ? row.metadata.listingTitle : null;
+  const reelTitle =
+    typeof row.metadata?.reelTitle === "string" ? row.metadata.reelTitle : null;
   const amount =
     typeof row.metadata?.offerAmount === "string" ? row.metadata.offerAmount : null;
+  const count =
+    typeof row.metadata?.count === "number"
+      ? row.metadata.count
+      : typeof row.metadata?.count === "string"
+        ? Number(row.metadata.count)
+        : null;
 
   if (row.event_type === "offer.created") {
     return `${actor} made an offer${amount ? ` of ${amount}` : ""}${
@@ -48,8 +58,56 @@ function eventMessage(row: EventRow) {
     }.`;
   }
 
+  if (row.event_type === "offer.accepted") {
+    return `${actor} accepted your offer${amount ? ` of ${amount}` : ""}${
+      title ? ` on ${title}` : ""
+    }.`;
+  }
+
+  if (row.event_type === "offer.declined") {
+    return `${actor} declined your offer${amount ? ` of ${amount}` : ""}${
+      title ? ` on ${title}` : ""
+    }.`;
+  }
+
   if (row.event_type === "message.created") {
     return `${actor} sent you a message.`;
+  }
+
+  if (row.event_type === "profile.followed") {
+    return `${actor} followed your profile.`;
+  }
+
+  if (row.event_type === "listing.liked") {
+    return `${actor} liked${title ? ` ${title}` : " your listing"}.`;
+  }
+
+  if (row.event_type === "listing.saved") {
+    return `${actor} saved${title ? ` ${title}` : " your listing"}.`;
+  }
+
+  if (row.event_type === "listing.contacted") {
+    return `${actor} contacted you${title ? ` about ${title}` : " about a listing"}.`;
+  }
+
+  if (row.event_type === "listing.views.milestone") {
+    return `${title || "Your listing"} reached ${count?.toLocaleString() || "a new"} views.`;
+  }
+
+  if (row.event_type === "reel.liked") {
+    return `${actor} liked${reelTitle ? ` ${reelTitle}` : " your reel"}.`;
+  }
+
+  if (row.event_type === "reel.saved") {
+    return `${actor} saved${reelTitle ? ` ${reelTitle}` : " your reel"}.`;
+  }
+
+  if (row.event_type === "reel.reshared") {
+    return `${actor} reshared${reelTitle ? ` ${reelTitle}` : " your reel"}.`;
+  }
+
+  if (row.event_type === "reel.views.milestone") {
+    return `${reelTitle || "Your reel"} reached ${count?.toLocaleString() || "a new"} views.`;
   }
 
   if (row.event_type === "message.requested") {
@@ -126,6 +184,34 @@ export async function createUserEvent({
   `;
 }
 
+export async function createUserEventOnce({
+  dedupeKey,
+  ...event
+}: Parameters<typeof createUserEvent>[0] & { dedupeKey: string }) {
+  const [existing] = await sql<{ id: string }[]>`
+    SELECT id
+    FROM user_events
+    WHERE user_id = ${event.userId}
+      AND event_type = ${event.eventType}
+      AND COALESCE(entity_type, '') = COALESCE(${event.entityType || null}, '')
+      AND COALESCE(entity_id::text, '') = COALESCE(${event.entityId || null}, '')
+      AND COALESCE(listing_id::text, '') = COALESCE(${event.listingId || null}, '')
+      AND COALESCE(reel_id::text, '') = COALESCE(${event.reelId || null}, '')
+      AND metadata->>'dedupeKey' = ${dedupeKey}
+    LIMIT 1
+  `;
+
+  if (existing) return;
+
+  await createUserEvent({
+    ...event,
+    metadata: {
+      ...(event.metadata || {}),
+      dedupeKey,
+    },
+  });
+}
+
 export async function getUnseenEventCount(userId: string) {
   const [row] = await sql<{ count: number | string }[]>`
     SELECT count(*)::int AS count
@@ -144,6 +230,7 @@ export async function getUserEvents(userId: string) {
       ue.event_type,
       ue.conversation_id,
       ue.listing_id,
+      ue.reel_id,
       ue.metadata,
       ue.seen_at,
       ue.created_at,
@@ -171,6 +258,7 @@ export async function getUserEvents(userId: string) {
     id: row.id,
     listingId: row.listing_id,
     message: eventMessage(row),
+    reelId: row.reel_id,
     seen: Boolean(row.seen_at),
   }));
 }

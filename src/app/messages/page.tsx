@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { eq } from "drizzle-orm";
 
-import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -43,12 +42,11 @@ export default async function MessagesRoute({ searchParams }: MessagesRouteProps
   ]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       <GlobalHeader viewerUsername={viewerUsername} />
-      <main className="pt-16 lg:pt-20">
+      <main className="min-h-0 flex-1 pt-16 lg:pt-20">
         <MessagesPage {...messagesData} />
       </main>
-      <GlobalFooter />
     </div>
   );
 }

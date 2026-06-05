@@ -25,6 +25,10 @@ import {
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
 import {
+  createUserEvent,
+  createUserEventOnce,
+} from "@/modules/events/server";
+import {
   getHashtagSuggestions,
   recordReelHashtagUsage,
 } from "@/modules/hashtags/server";
@@ -124,6 +128,19 @@ function formatCompactCount(value: number) {
   return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
 }
 
+function viewMilestoneForCount(count: number) {
+  if ([10, 25, 50, 100, 250, 500].includes(count)) return count;
+  if (count >= 1000 && count % 1000 === 0) return count;
+
+  return null;
+}
+
+function reelTitle(value: { caption: string | null; listingReference: string | null }) {
+  const title = value.listingReference || value.caption?.trim();
+
+  return title ? title.slice(0, 80) : "your reel";
+}
+
 async function requireUserId() {
   const session = await getServerSession(authOptions);
 
@@ -192,7 +209,12 @@ export async function trackReelWatchProgress(input: unknown) {
   const source = parsed.data.source || "feed";
 
   const [reel] = await db
-    .select({ id: reels.id })
+    .select({
+      caption: reels.caption,
+      id: reels.id,
+      listingReference: reels.listingReference,
+      userId: reels.userId,
+    })
     .from(reels)
     .where(and(eq(reels.id, parsed.data.reelId), eq(reels.status, "published")))
     .limit(1);
@@ -226,6 +248,25 @@ export async function trackReelWatchProgress(input: unknown) {
         updatedAt: new Date(),
       })
       .where(eq(reels.id, parsed.data.reelId));
+
+    const [{ count }] = await db
+      .select({ count: reels.viewCount })
+      .from(reels)
+      .where(eq(reels.id, parsed.data.reelId));
+    const milestone = viewMilestoneForCount(count);
+
+    if (milestone && reel.userId !== session?.user?.id) {
+      await createUserEventOnce({
+        actorUserId: session?.user?.id || null,
+        dedupeKey: `reel:${reel.id}:views:${milestone}`,
+        entityId: reel.id,
+        entityType: "reel",
+        eventType: "reel.views.milestone",
+        metadata: { count: milestone, reelTitle: reelTitle(reel) },
+        reelId: reel.id,
+        userId: reel.userId,
+      });
+    }
   }
 
   await db
@@ -357,6 +398,14 @@ export async function toggleProfileFollow(targetUsername: string) {
     followingId: target.id,
   });
 
+  await createUserEvent({
+    actorUserId: userId,
+    entityId: target.id,
+    entityType: "profile",
+    eventType: "profile.followed",
+    userId: target.id,
+  });
+
   return { following: true, ok: true as const };
 }
 
@@ -366,6 +415,21 @@ export async function toggleReelLike(reelId: string) {
 
   if (!parsed.success || !userId) {
     return { error: "Sign in to like reels.", ok: false as const };
+  }
+
+  const [reel] = await db
+    .select({
+      caption: reels.caption,
+      id: reels.id,
+      listingReference: reels.listingReference,
+      userId: reels.userId,
+    })
+    .from(reels)
+    .where(and(eq(reels.id, parsed.data), eq(reels.status, "published")))
+    .limit(1);
+
+  if (!reel) {
+    return { error: "We could not find that reel.", ok: false as const };
   }
 
   const [existing] = await db
@@ -380,6 +444,16 @@ export async function toggleReelLike(reelId: string) {
       .where(and(eq(reelLikes.reelId, parsed.data), eq(reelLikes.userId, userId)));
   } else {
     await db.insert(reelLikes).values({ reelId: parsed.data, userId });
+
+    await createUserEvent({
+      actorUserId: userId,
+      entityId: reel.id,
+      entityType: "reel",
+      eventType: "reel.liked",
+      metadata: { reelTitle: reelTitle(reel) },
+      reelId: reel.id,
+      userId: reel.userId,
+    });
   }
 
   const [{ count }] = await db
@@ -403,6 +477,21 @@ export async function toggleReelSave(reelId: string) {
     return { error: "Sign in to save reels.", ok: false as const };
   }
 
+  const [reel] = await db
+    .select({
+      caption: reels.caption,
+      id: reels.id,
+      listingReference: reels.listingReference,
+      userId: reels.userId,
+    })
+    .from(reels)
+    .where(and(eq(reels.id, parsed.data), eq(reels.status, "published")))
+    .limit(1);
+
+  if (!reel) {
+    return { error: "We could not find that reel.", ok: false as const };
+  }
+
   const [existing] = await db
     .select({ reelId: reelSaves.reelId })
     .from(reelSaves)
@@ -415,6 +504,16 @@ export async function toggleReelSave(reelId: string) {
       .where(and(eq(reelSaves.reelId, parsed.data), eq(reelSaves.userId, userId)));
   } else {
     await db.insert(reelSaves).values({ reelId: parsed.data, userId });
+
+    await createUserEvent({
+      actorUserId: userId,
+      entityId: reel.id,
+      entityType: "reel",
+      eventType: "reel.saved",
+      metadata: { reelTitle: reelTitle(reel) },
+      reelId: reel.id,
+      userId: reel.userId,
+    });
   }
 
   const [{ count }] = await db
@@ -440,7 +539,9 @@ export async function toggleReelReshare(reelId: string) {
 
   const [reel] = await db
     .select({
+      caption: reels.caption,
       id: reels.id,
+      listingReference: reels.listingReference,
       userId: reels.userId,
     })
     .from(reels)
@@ -469,6 +570,16 @@ export async function toggleReelReshare(reelId: string) {
       );
   } else {
     await db.insert(reelReshares).values({ reelId: parsed.data, userId });
+
+    await createUserEvent({
+      actorUserId: userId,
+      entityId: reel.id,
+      entityType: "reel",
+      eventType: "reel.reshared",
+      metadata: { reelTitle: reelTitle(reel) },
+      reelId: reel.id,
+      userId: reel.userId,
+    });
   }
 
   const [{ count }] = await db

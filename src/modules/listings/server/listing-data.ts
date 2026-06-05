@@ -1,7 +1,13 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { listingLikes, listingSaves, propertyListings, users } from "@/db/schema";
+import {
+  listingLikes,
+  listingSaves,
+  propertyListings,
+  propertyOffers,
+  users,
+} from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import {
   listingTypeOptions,
@@ -55,6 +61,8 @@ export type ListingDetailData = {
   likedByViewer: boolean;
   likeCount: number;
   likeCountLabel: string;
+  offerCount: number;
+  offerCountLabel: string;
   savedByViewer: boolean;
   saveCount: number;
   saveCountLabel: string;
@@ -260,12 +268,17 @@ export async function getListingDetail({
     .select({ count: sql<number>`count(*)::int` })
     .from(listingSaves)
     .where(eq(listingSaves.listingId, listingId));
+  const [{ count: offerCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(propertyOffers)
+    .where(eq(propertyOffers.listingId, listingId));
 
   return mapListingRow(row, {
     isOwner,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: Boolean(like),
     likeCount,
+    offerCount,
     savedByViewer,
     saveCount,
   });
@@ -324,12 +337,17 @@ export async function getOwnedListingDetail({
     .select({ count: sql<number>`count(*)::int` })
     .from(listingSaves)
     .where(eq(listingSaves.listingId, listingId));
+  const [{ count: offerCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(propertyOffers)
+    .where(eq(propertyOffers.listingId, listingId));
 
   return mapListingRow(row, {
     isOwner: true,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: false,
     likeCount,
+    offerCount,
     savedByViewer: false,
     saveCount,
   });
@@ -342,6 +360,7 @@ function mapListingRow(
     isUnavailableForViewer: boolean;
     likedByViewer: boolean;
     likeCount: number;
+    offerCount: number;
     savedByViewer: boolean;
     saveCount: number;
   },
@@ -402,6 +421,8 @@ function mapListingRow(
     likedByViewer: viewerState.likedByViewer,
     likeCount: viewerState.likeCount,
     likeCountLabel: formatCompactCount(viewerState.likeCount),
+    offerCount: viewerState.offerCount,
+    offerCountLabel: formatCompactCount(viewerState.offerCount),
     savedByViewer: viewerState.savedByViewer,
     saveCount: viewerState.saveCount,
     saveCountLabel: formatCompactCount(viewerState.saveCount),

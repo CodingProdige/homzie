@@ -16,11 +16,13 @@ import {
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
+  HandCoins,
   Home,
   MapPin,
   ParkingCircle,
   Percent,
   Ruler,
+  Send,
   ShieldCheck,
   Trees,
   Upload,
@@ -32,7 +34,11 @@ import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/modules/currency/currency-provider";
-import { trackListingAction, trackListingView } from "@/modules/listings/actions";
+import {
+  getListingOfferStatsAction,
+  trackListingAction,
+  trackListingView,
+} from "@/modules/listings/actions";
 import {
   ListingEngagementActions,
   ListingSaveButton,
@@ -41,7 +47,7 @@ import { mandateTypeOptions } from "@/modules/listings/options";
 import type { ListingDetailData } from "@/modules/listings/server/listing-data";
 import {
   createOfferMessageAction,
-  startConversationAction,
+  startListingInquiryAction,
 } from "@/modules/messages/actions";
 
 function featureHashtag(value: string) {
@@ -71,9 +77,134 @@ function statusLabel(value: string) {
 }
 
 function amountToCents(value: string) {
-  const amount = Number(value);
+  const amount = Number(value.replace(/[^\d.]/g, ""));
 
   return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+}
+
+function formatOfferAmount(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 0,
+  }).format(Number(digits));
+}
+
+function clampPercent(value: number) {
+  return Math.min(100, Math.max(0, value));
+}
+
+type ListingOfferStats = {
+  averageAmountCents: number | null;
+  count: number;
+  currency: string;
+  maxAmountCents: number | null;
+  minAmountCents: number | null;
+};
+
+function getOfferStrengthScore({
+  amountCents,
+  askingPriceCents,
+  stats,
+}: {
+  amountCents: number;
+  askingPriceCents: number | null;
+  stats: ListingOfferStats | null;
+}) {
+  if (
+    stats?.count &&
+    stats.minAmountCents !== null &&
+    stats.maxAmountCents !== null
+  ) {
+    if (stats.maxAmountCents > stats.minAmountCents) {
+      return clampPercent(
+        ((amountCents - stats.minAmountCents) /
+          (stats.maxAmountCents - stats.minAmountCents)) *
+          100,
+      );
+    }
+
+    return amountCents >= stats.maxAmountCents ? 85 : 30;
+  }
+
+  if (askingPriceCents && askingPriceCents > 0) {
+    const deltaRatio = (amountCents - askingPriceCents) / askingPriceCents;
+
+    return clampPercent(50 + deltaRatio * 500);
+  }
+
+  return 50;
+}
+
+function OfferStrengthInsight({
+  amountCents,
+  askingPriceCents,
+  loading,
+  stats,
+}: {
+  amountCents: number;
+  askingPriceCents: number | null;
+  loading: boolean;
+  stats: ListingOfferStats | null;
+}) {
+  if (!amountCents) return null;
+
+  const score = getOfferStrengthScore({ amountCents, askingPriceCents, stats });
+  const strength =
+    score >= 75 ? "Hot" : score >= 40 ? "Medium" : "Cold";
+  const deltaPercent =
+    askingPriceCents && askingPriceCents > 0
+      ? ((amountCents - askingPriceCents) / askingPriceCents) * 100
+      : null;
+  const deltaLabel =
+    deltaPercent === null
+      ? null
+      : Math.abs(deltaPercent) < 0.05
+        ? "At asking price"
+        : deltaPercent > 0
+          ? `${Math.abs(deltaPercent).toFixed(1)}% increase above asking`
+          : `${Math.abs(deltaPercent).toFixed(1)}% deduction from asking`;
+  const statsLabel = loading
+    ? "Checking competing offers..."
+    : stats?.count
+      ? `Compared with ${stats.count} active ${stats.count === 1 ? "offer" : "offers"} in ${stats.currency}.`
+      : "No active competing offers in this currency yet.";
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-primary">
+            Offer strength
+          </p>
+          <p className="mt-1 text-sm font-black">{strength}</p>
+        </div>
+        {deltaLabel ? (
+          <span className="rounded-full bg-background px-2.5 py-1 text-[11px] font-black text-muted-foreground">
+            {deltaLabel}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-3">
+        <div className="relative h-2 rounded-full bg-gradient-to-r from-sky-400 via-amber-400 to-rose-500">
+          <span
+            className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow-md"
+            style={{ left: `${score}%` }}
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+          <span>Cold</span>
+          <span>Medium</span>
+          <span>Hot</span>
+        </div>
+      </div>
+      <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
+        {statsLabel}
+      </p>
+    </div>
+  );
 }
 
 function getListingViewerSessionId() {
@@ -105,6 +236,18 @@ function DetailStat({
     <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-black text-foreground">
       <Icon className="size-5 shrink-0 text-muted-foreground" />
       <span>{value}</span>
+    </span>
+  );
+}
+
+function ListingOfferCountPill({ countLabel }: { countLabel: string }) {
+  return (
+    <span
+      className="inline-flex h-9 items-center gap-2 rounded-full border border-border bg-background/90 px-3 text-sm font-black shadow-sm backdrop-blur"
+      title="Offers made on this listing"
+    >
+      <HandCoins className="size-4" />
+      <span>{countLabel}</span>
     </span>
   );
 }
@@ -348,11 +491,37 @@ function MakeOfferDialog({
   const router = useRouter();
   const { currency } = useCurrency();
   const [amount, setAmount] = useState(
-    listing.askingPriceCents ? String(Math.round(listing.askingPriceCents / 100)) : "",
+    listing.askingPriceCents
+      ? formatOfferAmount(String(Math.round(listing.askingPriceCents / 100)))
+      : "",
   );
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
+  const [offerStats, setOfferStats] = useState<ListingOfferStats | null>(null);
+  const [offerStatsPending, startOfferStatsTransition] = useTransition();
   const [pending, startTransition] = useTransition();
+  const amountCents = amountToCents(amount);
+
+  useEffect(() => {
+    let active = true;
+
+    startOfferStatsTransition(async () => {
+      try {
+        const stats = await getListingOfferStatsAction({
+          currency,
+          listingId: listing.id,
+        });
+
+        if (active) setOfferStats(stats);
+      } catch {
+        if (active) setOfferStats(null);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [currency, listing.id]);
 
   return (
     <Dialog.Root>
@@ -396,15 +565,21 @@ function MakeOfferDialog({
                   {currencyPrefix}
                 </span>
                 <input
-                  type="number"
-                  inputMode="decimal"
-                  min="1"
+                  type="text"
+                  inputMode="numeric"
                   value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
+                  onChange={(event) => setAmount(formatOfferAmount(event.target.value))}
                   className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
                 />
               </div>
             </label>
+
+            <OfferStrengthInsight
+              amountCents={amountCents}
+              askingPriceCents={listing.askingPriceCents}
+              loading={offerStatsPending}
+              stats={offerStats}
+            />
 
             <label className="grid gap-2">
               <span className="text-sm font-black">Message</span>
@@ -429,7 +604,7 @@ function MakeOfferDialog({
                 startTransition(async () => {
                   try {
                     const result = await createOfferMessageAction({
-                      amountCents: amountToCents(amount),
+                      amountCents,
                       currency,
                       listingId: listing.id,
                       note,
@@ -455,28 +630,60 @@ function MakeOfferDialog({
   );
 }
 
-function MessageAgentButton({ listing }: { listing: ListingDetailData }) {
+function SendListingMessageButton({
+  listing,
+  onSent,
+}: {
+  listing: ListingDetailData;
+  onSent?: () => void;
+}) {
   const router = useRouter();
+  const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      disabled={pending}
-      onClick={() => {
-        startTransition(async () => {
-          const result = await startConversationAction({
-            listingId: listing.id,
-            recipientUserId: listing.agent.id,
-          });
+    <div>
+      <Button
+        type="button"
+        disabled={pending}
+        className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.25)] hover:opacity-95"
+        onClick={() => {
+          setError("");
+          startTransition(async () => {
+            try {
+              const listingUrl =
+                typeof window !== "undefined"
+                  ? new URL(`/listings/${listing.id}`, window.location.origin).toString()
+                  : `/listings/${listing.id}`;
+              const clientId =
+                typeof crypto !== "undefined" && "randomUUID" in crypto
+                  ? `listing-inquiry-${crypto.randomUUID()}`
+                  : `listing-inquiry-${Date.now()}`;
+              const result = await startListingInquiryAction({
+                body: `Hi ${listing.agent.name}, I'm interested in this listing: ${listing.title}\n${listingUrl}`,
+                clientId,
+                listingId: listing.id,
+              });
 
-          router.push(`/messages?conversation=${result.conversationId}`);
-        });
-      }}
-    >
-      {pending ? "Opening chat..." : "Message agent"}
-    </Button>
+              onSent?.();
+              router.push(`/messages?conversation=${result.conversationId}`);
+            } catch (messageError) {
+              setError(
+                messageError instanceof Error
+                  ? messageError.message
+                  : "Could not start this chat.",
+              );
+            }
+          });
+        }}
+      >
+        <Send className="size-4" />
+        {pending ? "Opening chat..." : "Send message"}
+      </Button>
+      {error ? (
+        <p className="mt-2 text-xs font-bold text-destructive">{error}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -505,7 +712,7 @@ function AgentProfileCard({
   agentHref: string;
   listing: ListingDetailData;
   onAction?: (
-    actionType: "call_agent" | "email_agent" | "whatsapp_agent",
+    actionType: "call_agent" | "contact_agent" | "email_agent" | "whatsapp_agent",
   ) => void;
 }) {
   const actionsDisabled = listing.isUnavailableForViewer;
@@ -612,17 +819,29 @@ function AgentProfileCard({
         </div>
       ) : null}
       {actionsDisabled ? (
-        <Button variant="outline" className="mt-4 w-full" disabled>
-          <Eye className="size-4" />
-          View agent profile
-        </Button>
-      ) : (
-        <Button asChild variant="outline" className="mt-4 w-full">
-          <Link href={agentHref}>
+        <div className="mt-4 grid gap-2">
+          <Button className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-black text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]" disabled>
+            <Send className="size-4" />
+            Send message
+          </Button>
+          <Button variant="outline" className="h-12 w-full rounded-md" disabled>
             <Eye className="size-4" />
             View agent profile
-          </Link>
-        </Button>
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          <SendListingMessageButton
+            listing={listing}
+            onSent={() => onAction?.("contact_agent")}
+          />
+          <Button asChild variant="outline" className="h-12 w-full rounded-md">
+            <Link href={agentHref}>
+              <Eye className="size-4" />
+              View agent profile
+            </Link>
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -784,17 +1003,14 @@ export function ListingDetailPage({
       </Link>
     </Button>
   ) : null;
-  const buyNowAction = canUseListingActions ? (
+  const buyNowAction = canUseListingActions && listing.listingType !== "rental" ? (
     <Button asChild>
       <Link href={agentHref} onClick={() => recordListingAction("buy_now")}>
         Buy now
       </Link>
     </Button>
   ) : null;
-  const messageAgentAction = canUseListingActions ? (
-    <MessageAgentButton listing={listing} />
-  ) : null;
-  const placeOfferAction = canUseListingActions ? (
+  const placeOfferAction = canUseListingActions && listing.listingType !== "rental" ? (
     <MakeOfferDialog
       currencyPrefix={currencyPrefix}
       listing={listing}
@@ -803,32 +1019,34 @@ export function ListingDetailPage({
   ) : null;
   const purchaseActions = (
     <>
-      {messageAgentAction}
       {buyNowAction}
       {placeOfferAction}
     </>
   );
   const listingToolActions = canUseListingActions ? (
-    <ListingEngagementActions
-      className="mt-3"
-      listing={{
-        id: listing.id,
-        likedByViewer: listing.likedByViewer,
-        likeCountLabel: listing.likeCountLabel,
-        savedByViewer: listing.savedByViewer,
-        saveCountLabel: listing.saveCountLabel,
-      }}
-      onLike={() => recordListingAction("like")}
-      onSave={() => recordListingAction("save")}
-    />
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <ListingEngagementActions
+        listing={{
+          id: listing.id,
+          likedByViewer: listing.likedByViewer,
+          likeCountLabel: listing.likeCountLabel,
+          savedByViewer: listing.savedByViewer,
+          saveCountLabel: listing.saveCountLabel,
+        }}
+        onLike={() => recordListingAction("like")}
+        onSave={() => recordListingAction("save")}
+      />
+      <ListingOfferCountPill countLabel={listing.offerCountLabel} />
+    </div>
   ) : listing.savedByViewer ? (
-    <div className="mt-3">
+    <div className="mt-3 flex flex-wrap items-center gap-2">
       <ListingSaveButton
         countLabel={listing.saveCountLabel}
         initialSaved={listing.savedByViewer}
         listingId={listing.id}
         onSave={() => recordListingAction("save")}
       />
+      <ListingOfferCountPill countLabel={listing.offerCountLabel} />
     </div>
   ) : null;
 
