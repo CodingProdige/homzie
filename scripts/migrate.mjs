@@ -950,6 +950,356 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      type text NOT NULL DEFAULT 'direct',
+      status text NOT NULL DEFAULT 'active',
+      title text,
+      created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
+      last_message_id uuid,
+      last_message_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS conversations_created_by_user_id_idx
+    ON conversations (created_by_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS conversations_listing_id_idx
+    ON conversations (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS conversations_last_message_at_idx
+    ON conversations (last_message_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS conversations_status_idx
+    ON conversations (status)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS conversation_participants (
+      conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role text NOT NULL DEFAULT 'member',
+      inbox text NOT NULL DEFAULT 'primary',
+      muted_at timestamptz,
+      archived_at timestamptz,
+      deleted_at timestamptz,
+      last_read_at timestamptz,
+      joined_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (conversation_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS conversation_participants_user_id_idx
+    ON conversation_participants (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS conversation_participants_inbox_idx
+    ON conversation_participants (inbox)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS conversation_participants_last_read_at_idx
+    ON conversation_participants (last_read_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS messages (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      sender_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      type text NOT NULL DEFAULT 'text',
+      body text,
+      metadata jsonb,
+      client_id text UNIQUE,
+      edited_at timestamptz,
+      deleted_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS messages_conversation_id_idx
+    ON messages (conversation_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS messages_sender_user_id_idx
+    ON messages (sender_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS messages_created_at_idx
+    ON messages (created_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS messages_type_idx
+    ON messages (type)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS message_receipts (
+      message_id uuid NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      delivered_at timestamptz,
+      read_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (message_id, user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_receipts_user_id_idx
+    ON message_receipts (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_receipts_delivered_at_idx
+    ON message_receipts (delivered_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_receipts_read_at_idx
+    ON message_receipts (read_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS message_attachments (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      message_id uuid NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+      type text NOT NULL,
+      url text,
+      title text,
+      preview_image_url text,
+      listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
+      reel_id uuid REFERENCES reels(id) ON DELETE SET NULL,
+      metadata jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_attachments_message_id_idx
+    ON message_attachments (message_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_attachments_listing_id_idx
+    ON message_attachments (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_attachments_reel_id_idx
+    ON message_attachments (reel_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_offers (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      message_id uuid REFERENCES messages(id) ON DELETE SET NULL,
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      buyer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      agent_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount_cents integer NOT NULL,
+      currency text NOT NULL DEFAULT 'ZAR',
+      note text,
+      status text NOT NULL DEFAULT 'pending',
+      responded_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_offers_conversation_id_idx
+    ON property_offers (conversation_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_offers_listing_id_idx
+    ON property_offers (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_offers_buyer_user_id_idx
+    ON property_offers (buyer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_offers_agent_user_id_idx
+    ON property_offers (agent_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_offers_status_idx
+    ON property_offers (status)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_blocks (
+      blocker_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      blocked_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reason text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (blocker_user_id, blocked_user_id)
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_blocks_blocked_user_id_idx
+    ON user_blocks (blocked_user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS message_reports (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      reporter_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reported_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      conversation_id uuid REFERENCES conversations(id) ON DELETE SET NULL,
+      message_id uuid REFERENCES messages(id) ON DELETE SET NULL,
+      reason text NOT NULL,
+      details text,
+      status text NOT NULL DEFAULT 'open',
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_reports_reporter_user_id_idx
+    ON message_reports (reporter_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_reports_reported_user_id_idx
+    ON message_reports (reported_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_reports_conversation_id_idx
+    ON message_reports (conversation_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS message_reports_status_idx
+    ON message_reports (status)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS call_sessions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      started_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      type text NOT NULL DEFAULT 'audio',
+      status text NOT NULL DEFAULT 'ringing',
+      started_at timestamptz NOT NULL DEFAULT now(),
+      answered_at timestamptz,
+      ended_at timestamptz,
+      ended_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      metadata jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS call_sessions_conversation_id_idx
+    ON call_sessions (conversation_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS call_sessions_started_by_user_id_idx
+    ON call_sessions (started_by_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS call_sessions_status_idx
+    ON call_sessions (status)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      actor_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      event_type text NOT NULL,
+      entity_type text,
+      entity_id uuid,
+      conversation_id uuid REFERENCES conversations(id) ON DELETE SET NULL,
+      message_id uuid REFERENCES messages(id) ON DELETE SET NULL,
+      listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
+      reel_id uuid REFERENCES reels(id) ON DELETE SET NULL,
+      metadata jsonb,
+      seen_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_events_user_id_idx
+    ON user_events (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_events_actor_user_id_idx
+    ON user_events (actor_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_events_event_type_idx
+    ON user_events (event_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_events_seen_at_idx
+    ON user_events (seen_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_events_created_at_idx
+    ON user_events (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint text NOT NULL,
+      p256dh text NOT NULL,
+      auth text NOT NULL,
+      user_agent text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS web_push_subscriptions_endpoint_idx
+    ON web_push_subscriptions (endpoint)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS web_push_subscriptions_user_id_idx
+    ON web_push_subscriptions (user_id)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS hashtag_stats (
       tag text PRIMARY KEY,
       reel_count integer NOT NULL DEFAULT 0,

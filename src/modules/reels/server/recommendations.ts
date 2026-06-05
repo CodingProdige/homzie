@@ -30,6 +30,7 @@ type RecommendedReelsOptions = {
 };
 
 type RecommendedReelRow = {
+  agentAvatarUrl: string | null;
   agentName: string;
   agentUsername: string | null;
   caption: string | null;
@@ -257,6 +258,7 @@ function mapFeedItem({
 
   return {
     agentName: row.agentName,
+    agentAvatarUrl: toPublicMediaUrl(row.agentAvatarUrl),
     agentUsername: row.agentUsername || "homzie",
     commentCount,
     comments: formatCompactCount(commentCount),
@@ -345,6 +347,7 @@ async function getCandidateRows({
 
   return db
     .select({
+      agentAvatarUrl: users.avatarUrl,
       agentName: users.name,
       agentUsername: users.username,
       caption: reels.caption,

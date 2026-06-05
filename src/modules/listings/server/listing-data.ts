@@ -25,6 +25,7 @@ export type ListingDetailData = {
     bio: string | null;
     contactEmail: string | null;
     contactPhone: string | null;
+    id: string;
     location: string | null;
     name: string;
     publicContactVisible: boolean;
@@ -371,6 +372,7 @@ function mapListingRow(
       bio: row.agentBio,
       contactEmail: row.agentPublicContactVisible ? row.agentContactEmail : null,
       contactPhone: row.agentPublicContactVisible ? row.agentContactPhone : null,
+      id: row.userId,
       location: row.agentLocation,
       name: row.agentName,
       publicContactVisible: row.agentPublicContactVisible,

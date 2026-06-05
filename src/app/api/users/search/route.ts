@@ -18,6 +18,7 @@ export async function GET(request: Request) {
   const results = await db
     .select({
       avatarUrl: users.avatarUrl,
+      id: users.id,
       name: users.name,
       username: users.username,
     })
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
       .filter((user) => Boolean(user.username))
       .map((user) => ({
         avatarUrl: toPublicMediaUrl(user.avatarUrl),
+        id: user.id,
         name: user.name,
         username: user.username || "",
       })),

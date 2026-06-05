@@ -996,6 +996,9 @@ function ProfileTabs({
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+          const showCount = tab.count > 0;
+          const showLocked =
+            isLocked && (tab.id === "reels" || tab.id === "listings");
 
           return (
             <button
@@ -1010,20 +1013,24 @@ function ProfileTabs({
               aria-pressed={isActive}
               onClick={() => onTabChange(tab.id as ProfileTab)}
             >
-              <span className="relative leading-none">
+              <span className="relative grid size-5 place-items-center leading-none">
                 <Icon className="size-4" />
-                <span
-                  className={cn(
-                    "absolute -right-2.5 -top-2 grid min-w-4 place-items-center rounded-full px-1 py-0.5 text-[9px] font-black leading-none",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {tab.count}
-                </span>
-                {isLocked && (tab.id === "reels" || tab.id === "listings") ? (
-                  <LockKeyhole className="absolute -right-2 -top-1.5 size-2.5 text-destructive" />
+                {showCount ? (
+                  <span
+                    className={cn(
+                      "absolute -right-2.5 -top-2 grid min-w-4 place-items-center rounded-full border border-background px-1 py-0.5 text-[9px] font-black leading-none shadow-sm",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {tab.count > 99 ? "99+" : tab.count}
+                  </span>
+                ) : null}
+                {showLocked ? (
+                  <span className="absolute -left-2.5 -top-2 grid size-3.5 place-items-center text-muted-foreground">
+                    <LockKeyhole className="size-3" />
+                  </span>
                 ) : null}
               </span>
               <span className="max-w-full truncate leading-tight">{tab.label}</span>

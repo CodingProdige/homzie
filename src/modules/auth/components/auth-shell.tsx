@@ -11,7 +11,7 @@ type AuthMode = "sign-in" | "register";
 
 function AuthMediaPanel() {
   return (
-    <section className="relative min-h-[620px] overflow-hidden bg-brand-black text-white lg:min-h-screen">
+    <section className="relative hidden min-h-[620px] overflow-hidden bg-brand-black text-white lg:block lg:min-h-screen">
       <video
         className="absolute inset-0 size-full object-cover"
         src="/video/sign-in-video.mp4"
@@ -45,14 +45,18 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
     <main className="min-h-screen bg-background text-foreground lg:grid lg:h-screen lg:grid-cols-[minmax(0,1.45fr)_minmax(480px,0.95fr)] lg:overflow-hidden">
       <AuthMediaPanel />
 
-      <section className="relative flex min-h-screen items-start justify-center overflow-y-auto bg-background px-7 py-12 sm:px-10 lg:h-screen">
+      <section className="relative flex min-h-screen items-center justify-center overflow-y-auto bg-background px-7 py-12 sm:px-10 lg:h-screen lg:items-start">
         <div className="absolute right-5 top-5 hidden lg:block">
           <ThemeToggle />
         </div>
 
         <div className="w-full max-w-[430px]">
           <div className="mb-10 text-center">
-            <HomzieLogo className="mx-auto h-9" />
+            <HomzieLogo
+              variant="tight"
+              className="mx-auto h-14 sm:h-16"
+              priority
+            />
           </div>
 
           <div className="text-center">

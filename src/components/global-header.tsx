@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
+import { EventCountBadge } from "@/modules/events/components/event-count-badge";
 
 const navItems: Array<{
   href: string;
@@ -47,16 +48,28 @@ export function GlobalHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const scrolled = !transparentUntilScroll || hasScrolled;
   const isActiveHref = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
   const profileHref = viewerUsername ? `/users/${viewerUsername}` : "/sign-in";
   const messagesHref = "/messages";
+  const eventsHref = viewerUsername ? "/events" : "/sign-in";
   const isProfileActive = isActiveHref(profileHref);
   const isMessagesActive = isActiveHref(messagesHref);
+  const isEventsActive = isActiveHref("/events");
   const mobileItems = [
+    {
+      label: "Home",
+      href: "/",
+      icon: Home,
+    },
     {
       label: "Messages",
       href: messagesHref,
       icon: Send,
+    },
+    {
+      label: "Events",
+      href: eventsHref,
+      icon: Heart,
     },
     ...navItems,
     {
@@ -157,10 +170,23 @@ export function GlobalHeader({
           <Button
             variant="ghost"
             size="icon"
+            asChild
             className="hidden lg:inline-flex"
-            aria-label="Notifications"
+            aria-label="Events"
           >
-            <Heart className="size-5" />
+            <Link
+              href={eventsHref}
+              aria-current={isEventsActive ? "page" : undefined}
+              className={cn(
+                "relative",
+                isEventsActive && "bg-primary/10 text-primary",
+              )}
+            >
+              <Heart className="size-5" />
+              {viewerUsername ? (
+                <EventCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-primary-foreground" />
+              ) : null}
+            </Link>
           </Button>
           {viewerUsername ? (
             <Button
@@ -240,6 +266,9 @@ export function GlobalHeader({
                             <Icon className="size-5 shrink-0 text-current" />
                             <span>{item.label}</span>
                           </span>
+                          {item.label === "Events" && viewerUsername ? (
+                            <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                          ) : null}
                         </Link>
                       </Dialog.Close>
                     );

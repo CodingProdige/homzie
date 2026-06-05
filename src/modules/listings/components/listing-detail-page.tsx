@@ -3,7 +3,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Bath,
   BedDouble,
@@ -38,6 +39,10 @@ import {
 } from "@/modules/listings/components/listing-card";
 import { mandateTypeOptions } from "@/modules/listings/options";
 import type { ListingDetailData } from "@/modules/listings/server/listing-data";
+import {
+  createOfferMessageAction,
+  startConversationAction,
+} from "@/modules/messages/actions";
 
 function featureHashtag(value: string) {
   return `#${value.replace(/\s+/g, "")}`;
@@ -331,6 +336,150 @@ function BondCalculatorDialog({
   );
 }
 
+function MakeOfferDialog({
+  currencyPrefix,
+  listing,
+  onOfferStarted,
+}: {
+  currencyPrefix: string;
+  listing: ListingDetailData;
+  onOfferStarted?: () => void;
+}) {
+  const router = useRouter();
+  const { currency } = useCurrency();
+  const [amount, setAmount] = useState(
+    listing.askingPriceCents ? String(Math.round(listing.askingPriceCents / 100)) : "",
+  );
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <Dialog.Root>
+      <Dialog.Trigger asChild>
+        <Button variant="outline" onClick={onOfferStarted}>
+          Place offer
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm" />
+        <Dialog.Content className="fixed inset-x-3 top-1/2 z-[91] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-4 text-foreground shadow-2xl focus-visible:outline-none sm:mx-auto sm:max-w-lg sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Dialog.Title className="text-lg font-black">
+                Make an offer
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+                Your offer will start a direct conversation with the agent and
+                attach this listing.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <Button variant="ghost" size="icon" aria-label="Close offer">
+                <X className="size-5" />
+              </Button>
+            </Dialog.Close>
+          </div>
+
+          <div className="mt-5 grid gap-4">
+            <div className="rounded-lg border border-border bg-card p-3 text-card-foreground">
+              <p className="line-clamp-2 text-sm font-black">{listing.title}</p>
+              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                {listing.location || listing.city || "Listing"}
+              </p>
+            </div>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-black">Offer amount</span>
+              <div className="flex h-12 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary/25">
+                <span className="text-sm font-black text-primary">
+                  {currencyPrefix}
+                </span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="1"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
+                />
+              </div>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-black">Message</span>
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                rows={4}
+                placeholder="Add a note for the agent..."
+                className="resize-none rounded-md border border-border bg-background px-3 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/25"
+              />
+            </label>
+
+            {error ? (
+              <p className="text-sm font-bold text-destructive">{error}</p>
+            ) : null}
+
+            <Button
+              type="button"
+              disabled={pending || !amount}
+              onClick={() => {
+                setError("");
+                startTransition(async () => {
+                  try {
+                    const result = await createOfferMessageAction({
+                      amountCents: amountToCents(amount),
+                      currency,
+                      listingId: listing.id,
+                      note,
+                    });
+
+                    router.push(`/messages?conversation=${result.conversationId}`);
+                  } catch (offerError) {
+                    setError(
+                      offerError instanceof Error
+                        ? offerError.message
+                        : "Could not send this offer.",
+                    );
+                  }
+                });
+              }}
+            >
+              {pending ? "Sending offer..." : "Send offer"}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function MessageAgentButton({ listing }: { listing: ListingDetailData }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={pending}
+      onClick={() => {
+        startTransition(async () => {
+          const result = await startConversationAction({
+            listingId: listing.id,
+            recipientUserId: listing.agent.id,
+          });
+
+          router.push(`/messages?conversation=${result.conversationId}`);
+        });
+      }}
+    >
+      {pending ? "Opening chat..." : "Message agent"}
+    </Button>
+  );
+}
+
 function ListingDescription({ value }: { value: string | null }) {
   if (!value) {
     return (
@@ -505,6 +654,8 @@ export function ListingDetailPage({
     listing.askingPriceCents && listing.askingPriceCents > 0
       ? formatPriceCents(listing.askingPriceCents)
       : formatPriceLabel(listing.priceLabel) || "Price not set";
+  const currencyPrefix =
+    formatPriceCents(0).replace(/[0-9.,\s]+/g, "").trim() || "R";
   const price =
     listing.listingType === "rental" &&
     listing.askingPriceCents &&
@@ -640,15 +791,19 @@ export function ListingDetailPage({
       </Link>
     </Button>
   ) : null;
+  const messageAgentAction = canUseListingActions ? (
+    <MessageAgentButton listing={listing} />
+  ) : null;
   const placeOfferAction = canUseListingActions ? (
-    <Button asChild variant="outline">
-      <Link href={agentHref} onClick={() => recordListingAction("place_offer")}>
-        Place offer
-      </Link>
-    </Button>
+    <MakeOfferDialog
+      currencyPrefix={currencyPrefix}
+      listing={listing}
+      onOfferStarted={() => recordListingAction("place_offer")}
+    />
   ) : null;
   const purchaseActions = (
     <>
+      {messageAgentAction}
       {buyNowAction}
       {placeOfferAction}
     </>

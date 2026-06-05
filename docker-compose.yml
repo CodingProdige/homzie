@@ -98,6 +98,54 @@ services:
       redis:
         condition: service_started
 
+  realtime:
+    profiles:
+      - selfhost
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: realtime
+      args: *homzie-build-args
+    restart: unless-stopped
+    env_file:
+      - ${HOMZIE_ENV_FILE:-/mnt/c/Homzie/config/homzie.env}
+    environment:
+      NODE_ENV: production
+      MESSAGE_SOCKET_PORT: 3001
+    expose:
+      - "3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  coturn:
+    profiles:
+      - selfhost
+    image: coturn/coturn:4.6.3
+    restart: unless-stopped
+    command:
+      - --listening-port=3478
+      - --fingerprint
+      - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SHARED_SECRET}
+      - --realm=${TURN_REALM:-homzie.co.za}
+      - --external-ip=${TURN_EXTERNAL_IP}
+      - --min-port=${TURN_MIN_PORT:-49160}
+      - --max-port=${TURN_MAX_PORT:-49200}
+      - --no-cli
+      - --no-loopback-peers
+      - --no-multicast-peers
+      - --no-tls
+      - --no-dtls
+      - --log-file=-
+    ports:
+      - "${TURN_PORT:-3478}:3478/tcp"
+      - "${TURN_PORT:-3478}:3478/udp"
+      - "${TURN_MIN_PORT:-49160}-${TURN_MAX_PORT:-49200}:${TURN_MIN_PORT:-49160}-${TURN_MAX_PORT:-49200}/udp"
+
   caddy:
     profiles:
       - selfhost
@@ -115,6 +163,8 @@ services:
       - /mnt/c/Homzie/storage/exports:/data/media/exports:ro
     depends_on:
       - web
+      - realtime
+      - coturn
 
   cloudflared:
     profiles:

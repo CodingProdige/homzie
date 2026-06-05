@@ -3,6 +3,7 @@ import { Geist_Mono, Poppins } from "next/font/google";
 import Script from "next/script";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
+import { PushNotificationBootstrap } from "@/modules/push/components/push-notification-bootstrap";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -49,6 +50,7 @@ export default function RootLayout({
         </Script>
         <CurrencyProvider>
           <CountryPreferenceBootstrap />
+          <PushNotificationBootstrap />
           {children}
         </CurrencyProvider>
       </body>

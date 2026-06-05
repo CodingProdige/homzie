@@ -13,6 +13,9 @@ if (setup.status !== 0) {
 const worker = spawn(npmCommand, ["run", "worker:reels"], {
   stdio: "inherit",
 });
+const messages = spawn(npmCommand, ["run", "start:messages"], {
+  stdio: "inherit",
+});
 const web = spawn(npmCommand, ["run", "dev"], {
   stdio: "inherit",
 });
@@ -27,12 +30,19 @@ function shutdown(code = 0) {
 
   isShuttingDown = true;
   worker.kill("SIGTERM");
+  messages.kill("SIGTERM");
   web.kill("SIGTERM");
   studio.kill("SIGTERM");
   process.exit(code);
 }
 
 worker.on("exit", (code) => {
+  if (!isShuttingDown) {
+    shutdown(code || 0);
+  }
+});
+
+messages.on("exit", (code) => {
   if (!isShuttingDown) {
     shutdown(code || 0);
   }

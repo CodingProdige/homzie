@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Bookmark,
   Check,
+  ChevronRight,
   Copy,
   Heart,
   ImageIcon,
@@ -14,6 +15,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Pencil,
+  Plus,
   Repeat2,
   Send,
   Share2,
@@ -56,6 +58,7 @@ export type ReelFeedItem = {
   id: string;
   agentName: string;
   agentUsername: string;
+  agentAvatarUrl?: string | null;
   title: string;
   location: string;
   price?: string;
@@ -753,35 +756,46 @@ function ReelCard({
       ) : null}
 
       <aside className="absolute bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] right-3 z-20 flex origin-bottom-right flex-col items-center gap-4 text-white lg:scale-[var(--reel-ui-scale)]">
-        <Link
-          href={`/users/${reel.agentUsername}`}
-          className="relative flex size-12 items-center justify-center rounded-full border-2 border-white bg-[var(--homzie-gradient)] text-sm font-black shadow-lg"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {initialsFromName(reel.agentName)}
-        </Link>
-        {!reel.isOwnAgent ? (
-          <button
-            type="button"
-            className={cn(
-              "-mt-6 flex size-6 items-center justify-center rounded-full text-white shadow-lg",
-              followingAgent
-                ? "bg-[var(--homzie-gradient)]"
-                : "bg-brand-pink",
-            )}
-            aria-label={followingAgent ? "Unfollow profile" : "Follow profile"}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleFollowToggle();
-            }}
+        <div className="relative mb-1">
+          <Link
+            href={`/users/${reel.agentUsername}`}
+            className="flex size-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[var(--homzie-gradient)] text-sm font-black shadow-lg"
+            onClick={(event) => event.stopPropagation()}
           >
-            {followingAgent ? (
-              <Check className="size-3.5 stroke-[3]" />
+            {reel.agentAvatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- User avatars can be local media URLs.
+              <img
+                src={reel.agentAvatarUrl}
+                alt=""
+                className="size-full object-cover"
+              />
             ) : (
-              <span className="-mt-0.5 text-xl leading-none">+</span>
+              initialsFromName(reel.agentName)
             )}
-          </button>
-        ) : null}
+          </Link>
+          {!reel.isOwnAgent ? (
+            <button
+              type="button"
+              className={cn(
+                "absolute -right-1 -top-1 grid size-5 place-items-center rounded-full border-2 border-white text-white shadow-lg transition-transform hover:scale-105",
+                followingAgent
+                  ? "[background:var(--homzie-gradient)]"
+                  : "bg-brand-pink",
+              )}
+              aria-label={followingAgent ? "Unfollow profile" : "Follow profile"}
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleFollowToggle();
+              }}
+            >
+              {followingAgent ? (
+                <Check className="size-3 stroke-[3]" />
+              ) : (
+                <Plus className="size-3 stroke-[3]" />
+              )}
+            </button>
+          ) : null}
+        </div>
 
         <ReelActionButton
           active={liked}
@@ -1133,7 +1147,8 @@ function ReelListingLinkCard({
       {actionLabel && href ? (
         <Link
           href={href}
-          className="shrink-0 rounded-full bg-black px-3 py-2 text-xs font-black text-white"
+          aria-label={actionLabel}
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-black text-white shadow-sm transition-transform hover:scale-105"
           onClick={async (event) => {
             event.stopPropagation();
             event.preventDefault();
@@ -1145,7 +1160,7 @@ function ReelListingLinkCard({
             }
           }}
         >
-          {actionLabel}
+          <ChevronRight className="size-4 stroke-[3]" />
         </Link>
       ) : null}
     </>

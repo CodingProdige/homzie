@@ -624,6 +624,308 @@ export const reelCommentDislikes = pgTable(
   ],
 );
 
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    type: text("type").notNull().default("direct"),
+    status: text("status").notNull().default("active"),
+    title: text("title"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    listingId: uuid("listing_id").references(() => propertyListings.id, {
+      onDelete: "set null",
+    }),
+    lastMessageId: uuid("last_message_id"),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("conversations_created_by_user_id_idx").on(table.createdByUserId),
+    index("conversations_listing_id_idx").on(table.listingId),
+    index("conversations_last_message_at_idx").on(table.lastMessageAt),
+    index("conversations_status_idx").on(table.status),
+  ],
+);
+
+export const conversationParticipants = pgTable(
+  "conversation_participants",
+  {
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("member"),
+    inbox: text("inbox").notNull().default("primary"),
+    mutedAt: timestamp("muted_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.conversationId, table.userId],
+    }),
+    index("conversation_participants_user_id_idx").on(table.userId),
+    index("conversation_participants_inbox_idx").on(table.inbox),
+    index("conversation_participants_last_read_at_idx").on(table.lastReadAt),
+  ],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    senderUserId: uuid("sender_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    type: text("type").notNull().default("text"),
+    body: text("body"),
+    metadata: jsonb("metadata"),
+    clientId: text("client_id"),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("messages_client_id_idx").on(table.clientId),
+    index("messages_conversation_id_idx").on(table.conversationId),
+    index("messages_sender_user_id_idx").on(table.senderUserId),
+    index("messages_created_at_idx").on(table.createdAt),
+    index("messages_type_idx").on(table.type),
+  ],
+);
+
+export const messageReceipts = pgTable(
+  "message_receipts",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.messageId, table.userId],
+    }),
+    index("message_receipts_user_id_idx").on(table.userId),
+    index("message_receipts_delivered_at_idx").on(table.deliveredAt),
+    index("message_receipts_read_at_idx").on(table.readAt),
+  ],
+);
+
+export const messageAttachments = pgTable(
+  "message_attachments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    url: text("url"),
+    title: text("title"),
+    previewImageUrl: text("preview_image_url"),
+    listingId: uuid("listing_id").references(() => propertyListings.id, {
+      onDelete: "set null",
+    }),
+    reelId: uuid("reel_id").references(() => reels.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("message_attachments_message_id_idx").on(table.messageId),
+    index("message_attachments_listing_id_idx").on(table.listingId),
+    index("message_attachments_reel_id_idx").on(table.reelId),
+  ],
+);
+
+export const propertyOffers = pgTable(
+  "property_offers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    buyerUserId: uuid("buyer_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    agentUserId: uuid("agent_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("ZAR"),
+    note: text("note"),
+    status: text("status").notNull().default("pending"),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("property_offers_conversation_id_idx").on(table.conversationId),
+    index("property_offers_listing_id_idx").on(table.listingId),
+    index("property_offers_buyer_user_id_idx").on(table.buyerUserId),
+    index("property_offers_agent_user_id_idx").on(table.agentUserId),
+    index("property_offers_status_idx").on(table.status),
+  ],
+);
+
+export const userBlocks = pgTable(
+  "user_blocks",
+  {
+    blockerUserId: uuid("blocker_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    blockedUserId: uuid("blocked_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.blockerUserId, table.blockedUserId],
+    }),
+    index("user_blocks_blocked_user_id_idx").on(table.blockedUserId),
+  ],
+);
+
+export const messageReports = pgTable(
+  "message_reports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    reporterUserId: uuid("reporter_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reportedUserId: uuid("reported_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    messageId: uuid("message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason").notNull(),
+    details: text("details"),
+    status: text("status").notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("message_reports_reporter_user_id_idx").on(table.reporterUserId),
+    index("message_reports_reported_user_id_idx").on(table.reportedUserId),
+    index("message_reports_conversation_id_idx").on(table.conversationId),
+    index("message_reports_status_idx").on(table.status),
+  ],
+);
+
+export const callSessions = pgTable(
+  "call_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    startedByUserId: uuid("started_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    type: text("type").notNull().default("audio"),
+    status: text("status").notNull().default("ringing"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    endedByUserId: uuid("ended_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("call_sessions_conversation_id_idx").on(table.conversationId),
+    index("call_sessions_started_by_user_id_idx").on(table.startedByUserId),
+    index("call_sessions_status_idx").on(table.status),
+  ],
+);
+
+export const userEvents = pgTable(
+  "user_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    eventType: text("event_type").notNull(),
+    entityType: text("entity_type"),
+    entityId: uuid("entity_id"),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    messageId: uuid("message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    listingId: uuid("listing_id").references(() => propertyListings.id, {
+      onDelete: "set null",
+    }),
+    reelId: uuid("reel_id").references(() => reels.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata"),
+    seenAt: timestamp("seen_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("user_events_user_id_idx").on(table.userId),
+    index("user_events_actor_user_id_idx").on(table.actorUserId),
+    index("user_events_event_type_idx").on(table.eventType),
+    index("user_events_seen_at_idx").on(table.seenAt),
+    index("user_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const webPushSubscriptions = pgTable(
+  "web_push_subscriptions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("web_push_subscriptions_endpoint_idx").on(table.endpoint),
+    index("web_push_subscriptions_user_id_idx").on(table.userId),
+  ],
+);
+
 export const hashtagStats = pgTable("hashtag_stats", {
   tag: text("tag").primaryKey(),
   reelCount: integer("reel_count").notNull().default(0),

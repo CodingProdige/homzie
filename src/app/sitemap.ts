@@ -14,31 +14,56 @@ function absoluteUrl(path: string) {
   return `${siteUrl}${path}`;
 }
 
+async function getDynamicSitemapEntries(now: Date): Promise<MetadataRoute.Sitemap> {
+  try {
+    const [publicListings, publicUsers] = await Promise.all([
+      db
+        .select({
+          id: propertyListings.id,
+          updatedAt: propertyListings.updatedAt,
+          listedAt: propertyListings.listedAt,
+        })
+        .from(propertyListings)
+        .where(eq(propertyListings.status, "published"))
+        .orderBy(desc(propertyListings.updatedAt))
+        .limit(5000),
+      db
+        .select({
+          username: users.username,
+          updatedAt: users.updatedAt,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .where(and(eq(users.status, "active"), isNotNull(users.username)))
+        .orderBy(desc(users.updatedAt))
+        .limit(5000),
+    ]);
+
+    return [
+      ...publicListings.map((listing) => ({
+        url: absoluteUrl(`/listings/${listing.id}`),
+        lastModified: listing.updatedAt || listing.listedAt || now,
+        changeFrequency: "weekly" as const,
+        priority: 0.7,
+      })),
+      ...publicUsers.map((user) => ({
+        url: absoluteUrl(`/users/${user.username}`),
+        lastModified: user.updatedAt || user.createdAt || now,
+        changeFrequency: "weekly" as const,
+        priority: 0.6,
+      })),
+    ];
+  } catch (error) {
+    console.warn("Dynamic sitemap entries skipped because the database is unavailable.", {
+      error,
+    });
+
+    return [];
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
-
-  const [publicListings, publicUsers] = await Promise.all([
-    db
-      .select({
-        id: propertyListings.id,
-        updatedAt: propertyListings.updatedAt,
-        listedAt: propertyListings.listedAt,
-      })
-      .from(propertyListings)
-      .where(eq(propertyListings.status, "published"))
-      .orderBy(desc(propertyListings.updatedAt))
-      .limit(5000),
-    db
-      .select({
-        username: users.username,
-        updatedAt: users.updatedAt,
-        createdAt: users.createdAt,
-      })
-      .from(users)
-      .where(and(eq(users.status, "active"), isNotNull(users.username)))
-      .orderBy(desc(users.updatedAt))
-      .limit(5000),
-  ]);
 
   return [
     {
@@ -71,17 +96,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.6,
     },
-    ...publicListings.map((listing) => ({
-      url: absoluteUrl(`/listings/${listing.id}`),
-      lastModified: listing.updatedAt || listing.listedAt || now,
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    })),
-    ...publicUsers.map((user) => ({
-      url: absoluteUrl(`/users/${user.username}`),
-      lastModified: user.updatedAt || user.createdAt || now,
-      changeFrequency: "weekly" as const,
-      priority: 0.6,
-    })),
+    ...(await getDynamicSitemapEntries(now)),
   ];
 }

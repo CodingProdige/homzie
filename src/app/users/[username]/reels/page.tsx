@@ -93,6 +93,7 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
 
   const ownedRows = await db
     .select({
+      agentAvatarUrl: users.avatarUrl,
       agentName: users.name,
       agentUsername: users.username,
       caption: reels.caption,
@@ -119,6 +120,7 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
 
   const resharedRows = await db
     .select({
+      agentAvatarUrl: users.avatarUrl,
       agentName: users.name,
       agentUsername: users.username,
       caption: reels.caption,
@@ -219,6 +221,7 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
 
       return {
         agentName: reel.agentName,
+        agentAvatarUrl: toPublicMediaUrl(reel.agentAvatarUrl),
         agentUsername: reel.agentUsername || "homzie",
         commentCount,
         comments: formatCompactCount(commentCount),

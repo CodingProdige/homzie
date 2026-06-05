@@ -38,6 +38,15 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 CMD ["node", "--import", "tsx", "scripts/reel-render-worker.ts"]
 
+FROM builder AS realtime
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV MESSAGE_SOCKET_PORT=3001
+
+CMD ["node", "scripts/message-realtime-server.mjs"]
+
 FROM node:22-alpine AS runner
 WORKDIR /app
 

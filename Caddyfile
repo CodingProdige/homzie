@@ -6,6 +6,10 @@
 		file_server
 	}
 
+	handle /socket.io/* {
+		reverse_proxy realtime:3001
+	}
+
 	handle {
 		reverse_proxy web:3000
 	}
