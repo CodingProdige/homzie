@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Heart, Play, ShieldCheck, UsersRound } from "lucide-react";
 
 import {
@@ -48,6 +49,8 @@ function formatCount(value: number) {
 }
 
 export default async function AboutPage() {
+  await connection();
+
   const platformStats = await getPlatformStats();
   const stats = [
     {
