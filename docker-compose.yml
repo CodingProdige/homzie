@@ -39,6 +39,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runner
       args: *homzie-build-args
     restart: unless-stopped
     env_file:
