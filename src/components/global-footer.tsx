@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Camera, Heart, Home, Mail, Send } from "lucide-react";
+import { Mail, MapPin } from "lucide-react";
 
 import { HomzieLogo } from "@/components/homzie-logo";
 
@@ -44,7 +44,7 @@ const footerSections = [
 export function GlobalFooter({ viewerUsername }: { viewerUsername?: string }) {
   return (
     <footer className="border-t border-border bg-card text-card-foreground">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.25fr_repeat(5,1fr)] lg:px-8">
         <div>
           <Link href="/" aria-label="Homzie home" className="inline-flex">
             <HomzieLogo variant="tight" className="h-10" />
@@ -52,43 +52,6 @@ export function GlobalFooter({ viewerUsername }: { viewerUsername?: string }) {
           <p className="mt-4 max-w-sm text-sm font-semibold leading-6 text-muted-foreground">
             Property discovery built around agents, listings, and reels that move buyers from interest to action.
           </p>
-          <div className="mt-5 flex items-center gap-2">
-            <Link
-              href="/reels"
-              aria-label="Homzie reels"
-              className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition hover:text-primary"
-            >
-              <Send className="size-4" />
-            </Link>
-            <Link
-              href={viewerUsername ? `/users/${viewerUsername}?tab=saved` : "/sign-in"}
-              aria-label="Saved homes"
-              className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition hover:text-primary"
-            >
-              <Heart className="size-4" />
-            </Link>
-            <Link
-              href="/agents"
-              aria-label="Agents"
-              className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition hover:text-primary"
-            >
-              <Home className="size-4" />
-            </Link>
-            <Link
-              href="mailto:hello@homzie.app"
-              aria-label="Email Homzie"
-              className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition hover:text-primary"
-            >
-              <Mail className="size-4" />
-            </Link>
-            <Link
-              href="#"
-              aria-label="Homzie social"
-              className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition hover:text-primary"
-            >
-              <Camera className="size-4" />
-            </Link>
-          </div>
         </div>
 
         {footerSections.map((section) => (
@@ -115,9 +78,38 @@ export function GlobalFooter({ viewerUsername }: { viewerUsername?: string }) {
             </nav>
           </div>
         ))}
+
+        <div>
+          <h2 className="text-sm font-black">Support</h2>
+          <div className="mt-4 grid gap-4 text-sm font-semibold text-muted-foreground">
+            <Link
+              href="mailto:support@homzie.co.za"
+              className="flex items-start gap-2 transition hover:text-primary"
+            >
+              <Mail className="mt-0.5 size-4 shrink-0" />
+              <span>support@homzie.co.za</span>
+            </Link>
+            <address className="flex items-start gap-2 not-italic leading-6">
+              <MapPin className="mt-0.5 size-4 shrink-0" />
+              <span>
+                6 Christelle Str, Denneburg
+                <br />
+                Paarl, Western Cape
+                <br />
+                South Africa, 7646
+              </span>
+            </address>
+          </div>
+        </div>
       </div>
-      <div className="border-t border-border px-4 py-4 text-center text-xs font-bold text-muted-foreground">
-        &copy; {new Date().getFullYear()} Homzie. Find it. Love it. Live it.
+      <div className="border-t border-border px-4 py-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center gap-3 text-center text-xs font-bold text-muted-foreground sm:flex-row sm:justify-between sm:text-left">
+          <span>&copy; {new Date().getFullYear()} Homzie. Find it. Love it. Live it.</span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-black text-muted-foreground">
+            Secure payments by
+            <span className="text-[#635bff]">stripe</span>
+          </span>
+        </div>
       </div>
     </footer>
   );

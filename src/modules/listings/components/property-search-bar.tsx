@@ -270,7 +270,7 @@ function SearchSelect({
   const activeLabel = optionLabel(options, value, label);
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
@@ -347,7 +347,7 @@ function MultiSearchSelect({
   }
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"

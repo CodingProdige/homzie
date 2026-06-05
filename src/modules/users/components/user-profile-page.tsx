@@ -37,6 +37,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GlobalHeader } from "@/components/global-header";
+import { GlobalFooter } from "@/components/global-footer";
 import { cn } from "@/lib/utils";
 import { toPublicMediaUrl } from "@/media/paths";
 import { useCurrency } from "@/modules/currency/currency-provider";
@@ -1489,6 +1490,7 @@ export function UserProfilePage({
           username={profile.username}
         />
       </main>
+      <GlobalFooter />
       <MobileBottomNav
         hasActiveSubscription={profile.hasActiveSubscription}
         viewerUsername={profile.viewerUsername}

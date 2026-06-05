@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 import {
   ChevronRight,
-  Clock3,
   Headphones,
   Mail,
   MapPin,
   MessageCircle,
-  Send,
   ShieldCheck,
-  UsersRound,
 } from "lucide-react";
 
+import { ContactForm } from "@/modules/public-pages/contact-form";
+import { ContactFaqAccordion } from "@/modules/public-pages/faq-accordion";
 import {
   Eyebrow,
   GradientWord,
@@ -26,44 +25,15 @@ export const metadata: Metadata = {
 };
 
 const reachOptions = [
-  { icon: Clock3, title: "Phone", detail: "+27 10 123 4567", meta: "Mon - Fri, 8am - 5pm" },
-  { icon: Mail, title: "Email", detail: "hello@homzie.co.za", meta: "We reply within 24 hours" },
+  { icon: Mail, title: "Email", detail: "support@homzie.co.za", meta: "We reply within 24 hours" },
   { icon: MessageCircle, title: "Live chat", detail: "Chat with our support team", meta: "Available on our website" },
-  { icon: MapPin, title: "Head office", detail: "125 Rivonia Road, Sandton", meta: "Johannesburg, 2196" },
-  { icon: UsersRound, title: "Follow us", detail: "Stay updated on socials", meta: "Instagram, Facebook, TikTok and more" },
+  {
+    icon: MapPin,
+    title: "Head office",
+    detail: "6 Christelle Str, Denneburg",
+    meta: "Paarl, Western Cape, South Africa, 7646",
+  },
 ];
-
-const faqs = [
-  "How do I list my property on Homzie?",
-  "Is it free to list a property?",
-  "How do I contact an agent?",
-  "How do property reels work?",
-  "How do I update or remove my listing?",
-];
-
-function Field({
-  label,
-  placeholder,
-  textarea = false,
-}: {
-  label: string;
-  placeholder: string;
-  textarea?: boolean;
-}) {
-  const className =
-    "mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm font-semibold outline-none transition focus:border-primary";
-
-  return (
-    <label className="block text-xs font-bold text-muted-foreground">
-      {label}
-      {textarea ? (
-        <textarea className={`${className} min-h-36 resize-y`} placeholder={placeholder} />
-      ) : (
-        <input className={className} placeholder={placeholder} />
-      )}
-    </label>
-  );
-}
 
 export default function ContactPage() {
   return (
@@ -107,23 +77,7 @@ export default function ContactPage() {
             <p className="mt-2 text-sm font-semibold text-muted-foreground">
               Fill in the form and our team will get back to you.
             </p>
-            <form className="mt-6 grid gap-4">
-              <Field label="Full name" placeholder="Enter your full name" />
-              <Field label="Email address" placeholder="Enter your email" />
-              <Field label="Phone number (optional)" placeholder="Enter your phone number" />
-              <Field label="Subject" placeholder="What is this regarding?" />
-              <Field label="Message" placeholder="Type your message here..." textarea />
-              <button
-                type="button"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.25)]"
-              >
-                Send message
-                <Send className="size-4" />
-              </button>
-              <p className="text-center text-xs font-semibold text-muted-foreground">
-                Your information is safe with us. We will never share your details.
-              </p>
-            </form>
+            <ContactForm />
           </div>
 
           <div>
@@ -162,18 +116,7 @@ export default function ContactPage() {
               Quick answers to the most common questions.
             </p>
           </div>
-          <div className="mt-8 overflow-hidden rounded-lg border border-border bg-card">
-            {faqs.map((faq) => (
-              <button
-                key={faq}
-                type="button"
-                className="flex w-full items-center justify-between border-b border-border px-5 py-4 text-left text-sm font-black last:border-b-0"
-              >
-                {faq}
-                <ChevronRight className="size-4 text-muted-foreground" />
-              </button>
-            ))}
-          </div>
+          <ContactFaqAccordion />
           <div className="mt-8 flex flex-col gap-4 rounded-lg bg-primary/8 p-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
             <div className="flex items-center justify-center gap-4 sm:justify-start">
               <Headphones className="size-10 text-primary" />

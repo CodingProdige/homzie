@@ -8,6 +8,7 @@ const visitorIdPattern = /^[a-zA-Z0-9_-]{12,120}$/;
 
 export type PlatformStats = {
   currentVisitors: number;
+  totalAgents: number;
   totalListings: number;
   totalReels: number;
   totalSoldValueCents: number;
@@ -47,11 +48,19 @@ export async function getPlatformStats(): Promise<PlatformStats> {
         SELECT count(*)::int
         FROM users
         WHERE status = 'active'
-      ) AS total_users
+      ) AS total_users,
+      (
+        SELECT count(*)::int
+        FROM agent_profiles ap
+        INNER JOIN users u ON u.id = ap.user_id
+        WHERE ap.status = 'active'
+          AND u.status = 'active'
+      ) AS total_agents
   `;
 
   return {
     currentVisitors: numberFromAggregate(row?.current_visitors),
+    totalAgents: numberFromAggregate(row?.total_agents),
     totalListings: numberFromAggregate(row?.total_listings),
     totalReels: numberFromAggregate(row?.total_reels),
     totalSoldValueCents: numberFromAggregate(row?.total_sold_value_cents),
