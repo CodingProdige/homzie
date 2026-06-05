@@ -136,7 +136,6 @@ services:
       - --min-port=${TURN_MIN_PORT:-49160}
       - --max-port=${TURN_MAX_PORT:-49200}
       - --no-cli
-      - --no-loopback-peers
       - --no-multicast-peers
       - --no-tls
       - --no-dtls
