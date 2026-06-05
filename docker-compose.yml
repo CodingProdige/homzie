@@ -171,6 +171,7 @@ services:
       - tunnel
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
+    network_mode: service:caddy
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - caddy
