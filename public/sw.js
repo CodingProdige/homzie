@@ -10,10 +10,10 @@ self.addEventListener("push", (event) => {
         title: "Open",
       },
     ],
-    badge: "/favicon.ico",
+    badge: "/favicon/favicon-96x96.png",
     body: payload.body,
     data: payload.data || {},
-    icon: "/favicon.ico",
+    icon: "/favicon/web-app-manifest-512x512.png",
     requireInteraction: payload.tag === "incoming-call",
     tag: payload.tag || "homzie-event",
   };

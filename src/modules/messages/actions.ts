@@ -18,6 +18,7 @@ import {
   findOrCreateDirectConversation,
   getConversationMessages,
   getConversationSummaries,
+  getUnreadMessageCount,
   markConversationRead,
   markMessageDelivered,
   reportConversation,
@@ -37,6 +38,12 @@ async function requireUserId() {
   }
 
   return userId;
+}
+
+export async function getUnreadMessageCountAction() {
+  const userId = await requireUserId();
+
+  return getUnreadMessageCount(userId);
 }
 
 const uuidSchema = z.string().uuid();

@@ -4,6 +4,7 @@ import Script from "next/script";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
 import { PushNotificationBootstrap } from "@/modules/push/components/push-notification-bootstrap";
+import { PwaInstallBootstrap } from "@/modules/pwa/components/pwa-install";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -18,8 +19,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  applicationName: "Homzie",
   title: "Homzie",
   description: "Find it. Love it. Live it.",
+  appleWebApp: {
+    capable: true,
+    title: "Homzie",
+  },
+  icons: {
+    apple: "/favicon/apple-touch-icon.png",
+    icon: [
+      { url: "/favicon/favicon.ico", sizes: "32x32", type: "image/x-icon" },
+      { url: "/favicon/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+  },
 };
 
 const googleAnalyticsId =
@@ -51,6 +65,7 @@ export default function RootLayout({
         <CurrencyProvider>
           <CountryPreferenceBootstrap />
           <PushNotificationBootstrap />
+          <PwaInstallBootstrap />
           {children}
         </CurrencyProvider>
       </body>

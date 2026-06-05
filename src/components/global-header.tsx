@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { EventCountBadge } from "@/modules/events/components/event-count-badge";
+import { MessageCountBadge } from "@/modules/messages/components/message-count-badge";
 
 const navItems: Array<{
   href: string;
@@ -155,6 +156,50 @@ export function GlobalHeader({
             size="icon"
             asChild
             className={cn(
+              "size-8 lg:hidden",
+              isMessagesActive && "bg-primary/10 text-primary",
+            )}
+            aria-label="Messages"
+          >
+            <Link
+              href={messagesHref}
+              aria-current={isMessagesActive ? "page" : undefined}
+              className="relative"
+              title="Messages"
+            >
+              <Send className="size-4" />
+              {viewerUsername ? (
+                <MessageCountBadge className="absolute -right-1 -top-1 grid min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[9px] font-black leading-3.5 text-primary-foreground" />
+              ) : null}
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            className="size-8 lg:hidden"
+            aria-label="Events"
+          >
+            <Link
+              href={eventsHref}
+              aria-current={isEventsActive ? "page" : undefined}
+              className={cn(
+                "relative",
+                isEventsActive && "bg-primary/10 text-primary",
+              )}
+              title="Events"
+            >
+              <Heart className="size-4" />
+              {viewerUsername ? (
+                <EventCountBadge className="absolute -right-1 -top-1 grid min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[9px] font-black leading-3.5 text-primary-foreground" />
+              ) : null}
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            className={cn(
               "hidden lg:inline-flex",
               isMessagesActive && "bg-primary/10 text-primary",
             )}
@@ -163,8 +208,12 @@ export function GlobalHeader({
             <Link
               href={messagesHref}
               aria-current={isMessagesActive ? "page" : undefined}
+              className="relative"
             >
               <Send className="size-5" />
+              {viewerUsername ? (
+                <MessageCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-primary-foreground" />
+              ) : null}
             </Link>
           </Button>
           <Button
@@ -268,6 +317,9 @@ export function GlobalHeader({
                           </span>
                           {item.label === "Events" && viewerUsername ? (
                             <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                          ) : null}
+                          {item.label === "Messages" && viewerUsername ? (
+                            <MessageCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
                           ) : null}
                         </Link>
                       </Dialog.Close>

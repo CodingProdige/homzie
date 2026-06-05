@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BadgeCheck, ChevronRight } from "lucide-react";
 
+import { InstallHomzieSettingsRow } from "@/modules/pwa/components/pwa-install";
 import { settingsItems } from "./settings-items";
 import { SettingsPageHeader } from "./settings-page-header";
 
@@ -69,6 +70,7 @@ export function SettingsMobileScreen({
       </section>
 
       <nav className="mt-8 space-y-3">
+        <InstallHomzieSettingsRow />
         {settingsItems.map((item) => {
           const Icon = item.icon;
 

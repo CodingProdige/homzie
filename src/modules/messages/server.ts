@@ -256,6 +256,27 @@ export async function getConversationSummaries(userId: string) {
   }));
 }
 
+export async function getUnreadMessageCount(userId: string) {
+  const [row] = await sql<{ count: number | string }[]>`
+    SELECT COALESCE(
+      COUNT(m.id) FILTER (
+        WHERE m.sender_user_id IS DISTINCT FROM ${userId}
+          AND m.deleted_at IS NULL
+          AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+      ),
+      0
+    ) AS count
+    FROM conversation_participants cp
+    JOIN conversations c ON c.id = cp.conversation_id
+    LEFT JOIN messages m ON m.conversation_id = c.id
+    WHERE cp.user_id = ${userId}
+      AND cp.deleted_at IS NULL
+      AND c.status = 'active'
+  `;
+
+  return numberFromDb(row?.count);
+}
+
 export async function getConversationMessages(
   conversationId: string,
   viewerUserId: string,
