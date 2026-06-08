@@ -490,7 +490,11 @@ export default async function UserProfilePage({
   const canViewSaved = isOwner || hasSubscription;
   const viewer = session?.user?.id
     ? await db
-        .select({ username: users.username, avatarUrl: users.avatarUrl })
+        .select({
+          role: users.role,
+          username: users.username,
+          avatarUrl: users.avatarUrl,
+        })
         .from(users)
         .where(eq(users.id, session.user.id))
         .limit(1)
@@ -547,6 +551,7 @@ export default async function UserProfilePage({
         reels: profileReels,
         savedListings,
         savedReels,
+        viewerRole: viewer?.role || undefined,
         viewerUsername: viewer?.username || undefined,
         viewerAvatarUrl:
           toPublicMediaUrl(viewer?.avatarUrl) ||

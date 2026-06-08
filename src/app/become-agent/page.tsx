@@ -17,7 +17,7 @@ import { users } from "@/db/schema";
 import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { StartAgentCheckoutButton } from "@/modules/billing/components/start-agent-checkout-button";
-import { agentSubscriptionPrice } from "@/modules/billing/stripe";
+import { agentSubscriptionPrice } from "@/modules/billing/plans";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 

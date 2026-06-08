@@ -219,6 +219,15 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS platform_settings (
+      key text PRIMARY KEY,
+      value jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS property_identities (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       normalized_address text,

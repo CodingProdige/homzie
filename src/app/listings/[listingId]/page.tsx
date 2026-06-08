@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
 
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
+import { getViewerChrome } from "@/modules/auth/viewer";
 import { ListingDetailPage } from "@/modules/listings/components/listing-detail-page";
 import { getListingDetail } from "@/modules/listings/server/listing-data";
 
@@ -14,18 +12,6 @@ type ListingPageProps = {
     listingId: string;
   }>;
 };
-
-async function getViewerUsername(userId?: string | null) {
-  if (!userId) return null;
-
-  const [viewer] = await db
-    .select({ username: users.username })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return viewer?.username || null;
-}
 
 export async function generateMetadata({
   params,
@@ -54,7 +40,7 @@ export async function generateMetadata({
 export default async function ListingPage({ params }: ListingPageProps) {
   const { listingId } = await params;
   const session = await getServerSession(authOptions);
-  const viewerUsername = await getViewerUsername(session?.user?.id);
+  const viewer = await getViewerChrome(session?.user?.id);
   const listing = await getListingDetail({
     listingId,
     viewerUserId: session?.user?.id || null,
@@ -67,7 +53,8 @@ export default async function ListingPage({ params }: ListingPageProps) {
   return (
     <ListingDetailPage
       listing={listing}
-      viewerUsername={viewerUsername || undefined}
+      viewerRole={viewer.role}
+      viewerUsername={viewer.username}
     />
   );
 }

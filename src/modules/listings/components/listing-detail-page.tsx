@@ -849,9 +849,11 @@ function AgentProfileCard({
 
 export function ListingDetailPage({
   listing,
+  viewerRole,
   viewerUsername,
 }: {
   listing: ListingDetailData;
+  viewerRole?: "user" | "admin";
   viewerUsername?: string;
 }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -1052,7 +1054,7 @@ export function ListingDetailPage({
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-background pt-20 pb-48 text-foreground lg:pb-0">
-      <GlobalHeader viewerUsername={viewerUsername} />
+      <GlobalHeader viewerRole={viewerRole} viewerUsername={viewerUsername} />
       <div className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
         <section className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
@@ -1331,7 +1333,7 @@ export function ListingDetailPage({
           </aside>
         </section>
       </div>
-      <GlobalFooter viewerUsername={viewerUsername} />
+      <GlobalFooter viewerRole={viewerRole} viewerUsername={viewerUsername} />
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,15,22,0.08)] backdrop-blur-xl lg:hidden">
         <div className="mx-auto grid max-w-7xl gap-2">
           <div className="flex items-center gap-3">

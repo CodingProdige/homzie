@@ -1,13 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
 
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
+import { getViewerChrome } from "@/modules/auth/viewer";
 
 export const publicHeroImage =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=85";
@@ -18,29 +16,19 @@ export const teamImage =
 export const missionImage =
   "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=85";
 
-async function getViewerUsername() {
+async function getViewer() {
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
-
-  if (!userId) return undefined;
-
-  const [viewer] = await db
-    .select({ username: users.username })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return viewer?.username || undefined;
+  return getViewerChrome(session?.user?.id);
 }
 
 export async function PublicPageShell({ children }: { children: React.ReactNode }) {
-  const viewerUsername = await getViewerUsername();
+  const viewer = await getViewer();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerUsername={viewerUsername} />
+      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="pt-20 lg:pt-24">{children}</main>
-      <GlobalFooter viewerUsername={viewerUsername} />
+      <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
   );
 }

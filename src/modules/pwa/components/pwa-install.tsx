@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, MonitorDown } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+
 type BeforeInstallPromptOutcome = {
   outcome: "accepted" | "dismissed";
   platform: string;
@@ -58,7 +60,13 @@ export function PwaInstallBootstrap() {
   return null;
 }
 
-export function InstallHomzieSettingsRow() {
+export function InstallHomzieButton({
+  className,
+  label = "Install Homzie",
+}: {
+  className?: string;
+  label?: string;
+}) {
   const [canInstall, setCanInstall] = useState(false);
 
   useEffect(() => {
@@ -79,7 +87,10 @@ export function InstallHomzieSettingsRow() {
   return (
     <button
       type="button"
-      className="flex h-[54px] min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-4 text-left shadow-[0_8px_24px_rgba(13,13,20,0.035)] transition-colors hover:border-primary/35"
+      className={cn(
+        "flex h-12 w-full min-w-0 items-center justify-center gap-3 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-center text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.28)] transition hover:scale-[1.005] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2",
+        className,
+      )}
       onClick={async () => {
         const installPrompt = window.__homzieInstallPrompt;
         if (!installPrompt) return;
@@ -91,11 +102,13 @@ export function InstallHomzieSettingsRow() {
         notifyInstallPromptChange();
       }}
     >
-      <MonitorDown className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-xs font-black">
-        Install Homzie
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      <MonitorDown className="size-4 shrink-0" />
+      <span className="min-w-0 truncate">{label}</span>
+      <ChevronRight className="size-4 shrink-0" />
     </button>
   );
+}
+
+export function InstallHomzieSettingsRow() {
+  return <InstallHomzieButton />;
 }

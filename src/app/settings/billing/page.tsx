@@ -30,7 +30,8 @@ import {
   cancelAgentSubscription,
   openBillingPortal,
 } from "@/modules/billing/portal-actions";
-import { agentSubscriptionPrice, getStripe } from "@/modules/billing/stripe";
+import { agentSubscriptionPrice } from "@/modules/billing/plans";
+import { getStripe } from "@/modules/billing/stripe";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
 import { SettingsPageHeader } from "../settings-page-header";
 
@@ -125,7 +126,7 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
     return null;
   }
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   const stripeSubscription = await stripe.subscriptions.retrieve(
     localSubscription.providerReference,
     {

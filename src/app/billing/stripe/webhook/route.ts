@@ -1,12 +1,12 @@
 import Stripe from "stripe";
 
-import { getStripe } from "@/modules/billing/stripe";
+import { getStripe, getStripeWebhookSecret } from "@/modules/billing/stripe";
 import { syncStripeSubscription } from "@/modules/billing/subscription-sync";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret = await getStripeWebhookSecret();
 
   if (!webhookSecret) {
     return Response.json(
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Missing Stripe signature." }, { status: 400 });
   }
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   const body = await request.text();
 
   let event: Stripe.Event;

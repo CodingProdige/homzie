@@ -41,7 +41,15 @@ const footerSections = [
   },
 ];
 
-export function GlobalFooter({ viewerUsername }: { viewerUsername?: string }) {
+export function GlobalFooter({
+  viewerRole,
+  viewerUsername,
+}: {
+  viewerRole?: "user" | "admin";
+  viewerUsername?: string;
+}) {
+  const isAdmin = viewerRole === "admin";
+
   return (
     <footer className="border-t border-border bg-card text-card-foreground">
       <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.25fr_repeat(5,1fr)] lg:px-8">
@@ -73,6 +81,14 @@ export function GlobalFooter({ viewerUsername }: { viewerUsername?: string }) {
                   className="transition hover:text-primary"
                 >
                   My profile
+                </Link>
+              ) : null}
+              {section.title === "Account" && isAdmin ? (
+                <Link
+                  href="/admin"
+                  className="transition hover:text-primary"
+                >
+                  Admin dashboard
                 </Link>
               ) : null}
             </nav>

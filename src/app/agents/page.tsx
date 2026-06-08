@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { agentProfiles, propertyListings, subscriptions, users } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
+import { getViewerChrome } from "@/modules/auth/viewer";
 
 type AgentsPageProps = {
   searchParams?: Promise<{
@@ -62,18 +63,6 @@ function formatCurrencyCompact(cents: number) {
     notation: "compact",
     style: "currency",
   }).format(cents / 100);
-}
-
-async function getViewerUsername(userId?: string) {
-  if (!userId) return undefined;
-
-  const [viewer] = await db
-    .select({ username: users.username })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return viewer?.username || undefined;
 }
 
 async function getAgentDirectory({
@@ -259,7 +248,7 @@ function hrefForPage({
 
 export default async function AgentsPage({ searchParams }: AgentsPageProps) {
   const session = await getServerSession(authOptions);
-  const viewerUsername = await getViewerUsername(session?.user?.id);
+  const viewer = await getViewerChrome(session?.user?.id);
   const query = searchParams ? await searchParams : {};
   const q = cleanParam(query.q);
   const location = cleanParam(query.location);
@@ -272,7 +261,7 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerUsername={viewerUsername} />
+      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="page-body pb-16 pt-28">
         <section className="mb-8 border-b border-border pb-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
@@ -426,7 +415,7 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
           totalPages={totalPages}
         />
       </main>
-      <GlobalFooter viewerUsername={viewerUsername} />
+      <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
   );
 }

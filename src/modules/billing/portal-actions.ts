@@ -34,7 +34,8 @@ export async function openBillingPortal() {
     redirect("/become-agent");
   }
 
-  const portalSession = await getStripe().billingPortal.sessions.create({
+  const stripe = await getStripe();
+  const portalSession = await stripe.billingPortal.sessions.create({
     customer: subscription.customerId,
     return_url: new URL("/settings/billing", getBaseUrl()).toString(),
   });
@@ -63,7 +64,8 @@ export async function cancelAgentSubscription() {
     redirect("/become-agent");
   }
 
-  await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
+  const stripe = await getStripe();
+  await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
     cancel_at_period_end: true,
   });
 

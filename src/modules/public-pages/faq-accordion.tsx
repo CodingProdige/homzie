@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { agentSubscriptionPlans } from "@/modules/billing/stripe";
+import { agentSubscriptionPlans } from "@/modules/billing/plans";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
 
 export type FaqItem = {

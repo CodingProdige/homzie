@@ -1,14 +1,12 @@
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
 import { MapPin, Search } from "lucide-react";
 
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { Pagination } from "@/components/pagination";
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
+import { getViewerChrome } from "@/modules/auth/viewer";
 import { ClearListingFiltersLink } from "@/modules/listings/components/clear-listing-filters-link";
 import {
   appendCountryPreference,
@@ -54,18 +52,6 @@ type ListingsPageProps = {
   }>;
 };
 
-async function getViewerUsername(userId?: string) {
-  if (!userId) return undefined;
-
-  const [viewer] = await db
-    .select({ username: users.username })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return viewer?.username || undefined;
-}
-
 function optionLabels<T extends { label: string; value: string }>(
   options: readonly T[],
   values: string[],
@@ -110,7 +96,7 @@ function hrefForPage(query: NonNullable<Awaited<ListingsPageProps["searchParams"
 export default async function ListingsPage({ searchParams }: ListingsPageProps) {
   const session = await getServerSession(authOptions);
   const viewerId = session?.user?.id || null;
-  const viewerUsername = await getViewerUsername(viewerId || undefined);
+  const viewer = await getViewerChrome(viewerId);
   const query = searchParams ? await searchParams : {};
   const cookieStore = await cookies();
   const countryPreference = parseCountryPreference(
@@ -141,7 +127,7 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerUsername={viewerUsername} />
+      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="page-body pb-16 pt-28">
         <section className="mb-8 flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
           <div>
@@ -233,7 +219,7 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
           />
         </div>
       </main>
-      <GlobalFooter viewerUsername={viewerUsername} />
+      <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
   );
 }

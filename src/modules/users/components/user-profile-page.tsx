@@ -62,6 +62,7 @@ type UserProfile = {
   reels: ProfileReel[];
   savedListings: ProfileListing[];
   savedReels: ProfileReel[];
+  viewerRole?: "user" | "admin";
   viewerUsername?: string;
   viewerAvatarUrl?: string;
 };
@@ -1461,7 +1462,10 @@ export function UserProfilePage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerUsername={profile.viewerUsername} />
+      <GlobalHeader
+        viewerRole={profile.viewerRole}
+        viewerUsername={profile.viewerUsername}
+      />
       <main className="page-body pb-24 pt-20">
         <ProfileHero profile={profile} />
         {profile.archiveFeedback ? (
@@ -1490,7 +1494,10 @@ export function UserProfilePage({
           username={profile.username}
         />
       </main>
-      <GlobalFooter />
+      <GlobalFooter
+        viewerRole={profile.viewerRole}
+        viewerUsername={profile.viewerUsername}
+      />
       <MobileBottomNav
         hasActiveSubscription={profile.hasActiveSubscription}
         viewerUsername={profile.viewerUsername}

@@ -2,29 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
 import { Bell, Bookmark, Eye, Heart, MessageCircle, Send, UserPlus, Video } from "lucide-react";
 
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
+import { getViewerChrome } from "@/modules/auth/viewer";
 import { getUserEvents, markUserEventsSeen } from "@/modules/events/server";
 import { EnableNotificationsButton } from "@/modules/push/components/enable-notifications-button";
-
-async function getViewerUsername(userId?: string) {
-  if (!userId) return undefined;
-
-  const [viewer] = await db
-    .select({ username: users.username })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return viewer?.username || undefined;
-}
 
 function dayLabel(value: string) {
   const date = new Date(value);
@@ -57,8 +43,8 @@ export default async function EventsPage() {
     redirect("/sign-in");
   }
 
-  const [viewerUsername, events] = await Promise.all([
-    getViewerUsername(userId),
+  const [viewer, events] = await Promise.all([
+    getViewerChrome(userId),
     getUserEvents(userId),
   ]);
 
@@ -73,7 +59,7 @@ export default async function EventsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerUsername={viewerUsername} />
+      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="mx-auto w-full max-w-4xl px-4 pb-16 pt-24 sm:px-6 lg:pt-28">
         <div className="border-b border-border pb-6">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
@@ -180,7 +166,7 @@ export default async function EventsPage() {
           </div>
         )}
       </main>
-      <GlobalFooter viewerUsername={viewerUsername} />
+      <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
   );
 }

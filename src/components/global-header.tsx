@@ -12,6 +12,7 @@ import {
   Home,
   Menu,
   Send,
+  ShieldCheck,
   UserRound,
   UsersRound,
   X,
@@ -42,9 +43,11 @@ const navItems: Array<{
 
 export function GlobalHeader({
   transparentUntilScroll = false,
+  viewerRole,
   viewerUsername,
 }: {
   transparentUntilScroll?: boolean;
+  viewerRole?: "user" | "admin";
   viewerUsername?: string;
 }) {
   const pathname = usePathname();
@@ -59,6 +62,8 @@ export function GlobalHeader({
   const isProfileActive = isActiveHref(profileHref);
   const isMessagesActive = isActiveHref(messagesHref);
   const isEventsActive = isActiveHref("/events");
+  const isAdmin = viewerRole === "admin";
+  const isAdminActive = isActiveHref("/admin");
   const mobileItems = [
     {
       label: "Home",
@@ -76,6 +81,15 @@ export function GlobalHeader({
       icon: Heart,
     },
     ...navItems,
+    ...(isAdmin
+      ? [
+          {
+            label: "Admin",
+            href: "/admin",
+            icon: ShieldCheck,
+          },
+        ]
+      : []),
     {
       label: viewerUsername ? "Profile" : "Sign in",
       href: profileHref,
@@ -154,6 +168,26 @@ export function GlobalHeader({
           <CountryPreferenceSelector compact className="shrink-0" />
           <CurrencySelector compact className="shrink-0" />
           <GlobalUserSearchTrigger className="hidden lg:inline-flex" />
+          {isAdmin ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className={cn(
+                "hidden lg:inline-flex",
+                isAdminActive && "bg-primary/10 text-primary",
+              )}
+              aria-label="Admin"
+            >
+              <Link
+                href="/admin"
+                aria-current={isAdminActive ? "page" : undefined}
+                title="Admin"
+              >
+                <ShieldCheck className="size-5" />
+              </Link>
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"

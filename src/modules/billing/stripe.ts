@@ -1,39 +1,10 @@
 import Stripe from "stripe";
 
-export type AgentPlanInterval = "month" | "year";
-
-export const agentSubscriptionPlans: Record<
-  AgentPlanInterval,
-  {
-    label: string;
-    amountLabel: string;
-    intervalLabel: string;
-    amountCents: number;
-    currency: string;
-    priceEnvKey: "STRIPE_AGENT_MONTHLY_PRICE_ID" | "STRIPE_AGENT_YEARLY_PRICE_ID";
-  }
-> = {
-  month: {
-    label: "Monthly",
-    amountLabel: "R99",
-    intervalLabel: "/month",
-    amountCents: 9900,
-    currency: "ZAR",
-    priceEnvKey: "STRIPE_AGENT_MONTHLY_PRICE_ID",
-  },
-  year: {
-    label: "Yearly",
-    amountLabel: "R999",
-    intervalLabel: "/year",
-    amountCents: 99900,
-    currency: "ZAR",
-    priceEnvKey: "STRIPE_AGENT_YEARLY_PRICE_ID",
-  },
-};
-
-export const defaultAgentPlanInterval: AgentPlanInterval = "month";
-export const agentSubscriptionPrice =
-  agentSubscriptionPlans[defaultAgentPlanInterval];
+import {
+  getStoredStripeSettings,
+  getStripeSettingsWithEnvFallback,
+} from "@/modules/platform-settings/stripe-settings";
+import type { AgentPlanInterval } from "./plans";
 
 const requiredStripeEnvKeys = [
   "STRIPE_SECRET_KEY",
@@ -42,36 +13,82 @@ const requiredStripeEnvKeys = [
   "STRIPE_AGENT_YEARLY_PRICE_ID",
 ] as const;
 
-export function getMissingStripeEnvKeys() {
-  return requiredStripeEnvKeys.filter((key) => !process.env[key]);
+type StripeRuntimeConfig = {
+  mode: "test" | "live";
+  publishableKey: string;
+  secretKey: string;
+  webhookSecret: string;
+  monthlyPriceId: string;
+  yearlyPriceId: string;
+};
+
+const stripeConfigKeys = {
+  STRIPE_SECRET_KEY: "secretKey",
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "publishableKey",
+  STRIPE_AGENT_MONTHLY_PRICE_ID: "monthlyPriceId",
+  STRIPE_AGENT_YEARLY_PRICE_ID: "yearlyPriceId",
+} as const satisfies Record<
+  (typeof requiredStripeEnvKeys)[number],
+  keyof StripeRuntimeConfig
+>;
+
+export async function getStripeRuntimeConfig() {
+  const settings = await getStoredStripeSettings();
+  return getStripeSettingsWithEnvFallback(settings);
 }
 
-export function getStripePriceId(interval: AgentPlanInterval) {
-  return process.env[agentSubscriptionPlans[interval].priceEnvKey];
+export async function getMissingStripeConfigKeys() {
+  const config = await getStripeRuntimeConfig();
+
+  return requiredStripeEnvKeys.filter((key) => !config[stripeConfigKeys[key]]);
 }
 
-export function getInvalidStripePriceEnvKeys() {
+export async function getStripePriceId(interval: AgentPlanInterval) {
+  const config = await getStripeRuntimeConfig();
+
+  return interval === "month" ? config.monthlyPriceId : config.yearlyPriceId;
+}
+
+export async function getInvalidStripePriceConfigKeys() {
+  const config = await getStripeRuntimeConfig();
+
   return requiredStripeEnvKeys
     .filter((key) => key.endsWith("_PRICE_ID"))
     .filter((key) => {
-      const value = process.env[key];
+      const value = config[stripeConfigKeys[key]];
       return value && !value.startsWith("price_");
     });
 }
 
-export function getStripePublishableKey() {
-  return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
+export async function getStripePublishableKey() {
+  const config = await getStripeRuntimeConfig();
+
+  return config.publishableKey;
 }
 
-let stripe: Stripe | null = null;
+let stripe: { client: Stripe; secretKey: string } | null = null;
 
-export function getStripe() {
-  if (!process.env.STRIPE_SECRET_KEY) {
+export async function getStripe() {
+  const config = await getStripeRuntimeConfig();
+
+  if (!config.secretKey) {
     throw new Error("STRIPE_SECRET_KEY is required.");
   }
 
-  stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY);
-  return stripe;
+  if (!stripe || stripe.secretKey !== config.secretKey) {
+    stripe = {
+      client: new Stripe(config.secretKey),
+      secretKey: config.secretKey,
+    };
+  }
+
+  return stripe.client;
+}
+
+export async function getStripeWebhookSecret() {
+  const config = await getStripeRuntimeConfig();
+
+  return config.webhookSecret;
 }
 
 export function isAgentPlanInterval(value: unknown): value is AgentPlanInterval {

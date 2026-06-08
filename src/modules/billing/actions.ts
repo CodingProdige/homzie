@@ -7,12 +7,15 @@ import { db } from "@/db";
 import { agentProfiles, subscriptions, users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { getAgentProfileForUser } from "@/modules/agents/queries";
-import { syncStripeSubscription } from "./subscription-sync";
 import {
   type AgentPlanInterval,
   agentSubscriptionPlans,
-  getInvalidStripePriceEnvKeys,
-  getMissingStripeEnvKeys,
+} from "./plans";
+import { syncStripeSubscription } from "./subscription-sync";
+import {
+  getInvalidStripePriceConfigKeys,
+  getMissingStripeConfigKeys,
+  getStripePublishableKey,
   getStripe,
   getStripePriceId,
   isAgentPlanInterval,
@@ -104,7 +107,7 @@ export async function startAgentSubscriptionCheckout(
     };
   }
 
-  const missingEnv = getMissingStripeEnvKeys();
+  const missingEnv = await getMissingStripeConfigKeys();
 
   if (missingEnv.length > 0) {
     return {
@@ -114,7 +117,7 @@ export async function startAgentSubscriptionCheckout(
     };
   }
 
-  const invalidPriceEnv = getInvalidStripePriceEnvKeys();
+  const invalidPriceEnv = await getInvalidStripePriceConfigKeys();
 
   if (invalidPriceEnv.length > 0) {
     return {
@@ -124,7 +127,7 @@ export async function startAgentSubscriptionCheckout(
     };
   }
 
-  const priceId = getStripePriceId(interval);
+  const priceId = await getStripePriceId(interval);
 
   if (!priceId) {
     return {
@@ -134,7 +137,8 @@ export async function startAgentSubscriptionCheckout(
   }
 
   const agentProfile = await ensureAgentProfile(user);
-  const stripe = getStripe();
+  const stripe = await getStripe();
+  const publishableKey = await getStripePublishableKey();
   const plan = agentSubscriptionPlans[interval];
 
   try {
@@ -189,7 +193,7 @@ export async function startAgentSubscriptionCheckout(
     return {
       ok: true,
       clientSecret,
-      publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string,
+      publishableKey,
       subscriptionId: stripeSubscription.id,
       profilePath: `/users/${user.username}`,
     };
@@ -230,7 +234,8 @@ export async function syncAgentSubscriptionStatus(
   }
 
   try {
-    const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+    const stripe = await getStripe();
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
     if (subscription.metadata.userId !== session.user.id) {
       return {

@@ -20,7 +20,7 @@ import {
 import {
   type AgentPlanInterval,
   agentSubscriptionPlans,
-} from "../stripe";
+} from "../plans";
 
 type StripeCheckout = {
   clientSecret: string;

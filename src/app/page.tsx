@@ -36,6 +36,7 @@ import {
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
+import { getViewerChrome } from "@/modules/auth/viewer";
 import {
   appendCountryPreference,
   countryPreferenceCookie,
@@ -117,18 +118,6 @@ type TopAgent = {
 const heroImage =
   "https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1600&q=85";
 const homeDiscoverListingsPageSize = 24;
-
-async function getViewerUsername(userId?: string) {
-  if (!userId) return undefined;
-
-  const [viewer] = await db
-    .select({ username: users.username })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return viewer?.username || undefined;
-}
 
 function metadataObject(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -691,7 +680,7 @@ function TopAgentRail({ agents }: { agents: TopAgent[] }) {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const session = await getServerSession(authOptions);
-  const viewerUsername = await getViewerUsername(session?.user?.id);
+  const viewer = await getViewerChrome(session?.user?.id);
   const query = searchParams ? await searchParams : {};
   const cookieStore = await cookies();
   const countryPreference = parseCountryPreference(
@@ -732,7 +721,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader transparentUntilScroll viewerUsername={viewerUsername} />
+      <GlobalHeader
+        transparentUntilScroll
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="pb-14">
         <section className="relative isolate min-h-[760px] overflow-hidden pt-16 sm:min-h-[820px] sm:pt-28">
           <div
@@ -943,7 +936,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
         </section>
       </main>
-      <GlobalFooter viewerUsername={viewerUsername} />
+      <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
   );
 }
