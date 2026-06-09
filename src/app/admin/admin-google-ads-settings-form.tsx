@@ -1,8 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { CheckCircle2, Globe2, KeyRound, Save, ShieldCheck, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Globe2,
+  KeyRound,
+  Save,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +26,9 @@ export type AdminGoogleAdsSettingsView = {
   enabled: boolean;
   automationEnabled: boolean;
   customerId: string;
+  clientId: string;
+  clientSecret: string;
+  developerToken: string;
   dsaCampaignId: string;
   feedUrl: string;
   hasClientId: boolean;
@@ -27,6 +39,7 @@ export type AdminGoogleAdsSettingsView = {
   loginCustomerId: string;
   pageFeedLabel: string;
   pageFeedToken: string;
+  refreshToken: string;
   siteDomain: string;
   descriptionLine1: string;
   descriptionLine2: string;
@@ -93,29 +106,45 @@ function ToggleField({
 }
 
 function SecretField({
+  defaultValue,
   id,
   label,
   placeholder,
   saved,
 }: {
+  defaultValue: string;
   id: string;
   label: string;
   placeholder: string;
   saved: boolean;
 }) {
+  const [revealed, setRevealed] = useState(false);
+
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor={id}>{label}</Label>
         <SavedSecretHint saved={saved} />
       </div>
-      <Input
-        id={id}
-        name={id}
-        type="password"
-        autoComplete="off"
-        placeholder={saved ? "Leave blank to keep saved value" : placeholder}
-      />
+      <div className="relative">
+        <Input
+          id={id}
+          name={id}
+          type={revealed ? "text" : "password"}
+          autoComplete="off"
+          defaultValue={defaultValue}
+          placeholder={saved ? "Leave blank to keep saved value" : placeholder}
+          className="pr-11"
+        />
+        <button
+          type="button"
+          onClick={() => setRevealed((current) => !current)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={revealed ? `Hide ${label}` : `Reveal ${label}`}
+        >
+          {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -253,24 +282,28 @@ export function AdminGoogleAdsSettingsForm({
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <SecretField
+            defaultValue={settings.developerToken}
             id="developerToken"
             label="Developer token"
             placeholder="Google Ads developer token"
             saved={settings.hasDeveloperToken}
           />
           <SecretField
+            defaultValue={settings.clientId}
             id="clientId"
             label="OAuth client ID"
             placeholder="Google OAuth client ID"
             saved={settings.hasClientId}
           />
           <SecretField
+            defaultValue={settings.clientSecret}
             id="clientSecret"
             label="OAuth client secret"
             placeholder="Google OAuth client secret"
             saved={settings.hasClientSecret}
           />
           <SecretField
+            defaultValue={settings.refreshToken}
             id="refreshToken"
             label="Refresh token"
             placeholder="Refresh token for the Homzie Google Ads account"

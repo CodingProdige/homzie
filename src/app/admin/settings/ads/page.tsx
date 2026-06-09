@@ -53,7 +53,10 @@ function toGoogleAdsSettingsView(
   return {
     enabled: settings.enabled,
     automationEnabled: settings.automationEnabled,
+    clientId: settings.clientId,
+    clientSecret: settings.clientSecret,
     customerId: settings.customerId,
+    developerToken: settings.developerToken,
     dsaCampaignId: settings.dsaCampaignId,
     feedUrl,
     hasClientId: Boolean(settings.clientId),
@@ -64,6 +67,7 @@ function toGoogleAdsSettingsView(
     loginCustomerId: settings.loginCustomerId,
     pageFeedLabel: settings.pageFeedLabel,
     pageFeedToken: settings.pageFeedToken,
+    refreshToken: settings.refreshToken,
     siteDomain: settings.siteDomain,
     descriptionLine1: settings.descriptionLine1,
     descriptionLine2: settings.descriptionLine2,
