@@ -3,37 +3,32 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { desc, eq } from "drizzle-orm";
 import {
-  BarChart3,
-  Bell,
-  Bookmark,
   CalendarDays,
-  Clapperboard,
   CreditCard,
-  Download,
   HelpCircle,
-  Home,
   LockKeyhole,
-  LogOut,
-  Settings,
   TrendingUp,
-  User,
-  UsersRound,
 } from "lucide-react";
 import type Stripe from "stripe";
 
-import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { subscriptions, users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import {
-  cancelAgentSubscription,
-  openBillingPortal,
-} from "@/modules/billing/portal-actions";
-import { agentSubscriptionPrice } from "@/modules/billing/plans";
-import { getStripe } from "@/modules/billing/stripe";
+  agentSubscriptionPrice,
+  agentSubscriptionTrialLabel,
+  getAgentSubscriptionOfferLabel,
+} from "@/modules/billing/plans";
+import { getStripe, getStripeRuntimeConfig } from "@/modules/billing/stripe";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
 import { SettingsPageHeader } from "../settings-page-header";
+import {
+  AddPaymentMethodButton,
+  CancelSubscriptionButton,
+  InvoiceHistoryTable,
+  PaymentMethodList,
+} from "./billing-client-controls";
 
 type BillingInvoice = {
   id: string;
@@ -45,39 +40,50 @@ type BillingInvoice = {
 };
 
 type BillingCard = {
+  id: string;
   brand: string;
   last4: string;
   expMonth: number;
   expYear: number;
+  isDefault: boolean;
 } | null;
 
+type BillingPaymentMethod = {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  isDefault: boolean;
+};
+
 type BillingData = {
+  issue: BillingIssue | null;
   status: string;
   planName: string;
   cycle: string;
   price: string;
+  nextCharge: string;
+  nextChargeLabel: string;
   nextBillingDate: string;
   startedOn: string;
   card: BillingCard;
+  paymentMethods: BillingPaymentMethod[];
   invoices: BillingInvoice[];
+  stripeAvailable: boolean;
+  trialDaysRemaining: number | null;
+  trialEndsOn: string | null;
+  retentionOffer: {
+    status: "available" | "active" | "used" | "ineligible";
+    expiresOn: string | null;
+    message: string | null;
+  };
 };
 
-const navigation = [
-  { label: "Profile", icon: User },
-  { label: "Reels", icon: Clapperboard },
-  { label: "Listings", icon: Home },
-  { label: "Leads", icon: UsersRound },
-  { label: "Saved", icon: Bookmark },
-  { label: "Analytics", icon: BarChart3 },
-];
-
-const accountNavigation = [
-  { label: "Settings", icon: Settings },
-  { label: "Notifications", icon: Bell },
-  { label: "Billing", icon: CreditCard, active: true },
-  { label: "Connected accounts", icon: UsersRound },
-  { label: "Log out", icon: LogOut },
-];
+type BillingIssue = {
+  message: string;
+  title: string;
+};
 
 function formatDate(value: Date | number | null | undefined) {
   if (!value) {
@@ -100,6 +106,20 @@ function formatMoney(cents: number, currency = "ZAR") {
   }).format(cents / 100);
 }
 
+function getTrialDaysRemaining(trialEndUnix: number | null | undefined) {
+  if (!trialEndUnix) {
+    return null;
+  }
+
+  const diffMs = trialEndUnix * 1000 - Date.now();
+
+  if (diffMs <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
 function getSubscriptionPeriod(subscription: Stripe.Subscription | null) {
   const typedSubscription = subscription as
     | (Stripe.Subscription & {
@@ -111,6 +131,111 @@ function getSubscriptionPeriod(subscription: Stripe.Subscription | null) {
   return {
     start: typedSubscription?.current_period_start,
     end: typedSubscription?.current_period_end,
+  };
+}
+
+function getStripeErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "Stripe billing data is unavailable right now.";
+}
+
+function getBillingIssue(error: unknown, mode: "test" | "live"): BillingIssue {
+  const message = getStripeErrorMessage(error);
+  const oppositeMode = mode === "test" ? "live" : "test";
+
+  if (message.includes("similar object exists in live mode")) {
+    return {
+      title: "Billing is in sandbox mode",
+      message:
+        "Your plan is active, but live payment method details are hidden while sandbox billing is enabled.",
+    };
+  }
+
+  if (message.includes("similar object exists in test mode")) {
+    return {
+      title: "Billing is in live mode",
+      message:
+        "Your sandbox subscription details are hidden while live billing is enabled.",
+    };
+  }
+
+  if (message.includes("No such subscription") || message.includes("No such customer")) {
+    return {
+      title: "Payment details are unavailable",
+      message: `Your plan is active, but payment method details are not available in ${mode} mode. They may belong to ${oppositeMode} billing.`,
+    };
+  }
+
+  return {
+    title: "Payment details are unavailable",
+    message: "Your plan is active, but payment method details could not be loaded right now.",
+  };
+}
+
+function getLocalBillingData(
+  localSubscription: typeof subscriptions.$inferSelect,
+  issue: BillingIssue,
+): BillingData {
+  const recurringInterval = localSubscription.interval;
+
+  return {
+    issue,
+    status: localSubscription.status,
+    planName: "Homzie Agent Pro",
+    cycle: recurringInterval === "year" ? "Yearly" : "Monthly",
+    price: `${formatMoney(
+      localSubscription.amountCents,
+      localSubscription.currency,
+    )} / ${recurringInterval === "year" ? "year" : "month"}`,
+    nextCharge: `${formatMoney(
+      localSubscription.amountCents,
+      localSubscription.currency,
+    )} / ${recurringInterval === "year" ? "year" : "month"}`,
+    nextChargeLabel: "Next charge",
+    nextBillingDate: formatDate(localSubscription.currentPeriodEnd),
+    startedOn: formatDate(localSubscription.currentPeriodStart || localSubscription.createdAt),
+    card: null,
+    paymentMethods: [],
+    invoices: [],
+    stripeAvailable: false,
+    trialDaysRemaining: null,
+    trialEndsOn: null,
+    retentionOffer: {
+      status:
+        recurringInterval === "month"
+          ? localSubscription.retentionOfferAcceptedAt
+            ? localSubscription.retentionOfferExpiresAt &&
+              localSubscription.retentionOfferExpiresAt > new Date()
+              ? "active"
+              : "used"
+            : "available"
+          : "ineligible",
+      message: localSubscription.retentionOfferAcceptedAt
+        ? localSubscription.retentionOfferExpiresAt &&
+          localSubscription.retentionOfferExpiresAt > new Date()
+          ? "Your 50% loyalty discount is active for your next charges."
+          : "Your loyalty discount has already been used on this account."
+        : recurringInterval === "month"
+          ? null
+          : "This loyalty offer is only available on monthly plans.",
+      expiresOn:
+        localSubscription.retentionOfferExpiresAt &&
+        localSubscription.retentionOfferExpiresAt > new Date()
+          ? formatDate(localSubscription.retentionOfferExpiresAt)
+          : null,
+    },
   };
 }
 
@@ -126,20 +251,45 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
     return null;
   }
 
+  const stripeConfig = await getStripeRuntimeConfig();
   const stripe = await getStripe();
-  const stripeSubscription = await stripe.subscriptions.retrieve(
-    localSubscription.providerReference,
-    {
-      expand: ["default_payment_method"],
-    },
-  );
+  let stripeSubscription: Stripe.Subscription;
+
+  try {
+    stripeSubscription = await stripe.subscriptions.retrieve(
+      localSubscription.providerReference,
+      {
+        expand: ["default_payment_method"],
+      },
+    );
+  } catch (error) {
+    return getLocalBillingData(
+      localSubscription,
+      getBillingIssue(error, stripeConfig.mode),
+    );
+  }
+
   const period = getSubscriptionPeriod(stripeSubscription);
   const firstItem = stripeSubscription.items.data[0];
   const recurringInterval = firstItem?.price.recurring?.interval || localSubscription.interval;
   const amountCents = firstItem?.price.unit_amount || localSubscription.amountCents;
   const currency = (firstItem?.price.currency || localSubscription.currency).toUpperCase();
+  const typedSubscription = stripeSubscription as Stripe.Subscription & {
+    trial_end?: number | null;
+  };
+  const trialDaysRemaining = getTrialDaysRemaining(typedSubscription.trial_end);
+  const trialEndsOn = typedSubscription.trial_end
+    ? formatDate(typedSubscription.trial_end)
+    : null;
   const defaultPaymentMethod = stripeSubscription.default_payment_method;
+  const defaultPaymentMethodId =
+    defaultPaymentMethod && typeof defaultPaymentMethod !== "string"
+      ? defaultPaymentMethod.id
+      : typeof defaultPaymentMethod === "string"
+        ? defaultPaymentMethod
+        : null;
   let card: BillingCard = null;
+  let paymentMethods: BillingPaymentMethod[] = [];
 
   if (
     defaultPaymentMethod &&
@@ -147,45 +297,119 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
     defaultPaymentMethod.card
   ) {
     card = {
+      id: defaultPaymentMethod.id,
       brand: defaultPaymentMethod.card.brand,
       last4: defaultPaymentMethod.card.last4,
       expMonth: defaultPaymentMethod.card.exp_month,
       expYear: defaultPaymentMethod.card.exp_year,
+      isDefault: true,
     };
-  } else {
-    const paymentMethods = await stripe.paymentMethods.list({
-      customer: localSubscription.providerCustomerId,
-      type: "card",
-      limit: 1,
-    });
-    const paymentMethod = paymentMethods.data[0];
-
-    if (paymentMethod?.card) {
-      card = {
-        brand: paymentMethod.card.brand,
-        last4: paymentMethod.card.last4,
-        expMonth: paymentMethod.card.exp_month,
-        expYear: paymentMethod.card.exp_year,
-      };
-    }
   }
 
-  const invoices = await stripe.invoices.list({
-    customer: localSubscription.providerCustomerId,
-    limit: 5,
-  });
+  try {
+    const stripePaymentMethods = await stripe.paymentMethods.list({
+      customer: localSubscription.providerCustomerId,
+      type: "card",
+      limit: 20,
+    });
+
+    paymentMethods = stripePaymentMethods.data
+      .filter((paymentMethod) => Boolean(paymentMethod.card))
+      .map((paymentMethod) => ({
+        id: paymentMethod.id,
+        brand: paymentMethod.card?.brand || "card",
+        last4: paymentMethod.card?.last4 || "----",
+        expMonth: paymentMethod.card?.exp_month || 0,
+        expYear: paymentMethod.card?.exp_year || 0,
+        isDefault: paymentMethod.id === defaultPaymentMethodId,
+      }));
+
+    if (!card && paymentMethods[0]) {
+      card =
+        paymentMethods.find((paymentMethod) => paymentMethod.isDefault) ||
+        paymentMethods[0];
+    }
+  } catch {
+    paymentMethods = card ? [card] : [];
+  }
+
+  let invoices: Stripe.ApiList<Stripe.Invoice>["data"] = [];
+  const standardCharge = `${formatMoney(amountCents, currency)} / ${
+    recurringInterval === "year" ? "year" : "month"
+  }`;
+  let nextCharge = standardCharge;
+  let nextChargeLabel = "Next charge";
+
+  try {
+    invoices = (
+      await stripe.invoices.list({
+        customer: localSubscription.providerCustomerId,
+        limit: 5,
+      })
+    ).data;
+  } catch {
+    invoices = [];
+  }
+
+  try {
+    const upcomingInvoice = await stripe.invoices.createPreview({
+      customer: localSubscription.providerCustomerId,
+      subscription: stripeSubscription.id,
+    });
+
+    nextCharge = `${formatMoney(
+      upcomingInvoice.amount_due ?? upcomingInvoice.total ?? amountCents,
+      (upcomingInvoice.currency || currency).toUpperCase(),
+    )} / ${recurringInterval === "year" ? "year" : "month"}`;
+  } catch {
+    nextCharge = standardCharge;
+  }
+
+  const retentionOffer =
+    recurringInterval !== "month"
+      ? {
+          status: "ineligible" as const,
+          expiresOn: null,
+          message: "This loyalty offer is only available on monthly plans.",
+        }
+      : localSubscription.retentionOfferAcceptedAt
+        ? localSubscription.retentionOfferExpiresAt &&
+          localSubscription.retentionOfferExpiresAt > new Date()
+          ? {
+              status: "active" as const,
+              expiresOn: formatDate(localSubscription.retentionOfferExpiresAt),
+              message: "Your 50% loyalty discount is active for your next charges.",
+            }
+          : {
+              status: "used" as const,
+              expiresOn: null,
+              message: "Your loyalty discount has already been used on this account.",
+            }
+        : {
+            status: "available" as const,
+            expiresOn: null,
+            message: null,
+          };
+
+  if (retentionOffer.status === "active" && nextCharge !== standardCharge) {
+    nextChargeLabel = "Discounted next charge";
+  }
 
   return {
+    issue: null,
     status: localSubscription.status,
     planName: "Homzie Agent Pro",
     cycle: recurringInterval === "year" ? "Yearly" : "Monthly",
     price: `${formatMoney(amountCents, currency)} / ${
       recurringInterval === "year" ? "year" : "month"
     }`,
+    nextCharge,
+    nextChargeLabel,
     nextBillingDate: formatDate(period.end || localSubscription.currentPeriodEnd),
     startedOn: formatDate(period.start || localSubscription.currentPeriodStart),
     card,
-    invoices: invoices.data.map((invoice) => ({
+    paymentMethods,
+    invoices: invoices.map((invoice) => ({
       id: invoice.id,
       date: formatDate(invoice.created),
       description: invoice.description || "Homzie Agent Pro",
@@ -193,6 +417,10 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
       status: invoice.status || "open",
       downloadUrl: invoice.invoice_pdf || invoice.hosted_invoice_url || null,
     })),
+    stripeAvailable: true,
+    trialDaysRemaining,
+    trialEndsOn,
+    retentionOffer,
   };
 }
 
@@ -204,70 +432,18 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function Sidebar() {
+function BillingIssueNotice({ issue }: { issue: BillingIssue }) {
   return (
-    <aside className="hidden min-h-screen w-[280px] shrink-0 border-r border-border bg-background px-5 py-7 lg:flex lg:flex-col">
-      <BackButton className="text-foreground hover:text-primary" />
-
-      <nav className="mt-12 space-y-1">
-        {navigation.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.label}
-              href="#"
-              className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
-              <Icon className="size-5" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <p className="mt-8 px-4 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-        Account
-      </p>
-      <nav className="mt-3 space-y-1">
-        {accountNavigation.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.label}
-              href="#"
-              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold ${
-                item.active
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <Icon className="size-5" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="mt-auto rounded-lg bg-[linear-gradient(135deg,rgba(123,92,255,0.1),rgba(255,77,184,0.12))] p-5">
-        <p className="font-bold">Grow your brand</p>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Upgrade to Homzie Agent Pro to unlock more tools.
-        </p>
-        <Link
-          href="/become-agent"
-          className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-primary"
-        >
-          Upgrade now
-          <TrendingUp className="size-4" />
-        </Link>
-      </div>
-    </aside>
+    <section className="rounded-lg border border-destructive/25 bg-destructive/10 p-5 text-destructive shadow-sm">
+      <h2 className="text-base font-bold">{issue.title}</h2>
+      <p className="mt-2 text-sm font-semibold leading-6">{issue.message}</p>
+    </section>
   );
 }
 
 function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
   return (
-    <section className="rounded-lg border bg-card p-6 shadow-sm lg:p-8">
+    <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)]">
         <div>
           <p className="text-sm font-bold text-primary">Current plan</p>
@@ -281,12 +457,6 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
             Everything you need to build your property brand, publish listings,
             post reels and capture leads.
           </p>
-          <form action={openBillingPortal} className="mt-7">
-            <Button variant="outline">
-              <Settings className="size-4" />
-              Manage plan
-            </Button>
-          </form>
         </div>
 
         <div className="grid gap-4 border-border lg:border-l lg:pl-8">
@@ -300,8 +470,19 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
                 {billing?.nextBillingDate || "Not available"}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {billing ? `You will be charged ${billing.price}.` : "Subscribe to activate billing."}
+                {billing?.trialEndsOn
+                  ? `Your ${agentSubscriptionTrialLabel.toLowerCase()} ends on ${billing.trialEndsOn}.`
+                  : billing
+                    ? `You will be charged ${billing.nextCharge}.`
+                    : "Subscribe to activate billing."}
               </p>
+              {billing?.trialEndsOn && billing.trialDaysRemaining !== null ? (
+                <p className="mt-2 inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                  {billing.trialDaysRemaining === 0
+                    ? "Trial ends today"
+                    : `${billing.trialDaysRemaining} day${billing.trialDaysRemaining === 1 ? "" : "s"} remaining`}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex gap-4 rounded-lg bg-secondary p-4">
@@ -309,14 +490,27 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
               <CreditCard className="size-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Amount</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                {billing?.nextChargeLabel || "Amount"}
+              </p>
               <p className="text-xl font-bold">
-                {billing?.price || (
+                {billing?.nextCharge || (
                   <>
                     <CurrencyAmount cents={agentSubscriptionPrice.amountCents} /> / month
                   </>
                 )}
               </p>
+              {billing && billing.nextCharge !== billing.price ? (
+                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                  Standard plan price: {billing.price}
+                </p>
+              ) : null}
+              {billing?.retentionOffer.status === "active" &&
+              billing.retentionOffer.expiresOn ? (
+                <p className="mt-1 text-xs font-semibold text-primary">
+                  Discount active until {billing.retentionOffer.expiresOn}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -327,39 +521,35 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
 
 function PaymentMethodCard({ billing }: { billing: BillingData | null }) {
   return (
-    <section className="rounded-lg border bg-card p-6 shadow-sm lg:p-8">
+    <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
       <div className="flex items-center justify-between gap-4">
         <h2 className="font-bold">Payment method</h2>
-        <form action={openBillingPortal}>
-          <Button variant="secondary" size="sm">
-            + Add method
-          </Button>
-        </form>
+        <AddPaymentMethodButton
+          disabled={!billing?.stripeAvailable}
+          label={billing?.paymentMethods.length ? "Add or replace" : "Add method"}
+        />
       </div>
 
-      <div className="mt-6 rounded-lg border p-4">
-        {billing?.card ? (
-          <div className="flex items-center gap-4">
-            <div className="flex size-12 items-center justify-center rounded-lg bg-secondary text-sm font-bold uppercase text-primary">
-              {billing.card.brand.slice(0, 2)}
-            </div>
-            <div className="min-w-0">
-              <p className="font-bold capitalize">
-                {billing.card.brand} •••• {billing.card.last4}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Expires {String(billing.card.expMonth).padStart(2, "0")}/
-                {String(billing.card.expYear).slice(-2)}
-              </p>
-            </div>
-            <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-              Default
-            </span>
+      <div className="mt-6">
+        {billing?.paymentMethods.length ? (
+          <PaymentMethodList
+            hasProtectedSubscription={
+              billing.status === "active" || billing.status === "past_due"
+            }
+            methods={billing.paymentMethods}
+          />
+        ) : billing && !billing.stripeAvailable ? (
+          <div className="rounded-lg border border-border bg-background p-4">
+            <p className="text-sm text-muted-foreground">
+              Payment method details are unavailable while billing is in sandbox mode.
+            </p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            No saved payment method yet. Add one after subscribing.
-          </p>
+          <div className="rounded-lg border border-border bg-background p-4">
+            <p className="text-sm text-muted-foreground">
+              No saved payment method yet. Add one after subscribing.
+            </p>
+          </div>
         )}
       </div>
 
@@ -367,6 +557,11 @@ function PaymentMethodCard({ billing }: { billing: BillingData | null }) {
         <LockKeyhole className="mt-0.5 size-4 shrink-0" />
         Your payment information is stored securely by Stripe.
       </p>
+      {billing?.paymentMethods.length ? (
+        <p className="mt-3 text-xs font-semibold text-muted-foreground">
+          To update a card, add a replacement, make it default, then remove the old one.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -386,39 +581,11 @@ function InvoiceHistory({ invoices }: { invoices: BillingInvoice[] }) {
       ];
 
   return (
-    <section className="rounded-lg border bg-card p-6 shadow-sm lg:p-8">
+    <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">Invoice history</h2>
-        <Link href="#" className="text-sm font-bold text-primary">
-          View all
-        </Link>
       </div>
-      <div className="mt-6 divide-y">
-        {visibleInvoices.map((invoice) => (
-          <div
-            key={invoice.id}
-            className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-4 text-sm md:grid-cols-[140px_minmax(0,1fr)_110px_90px_40px]"
-          >
-            <p className="font-medium">{invoice.date}</p>
-            <p className="min-w-0 text-muted-foreground">{invoice.description}</p>
-            <p className="font-medium">{invoice.amount}</p>
-            <span className="w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold capitalize text-emerald-700">
-              {invoice.status}
-            </span>
-            {invoice.downloadUrl ? (
-              <Link
-                href={invoice.downloadUrl}
-                className="inline-flex size-8 items-center justify-center rounded-md text-primary hover:bg-secondary"
-                aria-label="Download invoice"
-              >
-                <Download className="size-4" />
-              </Link>
-            ) : (
-              <span />
-            )}
-          </div>
-        ))}
-      </div>
+      <InvoiceHistoryTable invoices={visibleInvoices} />
     </section>
   );
 }
@@ -435,16 +602,24 @@ function SubscriptionDetails({ billing }: { billing: BillingData | null }) {
         </>
       ),
     },
+    {
+      label: billing?.nextChargeLabel || "Next charge",
+      value: billing?.nextCharge || "Not available",
+    },
     { label: "Next billing date", value: billing?.nextBillingDate || "Not available" },
     {
       label: "Payment method",
-      value: billing?.card ? `•••• ${billing.card.last4}` : "Not added",
+      value: billing?.card
+        ? `•••• ${billing.card.last4}`
+        : billing && !billing.stripeAvailable
+          ? "Unavailable in sandbox"
+          : "Not added",
     },
     { label: "Started on", value: billing?.startedOn || "Not available" },
   ];
 
   return (
-    <section className="rounded-lg border bg-card p-6 shadow-sm lg:p-8">
+    <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
       <h2 className="font-bold">Subscription details</h2>
       <div className="mt-7 space-y-5">
         {rows.map((row) => (
@@ -455,21 +630,18 @@ function SubscriptionDetails({ billing }: { billing: BillingData | null }) {
         ))}
       </div>
       {billing ? (
-        <form action={cancelAgentSubscription} className="mt-8">
-          <Button
-            type="submit"
-            variant="outline"
-            className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
-          >
-            Cancel subscription
-          </Button>
-        </form>
+        <div className="mt-8">
+          <CancelSubscriptionButton
+            disabled={!billing.stripeAvailable}
+            retentionOffer={billing.retentionOffer}
+          />
+        </div>
       ) : null}
     </section>
   );
 }
 
-function CompactAgentUpgradeCta() {
+function CompactAgentUpgradeCta({ trialEligible }: { trialEligible: boolean }) {
   return (
     <section className="overflow-hidden rounded-lg border border-primary/15 bg-secondary p-5 shadow-sm sm:p-6">
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -483,15 +655,17 @@ function CompactAgentUpgradeCta() {
             portfolio.
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Subscribe to publish listings, post property reels, capture leads,
-            and manage your agent billing from this page.
+            {trialEligible
+              ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()}, then publish listings, post property reels, capture leads, and manage your agent billing from this page.`
+              : "Subscribe instantly to publish listings, post property reels, capture leads, and manage your agent billing from this page."}
           </p>
         </div>
         <Button asChild className="h-11 px-6">
           <Link href="/become-agent">
             <TrendingUp className="size-4" />
-            Start for <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
-            /month
+            {trialEligible
+              ? `Start ${getAgentSubscriptionOfferLabel(true)}`
+              : "Subscribe now"}
           </Link>
         </Button>
       </div>
@@ -508,6 +682,7 @@ export default async function BillingSettingsPage() {
 
   const [user] = await db
     .select({
+      agentTrialUsedAt: users.agentTrialUsedAt,
       id: users.id,
       name: users.name,
       username: users.username,
@@ -520,56 +695,50 @@ export default async function BillingSettingsPage() {
     redirect("/onboarding/username");
   }
 
+  const [previousSubscription] = await db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, session.user.id))
+    .orderBy(desc(subscriptions.createdAt))
+    .limit(1);
+
   const billing = await getBillingData(user.id);
+  const trialEligible = !user.agentTrialUsedAt && !previousSubscription;
   return (
-    <div className="min-h-screen bg-background text-foreground lg:flex">
-      <Sidebar />
+    <main className="mx-auto min-h-dvh w-full max-w-[1180px] overflow-x-clip bg-background px-4 pb-10 text-foreground sm:px-6 lg:px-10">
+      <SettingsPageHeader title="Billing" />
 
-      <main className="min-w-0 flex-1 px-4 pb-8 sm:px-6 lg:px-10">
-        <SettingsPageHeader
-          title="Billing"
-        />
+      <div className="flex w-full flex-col gap-5 py-6">
+        {!billing ? <CompactAgentUpgradeCta trialEligible={trialEligible} /> : null}
+        {billing?.issue ? <BillingIssueNotice issue={billing.issue} /> : null}
 
-        {!billing ? <div className="mt-8"><CompactAgentUpgradeCta /></div> : null}
+        <CurrentPlanCard billing={billing} />
 
-        <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-6">
-            <CurrentPlanCard billing={billing} />
-            <InvoiceHistory invoices={billing?.invoices || []} />
-          </div>
-          <div className="space-y-6">
-            <PaymentMethodCard billing={billing} />
-            <SubscriptionDetails billing={billing} />
-            <div className="rounded-lg bg-[linear-gradient(135deg,rgba(123,92,255,0.08),rgba(255,77,184,0.1))] p-6">
-              <p className="font-bold">Grow your brand</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Upgrade to Homzie Agent Pro to unlock more tools.
-              </p>
-              <Link
-                href="/become-agent"
-                className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-primary"
-              >
-                Upgrade now
-                <TrendingUp className="size-4" />
-              </Link>
-            </div>
-          </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <PaymentMethodCard billing={billing} />
+          <SubscriptionDetails billing={billing} />
         </div>
 
-        <p className="mt-8 flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <HelpCircle className="size-4" />
-          </span>
-          Need help? Visit our{" "}
-          <Link href="#" className="font-bold text-primary">
-            Help Centre
-          </Link>
-          or contact{" "}
-          <Link href="mailto:support@homzie.co.za" className="font-bold text-primary">
-            support@homzie.co.za
-          </Link>
-        </p>
-      </main>
-    </div>
+        <InvoiceHistory invoices={billing?.invoices || []} />
+
+        <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
+          <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <HelpCircle className="size-4" />
+            </span>
+            <span>
+              Need help? Visit our{" "}
+              <Link href="#" className="font-bold text-primary">
+                Help Centre
+              </Link>{" "}
+              or contact{" "}
+              <Link href="mailto:support@homzie.co.za" className="font-bold text-primary">
+                support@homzie.co.za
+              </Link>
+            </span>
+          </p>
+        </section>
+      </div>
+    </main>
   );
 }

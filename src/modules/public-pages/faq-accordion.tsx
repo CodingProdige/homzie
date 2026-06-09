@@ -5,7 +5,10 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { agentSubscriptionPlans } from "@/modules/billing/plans";
+import {
+  agentSubscriptionPlans,
+  agentSubscriptionTrialLabel,
+} from "@/modules/billing/plans";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
 
 export type FaqItem = {
@@ -17,14 +20,19 @@ const contactFaqs: FaqItem[] = [
   {
     question: "How do I list my property on Homzie?",
     answer:
-      "Create an account, subscribe to the Homzie Agent plan, then open Listings and choose New listing. You can add property details, photos, pricing, location, features, and publish when everything looks right.",
+      `Create an account, start the Homzie Agent plan with a ${agentSubscriptionTrialLabel.toLowerCase()}, then open Listings and choose New listing. You can add property details, photos, pricing, location, features, and publish when everything looks right.`,
   },
   {
     question: "Is it free to list a property?",
     answer: (
       <>
         Buyers can browse for free. To list properties, create reels, and unlock agent tools,
-        you need an active Homzie Agent subscription at{" "}
+        you need an active Homzie Agent subscription. Every new subscription starts
+        with a{" "}
+        <span className="font-black text-foreground">
+          {agentSubscriptionTrialLabel.toLowerCase()}
+        </span>{" "}
+        and then continues at{" "}
         <span className="font-black text-foreground">
           <CurrencyAmount cents={agentSubscriptionPlans.month.amountCents} />/month
         </span>

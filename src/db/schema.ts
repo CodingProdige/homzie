@@ -42,10 +42,14 @@ export const users = pgTable("users", {
   contactPhone: text("contact_phone"),
   whatsappNumber: text("whatsapp_number"),
   publicContactVisible: boolean("public_contact_visible").notNull().default(true),
+  profileVisible: boolean("profile_visible").notNull().default(true),
+  searchVisible: boolean("search_visible").notNull().default(true),
   passwordHash: text("password_hash"),
   role: userRoleEnum("role").notNull().default("user"),
   status: userStatusEnum("status").notNull().default("active"),
   emailVerified: boolean("email_verified").notNull().default(false),
+  agentTrialUsedAt: timestamp("agent_trial_used_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -85,6 +89,12 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  retentionOfferAcceptedAt: timestamp("retention_offer_accepted_at", {
+    withTimezone: true,
+  }),
+  retentionOfferExpiresAt: timestamp("retention_offer_expires_at", {
+    withTimezone: true,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -933,6 +943,80 @@ export const webPushSubscriptions = pgTable(
   ],
 );
 
+export const userNotificationPreferences = pgTable(
+  "user_notification_preferences",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pushEnabled: boolean("push_enabled").notNull().default(true),
+    emailEnabled: boolean("email_enabled").notNull().default(false),
+    messagesEnabled: boolean("messages_enabled").notNull().default(true),
+    callsEnabled: boolean("calls_enabled").notNull().default(true),
+    offersEnabled: boolean("offers_enabled").notNull().default(true),
+    listingActivityEnabled: boolean("listing_activity_enabled")
+      .notNull()
+      .default(true),
+    reelActivityEnabled: boolean("reel_activity_enabled").notNull().default(true),
+    profileActivityEnabled: boolean("profile_activity_enabled")
+      .notNull()
+      .default(true),
+    marketingEnabled: boolean("marketing_enabled").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("user_notification_preferences_updated_at_idx").on(table.updatedAt),
+  ],
+);
+
+export const adCampaigns = pgTable(
+  "ad_campaigns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    channel: text("channel").notNull().default("homzie"),
+    promotedType: text("promoted_type").notNull().default("profile"),
+    objective: text("objective").notNull().default("awareness"),
+    listingId: uuid("listing_id").references(() => propertyListings.id, {
+      onDelete: "set null",
+    }),
+    reelId: uuid("reel_id").references(() => reels.id, {
+      onDelete: "set null",
+    }),
+    targetLocation: text("target_location"),
+    headline: text("headline"),
+    copy: text("copy"),
+    durationDays: integer("duration_days").notNull().default(14),
+    totalBudgetCents: integer("total_budget_cents").notNull(),
+    netMediaBudgetCents: integer("net_media_budget_cents").notNull(),
+    platformMarginBasisPoints: integer("platform_margin_basis_points")
+      .notNull()
+      .default(0),
+    estimatedReach: integer("estimated_reach").notNull().default(0),
+    estimatedImpressions: integer("estimated_impressions").notNull().default(0),
+    estimatedClicks: integer("estimated_clicks").notNull().default(0),
+    estimatedResults: integer("estimated_results").notNull().default(0),
+    promotedUrl: text("promoted_url"),
+    googleSyncStatus: text("google_sync_status").notNull().default("not_applicable"),
+    googleSyncError: text("google_sync_error"),
+    googleLastSyncedAt: timestamp("google_last_synced_at", { withTimezone: true }),
+    status: text("status").notNull().default("draft"),
+    launchedAt: timestamp("launched_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ad_campaigns_user_id_idx").on(table.userId),
+    index("ad_campaigns_status_idx").on(table.status),
+    index("ad_campaigns_channel_idx").on(table.channel),
+    index("ad_campaigns_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const hashtagStats = pgTable("hashtag_stats", {
   tag: text("tag").primaryKey(),
   reelCount: integer("reel_count").notNull().default(0),
@@ -976,6 +1060,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   listingSaves: many(listingSaves),
   reelWatchEvents: many(reelWatchEvents),
   reelWatchSessions: many(reelWatchSessions),
+  notificationPreferences: one(userNotificationPreferences),
+  adCampaigns: many(adCampaigns),
   subscriptions: many(subscriptions),
   propertyIdentities: many(propertyIdentities),
   propertyListings: many(propertyListings),
@@ -1002,6 +1088,31 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
   agentProfile: one(agentProfiles, {
     fields: [subscriptions.agentProfileId],
     references: [agentProfiles.id],
+  }),
+}));
+
+export const userNotificationPreferencesRelations = relations(
+  userNotificationPreferences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userNotificationPreferences.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const adCampaignsRelations = relations(adCampaigns, ({ one }) => ({
+  user: one(users, {
+    fields: [adCampaigns.userId],
+    references: [users.id],
+  }),
+  listing: one(propertyListings, {
+    fields: [adCampaigns.listingId],
+    references: [propertyListings.id],
+  }),
+  reel: one(reels, {
+    fields: [adCampaigns.reelId],
+    references: [reels.id],
   }),
 }));
 
@@ -1292,6 +1403,12 @@ export type AgentProfile = typeof agentProfiles.$inferSelect;
 export type NewAgentProfile = typeof agentProfiles.$inferInsert;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
+export type UserNotificationPreferences =
+  typeof userNotificationPreferences.$inferSelect;
+export type NewUserNotificationPreferences =
+  typeof userNotificationPreferences.$inferInsert;
+export type AdCampaign = typeof adCampaigns.$inferSelect;
+export type NewAdCampaign = typeof adCampaigns.$inferInsert;
 export type Reel = typeof reels.$inferSelect;
 export type NewReel = typeof reels.$inferInsert;
 export type PropertyListing = typeof propertyListings.$inferSelect;

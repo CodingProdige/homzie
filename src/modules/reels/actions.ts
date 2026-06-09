@@ -174,8 +174,8 @@ export async function getReelMentionSuggestions(query: string) {
     .from(users)
     .where(
       normalizedQuery
-        ? ilike(users.username, `${normalizedQuery}%`)
-        : isNotNull(users.username),
+        ? and(eq(users.status, "active"), ilike(users.username, `${normalizedQuery}%`))
+        : and(eq(users.status, "active"), isNotNull(users.username)),
     )
     .limit(8);
 
@@ -361,7 +361,7 @@ export async function toggleProfileFollow(targetUsername: string) {
   const [target] = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.username, targetUsername))
+    .where(and(eq(users.username, targetUsername), eq(users.status, "active")))
     .limit(1);
 
   if (!target) {

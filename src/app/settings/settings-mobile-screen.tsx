@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BadgeCheck, ChevronRight } from "lucide-react";
 
 import { InstallHomzieButton } from "@/modules/pwa/components/pwa-install";
+import { DeleteAccountButton } from "./delete-account-button";
 import { LogoutButton } from "./logout-button";
 import { settingsItems } from "./settings-items";
 import { SettingsPageHeader } from "./settings-page-header";
@@ -102,6 +103,7 @@ export function SettingsMobileScreen({
             </Link>
           );
         })}
+        <DeleteAccountButton />
         <LogoutButton />
       </nav>
     </main>

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 
 import { db } from "@/db";
-import { agentProfiles, subscriptions } from "@/db/schema";
+import { agentProfiles, subscriptions, users } from "@/db/schema";
 import { toAppSubscriptionStatus } from "./stripe";
 
 function toDate(seconds: number | null | undefined) {
@@ -91,6 +91,20 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
         updatedAt: new Date(),
       })
       .where(eq(agentProfiles.id, agentProfileId));
+  }
+
+  const typedSubscription = subscription as Stripe.Subscription & {
+    trial_end?: number | null;
+  };
+
+  if (typedSubscription.trial_end) {
+    await db
+      .update(users)
+      .set({
+        agentTrialUsedAt: toDate(typedSubscription.trial_end) || new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
   }
 
   return { status, currentPeriodEnd };

@@ -1375,13 +1375,28 @@ function AgentPaymentStatusDialog({
 }: {
   hasActiveSubscription: boolean;
 }) {
-  const [open, setOpen] = useState(() => {
+  const [paymentSuccess, setPaymentSuccess] = useState(() => {
     if (typeof window === "undefined" || !hasActiveSubscription) {
-      return false;
+      return { open: false, trialApplied: false };
     }
 
-    return Boolean(window.sessionStorage.getItem("homzie-agent-payment-success"));
+    const stored = window.sessionStorage.getItem("homzie-agent-payment-success");
+
+    if (!stored) {
+      return { open: false, trialApplied: false };
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as { trialApplied?: boolean };
+      return { open: true, trialApplied: Boolean(parsed.trialApplied) };
+    } catch {
+      return { open: true, trialApplied: false };
+    }
   });
+  const open = paymentSuccess.open;
+  const trialApplied = paymentSuccess.trialApplied;
+  const setOpen = (nextOpen: boolean) =>
+    setPaymentSuccess((current) => ({ ...current, open: nextOpen }));
 
   useEffect(() => {
     if (open) {
@@ -1410,8 +1425,9 @@ function AgentPaymentStatusDialog({
             Payment successful
           </Dialog.Title>
           <Dialog.Description className="mt-3 text-sm leading-6 text-muted-foreground">
-            Your Homzie Agent subscription is active. Agent tools are now unlocked
-            on your profile.
+            {trialApplied
+              ? "Your Homzie Agent trial is active. Agent tools are now unlocked on your profile."
+              : "Your Homzie Agent subscription is active. Agent tools are now unlocked on your profile."}
           </Dialog.Description>
           <Dialog.Close asChild>
             <Button className="mt-6 w-full">

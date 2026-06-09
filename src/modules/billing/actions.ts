@@ -1,7 +1,7 @@
 "use server";
 
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { agentProfiles, subscriptions, users } from "@/db/schema";
@@ -25,9 +25,11 @@ type StartAgentCheckoutResult =
   | {
       ok: true;
       clientSecret: string;
+      intentType: "payment" | "setup";
       publishableKey: string;
       subscriptionId: string;
       profilePath: string;
+      trialApplied: boolean;
     }
   | { ok: false; error: string; missingEnv?: string[] };
 
@@ -77,6 +79,7 @@ export async function startAgentSubscriptionCheckout(
 
   const [user] = await db
     .select({
+      agentTrialUsedAt: users.agentTrialUsedAt,
       id: users.id,
       name: users.name,
       username: users.username,
@@ -140,6 +143,13 @@ export async function startAgentSubscriptionCheckout(
   const stripe = await getStripe();
   const publishableKey = await getStripePublishableKey();
   const plan = agentSubscriptionPlans[interval];
+  const [previousSubscription] = await db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, user.id))
+    .orderBy(desc(subscriptions.createdAt))
+    .limit(1);
+  const trialApplied = !user.agentTrialUsedAt && !previousSubscription;
 
   try {
     const customer = await stripe.customers.create({
@@ -163,14 +173,21 @@ export async function startAgentSubscriptionCheckout(
       payment_settings: {
         save_default_payment_method: "on_subscription",
       },
-      expand: ["latest_invoice.confirmation_secret"],
+      ...(trialApplied ? { trial_period_days: 7 } : {}),
+      expand: ["latest_invoice.confirmation_secret", "pending_setup_intent"],
     });
 
     const latestInvoice = stripeSubscription.latest_invoice;
-    const clientSecret =
+    const invoiceClientSecret =
       latestInvoice && typeof latestInvoice !== "string"
         ? latestInvoice.confirmation_secret?.client_secret
         : null;
+    const pendingSetupIntent = stripeSubscription.pending_setup_intent;
+    const setupClientSecret =
+      pendingSetupIntent && typeof pendingSetupIntent !== "string"
+        ? pendingSetupIntent.client_secret
+        : null;
+    const clientSecret = setupClientSecret || invoiceClientSecret;
 
     if (!clientSecret) {
       throw new Error("Stripe did not return a payment form secret.");
@@ -190,12 +207,24 @@ export async function startAgentSubscriptionCheckout(
       providerReference: stripeSubscription.id,
     });
 
+    if (trialApplied) {
+      await db
+        .update(users)
+        .set({
+          agentTrialUsedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id));
+    }
+
     return {
       ok: true,
       clientSecret,
+      intentType: setupClientSecret ? "setup" : "payment",
       publishableKey,
       subscriptionId: stripeSubscription.id,
       profilePath: `/users/${user.username}`,
+      trialApplied,
     };
   } catch (error) {
     return {

@@ -84,7 +84,13 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
       username: users.username,
     })
     .from(users)
-    .where(eq(users.username, normalizedUsername))
+    .where(
+      and(
+        eq(users.username, normalizedUsername),
+        eq(users.status, "active"),
+        eq(users.profileVisible, true),
+      ),
+    )
     .limit(1);
 
   if (!profile?.username) {

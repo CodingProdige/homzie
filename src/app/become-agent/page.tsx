@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import {
   Check,
   Clapperboard,
@@ -13,11 +13,14 @@ import {
 import { BackButton } from "@/components/back-button";
 import { HomzieLogo } from "@/components/homzie-logo";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { subscriptions, users } from "@/db/schema";
 import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { StartAgentCheckoutButton } from "@/modules/billing/components/start-agent-checkout-button";
-import { agentSubscriptionPrice } from "@/modules/billing/plans";
+import {
+  agentSubscriptionPrice,
+  agentSubscriptionTrialLabel,
+} from "@/modules/billing/plans";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 
@@ -56,7 +59,10 @@ export default async function BecomeAgentPage() {
   }
 
   const [user] = await db
-    .select({ username: users.username })
+    .select({
+      agentTrialUsedAt: users.agentTrialUsedAt,
+      username: users.username,
+    })
     .from(users)
     .where(eq(users.id, session.user.id))
     .limit(1);
@@ -70,6 +76,15 @@ export default async function BecomeAgentPage() {
   if (hasSubscription) {
     redirect(`/users/${user.username}?agent=active`);
   }
+
+  const [previousSubscription] = await db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, session.user.id))
+    .orderBy(desc(subscriptions.createdAt))
+    .limit(1);
+
+  const trialEligible = !user.agentTrialUsedAt && !previousSubscription;
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-brand-black text-white">
@@ -96,7 +111,9 @@ export default async function BecomeAgentPage() {
               <span className="block">portfolio.</span>
             </h1>
             <p className="mt-5 max-w-lg break-words text-sm leading-7 text-white/78 sm:text-base">
-              Agents pay{" "}
+              {trialEligible
+                ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()}, then pay `
+                : "Subscribe instantly for "}
               <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
               /month to publish
               listings, post reels, link videos to properties, capture leads,
@@ -139,6 +156,11 @@ export default async function BecomeAgentPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-bold text-primary">Agent plan</p>
+                    <p className="mt-2 text-sm font-semibold text-muted-foreground">
+                      {trialEligible
+                        ? `${agentSubscriptionTrialLabel} on monthly and yearly plans.`
+                        : "Monthly and yearly plans start billing immediately on this account."}
+                    </p>
                     <div className="mt-4 flex items-end gap-2">
                       <span className="text-5xl font-bold tracking-tight sm:text-6xl">
                         <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
@@ -166,10 +188,12 @@ export default async function BecomeAgentPage() {
                 </div>
 
                 <div className="mt-8">
-                  <StartAgentCheckoutButton />
+                  <StartAgentCheckoutButton trialEligible={trialEligible} />
                   <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
                     <LockKeyhole className="size-4" />
-                    Cancel anytime. No long-term contracts.
+                    {trialEligible
+                      ? `${agentSubscriptionTrialLabel}. Cancel anytime before your first charge.`
+                      : "Your next subscription will start immediately after checkout."}
                   </p>
                 </div>
             </>

@@ -53,7 +53,13 @@ async function getUserProfile(usernameParam: string) {
       publicContactVisible: users.publicContactVisible,
     })
     .from(users)
-    .where(eq(users.username, username))
+    .where(
+      and(
+        eq(users.username, username),
+        eq(users.status, "active"),
+        eq(users.profileVisible, true),
+      ),
+    )
     .limit(1);
 
   return user || null;

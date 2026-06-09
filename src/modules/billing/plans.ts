@@ -1,5 +1,15 @@
 export type AgentPlanInterval = "month" | "year";
 
+export const agentSubscriptionTrialDays = 7;
+export const agentSubscriptionTrialLabel = `${agentSubscriptionTrialDays}-day free trial`;
+export const agentSubscriptionNoTrialLabel = "subscription starts immediately";
+
+export function getAgentSubscriptionOfferLabel(trialEligible: boolean) {
+  return trialEligible
+    ? agentSubscriptionTrialLabel.toLowerCase()
+    : agentSubscriptionNoTrialLabel;
+}
+
 export const agentSubscriptionPlans: Record<
   AgentPlanInterval,
   {

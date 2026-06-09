@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   BadgeCheck,
   ChartPie,
@@ -67,7 +67,13 @@ async function getPerformanceProfile(usernameParam: string) {
       username: users.username,
     })
     .from(users)
-    .where(eq(users.username, username))
+    .where(
+      and(
+        eq(users.username, username),
+        eq(users.status, "active"),
+        eq(users.profileVisible, true),
+      ),
+    )
     .limit(1);
 
   return profile || null;

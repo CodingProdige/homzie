@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, CreditCard } from "lucide-react";
+import { ChevronRight, CreditCard, Megaphone } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Admin Settings | Homzie",
@@ -14,6 +14,13 @@ const settingsItems = [
     label: "Stripe",
     description:
       "Manage sandbox/live payment keys, webhook signing secrets, and subscription price IDs.",
+  },
+  {
+    href: "/admin/settings/ads",
+    icon: Megaphone,
+    label: "Ads",
+    description:
+      "Control platform ad pricing, channel availability, and the forecast model users see in Ads Center.",
   },
 ];
 

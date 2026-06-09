@@ -651,10 +651,10 @@ export function ProfileSettingsForm({
   return (
     <form
       action={formAction}
-      className="grid w-full min-w-0 gap-6"
+      className="flex w-full min-w-0 max-w-none flex-col gap-6"
     >
       <HeaderActions disabled={!hasChanges || !usernameReady} state={state} />
-      <div className="w-full min-w-0 space-y-6 pt-2">
+      <div className="flex w-full min-w-0 max-w-none flex-col gap-6 pt-2">
         <section className="w-full rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="grid min-w-0 gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
             <PreviewAvatar

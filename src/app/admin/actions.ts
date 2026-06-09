@@ -7,6 +7,16 @@ import { z } from "zod";
 import { sql } from "@/db";
 import { authOptions } from "@/modules/auth/config";
 import {
+  saveStoredAdsSettings,
+} from "@/modules/platform-settings/ads-settings";
+import { defaultAdsSettings, type AdsSettings } from "@/modules/ads/shared";
+import {
+  defaultGoogleAdsSettings,
+  getStoredGoogleAdsSettings,
+  saveStoredGoogleAdsSettings,
+  type GoogleAdsSettings,
+} from "@/modules/platform-settings/google-ads-settings";
+import {
   getStoredStripeSettings,
   saveStoredStripeSettings,
   stripeModes,
@@ -16,6 +26,16 @@ import {
 } from "@/modules/platform-settings/stripe-settings";
 
 export type AdminStripeSettingsState = {
+  message: string;
+  ok: boolean;
+};
+
+export type AdminAdsSettingsState = {
+  message: string;
+  ok: boolean;
+};
+
+export type AdminGoogleAdsSettingsState = {
   message: string;
   ok: boolean;
 };
@@ -56,6 +76,16 @@ async function assertActiveAdmin() {
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function formNumber(formData: FormData, key: string, fallback: number) {
+  const value = Number(formString(formData, key));
+
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function formBoolean(formData: FormData, key: string) {
+  return formData.get(key) === "on";
 }
 
 function mergeModeSettings(
@@ -153,6 +183,245 @@ export async function updateAdminStripeSettings(
         error instanceof Error
           ? error.message
           : "Could not save Stripe settings.",
+    };
+  }
+}
+
+function adsSettingsFromFormData(formData: FormData): AdsSettings {
+  return {
+    allowGoogleAds: formBoolean(formData, "allowGoogleAds"),
+    allowHomzieAds: formBoolean(formData, "allowHomzieAds"),
+    defaultMarginPercent: formNumber(
+      formData,
+      "defaultMarginPercent",
+      defaultAdsSettings.defaultMarginPercent,
+    ),
+    googleMarginPercent: formNumber(
+      formData,
+      "googleMarginPercent",
+      defaultAdsSettings.googleMarginPercent,
+    ),
+    homzieMarginPercent: formNumber(
+      formData,
+      "homzieMarginPercent",
+      defaultAdsSettings.homzieMarginPercent,
+    ),
+    minCampaignBudgetCents: Math.round(
+      formNumber(
+        formData,
+        "minCampaignBudgetRands",
+        defaultAdsSettings.minCampaignBudgetCents / 100,
+      ) * 100,
+    ),
+    maxCampaignBudgetCents: Math.round(
+      formNumber(
+        formData,
+        "maxCampaignBudgetRands",
+        defaultAdsSettings.maxCampaignBudgetCents / 100,
+      ) * 100,
+    ),
+    homzieAverageCpmCents: Math.round(
+      formNumber(
+        formData,
+        "homzieAverageCpmRands",
+        defaultAdsSettings.homzieAverageCpmCents / 100,
+      ) * 100,
+    ),
+    googleAverageCpmCents: Math.round(
+      formNumber(
+        formData,
+        "googleAverageCpmRands",
+        defaultAdsSettings.googleAverageCpmCents / 100,
+      ) * 100,
+    ),
+    homzieReachSharePercent: formNumber(
+      formData,
+      "homzieReachSharePercent",
+      defaultAdsSettings.homzieReachSharePercent,
+    ),
+    googleReachSharePercent: formNumber(
+      formData,
+      "googleReachSharePercent",
+      defaultAdsSettings.googleReachSharePercent,
+    ),
+    homzieCtrPercent: formNumber(
+      formData,
+      "homzieCtrPercent",
+      defaultAdsSettings.homzieCtrPercent,
+    ),
+    googleCtrPercent: formNumber(
+      formData,
+      "googleCtrPercent",
+      defaultAdsSettings.googleCtrPercent,
+    ),
+    profileVisitRatePercent: formNumber(
+      formData,
+      "profileVisitRatePercent",
+      defaultAdsSettings.profileVisitRatePercent,
+    ),
+    listingViewRatePercent: formNumber(
+      formData,
+      "listingViewRatePercent",
+      defaultAdsSettings.listingViewRatePercent,
+    ),
+    reelPlayRatePercent: formNumber(
+      formData,
+      "reelPlayRatePercent",
+      defaultAdsSettings.reelPlayRatePercent,
+    ),
+    leadRatePercent: formNumber(
+      formData,
+      "leadRatePercent",
+      defaultAdsSettings.leadRatePercent,
+    ),
+  };
+}
+
+function validateAdsSettings(settings: AdsSettings) {
+  if (settings.maxCampaignBudgetCents < settings.minCampaignBudgetCents) {
+    return "Maximum budget must be higher than minimum budget.";
+  }
+
+  if (!settings.allowGoogleAds && !settings.allowHomzieAds) {
+    return "At least one ad channel must stay enabled.";
+  }
+
+  return null;
+}
+
+export async function updateAdminAdsSettings(
+  _previousState: AdminAdsSettingsState,
+  formData: FormData,
+): Promise<AdminAdsSettingsState> {
+  try {
+    await assertActiveAdmin();
+
+    const next = adsSettingsFromFormData(formData);
+    const validationMessage = validateAdsSettings(next);
+
+    if (validationMessage) {
+      return {
+        ok: false,
+        message: validationMessage,
+      };
+    }
+
+    await saveStoredAdsSettings(next);
+    revalidatePath("/admin");
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/settings/ads");
+    revalidatePath("/settings/ads-center");
+
+    return {
+      ok: true,
+      message: "Ads settings saved.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Could not save ads settings.",
+    };
+  }
+}
+
+function mergeGoogleAdsSettings(
+  formData: FormData,
+  existing: GoogleAdsSettings,
+): GoogleAdsSettings {
+  const next = { ...defaultGoogleAdsSettings, ...existing };
+
+  const stringFields = [
+    "developerToken",
+    "clientId",
+    "clientSecret",
+    "refreshToken",
+    "customerId",
+    "loginCustomerId",
+    "dsaCampaignId",
+    "siteDomain",
+    "languageCode",
+    "pageFeedLabel",
+    "pageFeedToken",
+    "descriptionLine1",
+    "descriptionLine2",
+  ] as const;
+
+  for (const field of stringFields) {
+    const value = formString(formData, field);
+
+    if (value) {
+      next[field] = value;
+    }
+  }
+
+  next.enabled = formBoolean(formData, "enabled");
+  next.automationEnabled = formBoolean(formData, "automationEnabled");
+
+  return next;
+}
+
+function validateGoogleAdsSettings(settings: GoogleAdsSettings) {
+  if (!settings.enabled) {
+    return null;
+  }
+
+  if (!settings.pageFeedToken) {
+    return "Add a page feed token so Google can fetch your protected feed URL.";
+  }
+
+  if (!settings.siteDomain) {
+    return "Add the Homzie domain used by your Dynamic Search Ads campaign.";
+  }
+
+  if (settings.automationEnabled) {
+    if (!settings.developerToken || !settings.clientId || !settings.clientSecret) {
+      return "Automation needs a Google developer token, client ID, and client secret.";
+    }
+
+    if (!settings.refreshToken || !settings.customerId || !settings.dsaCampaignId) {
+      return "Automation needs a refresh token, customer ID, and DSA campaign ID.";
+    }
+  }
+
+  return null;
+}
+
+export async function updateAdminGoogleAdsSettings(
+  _previousState: AdminGoogleAdsSettingsState,
+  formData: FormData,
+): Promise<AdminGoogleAdsSettingsState> {
+  try {
+    await assertActiveAdmin();
+
+    const existing = await getStoredGoogleAdsSettings();
+    const next = mergeGoogleAdsSettings(formData, existing);
+    const validationMessage = validateGoogleAdsSettings(next);
+
+    if (validationMessage) {
+      return {
+        ok: false,
+        message: validationMessage,
+      };
+    }
+
+    await saveStoredGoogleAdsSettings(next);
+    revalidatePath("/admin");
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/settings/ads");
+    revalidatePath("/settings/ads-center");
+
+    return {
+      ok: true,
+      message: "Google Ads settings saved.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not save Google Ads settings.",
     };
   }
 }

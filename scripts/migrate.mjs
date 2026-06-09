@@ -122,6 +122,26 @@ try {
 
   await sql`
     ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS profile_visible boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS search_visible boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS deleted_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS agent_trial_used_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE users
     ALTER COLUMN username DROP NOT NULL
   `;
 
@@ -204,6 +224,16 @@ try {
   await sql`
     ALTER TABLE subscriptions
     ADD COLUMN IF NOT EXISTS provider_customer_id text
+  `;
+
+  await sql`
+    ALTER TABLE subscriptions
+    ADD COLUMN IF NOT EXISTS retention_offer_accepted_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE subscriptions
+    ADD COLUMN IF NOT EXISTS retention_offer_expires_at timestamptz
   `;
 
   await sql`
@@ -1306,6 +1336,100 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS web_push_subscriptions_user_id_idx
     ON web_push_subscriptions (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_notification_preferences (
+      user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      push_enabled boolean NOT NULL DEFAULT true,
+      email_enabled boolean NOT NULL DEFAULT false,
+      messages_enabled boolean NOT NULL DEFAULT true,
+      calls_enabled boolean NOT NULL DEFAULT true,
+      offers_enabled boolean NOT NULL DEFAULT true,
+      listing_activity_enabled boolean NOT NULL DEFAULT true,
+      reel_activity_enabled boolean NOT NULL DEFAULT true,
+      profile_activity_enabled boolean NOT NULL DEFAULT true,
+      marketing_enabled boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS user_notification_preferences_updated_at_idx
+    ON user_notification_preferences (updated_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ad_campaigns (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name text NOT NULL,
+      channel text NOT NULL DEFAULT 'homzie',
+      promoted_type text NOT NULL DEFAULT 'profile',
+      objective text NOT NULL DEFAULT 'awareness',
+      listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
+      reel_id uuid REFERENCES reels(id) ON DELETE SET NULL,
+      target_location text,
+      headline text,
+      copy text,
+      duration_days integer NOT NULL DEFAULT 14,
+      total_budget_cents integer NOT NULL,
+      net_media_budget_cents integer NOT NULL,
+      platform_margin_basis_points integer NOT NULL DEFAULT 0,
+      estimated_reach integer NOT NULL DEFAULT 0,
+      estimated_impressions integer NOT NULL DEFAULT 0,
+      estimated_clicks integer NOT NULL DEFAULT 0,
+      estimated_results integer NOT NULL DEFAULT 0,
+      promoted_url text,
+      google_sync_status text NOT NULL DEFAULT 'not_applicable',
+      google_sync_error text,
+      google_last_synced_at timestamptz,
+      status text NOT NULL DEFAULT 'draft',
+      launched_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS promoted_url text
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS google_sync_status text NOT NULL DEFAULT 'not_applicable'
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS google_sync_error text
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS google_last_synced_at timestamptz
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_campaigns_user_id_idx
+    ON ad_campaigns (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_campaigns_status_idx
+    ON ad_campaigns (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_campaigns_channel_idx
+    ON ad_campaigns (channel)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_campaigns_created_at_idx
+    ON ad_campaigns (created_at)
   `;
 
   await sql`

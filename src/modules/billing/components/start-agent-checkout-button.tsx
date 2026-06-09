@@ -18,44 +18,59 @@ import {
   syncAgentSubscriptionStatus,
 } from "../actions";
 import {
+  getAgentSubscriptionOfferLabel,
   type AgentPlanInterval,
   agentSubscriptionPlans,
 } from "../plans";
 
 type StripeCheckout = {
   clientSecret: string;
+  intentType: "payment" | "setup";
   profilePath: string;
   publishableKey: string;
   subscriptionId: string;
+  trialApplied: boolean;
 };
 
-const planCards: Record<
+function getPlanCards(trialEligible: boolean): Record<
   AgentPlanInterval,
   {
     title: string;
     description: string;
     badge?: string;
   }
-> = {
-  month: {
-    title: "Monthly",
-    description: "Start lean. Pay monthly and cancel anytime.",
-  },
-  year: {
-    title: "Yearly",
-    description: "Best for agents building their property brand long-term.",
-    badge: "Best value",
-  },
-};
+> {
+  const offerLabel = getAgentSubscriptionOfferLabel(trialEligible);
+
+  return {
+    month: {
+      title: "Monthly",
+      description: trialEligible
+        ? `${offerLabel}, then pay monthly and cancel anytime.`
+        : "Subscribe now, pay monthly, and cancel anytime.",
+    },
+    year: {
+      title: "Yearly",
+      description: trialEligible
+        ? `${offerLabel}, then save long-term on annual billing.`
+        : "Subscribe now and save long-term on annual billing.",
+      badge: "Best value",
+    },
+  };
+}
 
 function StripePaymentForm({
   profilePath,
+  intentType,
   selectedPlan,
   subscriptionId,
+  trialApplied,
 }: {
   profilePath: string;
+  intentType: "payment" | "setup";
   selectedPlan: AgentPlanInterval;
   subscriptionId: string;
+  trialApplied: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -73,16 +88,25 @@ function StripePaymentForm({
     }
 
     startSubmitting(async () => {
-      const result = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: `${window.location.origin}${profilePath}`,
-        },
-        redirect: "if_required",
-      });
+      const result =
+        intentType === "setup"
+          ? await stripe.confirmSetup({
+              elements,
+              confirmParams: {
+                return_url: `${window.location.origin}${profilePath}`,
+              },
+              redirect: "if_required",
+            })
+          : await stripe.confirmPayment({
+              elements,
+              confirmParams: {
+                return_url: `${window.location.origin}${profilePath}`,
+              },
+              redirect: "if_required",
+            });
 
       if (result.error) {
-        setError(result.error.message || "Your payment could not be confirmed.");
+        setError(result.error.message || "Your card could not be confirmed.");
         return;
       }
 
@@ -91,7 +115,10 @@ function StripePaymentForm({
       if (synced.ok && synced.status === "active") {
         window.sessionStorage.setItem(
           "homzie-agent-payment-success",
-          subscriptionId,
+          JSON.stringify({
+            subscriptionId,
+            trialApplied,
+          }),
         );
         window.location.assign(synced.profilePath);
         return;
@@ -126,19 +153,26 @@ function StripePaymentForm({
         <LockKeyhole className="size-5" />
         {isSubmitting
           ? "Confirming..."
-          : `Subscribe ${formatPriceCents(agentSubscriptionPlans[selectedPlan].amountCents)}${agentSubscriptionPlans[selectedPlan].intervalLabel}`}
+          : trialApplied
+            ? `Start ${getAgentSubscriptionOfferLabel(true)}, then ${formatPriceCents(agentSubscriptionPlans[selectedPlan].amountCents)}${agentSubscriptionPlans[selectedPlan].intervalLabel}`
+            : `Subscribe now for ${formatPriceCents(agentSubscriptionPlans[selectedPlan].amountCents)}${agentSubscriptionPlans[selectedPlan].intervalLabel}`}
       </Button>
     </form>
   );
 }
 
-export function StartAgentCheckoutButton() {
+export function StartAgentCheckoutButton({
+  trialEligible,
+}: {
+  trialEligible: boolean;
+}) {
   const [selectedPlan, setSelectedPlan] = useState<AgentPlanInterval>("month");
   const [error, setError] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<StripeCheckout | null>(null);
   const [isPending, startTransition] = useTransition();
   const publishableKey = checkout?.publishableKey || "";
   const { formatPriceCents } = useCurrency();
+  const planCards = useMemo(() => getPlanCards(trialEligible), [trialEligible]);
 
   const stripePromise = useMemo(() => {
     if (!publishableKey) {
@@ -165,9 +199,11 @@ export function StartAgentCheckoutButton() {
 
       setCheckout({
         clientSecret: result.clientSecret,
+        intentType: result.intentType,
         profilePath: result.profilePath,
         publishableKey: result.publishableKey,
         subscriptionId: result.subscriptionId,
+        trialApplied: result.trialApplied,
       });
     });
   };
@@ -244,7 +280,9 @@ export function StartAgentCheckoutButton() {
         <LockKeyhole className="size-5" />
         {isPending
           ? "Starting checkout..."
-          : `Start for ${formatPriceCents(agentSubscriptionPlans[selectedPlan].amountCents)}${agentSubscriptionPlans[selectedPlan].intervalLabel}`}
+          : trialEligible
+            ? `Start ${getAgentSubscriptionOfferLabel(true)}`
+            : "Subscribe now"}
       </Button>
       {error ? (
         <p className="max-w-xl rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
@@ -267,8 +305,9 @@ export function StartAgentCheckoutButton() {
               <p className="text-sm font-semibold text-primary">Homzie Agent Plan</p>
               <h3 className="mt-2 text-2xl font-bold">Complete checkout</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Enter your card details securely inside Homzie. Stripe handles the
-                payment and subscription billing.
+                {checkout.trialApplied
+                  ? "Start your 7-day free trial inside Homzie. Stripe securely stores your card and only charges when the trial ends unless you cancel first."
+                  : "Complete your subscription inside Homzie. Stripe securely stores your card and starts billing immediately on this account."}
               </p>
             </div>
             <div className="mt-6">
@@ -287,9 +326,11 @@ export function StartAgentCheckoutButton() {
                 }}
               >
                 <StripePaymentForm
+                  intentType={checkout.intentType}
                   profilePath={checkout.profilePath}
                   selectedPlan={selectedPlan}
                   subscriptionId={checkout.subscriptionId}
+                  trialApplied={checkout.trialApplied}
                 />
               </Elements>
             </div>

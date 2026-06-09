@@ -1,4 +1,4 @@
-import { and, asc, ilike, isNotNull } from "drizzle-orm";
+import { and, asc, eq, ilike, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -23,7 +23,15 @@ export async function GET(request: Request) {
       username: users.username,
     })
     .from(users)
-    .where(and(isNotNull(users.username), ilike(users.username, `${query}%`)))
+    .where(
+      and(
+        eq(users.status, "active"),
+        eq(users.profileVisible, true),
+        eq(users.searchVisible, true),
+        isNotNull(users.username),
+        ilike(users.username, `${query}%`),
+      ),
+    )
     .orderBy(asc(users.username))
     .limit(8);
 

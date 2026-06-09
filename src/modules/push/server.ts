@@ -15,6 +15,10 @@ type SubscriptionRow = {
   p256dh: string;
 };
 
+type PushPreferenceRow = {
+  push_enabled: boolean;
+};
+
 function configureWebPush() {
   const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY;
   const privateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
@@ -64,6 +68,15 @@ export async function removeWebPushSubscription(endpoint: string) {
 
 export async function sendPushToUser(userId: string, payload: NotificationPayload) {
   if (!configureWebPush()) return;
+
+  const [preferences] = await sql<PushPreferenceRow[]>`
+    SELECT push_enabled
+    FROM user_notification_preferences
+    WHERE user_id = ${userId}
+    LIMIT 1
+  `;
+
+  if (preferences && !preferences.push_enabled) return;
 
   const subscriptions = await sql<SubscriptionRow[]>`
     SELECT endpoint, p256dh, auth
