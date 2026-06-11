@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 
-import { db } from "@/db";
+import { db, sql as rawSql } from "@/db";
 import {
   listingActionEvents,
   listingLikes,
@@ -29,6 +29,10 @@ import {
   createUserEvent,
   createUserEventOnce,
 } from "@/modules/events/server";
+import {
+  absoluteAppUrl,
+  sendTemplatedEmailToUser,
+} from "@/modules/email/server";
 import {
   extractHashtags,
   recordHashtagUsage,
@@ -488,6 +492,10 @@ export async function createListing(formData: FormData) {
       tags: extractHashtags(data.title, plainListingDescription(description)),
       userId: session.user.id,
     });
+    await notifyFollowersAboutPublishedListing({
+      listingId: listing.id,
+      ownerUserId: session.user.id,
+    });
   }
 
   redirect(
@@ -685,6 +693,13 @@ export async function updateListing(formData: FormData) {
       tags: extractHashtags(data.title, plainListingDescription(description)),
       userId: session.user.id,
     });
+
+    if (existingListing.status !== "published") {
+      await notifyFollowersAboutPublishedListing({
+        listingId: listingId.data,
+        ownerUserId: session.user.id,
+      });
+    }
   }
 
   const updateResult =
@@ -1552,6 +1567,80 @@ function plainListingDescription(value: string) {
     .replace(/&gt;/g, ">")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+async function notifyFollowersAboutPublishedListing({
+  listingId,
+  ownerUserId,
+}: {
+  listingId: string;
+  ownerUserId: string;
+}) {
+  const [listing] = await rawSql<{
+    location: string | null;
+    price_label: string | null;
+    title: string;
+    user_name: string;
+    username: string | null;
+  }[]>`
+    SELECT
+      pl.title,
+      pl.location,
+      pl.price_label,
+      u.name AS user_name,
+      u.username
+    FROM property_listings pl
+    JOIN users u ON u.id = pl.user_id
+    WHERE pl.id = ${listingId}
+      AND pl.user_id = ${ownerUserId}
+      AND pl.status = 'published'
+    LIMIT 1
+  `;
+
+  if (!listing) return;
+
+  const followers = await rawSql<{
+    follower_id: string;
+    name: string;
+  }[]>`
+    SELECT u.id AS follower_id, u.name
+    FROM user_follows uf
+    JOIN users u ON u.id = uf.follower_id
+    WHERE uf.following_id = ${ownerUserId}
+      AND u.status = 'active'
+      AND u.deleted_at IS NULL
+  `;
+
+  await Promise.allSettled(
+    followers.map((follower) =>
+      sendTemplatedEmailToUser({
+        eventKey: "listing.new_from_followed_profile",
+        preferenceCategory: "listingActivity",
+        templateKey: "listing.new_from_followed_profile",
+        userId: follower.follower_id,
+        variables: {
+          agent: {
+            name: listing.user_name,
+            username: listing.username || "",
+          },
+          app: {
+            name: "Homzie",
+            url: absoluteAppUrl("/"),
+          },
+          listing: {
+            location: listing.location || "Location not set",
+            priceLabel: listing.price_label || "Price on request",
+            title: listing.title,
+            url: absoluteAppUrl(`/listings/${listingId}`),
+          },
+          user: {
+            firstName: follower.name.split(/\s+/)[0] || follower.name,
+            name: follower.name,
+          },
+        },
+      }),
+    ),
+  );
 }
 
 function parseExistingListingMedia(value: FormDataEntryValue | null) {

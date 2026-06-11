@@ -12,7 +12,7 @@ import {
 
 const defaultPreferences: NotificationPreferencesFormValues = {
   callsEnabled: true,
-  emailEnabled: false,
+  emailEnabled: true,
   listingActivityEnabled: true,
   marketingEnabled: false,
   messagesEnabled: true,

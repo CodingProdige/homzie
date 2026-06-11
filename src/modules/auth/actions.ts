@@ -7,6 +7,10 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import {
+  absoluteAppUrl,
+  sendTemplatedEmailToUser,
+} from "@/modules/email/server";
 import { authOptions } from "./config";
 import { hashPassword } from "./password";
 import { authCookieOptions, authSessionCookieName } from "./session-cookie";
@@ -106,12 +110,37 @@ export async function registerWithEmail(input: {
   const passwordHash = await hashPassword(parsed.data.password);
 
   try {
-    await db.insert(users).values({
-      name: parsed.data.name,
-      email: parsed.data.email,
-      passwordHash,
-      emailVerified: false,
-    });
+    const [createdUser] = await db
+      .insert(users)
+      .values({
+        name: parsed.data.name,
+        email: parsed.data.email,
+        passwordHash,
+        emailVerified: false,
+      })
+      .returning({ id: users.id, name: users.name });
+
+    if (createdUser) {
+      await sendTemplatedEmailToUser({
+        bypassPreferences: true,
+        eventKey: "auth.welcome",
+        templateKey: "auth.welcome",
+        userId: createdUser.id,
+        variables: {
+          app: {
+            name: "Homzie",
+            url: absoluteAppUrl("/"),
+          },
+          dashboardUrl: absoluteAppUrl("/"),
+          user: {
+            firstName: createdUser.name.split(/\s+/)[0] || createdUser.name,
+            name: createdUser.name,
+          },
+        },
+      }).catch((error) => {
+        console.error("[email] welcome failed", error);
+      });
+    }
   } catch {
     return {
       ok: false,

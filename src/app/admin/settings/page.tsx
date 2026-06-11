@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, CreditCard, Megaphone, Music } from "lucide-react";
+import { ChevronRight, CreditCard, Mail, Megaphone, Music } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Admin Settings | Homzie",
@@ -28,6 +28,13 @@ const settingsItems = [
     label: "Music APIs",
     description:
       "Configure Pixabay and Freesound API keys so reel creators can browse and preview royalty-free tracks.",
+  },
+  {
+    href: "/admin/email-templates",
+    icon: Mail,
+    label: "Email Templates",
+    description:
+      "Edit transactional emails, insert backend variables, preview HTML, and send test emails.",
   },
 ];
 

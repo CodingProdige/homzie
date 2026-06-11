@@ -1,6 +1,10 @@
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
 import { createUserEvent } from "@/modules/events/server";
+import {
+  absoluteAppUrl,
+  sendTemplatedEmailToUser,
+} from "@/modules/email/server";
 import { publishMessageEvent } from "@/modules/messages/realtime";
 import { sendPushToUser } from "@/modules/push/server";
 
@@ -1113,11 +1117,20 @@ async function afterMessageCreated(
     body: string | null;
     listing_id: string | null;
     metadata: Record<string, unknown> | null;
+    sender_name: string | null;
+    sender_username: string | null;
     type: string;
   }[]>`
-    SELECT m.type, m.body, m.metadata, c.listing_id
+    SELECT
+      m.type,
+      m.body,
+      m.metadata,
+      c.listing_id,
+      sender.name AS sender_name,
+      sender.username AS sender_username
     FROM messages m
     JOIN conversations c ON c.id = m.conversation_id
+    LEFT JOIN users sender ON sender.id = m.sender_user_id
     WHERE m.id = ${messageId}
     LIMIT 1
   `;
@@ -1156,6 +1169,47 @@ async function afterMessageCreated(
             listingTitle: message?.metadata?.listingTitle,
           },
           userId,
+        }),
+      ),
+  );
+
+  const senderName = message?.sender_name || "Someone";
+  const messagePreview =
+    message?.type === "offer"
+      ? "Sent you an offer."
+      : message?.type === "system"
+        ? message.body || "Updated the conversation."
+        : message?.body || "Sent you a message.";
+
+  await Promise.allSettled(
+    users
+      .filter((userId) => userId !== senderUserId)
+      .map((userId) =>
+        sendTemplatedEmailToUser({
+          eventKey: eventType,
+          preferenceCategory: "messages",
+          templateKey: "message.new",
+          userId,
+          variables: {
+            app: {
+              name: "Homzie",
+              url: absoluteAppUrl("/"),
+            },
+            conversation: {
+              url: absoluteAppUrl(`/messages?conversation=${conversationId}`),
+            },
+            message: {
+              preview: messagePreview.slice(0, 220),
+            },
+            sender: {
+              name: senderName,
+              username: message?.sender_username || "",
+            },
+            user: {
+              firstName: "",
+              name: "",
+            },
+          },
         }),
       ),
   );

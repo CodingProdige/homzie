@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BarChart3,
   Home,
+  Mail,
   Menu,
   Music,
   Settings,
@@ -35,6 +36,7 @@ const adminNavItems: Array<{
   { href: "/admin", icon: BarChart3, label: "Dashboard" },
   { href: "/admin/users", icon: UsersRound, label: "Users" },
   { href: "/admin/music", icon: Music, label: "Music Library" },
+  { href: "/admin/email-templates", icon: Mail, label: "Email Templates" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 

@@ -1347,7 +1347,7 @@ try {
     CREATE TABLE IF NOT EXISTS user_notification_preferences (
       user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       push_enabled boolean NOT NULL DEFAULT true,
-      email_enabled boolean NOT NULL DEFAULT false,
+      email_enabled boolean NOT NULL DEFAULT true,
       messages_enabled boolean NOT NULL DEFAULT true,
       calls_enabled boolean NOT NULL DEFAULT true,
       offers_enabled boolean NOT NULL DEFAULT true,
@@ -1361,8 +1361,116 @@ try {
   `;
 
   await sql`
+    ALTER TABLE user_notification_preferences
+    ALTER COLUMN email_enabled SET DEFAULT true
+  `;
+
+  await sql`
     CREATE INDEX IF NOT EXISTS user_notification_preferences_updated_at_idx
     ON user_notification_preferences (updated_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      key text NOT NULL UNIQUE,
+      name text NOT NULL,
+      category text NOT NULL DEFAULT 'general',
+      description text,
+      subject text NOT NULL,
+      preheader text,
+      html text NOT NULL,
+      text text NOT NULL,
+      variables jsonb NOT NULL DEFAULT '[]'::jsonb,
+      sample_variables jsonb NOT NULL DEFAULT '{}'::jsonb,
+      enabled boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS email_templates_key_idx
+    ON email_templates (key)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_templates_category_idx
+    ON email_templates (category)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_templates_enabled_idx
+    ON email_templates (enabled)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_template_versions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      template_id uuid NOT NULL REFERENCES email_templates(id) ON DELETE CASCADE,
+      subject text NOT NULL,
+      preheader text,
+      html text NOT NULL,
+      text text NOT NULL,
+      variables jsonb NOT NULL DEFAULT '[]'::jsonb,
+      sample_variables jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_template_versions_template_id_idx
+    ON email_template_versions (template_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_template_versions_created_at_idx
+    ON email_template_versions (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_delivery_logs (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      template_key text NOT NULL,
+      event_key text NOT NULL,
+      user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      recipient_email text NOT NULL,
+      subject text,
+      provider text NOT NULL DEFAULT 'sendgrid',
+      provider_message_id text,
+      status text NOT NULL DEFAULT 'pending',
+      error text,
+      variables jsonb NOT NULL DEFAULT '{}'::jsonb,
+      sent_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_delivery_logs_template_key_idx
+    ON email_delivery_logs (template_key)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_delivery_logs_event_key_idx
+    ON email_delivery_logs (event_key)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_delivery_logs_user_id_idx
+    ON email_delivery_logs (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_delivery_logs_status_idx
+    ON email_delivery_logs (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_delivery_logs_created_at_idx
+    ON email_delivery_logs (created_at)
   `;
 
   await sql`

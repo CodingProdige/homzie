@@ -978,7 +978,7 @@ export const userNotificationPreferences = pgTable(
       .primaryKey()
       .references(() => users.id, { onDelete: "cascade" }),
     pushEnabled: boolean("push_enabled").notNull().default(true),
-    emailEnabled: boolean("email_enabled").notNull().default(false),
+    emailEnabled: boolean("email_enabled").notNull().default(true),
     messagesEnabled: boolean("messages_enabled").notNull().default(true),
     callsEnabled: boolean("calls_enabled").notNull().default(true),
     offersEnabled: boolean("offers_enabled").notNull().default(true),
@@ -995,6 +995,84 @@ export const userNotificationPreferences = pgTable(
   },
   (table) => [
     index("user_notification_preferences_updated_at_idx").on(table.updatedAt),
+  ],
+);
+
+export const emailTemplates = pgTable(
+  "email_templates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    key: text("key").notNull().unique(),
+    name: text("name").notNull(),
+    category: text("category").notNull().default("general"),
+    description: text("description"),
+    subject: text("subject").notNull(),
+    preheader: text("preheader"),
+    html: text("html").notNull(),
+    text: text("text").notNull(),
+    variables: jsonb("variables").notNull().default([]),
+    sampleVariables: jsonb("sample_variables").notNull().default({}),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    uniqueIndex("email_templates_key_idx").on(table.key),
+    index("email_templates_category_idx").on(table.category),
+    index("email_templates_enabled_idx").on(table.enabled),
+  ],
+);
+
+export const emailTemplateVersions = pgTable(
+  "email_template_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => emailTemplates.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull(),
+    preheader: text("preheader"),
+    html: text("html").notNull(),
+    text: text("text").notNull(),
+    variables: jsonb("variables").notNull().default([]),
+    sampleVariables: jsonb("sample_variables").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("email_template_versions_template_id_idx").on(table.templateId),
+    index("email_template_versions_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const emailDeliveryLogs = pgTable(
+  "email_delivery_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    templateKey: text("template_key").notNull(),
+    eventKey: text("event_key").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    recipientEmail: text("recipient_email").notNull(),
+    subject: text("subject"),
+    provider: text("provider").notNull().default("sendgrid"),
+    providerMessageId: text("provider_message_id"),
+    status: text("status").notNull().default("pending"),
+    error: text("error"),
+    variables: jsonb("variables").notNull().default({}),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("email_delivery_logs_template_key_idx").on(table.templateKey),
+    index("email_delivery_logs_event_key_idx").on(table.eventKey),
+    index("email_delivery_logs_user_id_idx").on(table.userId),
+    index("email_delivery_logs_status_idx").on(table.status),
+    index("email_delivery_logs_created_at_idx").on(table.createdAt),
   ],
 );
 
@@ -1639,6 +1717,10 @@ export type UserNotificationPreferences =
   typeof userNotificationPreferences.$inferSelect;
 export type NewUserNotificationPreferences =
   typeof userNotificationPreferences.$inferInsert;
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type NewEmailTemplate = typeof emailTemplates.$inferInsert;
+export type EmailDeliveryLog = typeof emailDeliveryLogs.$inferSelect;
+export type NewEmailDeliveryLog = typeof emailDeliveryLogs.$inferInsert;
 export type AdCampaign = typeof adCampaigns.$inferSelect;
 export type NewAdCampaign = typeof adCampaigns.$inferInsert;
 export type Reel = typeof reels.$inferSelect;
