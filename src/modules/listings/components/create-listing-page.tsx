@@ -157,6 +157,8 @@ export type ListingDraft = {
   previousAskingPrice: string;
   priceQualifier: string;
   propertyType: PropertyType;
+  reservationAmount: string;
+  reservationEnabled: boolean;
   rentalYield: string;
   shortLetAllowed: string;
   suburb: string;
@@ -230,6 +232,8 @@ const initialDraft: ListingDraft = {
   previousAskingPrice: "",
   priceQualifier: "",
   propertyType: "free_standing_house",
+  reservationAmount: "",
+  reservationEnabled: false,
   rentalYield: "",
   shortLetAllowed: "",
   suburb: "",
@@ -1483,6 +1487,14 @@ export function CreateListingPage({
         />
         <input type="hidden" name="priceQualifier" value={draft.priceQualifier} />
         <input type="hidden" name="propertyType" value={draft.propertyType} />
+        {draft.reservationEnabled ? (
+          <input type="hidden" name="reservationEnabled" value="on" />
+        ) : null}
+        <input
+          type="hidden"
+          name="reservationAmount"
+          value={draft.reservationAmount}
+        />
         <input type="hidden" name="rentalYield" value={draft.rentalYield} />
         <input type="hidden" name="shortLetAllowed" value={draft.shortLetAllowed} />
         <input type="hidden" name="title" value={draft.title} />
@@ -2376,27 +2388,35 @@ function DetailsStep({
         </span>
       </div>
       <div className="grid gap-3 sm:grid-cols-4">
-        {[
+        {(
+          [
           ["bedrooms", "Bedrooms", "1"],
           ["bathrooms", "Bathrooms", "0.01"],
           ["garages", "Garages", "1"],
           ["parking", "Parking", "1"],
-        ].map(([key, label, step]) => (
+          ] satisfies Array<
+            [
+              "bedrooms" | "bathrooms" | "garages" | "parking",
+              string,
+              string,
+            ]
+          >
+        ).map(([key, label, step]) => (
           <label key={key} className="block text-sm font-black">
             {label}
             <input
               name={key}
-              value={draft[key as keyof ListingDraft]}
+              value={draft[key]}
               type="number"
               min="0"
               step={step}
               onChange={(event) =>
                 updateDraft(
                   setDraft,
-                  key as keyof ListingDraft,
+                  key,
                   (key === "bathrooms"
                     ? decimalInputValue(event.target.value)
-                    : integerInputValue(event.target.value)) as never,
+                    : integerInputValue(event.target.value)),
                 )
               }
               className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
@@ -2535,10 +2555,15 @@ function PricingStep({
     draft.previousAskingPrice,
     convertFromZarAmount,
   );
+  const reservationAmountValue = formatEditableCurrencyValue(
+    draft.reservationAmount,
+    convertFromZarAmount,
+  );
   const askingPricePlaceholder = formatEditableCurrencyValue(
     draft.listingType === "rental" ? "25000" : "4500000",
     convertFromZarAmount,
   );
+  const reservationDisabled = draft.listingType === "rental";
 
   return (
     <div className="space-y-6">
@@ -2673,6 +2698,66 @@ function PricingStep({
             className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
           />
         </label>
+        <div className="sm:col-span-2 rounded-lg border border-border bg-card p-4">
+          <label className="flex min-w-0 items-center gap-4">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-black">
+                Enable reservations
+              </span>
+              <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">
+                Buyers can pay a reservation amount through Stripe. The listing
+                is marked reserved after payment, and can be reopened if the
+                deal falls through.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={draft.reservationEnabled && !reservationDisabled}
+              disabled={reservationDisabled}
+              onChange={(event) =>
+                updateDraft(setDraft, "reservationEnabled", event.target.checked)
+              }
+              className="peer sr-only"
+            />
+            <span
+              aria-hidden="true"
+              className="relative h-7 w-12 shrink-0 rounded-full border border-border bg-muted transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:border-primary peer-checked:bg-primary peer-checked:after:translate-x-5 peer-disabled:opacity-50"
+            />
+          </label>
+
+          <label className="mt-4 block text-sm font-black">
+            Reservation amount ({currency})
+            <input
+              value={reservationAmountValue}
+              type="number"
+              min="0"
+              step="100"
+              disabled={reservationDisabled}
+              onChange={(event) =>
+                updateDraft(
+                  setDraft,
+                  "reservationAmount",
+                  editableCurrencyToZarValue(
+                    event.target.value,
+                    convertToZarAmount,
+                  ),
+                )
+              }
+              placeholder={formatEditableCurrencyValue("10000", convertFromZarAmount)}
+              className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </label>
+
+          <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
+            Reservation checkout adds Homzie and payment-processing fees on top,
+            so the agency&apos;s reservation amount is protected.
+          </p>
+          {reservationDisabled ? (
+            <p className="mt-2 text-xs font-bold text-amber-600 dark:text-amber-300">
+              Reservations are only available for sale listings.
+            </p>
+          ) : null}
+        </div>
       </div>
       {draft.listingType === "rental" ? (
         <label className="block text-sm font-black">

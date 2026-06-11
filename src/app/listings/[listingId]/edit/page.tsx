@@ -92,6 +92,8 @@ function draftFromListing(listing: ListingDetailData): Partial<ListingDraft> {
     previousAskingPrice: centsToInput(listing.previousAskingPriceCents),
     priceQualifier: listing.priceQualifier,
     propertyType: propertyTypeValue(listing.propertyType),
+    reservationAmount: centsToInput(listing.reservationAmountCents),
+    reservationEnabled: listing.reservationEnabled,
     rentalYield: numberToInput(listing.rentalYield),
     shortLetAllowed: listing.shortLetAllowed,
     suburb: listing.suburb,

@@ -92,6 +92,60 @@ export const defaultEmailTemplates = [
     ],
   },
   {
+    category: "Reservations",
+    description:
+      "Sent to an agent after a buyer pays to reserve one of their listings.",
+    enabled: true,
+    html: `
+      <h1>Your listing has received a reservation</h1>
+      <p><strong>{{listing.title}}</strong> has been reserved on {{app.name}}.</p>
+      <p>The buyer paid <strong>{{reservation.totalPaid}}</strong>. The agency reservation amount is <strong>{{reservation.amount}}</strong>.</p>
+      <p>Before Homzie records any off-app release of funds, please send the required documents to the Homzie team.</p>
+      <ul>
+        <li>Signed mandate or authority to market this property.</li>
+        <li>Agency registration document or proof of trading entity.</li>
+        <li>Agency bank confirmation letter.</li>
+        <li>Written approval from the agency principal, director, or authorized manager.</li>
+        <li>Instruction or invoice confirming the agency may receive the reservation funds.</li>
+      </ul>
+      <p><a class="button" href="{{reservation.adminUrl}}">View reservation</a></p>
+      <p class="muted">Funds must only be released to a verified agency or business account after admin approval.</p>
+    `,
+    key: "listing.reservation_document_request",
+    name: "Reservation document request",
+    preheader: "{{listing.title}} has been reserved. Documentation is required.",
+    sampleVariables: {
+      agent: { name: "Ava Morgan", username: "avamorgan" },
+      app: { name: "Homzie", url: "https://homzie.co.za" },
+      listing: {
+        location: "Camps Bay, Cape Town",
+        title: "Modern coastal home",
+        url: "https://homzie.co.za/listings/00000000-0000-0000-0000-000000000000",
+      },
+      reservation: {
+        adminUrl:
+          "https://homzie.co.za/admin/reservations?reservation=00000000-0000-0000-0000-000000000000",
+        amount: "R 10,000",
+        totalPaid: "R 10,840",
+      },
+      user: { firstName: "Ava", name: "Ava Morgan" },
+    },
+    subject: "Reservation received for {{listing.title}}",
+    text: "{{listing.title}} has been reserved on {{app.name}}. Send mandate, agency registration, bank confirmation, principal approval, and reservation authority documents before funds can be released. View: {{reservation.adminUrl}}",
+    variables: [
+      ...commonVariables,
+      { key: "user.firstName", label: "Recipient first name" },
+      { key: "agent.name", label: "Agent name" },
+      { key: "agent.username", label: "Agent username" },
+      { key: "listing.title", label: "Listing title" },
+      { key: "listing.location", label: "Listing location" },
+      { key: "listing.url", label: "Listing URL" },
+      { key: "reservation.amount", label: "Reservation amount" },
+      { key: "reservation.totalPaid", label: "Total paid" },
+      { key: "reservation.adminUrl", label: "Admin reservation URL" },
+    ],
+  },
+  {
     category: "Messages",
     description: "Sent when someone receives a new conversation message.",
     enabled: true,

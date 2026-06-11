@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, CreditCard, Mail, Megaphone, Music } from "lucide-react";
+import {
+  ChevronRight,
+  CreditCard,
+  HandCoins,
+  Mail,
+  Megaphone,
+  Music,
+} from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Admin Settings | Homzie",
@@ -21,6 +28,13 @@ const settingsItems = [
     label: "Ads",
     description:
       "Control platform ad pricing, channel availability, and the forecast model users see in Ads Center.",
+  },
+  {
+    href: "/admin/settings/reservations",
+    icon: HandCoins,
+    label: "Reservations",
+    description:
+      "Configure listing reservation availability, Homzie fees, payment fee estimates, and buyer terms.",
   },
   {
     href: "/admin/settings/music",

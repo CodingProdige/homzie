@@ -285,6 +285,7 @@ export function GlobalHeader({
               <Link
                 href={`/users/${viewerUsername}`}
                 aria-current={isProfileActive ? "page" : undefined}
+                prefetch={isProfileActive ? false : undefined}
               >
                 Profile
               </Link>
@@ -343,6 +344,7 @@ export function GlobalHeader({
                           <Link
                             href={item.href}
                             aria-current={isActive ? "page" : undefined}
+                            prefetch={isActive ? false : undefined}
                             className={cn(
                               "flex min-h-12 items-center justify-between rounded-md px-3 text-base font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
                               isActive &&

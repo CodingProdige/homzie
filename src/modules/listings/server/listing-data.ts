@@ -16,6 +16,10 @@ import {
   type ListingType,
   type PropertyType,
 } from "@/modules/listings/options";
+import {
+  calculateReservationFees,
+  getStoredReservationSettings,
+} from "@/modules/platform-settings/reservation-settings";
 
 export type ListingMediaItem = {
   name: string;
@@ -63,6 +67,12 @@ export type ListingDetailData = {
   likeCountLabel: string;
   offerCount: number;
   offerCountLabel: string;
+  reservationAmountCents: number | null;
+  reservationEnabled: boolean;
+  reservationPlatformFeeCents: number;
+  reservationProcessingFeeCents: number;
+  reservationTermsText: string;
+  reservationTotalCents: number | null;
   savedByViewer: boolean;
   saveCount: number;
   saveCountLabel: string;
@@ -135,6 +145,7 @@ function formatCompactCount(value: number) {
 function listingStatusLabel(status: string) {
   if (status === "published") return "Published";
   if (status === "archived") return "Archived";
+  if (status === "reserved") return "Reserved";
   if (status === "sold") return "Sold";
   if (status === "sold_externally") return "Sold externally";
   if (status === "draft") return "Draft";
@@ -205,6 +216,8 @@ async function getListingRow(listingId: string) {
       media: propertyListings.media,
       priceLabel: propertyListings.priceLabel,
       propertyType: propertyListings.propertyType,
+      reservationAmountCents: propertyListings.reservationAmountCents,
+      reservationEnabled: propertyListings.reservationEnabled,
       status: propertyListings.status,
       title: propertyListings.title,
       updatedAt: propertyListings.updatedAt,
@@ -244,7 +257,12 @@ export async function getListingDetail({
   const isOwner = row.userId === viewerUserId;
   const savedByViewer = Boolean(save);
 
-  if (!isOwner && row.status !== "published" && !savedByViewer) {
+  if (
+    !isOwner &&
+    row.status !== "published" &&
+    row.status !== "reserved" &&
+    !savedByViewer
+  ) {
     return null;
   }
 
@@ -273,7 +291,7 @@ export async function getListingDetail({
     .from(propertyOffers)
     .where(eq(propertyOffers.listingId, listingId));
 
-  return mapListingRow(row, {
+  return await mapListingRow(row, {
     isOwner,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: Boolean(like),
@@ -317,6 +335,8 @@ export async function getOwnedListingDetail({
       media: propertyListings.media,
       priceLabel: propertyListings.priceLabel,
       propertyType: propertyListings.propertyType,
+      reservationAmountCents: propertyListings.reservationAmountCents,
+      reservationEnabled: propertyListings.reservationEnabled,
       status: propertyListings.status,
       title: propertyListings.title,
       updatedAt: propertyListings.updatedAt,
@@ -342,7 +362,7 @@ export async function getOwnedListingDetail({
     .from(propertyOffers)
     .where(eq(propertyOffers.listingId, listingId));
 
-  return mapListingRow(row, {
+  return await mapListingRow(row, {
     isOwner: true,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: false,
@@ -353,7 +373,7 @@ export async function getOwnedListingDetail({
   });
 }
 
-function mapListingRow(
+async function mapListingRow(
   row: NonNullable<ListingRow>,
   viewerState: {
     isOwner: boolean;
@@ -364,7 +384,8 @@ function mapListingRow(
     savedByViewer: boolean;
     saveCount: number;
   },
-): ListingDetailData {
+): Promise<ListingDetailData> {
+  const reservationSettings = await getStoredReservationSettings();
   const details = objectValue(row.details);
   const media = parseListingMedia(row.media);
   const coverImageUrl =
@@ -384,6 +405,14 @@ function mapListingRow(
     row.mandateType,
     row.mandateType,
   );
+  const reservationAmountCents = row.reservationAmountCents;
+  const reservationFees =
+    reservationAmountCents && reservationAmountCents > 0
+      ? calculateReservationFees({
+          amountCents: reservationAmountCents,
+          settings: reservationSettings,
+        })
+      : null;
 
   return {
     agent: {
@@ -423,6 +452,17 @@ function mapListingRow(
     likeCountLabel: formatCompactCount(viewerState.likeCount),
     offerCount: viewerState.offerCount,
     offerCountLabel: formatCompactCount(viewerState.offerCount),
+    reservationAmountCents,
+    reservationEnabled:
+      reservationSettings.enabled &&
+      row.reservationEnabled &&
+      row.status === "published" &&
+      row.listingType !== "rental" &&
+      Boolean(row.reservationAmountCents),
+    reservationPlatformFeeCents: reservationFees?.platformFeeCents || 0,
+    reservationProcessingFeeCents: reservationFees?.processingFeeCents || 0,
+    reservationTermsText: reservationSettings.termsText,
+    reservationTotalCents: reservationFees?.totalPaidCents || null,
     savedByViewer: viewerState.savedByViewer,
     saveCount: viewerState.saveCount,
     saveCountLabel: formatCompactCount(viewerState.saveCount),

@@ -5,6 +5,7 @@ import {
   sendStripeInvoiceEmail,
   syncStripeSubscription,
 } from "@/modules/billing/subscription-sync";
+import { syncListingReservationCheckoutSession } from "@/modules/listings/reservations";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,12 @@ export async function POST(request: Request) {
       invoice,
       type: event.type === "invoice.payment_failed" ? "failed" : "paid",
     });
+  }
+
+  if (event.type === "checkout.session.completed") {
+    await syncListingReservationCheckoutSession(
+      event.data.object as Stripe.Checkout.Session,
+    );
   }
 
   return Response.json({ received: true });

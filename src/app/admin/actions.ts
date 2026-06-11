@@ -34,6 +34,11 @@ import {
   saveStoredMusicApiSettings,
   type MusicApiSettings,
 } from "@/modules/platform-settings/music-api-settings";
+import {
+  defaultReservationSettings,
+  saveStoredReservationSettings,
+  type ReservationSettings,
+} from "@/modules/platform-settings/reservation-settings";
 
 export type AdminStripeSettingsState = {
   message: string;
@@ -52,6 +57,11 @@ export type AdminGoogleAdsSettingsState = {
 
 export type AdminGoogleAdsAutomationState = {
   health: GoogleDsaAutomationHealth | null;
+  message: string;
+  ok: boolean;
+};
+
+export type AdminReservationSettingsState = {
   message: string;
   ok: boolean;
 };
@@ -87,6 +97,8 @@ async function assertActiveAdmin() {
   if (!admin || admin.role !== "admin" || admin.status !== "active") {
     throw new Error("Only active admins can update Stripe settings.");
   }
+
+  return session.user.id;
 }
 
 function formString(formData: FormData, key: string) {
@@ -303,6 +315,186 @@ function validateAdsSettings(settings: AdsSettings) {
   }
 
   return null;
+}
+
+function reservationSettingsFromFormData(formData: FormData): ReservationSettings {
+  return {
+    enabled: formBoolean(formData, "enabled"),
+    platformFeePercent: formNumber(
+      formData,
+      "platformFeePercent",
+      defaultReservationSettings.platformFeePercent,
+    ),
+    processingFeePercent: formNumber(
+      formData,
+      "processingFeePercent",
+      defaultReservationSettings.processingFeePercent,
+    ),
+    processingFixedCents: Math.round(
+      formNumber(
+        formData,
+        "processingFixedRands",
+        defaultReservationSettings.processingFixedCents / 100,
+      ) * 100,
+    ),
+    minReservationAmountCents: Math.round(
+      formNumber(
+        formData,
+        "minReservationAmountRands",
+        defaultReservationSettings.minReservationAmountCents / 100,
+      ) * 100,
+    ),
+    maxReservationAmountCents: Math.round(
+      formNumber(
+        formData,
+        "maxReservationAmountRands",
+        defaultReservationSettings.maxReservationAmountCents / 100,
+      ) * 100,
+    ),
+    termsText:
+      formString(formData, "termsText") || defaultReservationSettings.termsText,
+  };
+}
+
+export async function updateAdminReservationSettings(
+  _previousState: AdminReservationSettingsState,
+  formData: FormData,
+): Promise<AdminReservationSettingsState> {
+  try {
+    await assertActiveAdmin();
+
+    const next = reservationSettingsFromFormData(formData);
+
+    if (next.maxReservationAmountCents < next.minReservationAmountCents) {
+      return {
+        ok: false,
+        message: "Maximum reservation amount must be higher than minimum.",
+      };
+    }
+
+    await saveStoredReservationSettings(next);
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/settings/reservations");
+    revalidatePath("/listings");
+
+    return {
+      ok: true,
+      message: "Reservation settings saved.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not save reservation settings.",
+    };
+  }
+}
+
+const reservationSettlementStatuses = [
+  "awaiting_documents",
+  "documents_received",
+  "approved_for_release",
+  "released",
+  "refund_required",
+  "refunded",
+  "cancelled",
+  "needs_review",
+] as const;
+
+const reservationReleaseStatuses = [
+  "held",
+  "approved",
+  "released",
+  "refund_required",
+  "refunded",
+  "cancelled",
+] as const;
+
+const reservationSettlementSchema = z.object({
+  adminNotes: z.string().trim().max(4000).optional(),
+  agentNotes: z.string().trim().max(4000).optional(),
+  proofOfTransferUrl: z.string().trim().max(1000).optional(),
+  releaseStatus: z.enum(reservationReleaseStatuses),
+  reservationId: z.uuid(),
+  status: z.enum(reservationSettlementStatuses),
+  transferAmountRands: z.coerce.number().finite().min(0).optional(),
+  transferReference: z.string().trim().max(240).optional(),
+});
+
+export async function updateAdminReservationSettlement(formData: FormData) {
+  const adminUserId = await assertActiveAdmin();
+  const parsed = reservationSettlementSchema.parse({
+    adminNotes: formString(formData, "adminNotes") || undefined,
+    agentNotes: formString(formData, "agentNotes") || undefined,
+    proofOfTransferUrl: formString(formData, "proofOfTransferUrl") || undefined,
+    releaseStatus: formString(formData, "releaseStatus"),
+    reservationId: formString(formData, "reservationId"),
+    status: formString(formData, "status"),
+    transferAmountRands:
+      formString(formData, "transferAmountRands") || undefined,
+    transferReference: formString(formData, "transferReference") || undefined,
+  });
+  const data = parsed;
+  const now = new Date();
+  const transferAmountCents =
+    typeof data.transferAmountRands === "number"
+      ? Math.round(data.transferAmountRands * 100)
+      : null;
+  const documentsReceivedAt =
+    data.status === "documents_received" ||
+    data.status === "approved_for_release" ||
+    data.status === "released"
+      ? now
+      : null;
+  const releaseApprovedAt =
+    data.status === "approved_for_release" ||
+    data.status === "released" ||
+    data.releaseStatus === "approved" ||
+    data.releaseStatus === "released"
+      ? now
+      : null;
+  const releasedAt =
+    data.status === "released" || data.releaseStatus === "released"
+      ? now
+      : null;
+  const refundedAt =
+    data.status === "refunded" || data.releaseStatus === "refunded"
+      ? now
+      : null;
+  const cancelledAt =
+    data.status === "cancelled" || data.releaseStatus === "cancelled"
+      ? now
+      : null;
+
+  await sql`
+    UPDATE listing_reservations
+    SET
+      status = ${data.status},
+      release_status = ${data.releaseStatus},
+      transfer_amount_cents = ${transferAmountCents},
+      transfer_reference = ${data.transferReference || null},
+      proof_of_transfer_url = ${data.proofOfTransferUrl || null},
+      admin_notes = ${data.adminNotes || null},
+      agent_notes = ${data.agentNotes || null},
+      documents_received_at = COALESCE(documents_received_at, ${documentsReceivedAt}),
+      release_approved_at = COALESCE(release_approved_at, ${releaseApprovedAt}),
+      released_at = COALESCE(released_at, ${releasedAt}),
+      released_by_user_id = CASE
+        WHEN ${releasedAt}::timestamptz IS NOT NULL THEN ${adminUserId}::uuid
+        ELSE released_by_user_id
+      END,
+      refunded_at = COALESCE(refunded_at, ${refundedAt}),
+      cancelled_at = COALESCE(cancelled_at, ${cancelledAt}),
+      reviewed_at = ${now},
+      reviewed_by_user_id = ${adminUserId}::uuid,
+      updated_at = ${now}
+    WHERE id = ${data.reservationId}::uuid
+  `;
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/reservations");
 }
 
 export async function updateAdminAdsSettings(

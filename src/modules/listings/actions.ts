@@ -12,6 +12,7 @@ import { z } from "zod";
 import { db, sql as rawSql } from "@/db";
 import {
   listingActionEvents,
+  listingReservations,
   listingLikes,
   listingSaves,
   listingViewEvents,
@@ -33,6 +34,7 @@ import {
   absoluteAppUrl,
   sendTemplatedEmailToUser,
 } from "@/modules/email/server";
+import { getStripe } from "@/modules/billing/stripe";
 import {
   extractHashtags,
   recordHashtagUsage,
@@ -42,6 +44,10 @@ import {
   mandateTypeOptions,
   propertyTypeOptions,
 } from "@/modules/listings/options";
+import {
+  calculateReservationFees,
+  getStoredReservationSettings,
+} from "@/modules/platform-settings/reservation-settings";
 import {
   getDiscoverListingCount,
   getDiscoverListings,
@@ -85,7 +91,7 @@ const completedListingStatuses = new Set([
   "disputed",
   "archived",
 ]);
-const activeDuplicateListingStatuses = ["draft", "published"];
+const activeDuplicateListingStatuses = ["draft", "published", "reserved"];
 
 type StoredListingMedia = {
   name: string;
@@ -145,6 +151,13 @@ const listingSchema = z.object({
   priceQualifier: z.string().trim().max(40).optional(),
   propertyType: z.enum(propertyTypeValues),
   publishIntent: z.enum(["draft", "published"]),
+  reservationAmount: z.coerce
+    .number()
+    .finite()
+    .min(0)
+    .max(10_000_000_000)
+    .optional(),
+  reservationEnabled: z.boolean().optional(),
   rentalYield: z.coerce.number().finite().min(0).max(100).optional(),
   shortLetAllowed: z.enum(["", "yes", "no"]).optional(),
   suburb: z.string().trim().max(120).optional(),
@@ -167,12 +180,12 @@ const listingAnalyticsSourceSchema = z
 const listingViewerSessionSchema = z.string().trim().min(4).max(160);
 const listingActionTypeSchema = z.enum([
   "bond_calculator",
-  "buy_now",
   "call_agent",
   "contact_agent",
   "email_agent",
   "like",
   "place_offer",
+  "reserve_now",
   "save",
   "share",
   "whatsapp_agent",
@@ -246,6 +259,8 @@ function parseListingFormData(formData: FormData) {
     priceQualifier: formData.get("priceQualifier"),
     propertyType: formData.get("propertyType"),
     publishIntent,
+    reservationAmount: numberOrUndefined(formData.get("reservationAmount")),
+    reservationEnabled: formData.get("reservationEnabled") === "on",
     rentalYield: decimalOrUndefined(formData.get("rentalYield")),
     shortLetAllowed: formData.get("shortLetAllowed") || "",
     suburb: formData.get("suburb"),
@@ -308,6 +323,48 @@ function assertListingCanPublish(
   if (issues.length) {
     throw new Error(`Listing incomplete: ${issues.join(" ")}`);
   }
+}
+
+async function getValidatedReservationFields(data: z.infer<typeof listingSchema>) {
+  const settings = await getStoredReservationSettings();
+  const amountCents =
+    typeof data.reservationAmount === "number" && data.reservationAmount > 0
+      ? Math.round(data.reservationAmount * 100)
+      : null;
+  const enabled = Boolean(data.reservationEnabled);
+
+  if (!enabled) {
+    return {
+      reservationAmountCents: amountCents,
+      reservationEnabled: false,
+    };
+  }
+
+  if (!settings.enabled) {
+    throw new Error("Reservations are currently disabled by the platform.");
+  }
+
+  if (data.listingType === "rental") {
+    throw new Error("Reservations are only available for sale listings.");
+  }
+
+  if (!amountCents) {
+    throw new Error("Set a reservation amount before enabling reservations.");
+  }
+
+  if (
+    amountCents < settings.minReservationAmountCents ||
+    amountCents > settings.maxReservationAmountCents
+  ) {
+    throw new Error(
+      `Reservation amount must be between R${settings.minReservationAmountCents / 100} and R${settings.maxReservationAmountCents / 100}.`,
+    );
+  }
+
+  return {
+    reservationAmountCents: amountCents,
+    reservationEnabled: true,
+  };
 }
 
 function normalizeDuplicateLocation(value: string) {
@@ -379,6 +436,7 @@ export async function createListing(formData: FormData) {
 
   const media = await storeListingImages(formData.getAll("mediaFiles"));
   assertListingCanPublish(data, description, media.length);
+  const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
     Math.max(media.length - 1, 0),
@@ -469,6 +527,7 @@ export async function createListing(formData: FormData) {
       priceLabel,
       propertyIdentityId: identity?.id || null,
       propertyType: data.propertyType,
+      ...reservationFields,
       status: data.publishIntent,
       title: data.title,
       userId: session.user.id,
@@ -564,6 +623,7 @@ export async function updateListing(formData: FormData) {
     ...uploadedMedia,
   ].slice(0, maxListingImages);
   assertListingCanPublish(data, description, media.length);
+  const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
     Math.max(media.length - 1, 0),
@@ -602,6 +662,8 @@ export async function updateListing(formData: FormData) {
     listingType: data.listingType,
     qualifier: data.priceQualifier,
   });
+  const nextStatus =
+    existingListing.status === "reserved" ? "reserved" : data.publishIntent;
   const [identity] = await db
     .insert(propertyIdentities)
     .values({
@@ -663,7 +725,8 @@ export async function updateListing(formData: FormData) {
         ? identity?.id || existingListing.propertyIdentityId || null
         : existingListing.propertyIdentityId,
       propertyType: data.propertyType,
-      status: data.publishIntent,
+      ...reservationFields,
+      status: nextStatus,
       title: data.title,
       updatedAt: new Date(),
     })
@@ -677,12 +740,12 @@ export async function updateListing(formData: FormData) {
   await db.insert(propertyListingStatusHistory).values({
     listingId: listingId.data,
     reason:
-      existingListing.status === data.publishIntent
+      existingListing.status === nextStatus
         ? "Listing details updated."
-        : data.publishIntent === "published"
+        : nextStatus === "published"
           ? "Listing updated and published."
           : "Listing updated and saved as draft.",
-    toStatus: data.publishIntent,
+    toStatus: nextStatus,
     userId: session.user.id,
   });
 
@@ -703,9 +766,9 @@ export async function updateListing(formData: FormData) {
   }
 
   const updateResult =
-    existingListing.status === "draft" && data.publishIntent === "published"
+    existingListing.status === "draft" && nextStatus === "published"
       ? "published"
-      : data.publishIntent === "draft"
+      : nextStatus === "draft"
         ? "draft"
         : "updated";
 
@@ -835,6 +898,263 @@ export async function archiveListing(formData: FormData) {
   redirect(
     `/users/${user.username}?tab=listings&listingArchived=${listingId.data}&archiveStatus=${archiveStatus}`,
   );
+}
+
+export async function startListingReservationCheckout(listingId: string) {
+  const parsed = listingIdSchema.safeParse(listingId);
+  const session = await getServerSession(authOptions);
+
+  if (!parsed.success) {
+    return { error: "Listing ID is invalid.", ok: false as const };
+  }
+
+  if (!session?.user?.id) {
+    return { error: "Sign in before reserving a listing.", ok: false as const };
+  }
+
+  const [buyer] = await db
+    .select({
+      email: users.email,
+      id: users.id,
+      name: users.name,
+    })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+
+  if (!buyer) {
+    return { error: "Could not find your account.", ok: false as const };
+  }
+
+  const [listing] = await db
+    .select({
+      id: propertyListings.id,
+      listingType: propertyListings.listingType,
+      reservationAmountCents: propertyListings.reservationAmountCents,
+      reservationEnabled: propertyListings.reservationEnabled,
+      status: propertyListings.status,
+      title: propertyListings.title,
+      userId: propertyListings.userId,
+    })
+    .from(propertyListings)
+    .where(eq(propertyListings.id, parsed.data))
+    .limit(1);
+
+  if (!listing || listing.status !== "published") {
+    return { error: "This listing is not available for reservation.", ok: false as const };
+  }
+
+  if (listing.userId === buyer.id) {
+    return { error: "You cannot reserve your own listing.", ok: false as const };
+  }
+
+  if (
+    !listing.reservationEnabled ||
+    listing.listingType === "rental" ||
+    !listing.reservationAmountCents
+  ) {
+    return {
+      error: "This listing is not accepting reservations.",
+      ok: false as const,
+    };
+  }
+
+  const [activeReservation] = await db
+    .select({ id: listingReservations.id })
+    .from(listingReservations)
+    .where(
+      and(
+        eq(listingReservations.listingId, listing.id),
+        inArray(listingReservations.status, [
+          "awaiting_documents",
+          "documents_received",
+          "approved_for_release",
+          "released",
+          "paid",
+        ]),
+      ),
+    )
+    .limit(1);
+
+  if (activeReservation) {
+    return { error: "This listing has already been reserved.", ok: false as const };
+  }
+
+  const settings = await getStoredReservationSettings();
+
+  if (!settings.enabled) {
+    return { error: "Reservations are currently unavailable.", ok: false as const };
+  }
+
+  if (
+    listing.reservationAmountCents < settings.minReservationAmountCents ||
+    listing.reservationAmountCents > settings.maxReservationAmountCents
+  ) {
+    return {
+      error: "This listing's reservation amount is outside current platform limits.",
+      ok: false as const,
+    };
+  }
+
+  const fees = calculateReservationFees({
+    amountCents: listing.reservationAmountCents,
+    settings,
+  });
+
+  try {
+    const stripe = await getStripe();
+    const [reservation] = await db
+      .insert(listingReservations)
+      .values({
+        agentUserId: listing.userId,
+        amountCents: listing.reservationAmountCents,
+        buyerUserId: buyer.id,
+        currency: "ZAR",
+        listingId: listing.id,
+        platformFeeCents: fees.platformFeeCents,
+        processingFeeCents: fees.processingFeeCents,
+        status: "pending",
+        totalPaidCents: fees.totalPaidCents,
+      })
+      .returning({ id: listingReservations.id });
+
+    const checkout = await stripe.checkout.sessions.create({
+      cancel_url: absoluteAppUrl(`/listings/${listing.id}?reservation=cancelled`),
+      customer_email: buyer.email,
+      line_items: [
+        {
+          price_data: {
+            currency: "zar",
+            product_data: {
+              description: [
+                `Reservation amount: R${(listing.reservationAmountCents / 100).toFixed(2)}`,
+                `Homzie fee: R${(fees.platformFeeCents / 100).toFixed(2)}`,
+                `Payment fee estimate: R${(fees.processingFeeCents / 100).toFixed(2)}`,
+              ].join(" | "),
+              name: `Reserve ${listing.title}`,
+            },
+            unit_amount: fees.totalPaidCents,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        buyerUserId: buyer.id,
+        listingId: listing.id,
+        reservationId: reservation.id,
+        type: "listing_reservation",
+      },
+      mode: "payment",
+      payment_intent_data: {
+        metadata: {
+          buyerUserId: buyer.id,
+          listingId: listing.id,
+          reservationId: reservation.id,
+          type: "listing_reservation",
+        },
+      },
+      success_url: absoluteAppUrl(`/listings/${listing.id}?reservation=success`),
+    });
+
+    await db
+      .update(listingReservations)
+      .set({
+        stripeCheckoutSessionId: checkout.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(listingReservations.id, reservation.id));
+
+    await trackListingAction({
+      actionType: "reserve_now",
+      listingId: listing.id,
+      source: "listing_detail",
+      viewerSessionId: `reservation-${reservation.id}`,
+    });
+
+    return {
+      ok: true as const,
+      checkoutUrl: checkout.url || "",
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not start reservation checkout.",
+      ok: false as const,
+    };
+  }
+}
+
+export async function reopenReservedListing(formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    redirect("/sign-in");
+  }
+
+  const listingId = z.string().uuid().safeParse(formData.get("listingId"));
+
+  if (!listingId.success) {
+    throw new Error("Listing ID is invalid.");
+  }
+
+  const [listing] = await db
+    .select({
+      activeReservationId: propertyListings.activeReservationId,
+      status: propertyListings.status,
+      userId: propertyListings.userId,
+    })
+    .from(propertyListings)
+    .where(
+      and(
+        eq(propertyListings.id, listingId.data),
+        eq(propertyListings.userId, session.user.id),
+      ),
+    )
+    .limit(1);
+
+  if (!listing) {
+    throw new Error("Listing not found.");
+  }
+
+  if (listing.status !== "reserved") {
+    throw new Error("Only reserved listings can be reopened.");
+  }
+
+  const now = new Date();
+
+  if (listing.activeReservationId) {
+    await db
+      .update(listingReservations)
+      .set({
+        cancelledAt: now,
+        cancelledReason: "Deal fell through; listing reopened by agent.",
+        status: "cancelled",
+        updatedAt: now,
+      })
+      .where(eq(listingReservations.id, listing.activeReservationId));
+  }
+
+  await db
+    .update(propertyListings)
+    .set({
+      activeReservationId: null,
+      status: "published",
+      updatedAt: now,
+    })
+    .where(eq(propertyListings.id, listingId.data));
+
+  await db.insert(propertyListingStatusHistory).values({
+    fromStatus: "reserved",
+    listingId: listingId.data,
+    reason: "Reservation cancelled by agent. Listing is accepting reservations again.",
+    toStatus: "published",
+    userId: session.user.id,
+  });
+
+  revalidatePath(`/listings/${listingId.data}`);
+  redirect(`/listings/${listingId.data}/edit?listingUpdated=updated`);
 }
 
 export async function toggleListingSave(listingId: string) {

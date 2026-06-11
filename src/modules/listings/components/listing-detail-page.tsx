@@ -36,6 +36,8 @@ import { cn } from "@/lib/utils";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
   getListingOfferStatsAction,
+  reopenReservedListing,
+  startListingReservationCheckout,
   trackListingAction,
   trackListingView,
 } from "@/modules/listings/actions";
@@ -630,6 +632,110 @@ function MakeOfferDialog({
   );
 }
 
+function ReserveListingDialog({
+  formatPriceCents,
+  listing,
+  onReserveStarted,
+}: {
+  formatPriceCents: (value: number) => string;
+  listing: ListingDetailData;
+  onReserveStarted?: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  if (
+    !listing.reservationEnabled ||
+    !listing.reservationAmountCents ||
+    !listing.reservationTotalCents
+  ) {
+    return null;
+  }
+
+  const rows = [
+    ["Reservation amount", listing.reservationAmountCents],
+    ["Homzie fee", listing.reservationPlatformFeeCents],
+    ["Payment fee estimate", listing.reservationProcessingFeeCents],
+    ["Total today", listing.reservationTotalCents],
+  ] as const;
+
+  return (
+    <Dialog.Root>
+      <Dialog.Trigger asChild>
+        <Button onClick={onReserveStarted}>
+          Reserve now - {formatPriceCents(listing.reservationAmountCents)}
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm" />
+        <Dialog.Content className="fixed inset-x-3 top-1/2 z-[91] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-4 text-foreground shadow-2xl focus-visible:outline-none sm:mx-auto sm:max-w-lg sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Dialog.Title className="text-lg font-black">
+                Reserve this listing
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+                Pay the reservation amount through Stripe. The listing is marked
+                reserved once payment succeeds.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <Button variant="ghost" size="icon" aria-label="Close reservation">
+                <X className="size-5" />
+              </Button>
+            </Dialog.Close>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-lg border border-border">
+            {rows.map(([label, amount], index) => (
+              <div
+                key={label}
+                className={cn(
+                  "flex items-center justify-between gap-4 px-4 py-3 text-sm font-bold",
+                  index < rows.length - 1 && "border-b border-border",
+                  label === "Total today" && "bg-primary/10 text-primary",
+                )}
+              >
+                <span>{label}</span>
+                <span>{formatPriceCents(amount)}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-4 text-xs font-semibold leading-5 text-muted-foreground">
+            {listing.reservationTermsText}
+          </p>
+
+          {error ? (
+            <p className="mt-4 text-sm font-bold text-destructive">{error}</p>
+          ) : null}
+
+          <Button
+            type="button"
+            disabled={pending}
+            className="mt-5 w-full"
+            onClick={() => {
+              setError("");
+              startTransition(async () => {
+                const result = await startListingReservationCheckout(listing.id);
+
+                if (!result.ok || !result.checkoutUrl) {
+                  setError(result.error || "Could not start reservation checkout.");
+                  return;
+                }
+
+                window.location.href = result.checkoutUrl;
+              });
+            }}
+          >
+            {pending ? "Opening checkout..." : "Continue to Stripe"}
+          </Button>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function SendListingMessageButton({
   listing,
   onSent,
@@ -960,12 +1066,12 @@ export function ListingDetailPage({
   const recordListingAction = (
     actionType:
       | "bond_calculator"
-      | "buy_now"
       | "call_agent"
       | "contact_agent"
       | "email_agent"
       | "like"
       | "place_offer"
+      | "reserve_now"
       | "save"
       | "share"
       | "whatsapp_agent",
@@ -997,7 +1103,7 @@ export function ListingDetailPage({
       imageUrls.length ? (index + 1) % imageUrls.length : 0,
     );
   };
-  const editListingAction = canUseListingActions ? (
+  const editListingAction = listing.isOwner ? (
     <Button asChild>
       <Link href={`/listings/${listing.id}/edit`}>
         <Edit3 className="size-4" />
@@ -1005,13 +1111,23 @@ export function ListingDetailPage({
       </Link>
     </Button>
   ) : null;
-  const buyNowAction = canUseListingActions && listing.listingType !== "rental" ? (
-    <Button asChild>
-      <Link href={agentHref} onClick={() => recordListingAction("buy_now")}>
-        Buy now
-      </Link>
-    </Button>
-  ) : null;
+  const reopenReservationAction =
+    listing.isOwner && listing.status === "reserved" ? (
+      <form action={reopenReservedListing}>
+        <input type="hidden" name="listingId" value={listing.id} />
+        <Button type="submit" variant="outline">
+          Reopen reservations
+        </Button>
+      </form>
+    ) : null;
+  const reserveNowAction =
+    canUseListingActions && listing.listingType !== "rental" ? (
+      <ReserveListingDialog
+        formatPriceCents={formatPriceCents}
+        listing={listing}
+        onReserveStarted={() => recordListingAction("reserve_now")}
+      />
+    ) : null;
   const placeOfferAction = canUseListingActions && listing.listingType !== "rental" ? (
     <MakeOfferDialog
       currencyPrefix={currencyPrefix}
@@ -1021,7 +1137,7 @@ export function ListingDetailPage({
   ) : null;
   const purchaseActions = (
     <>
-      {buyNowAction}
+      {reserveNowAction}
       {placeOfferAction}
     </>
   );
@@ -1175,11 +1291,20 @@ export function ListingDetailPage({
                   Listing {listing.statusLabel.toLowerCase()}
                 </p>
                 <h2 className="mt-1 text-xl font-black">
-                  This listing is no longer active.
+                  {listing.status === "reserved"
+                    ? "This listing is reserved."
+                    : "This listing is no longer active."}
                 </h2>
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-                  The agent has removed, archived, or completed this listing. Listing actions are disabled. If it is saved, you can still remove it using the bookmark action above.
+                  {listing.status === "reserved"
+                    ? "A buyer has paid the reservation amount. Buyer actions are disabled while the agent and agency confirm the deal."
+                    : "The agent has removed, archived, or completed this listing. Listing actions are disabled. If it is saved, you can still remove it using the bookmark action above."}
                 </p>
+                {reopenReservationAction ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {reopenReservationAction}
+                  </div>
+                ) : null}
               </section>
             ) : null}
 
@@ -1363,7 +1488,7 @@ export function ListingDetailPage({
           </div>
           <div className="grid gap-2">
             {canUseListingActions ? purchaseActions : null}
-            {listing.isOwner && canUseListingActions ? editListingAction : null}
+            {listing.isOwner ? editListingAction : null}
           </div>
         </div>
       </div>

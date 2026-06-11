@@ -173,6 +173,9 @@ export const propertyListings = pgTable(
     priceLabel: text("price_label"),
     askingPriceCents: integer("asking_price_cents"),
     soldPriceCents: integer("sold_price_cents"),
+    reservationEnabled: boolean("reservation_enabled").notNull().default(false),
+    reservationAmountCents: integer("reservation_amount_cents"),
+    activeReservationId: uuid("active_reservation_id"),
     coverImageUrl: text("cover_image_url"),
     media: jsonb("media"),
     details: jsonb("details"),
@@ -196,8 +199,78 @@ export const propertyListings = pgTable(
     index("property_listings_agent_profile_id_idx").on(table.agentProfileId),
     index("property_listings_property_identity_id_idx").on(table.propertyIdentityId),
     index("property_listings_status_idx").on(table.status),
+    index("property_listings_active_reservation_id_idx").on(
+      table.activeReservationId,
+    ),
     index("property_listings_outcome_at_idx").on(table.outcomeAt),
     index("property_listings_sold_at_idx").on(table.soldAt),
+  ],
+);
+
+export const listingReservations = pgTable(
+  "listing_reservations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    buyerUserId: uuid("buyer_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    agentUserId: uuid("agent_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amountCents: integer("amount_cents").notNull(),
+    platformFeeCents: integer("platform_fee_cents").notNull().default(0),
+    processingFeeCents: integer("processing_fee_cents").notNull().default(0),
+    totalPaidCents: integer("total_paid_cents").notNull(),
+    currency: text("currency").notNull().default("ZAR"),
+    status: text("status").notNull().default("pending"),
+    stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    stripeChargeId: text("stripe_charge_id"),
+    releaseStatus: text("release_status").notNull().default("held"),
+    cancelledReason: text("cancelled_reason"),
+    documentRequestSentAt: timestamp("document_request_sent_at", {
+      withTimezone: true,
+    }),
+    documentsReceivedAt: timestamp("documents_received_at", {
+      withTimezone: true,
+    }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    releaseApprovedAt: timestamp("release_approved_at", { withTimezone: true }),
+    releasedByUserId: uuid("released_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    transferAmountCents: integer("transfer_amount_cents"),
+    transferReference: text("transfer_reference"),
+    proofOfTransferUrl: text("proof_of_transfer_url"),
+    adminNotes: text("admin_notes"),
+    agentNotes: text("agent_notes"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("listing_reservations_listing_id_idx").on(table.listingId),
+    index("listing_reservations_buyer_user_id_idx").on(table.buyerUserId),
+    index("listing_reservations_agent_user_id_idx").on(table.agentUserId),
+    index("listing_reservations_reviewed_by_user_id_idx").on(
+      table.reviewedByUserId,
+    ),
+    index("listing_reservations_released_by_user_id_idx").on(
+      table.releasedByUserId,
+    ),
+    index("listing_reservations_status_idx").on(table.status),
+    uniqueIndex("listing_reservations_checkout_session_idx").on(
+      table.stripeCheckoutSessionId,
+    ),
   ],
 );
 

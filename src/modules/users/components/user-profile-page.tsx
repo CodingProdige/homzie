@@ -1280,6 +1280,7 @@ function MobileBottomNav({
   viewerUsername?: string;
   viewerAvatarUrl?: string;
 }) {
+  const pathname = usePathname();
   const items = [
     { label: "Home", icon: Home, href: "/", active: true },
     { label: "Messages", icon: Send, href: "#" },
@@ -1349,6 +1350,7 @@ function MobileBottomNav({
             <Link
               key={item.label}
               href={item.href}
+              prefetch={pathname === item.href ? false : undefined}
               className={navItemClassName}
               aria-label={item.label}
             >
@@ -1466,9 +1468,17 @@ export function UserProfilePage({
     }
 
     const query = nextParams.toString();
+    const nextHref = query ? `${pathname}?${query}` : pathname;
 
     setActiveTab(tab);
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    if (
+      typeof window === "undefined" ||
+      `${window.location.pathname}${window.location.search}` === nextHref
+    ) {
+      return;
+    }
+
+    router.replace(nextHref, { scroll: false });
   }, [pathname, router, searchParams]);
 
   useEffect(() => {

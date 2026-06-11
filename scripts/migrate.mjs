@@ -329,6 +329,9 @@ try {
       price_label text,
       asking_price_cents integer,
       sold_price_cents integer,
+      reservation_enabled boolean NOT NULL DEFAULT false,
+      reservation_amount_cents integer,
+      active_reservation_id uuid,
       cover_image_url text,
       media jsonb,
       details jsonb,
@@ -377,6 +380,21 @@ try {
   await sql`
     ALTER TABLE property_listings
     ADD COLUMN IF NOT EXISTS sold_price_cents integer
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS reservation_enabled boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS reservation_amount_cents integer
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS active_reservation_id uuid
   `;
 
   await sql`
@@ -462,6 +480,11 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS property_listings_status_idx
     ON property_listings (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_active_reservation_id_idx
+    ON property_listings (active_reservation_id)
   `;
 
   await sql`
@@ -553,6 +576,133 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS property_listing_status_history_user_id_idx
     ON property_listing_status_history (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_reservations (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      buyer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      agent_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount_cents integer NOT NULL,
+      platform_fee_cents integer NOT NULL DEFAULT 0,
+      processing_fee_cents integer NOT NULL DEFAULT 0,
+      total_paid_cents integer NOT NULL,
+      currency text NOT NULL DEFAULT 'ZAR',
+      status text NOT NULL DEFAULT 'pending',
+      stripe_checkout_session_id text,
+      stripe_payment_intent_id text,
+      stripe_charge_id text,
+      release_status text NOT NULL DEFAULT 'held',
+      cancelled_reason text,
+      document_request_sent_at timestamptz,
+      documents_received_at timestamptz,
+      reviewed_at timestamptz,
+      reviewed_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      release_approved_at timestamptz,
+      released_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      transfer_amount_cents integer,
+      transfer_reference text,
+      proof_of_transfer_url text,
+      admin_notes text,
+      agent_notes text,
+      paid_at timestamptz,
+      released_at timestamptz,
+      refunded_at timestamptz,
+      cancelled_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_reservations_listing_id_idx
+    ON listing_reservations (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_reservations_buyer_user_id_idx
+    ON listing_reservations (buyer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_reservations_agent_user_id_idx
+    ON listing_reservations (agent_user_id)
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS document_request_sent_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS documents_received_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS reviewed_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS reviewed_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS release_approved_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS released_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS transfer_amount_cents integer
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS transfer_reference text
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS proof_of_transfer_url text
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS admin_notes text
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+    ADD COLUMN IF NOT EXISTS agent_notes text
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_reservations_reviewed_by_user_id_idx
+    ON listing_reservations (reviewed_by_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_reservations_released_by_user_id_idx
+    ON listing_reservations (released_by_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_reservations_status_idx
+    ON listing_reservations (status)
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS listing_reservations_checkout_session_idx
+    ON listing_reservations (stripe_checkout_session_id)
   `;
 
   await sql`

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { cache } from "react";
 
 import { db } from "@/db";
 import {
@@ -24,15 +25,17 @@ type UserProfileRouteProps = {
   params: Promise<{
     username: string;
   }>;
-  searchParams?: Promise<{
-    agent?: string;
-    listingArchived?: string;
-    archiveStatus?: string;
-    tab?: string;
-  }>;
+  searchParams?: Promise<UserProfileSearchParams>;
 };
 
-async function getUserProfile(usernameParam: string) {
+type UserProfileSearchParams = {
+  agent?: string;
+  listingArchived?: string;
+  archiveStatus?: string;
+  tab?: string;
+};
+
+const getUserProfile = cache(async function getUserProfile(usernameParam: string) {
   const username = normalizeUsername(usernameParam);
 
   if (!username) {
@@ -63,7 +66,7 @@ async function getUserProfile(usernameParam: string) {
     .limit(1);
 
   return user || null;
-}
+});
 
 function metadataObject(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -138,6 +141,7 @@ function listingMediaUrls(value: unknown) {
 
 function listingUnavailableLabel(status: string) {
   if (status === "sold" || status === "sold_externally") return "Sold";
+  if (status === "reserved") return "Reserved";
   if (status === "archived") return "Archived";
   if (status === "draft") return "Draft";
   if (status === "withdrawn") return "Withdrawn";
@@ -485,54 +489,71 @@ export default async function UserProfilePage({
   params,
   searchParams,
 }: UserProfileRouteProps) {
-  const { username } = await params;
-  const query = searchParams ? await searchParams : {};
+  const searchParamsPromise: Promise<UserProfileSearchParams> =
+    searchParams || Promise.resolve({});
+  const [{ username }, query] = await Promise.all([
+    params,
+    searchParamsPromise,
+  ]);
 
   if (query.agent) {
     redirect(`/users/${username}`);
   }
 
-  const profile = await getUserProfile(username);
+  const [profile, session] = await Promise.all([
+    getUserProfile(username),
+    getServerSession(authOptions),
+  ]);
 
   if (!profile?.username) {
     notFound();
   }
 
-  const session = await getServerSession(authOptions);
   const isOwner = session?.user?.id === profile.id;
-  const hasSubscription = await hasActiveAgentSubscription(profile.id);
+  const viewerUserId = session?.user?.id || null;
+  const [
+    hasSubscription,
+    viewer,
+    profileReels,
+    profileListings,
+    agentStats,
+  ] = await Promise.all([
+    hasActiveAgentSubscription(profile.id),
+    viewerUserId
+      ? db
+          .select({
+            role: users.role,
+            username: users.username,
+            avatarUrl: users.avatarUrl,
+          })
+          .from(users)
+          .where(eq(users.id, viewerUserId))
+          .limit(1)
+          .then(([user]) => user || null)
+      : Promise.resolve(null),
+    getProfileReels({
+      isOwner,
+      userId: profile.id,
+    }),
+    getProfileListings({
+      isOwner,
+      userId: profile.id,
+      viewerUserId,
+    }),
+    getAgentPerformanceStats(profile.id),
+  ]);
   const canViewSaved = isOwner || hasSubscription;
-  const viewer = session?.user?.id
-    ? await db
-        .select({
-          role: users.role,
-          username: users.username,
-          avatarUrl: users.avatarUrl,
-        })
-        .from(users)
-        .where(eq(users.id, session.user.id))
-        .limit(1)
-        .then(([user]) => user || null)
-    : null;
-  const profileReels = await getProfileReels({
-    isOwner,
-    userId: profile.id,
-  });
-  const savedReels = await getSavedReels({
-    canViewSaved,
-    userId: profile.id,
-  });
-  const savedListings = await getSavedListings({
-    canViewSaved,
-    userId: profile.id,
-    viewerUserId: session?.user?.id,
-  });
-  const profileListings = await getProfileListings({
-    isOwner,
-    userId: profile.id,
-    viewerUserId: session?.user?.id,
-  });
-  const agentStats = await getAgentPerformanceStats(profile.id);
+  const [savedReels, savedListings] = await Promise.all([
+    getSavedReels({
+      canViewSaved,
+      userId: profile.id,
+    }),
+    getSavedListings({
+      canViewSaved,
+      userId: profile.id,
+      viewerUserId,
+    }),
+  ]);
 
   return (
     <UserProfile
