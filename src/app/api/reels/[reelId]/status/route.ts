@@ -6,19 +6,31 @@ import { reels } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 
 export const runtime = "nodejs";
+const STALE_QUEUED_RENDER_MS = 10 * 60 * 1000;
+const STALE_ACTIVE_RENDER_MS = 30 * 60 * 1000;
 
-function renderMetadata(value: unknown) {
+function metadataObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
+    return {};
   }
 
-  const render = (value as Record<string, unknown>).render;
+  return value as Record<string, unknown>;
+}
+
+function renderMetadata(value: unknown) {
+  const render = metadataObject(value).render;
 
   if (!render || typeof render !== "object" || Array.isArray(render)) {
     return null;
   }
 
   return render as Record<string, unknown>;
+}
+
+function staleRenderMessage(renderStatus: string) {
+  return renderStatus === "queued"
+    ? "Processing did not start. The render worker may not be running."
+    : "Processing took too long and likely failed.";
 }
 
 export async function GET(
@@ -37,6 +49,7 @@ export async function GET(
       editMetadata: reels.editMetadata,
       id: reels.id,
       status: reels.status,
+      updatedAt: reels.updatedAt,
       videoPath: reels.videoPath,
     })
     .from(reels)
@@ -48,6 +61,52 @@ export async function GET(
   }
 
   const render = renderMetadata(reel.editMetadata);
+  const renderStatus =
+    typeof render?.status === "string" ? render.status : reel.status;
+  const updatedAtMs = new Date(reel.updatedAt).getTime();
+  const staleAgeMs = Number.isFinite(updatedAtMs)
+    ? Date.now() - updatedAtMs
+    : 0;
+  const staleThreshold =
+    renderStatus === "queued" ? STALE_QUEUED_RENDER_MS : STALE_ACTIVE_RENDER_MS;
+  const isStaleProcessing =
+    reel.status === "processing" &&
+    ["queued", "rendering", "processing"].includes(renderStatus) &&
+    staleAgeMs > staleThreshold;
+
+  if (isStaleProcessing) {
+    const nextMetadata = {
+      ...metadataObject(reel.editMetadata),
+      render: {
+        ...(render || {}),
+        error: staleRenderMessage(renderStatus),
+        progress: 100,
+        status: "failed",
+      },
+    };
+
+    await db
+      .update(reels)
+      .set({
+        editMetadata: nextMetadata,
+        status: "failed",
+        updatedAt: new Date(),
+      })
+      .where(eq(reels.id, reel.id));
+
+    return Response.json({
+      error: staleRenderMessage(renderStatus),
+      renderProgress: 100,
+      renderStatus: "failed",
+      status: "failed",
+      targetStatus:
+        render?.targetStatus === "draft" || render?.targetStatus === "published"
+          ? render.targetStatus
+          : undefined,
+      videoPath: reel.videoPath,
+    });
+  }
+
   const progress =
     typeof render?.progress === "number"
       ? Math.max(0, Math.min(100, render.progress))
@@ -58,7 +117,7 @@ export async function GET(
   return Response.json({
     error: typeof render?.error === "string" ? render.error : undefined,
     renderProgress: progress,
-    renderStatus: typeof render?.status === "string" ? render.status : reel.status,
+    renderStatus,
     status: reel.status,
     targetStatus:
       render?.targetStatus === "draft" || render?.targetStatus === "published"

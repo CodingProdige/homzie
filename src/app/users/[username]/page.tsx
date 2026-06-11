@@ -209,10 +209,17 @@ function mapProfileReel(reel: {
 }) {
   const metadata = metadataObject(reel.editMetadata);
   const coverFrame = metadataObject(metadata.coverFrame);
+  const render = metadataObject(metadata.render);
   const coverUrl =
     typeof coverFrame.src === "string"
       ? coverFrame.src
-      : toPublicMediaUrl(metadataObject(metadata.render).mediaPath as string);
+      : toPublicMediaUrl(render.mediaPath as string);
+  const renderProgress =
+    typeof render.progress === "number"
+      ? Math.max(0, Math.min(100, Math.round(render.progress)))
+      : reel.status === "processing"
+        ? 10
+        : null;
 
   return {
     caption: reel.caption,
@@ -220,6 +227,7 @@ function mapProfileReel(reel: {
     durationLabel: formatDuration(metadata.totalDuration),
     editHref: `/reels/${reel.id}/edit`,
     id: reel.id,
+    renderProgress,
     status: reelStatus(reel.status),
     viewCountLabel: formatCompactCount(reel.viewCount),
   };
@@ -529,6 +537,7 @@ export default async function UserProfilePage({
   return (
     <UserProfile
       profile={{
+        id: profile.id,
         name: profile.name,
         username: profile.username,
         avatarUrl: toPublicMediaUrl(profile.avatarUrl) || undefined,

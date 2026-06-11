@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -49,6 +50,7 @@ export const users = pgTable("users", {
   status: userStatusEnum("status").notNull().default("active"),
   emailVerified: boolean("email_verified").notNull().default(false),
   agentTrialUsedAt: timestamp("agent_trial_used_at", { withTimezone: true }),
+  adsBillingAnchorAt: timestamp("ads_billing_anchor_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -455,6 +457,32 @@ export const listingActionEvents = pgTable(
     index("listing_action_events_viewer_session_id_idx").on(table.viewerSessionId),
     index("listing_action_events_action_type_idx").on(table.actionType),
     index("listing_action_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const profileViewEvents = pgTable(
+  "profile_view_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    profileUserId: uuid("profile_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewerUserId: uuid("viewer_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    viewerSessionId: text("viewer_session_id").notNull(),
+    source: text("source").notNull().default("profile_page"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("profile_view_events_profile_session_unique").on(
+      table.profileUserId,
+      table.viewerSessionId,
+    ),
+    index("profile_view_events_profile_user_id_idx").on(table.profileUserId),
+    index("profile_view_events_viewer_user_id_idx").on(table.viewerUserId),
+    index("profile_view_events_viewer_session_id_idx").on(table.viewerSessionId),
+    index("profile_view_events_created_at_idx").on(table.createdAt),
   ],
 );
 
@@ -987,7 +1015,19 @@ export const adCampaigns = pgTable(
     reelId: uuid("reel_id").references(() => reels.id, {
       onDelete: "set null",
     }),
+    targetScope: text("target_scope").notNull().default("custom"),
+    targetAreas: jsonb("target_areas").notNull().default([]),
     targetLocation: text("target_location"),
+    targetLocationPlaceId: text("target_location_place_id"),
+    targetPopulationEstimate: integer("target_population_estimate")
+      .notNull()
+      .default(0),
+    targetActiveUsersEstimate: integer("target_active_users_estimate")
+      .notNull()
+      .default(0),
+    targetPublishedListingsEstimate: integer("target_published_listings_estimate")
+      .notNull()
+      .default(0),
     headline: text("headline"),
     copy: text("copy"),
     durationDays: integer("duration_days").notNull().default(14),
@@ -1000,6 +1040,11 @@ export const adCampaigns = pgTable(
     estimatedImpressions: integer("estimated_impressions").notNull().default(0),
     estimatedClicks: integer("estimated_clicks").notNull().default(0),
     estimatedResults: integer("estimated_results").notNull().default(0),
+    deliveredSpendCents: integer("delivered_spend_cents").notNull().default(0),
+    billedSpendCents: integer("billed_spend_cents").notNull().default(0),
+    lastSpendSyncedAt: timestamp("last_spend_synced_at", { withTimezone: true }),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    resumedAt: timestamp("resumed_at", { withTimezone: true }),
     promotedUrl: text("promoted_url"),
     googleSyncStatus: text("google_sync_status").notNull().default("not_applicable"),
     googleSyncError: text("google_sync_error"),
@@ -1015,6 +1060,117 @@ export const adCampaigns = pgTable(
     index("ad_campaigns_channel_idx").on(table.channel),
     index("ad_campaigns_created_at_idx").on(table.createdAt),
   ],
+);
+
+export const adInvoices = pgTable(
+  "ad_invoices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    subtotalCents: integer("subtotal_cents").notNull().default(0),
+    creditsCents: integer("credits_cents").notNull().default(0),
+    totalCents: integer("total_cents").notNull().default(0),
+    currency: text("currency").notNull().default("ZAR"),
+    status: text("status").notNull().default("open"),
+    providerPaymentIntentId: text("provider_payment_intent_id"),
+    providerChargeId: text("provider_charge_id"),
+    failureMessage: text("failure_message"),
+    chargedAt: timestamp("charged_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ad_invoices_user_id_idx").on(table.userId),
+    index("ad_invoices_status_idx").on(table.status),
+    index("ad_invoices_period_start_idx").on(table.periodStart),
+  ],
+);
+
+export const adSpendLedger = pgTable(
+  "ad_spend_ledger",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => adCampaigns.id, { onDelete: "cascade" }),
+    invoiceId: uuid("invoice_id").references(() => adInvoices.id, {
+      onDelete: "set null",
+    }),
+    channel: text("channel").notNull().default("homzie"),
+    entryType: text("entry_type").notNull().default("spend"),
+    amountCents: integer("amount_cents").notNull().default(0),
+    description: text("description"),
+    externalReference: text("external_reference"),
+    metadata: jsonb("metadata").notNull().default({}),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    billingPeriodStart: timestamp("billing_period_start", {
+      withTimezone: true,
+    }).notNull(),
+    billingPeriodEnd: timestamp("billing_period_end", {
+      withTimezone: true,
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ad_spend_ledger_user_id_idx").on(table.userId),
+    index("ad_spend_ledger_campaign_id_idx").on(table.campaignId),
+    index("ad_spend_ledger_invoice_id_idx").on(table.invoiceId),
+    index("ad_spend_ledger_occurred_at_idx").on(table.occurredAt),
+  ],
+);
+
+export const adCampaignDeliveryDaily = pgTable(
+  "ad_campaign_delivery_daily",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => adCampaigns.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull().default("homzie"),
+    metricDate: date("metric_date").notNull(),
+    impressions: integer("impressions").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0),
+    results: integer("results").notNull().default(0),
+    amountCents: integer("amount_cents").notNull().default(0),
+    source: text("source").notNull().default("homzie_live"),
+    externalReference: text("external_reference"),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ad_campaign_delivery_daily_campaign_date_source_unique").on(
+      table.campaignId,
+      table.metricDate,
+      table.source,
+    ),
+    index("ad_campaign_delivery_daily_user_id_idx").on(table.userId),
+    index("ad_campaign_delivery_daily_metric_date_idx").on(table.metricDate),
+  ],
+);
+
+export const locationPopulationCache = pgTable(
+  "location_population_cache",
+  {
+    placeId: text("place_id").primaryKey(),
+    label: text("label").notNull(),
+    populationEstimate: integer("population_estimate").notNull().default(0),
+    source: text("source"),
+    sourceEntityId: text("source_entity_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("location_population_cache_updated_at_idx").on(table.updatedAt)],
 );
 
 export const hashtagStats = pgTable("hashtag_stats", {
@@ -1045,6 +1201,27 @@ export const hashtagUsages = pgTable(
   ],
 );
 
+export const musicTracks = pgTable(
+  "music_tracks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    artist: text("artist").notNull(),
+    audioPath: text("audio_path").notNull(),
+    coverPath: text("cover_path"),
+    durationSeconds: integer("duration_seconds").notNull().default(0),
+    genre: text("genre"),
+    tags: jsonb("tags").notNull().default([]),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("music_tracks_is_active_sort_order_idx").on(table.isActive, table.sortOrder),
+  ],
+);
+
 export const usersRelations = relations(users, ({ one, many }) => ({
   agentProfile: one(agentProfiles),
   followedProfiles: many(userFollows, { relationName: "follower" }),
@@ -1060,8 +1237,13 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   listingSaves: many(listingSaves),
   reelWatchEvents: many(reelWatchEvents),
   reelWatchSessions: many(reelWatchSessions),
+  profileViewEvents: many(profileViewEvents, { relationName: "profileOwner" }),
+  recordedProfileViews: many(profileViewEvents, { relationName: "profileViewer" }),
   notificationPreferences: one(userNotificationPreferences),
   adCampaigns: many(adCampaigns),
+  adCampaignDeliveryDaily: many(adCampaignDeliveryDaily),
+  adInvoices: many(adInvoices),
+  adSpendLedgerEntries: many(adSpendLedger),
   subscriptions: many(subscriptions),
   propertyIdentities: many(propertyIdentities),
   propertyListings: many(propertyListings),
@@ -1113,6 +1295,43 @@ export const adCampaignsRelations = relations(adCampaigns, ({ one }) => ({
   reel: one(reels, {
     fields: [adCampaigns.reelId],
     references: [reels.id],
+  }),
+}));
+
+export const adInvoicesRelations = relations(adInvoices, ({ many, one }) => ({
+  user: one(users, {
+    fields: [adInvoices.userId],
+    references: [users.id],
+  }),
+  ledgerEntries: many(adSpendLedger),
+}));
+
+export const adCampaignDeliveryDailyRelations = relations(
+  adCampaignDeliveryDaily,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [adCampaignDeliveryDaily.userId],
+      references: [users.id],
+    }),
+    campaign: one(adCampaigns, {
+      fields: [adCampaignDeliveryDaily.campaignId],
+      references: [adCampaigns.id],
+    }),
+  }),
+);
+
+export const adSpendLedgerRelations = relations(adSpendLedger, ({ one }) => ({
+  user: one(users, {
+    fields: [adSpendLedger.userId],
+    references: [users.id],
+  }),
+  campaign: one(adCampaigns, {
+    fields: [adSpendLedger.campaignId],
+    references: [adCampaigns.id],
+  }),
+  invoice: one(adInvoices, {
+    fields: [adSpendLedger.invoiceId],
+    references: [adInvoices.id],
   }),
 }));
 
@@ -1285,6 +1504,19 @@ export const listingActionEventsRelations = relations(
   }),
 );
 
+export const profileViewEventsRelations = relations(profileViewEvents, ({ one }) => ({
+  profileUser: one(users, {
+    fields: [profileViewEvents.profileUserId],
+    references: [users.id],
+    relationName: "profileOwner",
+  }),
+  viewer: one(users, {
+    fields: [profileViewEvents.viewerUserId],
+    references: [users.id],
+    relationName: "profileViewer",
+  }),
+}));
+
 export const userFollowsRelations = relations(userFollows, ({ one }) => ({
   follower: one(users, {
     fields: [userFollows.followerId],
@@ -1435,6 +1667,8 @@ export type ListingViewEvent = typeof listingViewEvents.$inferSelect;
 export type NewListingViewEvent = typeof listingViewEvents.$inferInsert;
 export type ListingActionEvent = typeof listingActionEvents.$inferSelect;
 export type NewListingActionEvent = typeof listingActionEvents.$inferInsert;
+export type ProfileViewEvent = typeof profileViewEvents.$inferSelect;
+export type NewProfileViewEvent = typeof profileViewEvents.$inferInsert;
 export type UserFollow = typeof userFollows.$inferSelect;
 export type NewUserFollow = typeof userFollows.$inferInsert;
 export type ReelLike = typeof reelLikes.$inferSelect;
@@ -1445,6 +1679,8 @@ export type ListingSave = typeof listingSaves.$inferSelect;
 export type NewListingSave = typeof listingSaves.$inferInsert;
 export type ListingLike = typeof listingLikes.$inferSelect;
 export type NewListingLike = typeof listingLikes.$inferInsert;
+export type AdCampaignDeliveryDaily = typeof adCampaignDeliveryDaily.$inferSelect;
+export type NewAdCampaignDeliveryDaily = typeof adCampaignDeliveryDaily.$inferInsert;
 export type ReelReshare = typeof reelReshares.$inferSelect;
 export type NewReelReshare = typeof reelReshares.$inferInsert;
 export type ReelComment = typeof reelComments.$inferSelect;

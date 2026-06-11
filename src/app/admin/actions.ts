@@ -17,6 +17,11 @@ import {
   type GoogleAdsSettings,
 } from "@/modules/platform-settings/google-ads-settings";
 import {
+  getGoogleDsaAutomationHealth,
+  syncGoogleDsaCampaignState,
+  type GoogleDsaAutomationHealth,
+} from "@/modules/google-ads/dsa";
+import {
   getStoredStripeSettings,
   saveStoredStripeSettings,
   stripeModes,
@@ -24,6 +29,11 @@ import {
   type StripeModeSettings,
   type StripeSettings,
 } from "@/modules/platform-settings/stripe-settings";
+import {
+  getStoredMusicApiSettings,
+  saveStoredMusicApiSettings,
+  type MusicApiSettings,
+} from "@/modules/platform-settings/music-api-settings";
 
 export type AdminStripeSettingsState = {
   message: string;
@@ -36,6 +46,12 @@ export type AdminAdsSettingsState = {
 };
 
 export type AdminGoogleAdsSettingsState = {
+  message: string;
+  ok: boolean;
+};
+
+export type AdminGoogleAdsAutomationState = {
+  health: GoogleDsaAutomationHealth | null;
   message: string;
   ok: boolean;
 };
@@ -422,6 +438,86 @@ export async function updateAdminGoogleAdsSettings(
         error instanceof Error
           ? error.message
           : "Could not save Google Ads settings.",
+    };
+  }
+}
+
+export type AdminMusicApiSettingsState = {
+  message: string;
+  ok: boolean;
+};
+
+export async function updateAdminMusicApiSettings(
+  previousState: AdminMusicApiSettingsState,
+  formData: FormData,
+): Promise<AdminMusicApiSettingsState> {
+  void previousState;
+
+  try {
+    await assertActiveAdmin();
+
+    const existing = await getStoredMusicApiSettings();
+    const jamendoClientId = String(formData.get("jamendoClientId") ?? "").trim();
+    const freesoundApiKey = String(formData.get("freesoundApiKey") ?? "").trim();
+
+    const settings: MusicApiSettings = {
+      jamendoClientId: jamendoClientId || existing.jamendoClientId,
+      freesoundApiKey: freesoundApiKey || existing.freesoundApiKey,
+    };
+
+    await saveStoredMusicApiSettings(settings);
+
+    revalidatePath("/admin/settings");
+
+    return { ok: true, message: "Music API settings saved." };
+  } catch {
+    return { ok: false, message: "Could not save music API settings." };
+  }
+}
+
+export async function getAdminMusicApiSettings(): Promise<MusicApiSettings> {
+  await assertActiveAdmin();
+  return getStoredMusicApiSettings();
+}
+
+export async function runAdminGoogleAdsAutomationSync(
+  previousState: AdminGoogleAdsAutomationState,
+): Promise<AdminGoogleAdsAutomationState> {
+  void previousState;
+
+  try {
+    await assertActiveAdmin();
+
+    const result = await syncGoogleDsaCampaignState();
+    const health = await getGoogleDsaAutomationHealth();
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/settings/ads");
+    revalidatePath("/settings/ads-center");
+
+    return {
+      ok: true,
+      message:
+        result.state === "campaign_enabled"
+          ? "Google DSA campaign is enabled and in sync."
+          : result.state === "campaign_paused"
+            ? "Google DSA campaign is paused because no published listing URLs are active."
+            : result.state === "feed_active"
+              ? "Feed eligibility is active. Google API pause/resume automation is currently disabled."
+              : "No active Google listing URLs remain. Manual pause is still required in Google Ads.",
+      health,
+    };
+  } catch (error) {
+    const health = await getGoogleDsaAutomationHealth().catch(() => null);
+
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not run the Google Ads automation check.",
+      health,
     };
   }
 }

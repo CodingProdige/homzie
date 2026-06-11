@@ -9,6 +9,7 @@ import {
   BarChart3,
   Home,
   Menu,
+  Music,
   Settings,
   ShieldCheck,
   UsersRound,
@@ -33,6 +34,7 @@ const adminNavItems: Array<{
 }> = [
   { href: "/admin", icon: BarChart3, label: "Dashboard" },
   { href: "/admin/users", icon: UsersRound, label: "Users" },
+  { href: "/admin/music", icon: Music, label: "Music Library" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 

@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 
 export function SettingsPageHeader({
   actions,
+  backHref,
   className,
   message,
   messageTone = "neutral",
   title,
 }: {
   actions?: ReactNode;
+  backHref?: string;
   className?: string;
   description?: string;
   message?: ReactNode;
@@ -29,6 +31,7 @@ export function SettingsPageHeader({
       <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-3">
         <BackButton
           showLabel={false}
+          href={backHref}
           className="grid size-8 shrink-0 place-items-center text-foreground hover:text-primary"
           iconClassName="size-4"
         />

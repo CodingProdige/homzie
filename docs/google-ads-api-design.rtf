@@ -1,0 +1,62 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Arial;}}
+\fs24
+\b Homzie Google Ads API Design Documentation\b0\par
+\par
+\b 1. Product overview\b0\par
+Homzie is a property marketplace and real estate platform. Homzie allows platform users to promote published property listings through Homzie-controlled advertising workflows. For Google Ads, Homzie uses a Google-owned advertiser account and a manager account controlled by Homzie. End users do not connect their own Google Ads accounts and do not create arbitrary campaigns directly in Google Ads.\par
+\par
+\b 2. Intended Google Ads API use\b0\par
+Homzie uses the Google Ads API for internal operational automation and campaign management. The primary use case is to manage a Homzie-owned Dynamic Search Ads campaign that promotes eligible public property listing pages from the Homzie platform.\par
+\par
+The initial automation scope is intentionally narrow:\par
+\tab - Pause the Homzie Dynamic Search Ads campaign when there are no active promoted listing URLs.\par
+\tab - Re-enable the Homzie Dynamic Search Ads campaign when active promoted listing URLs become available again.\par
+\tab - Maintain internal campaign settings references, including customer ID, login customer ID, and campaign ID used by Homzie operations.\par
+\par
+\b 3. Campaign model\b0\par
+Homzie currently uses a Search campaign structure with Dynamic Search Ads behavior supported by a Homzie-managed page feed. The promoted destination URLs are public Homzie listing pages. Homzie created a protected feed endpoint that returns eligible listing URLs and a custom label. Google Ads fetches this feed on a schedule.\par
+\par
+Campaign model details:\par
+\tab - Campaign owner: Homzie\par
+\tab - Campaign type: Search / Dynamic Search Ads workflow\par
+\tab - Landing pages: Public Homzie property listing pages\par
+\tab - Eligibility source: Homzie page feed\par
+\tab - Feed control: Homzie admin settings and internal campaign state\par
+\par
+\b 4. End-user experience\b0\par
+Inside Homzie, a user can create a promotion request for a published property listing. The user selects the listing and budget inside Homzie. Homzie does not expose raw Google Ads account access to the user. Instead, Homzie decides whether the listing is eligible for Google promotion and includes the listing URL in the Homzie-managed advertising workflow.\par
+\par
+This means:\par
+\tab - Users do not authenticate with Google Ads.\par
+\tab - Users do not manage their own Google Ads credentials.\par
+\tab - Users do not directly edit Google Ads campaigns from Google interfaces.\par
+\tab - Homzie operations staff control campaign settings and API credentials.\par
+\par
+\b 5. Access control and internal use\b0\par
+The Google Ads API integration is used by internal Homzie operations and platform systems only. Access to Google Ads API settings is restricted to Homzie administrators. API credentials are stored in Homzie admin settings and are not exposed to general platform users.\par
+\par
+\b 6. Data used by the integration\b0\par
+The integration uses the following categories of data:\par
+\tab - Google Ads customer ID and manager account login customer ID\par
+\tab - Dynamic Search Ads campaign ID\par
+\tab - OAuth credentials and refresh token for Homzie-controlled access\par
+\tab - Public Homzie listing URLs eligible for promotion\par
+\tab - Internal campaign status state used to determine whether the campaign should be paused or re-enabled\par
+\par
+Homzie does not use the API to create Google Ads accounts for end users, and does not provide public API access for outside customers.\par
+\par
+\b 7. Supported capabilities\b0\par
+Current supported API capabilities:\par
+\tab - Campaign management for Homzie-owned campaigns\par
+\tab - Controlled campaign automation for pause / resume behavior\par
+\tab - Internal configuration of campaign identifiers and account references\par
+\par
+Planned or adjacent platform capabilities may later include additional reporting and campaign administration, but the current production scope is focused on Homzie-owned Search / Dynamic Search Ads campaign management only.\par
+\par
+\b 8. Security and compliance approach\b0\par
+Homzie restricts access to Google Ads API credentials to authorized administrators. OAuth credentials are stored in the platform settings used by Homzie admin. The API is used only for Homzie-managed operational flows. End users cannot retrieve or manipulate the Google Ads API credentials.\par
+\par
+\b 9. Summary\b0\par
+Homzie uses the Google Ads API to manage and automate its own Google Ads campaign operations for property listing promotion. The integration is internal, controlled, and limited to Homzie-owned advertising infrastructure rather than general public campaign management.\par
+}

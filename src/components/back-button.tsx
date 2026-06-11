@@ -7,11 +7,13 @@ import { cn } from "@/lib/utils";
 
 export function BackButton({
   className,
+  href,
   iconClassName,
   label = "Back",
   showLabel = true,
 }: {
   className?: string;
+  href?: string;
   iconClassName?: string;
   label?: string;
   showLabel?: boolean;
@@ -26,7 +28,7 @@ export function BackButton({
         "inline-flex w-fit items-center gap-3 text-sm font-medium transition-colors",
         className,
       )}
-      onClick={() => router.back()}
+      onClick={() => (href ? router.push(href) : router.back())}
     >
       <ArrowLeft className={cn("size-4", iconClassName)} />
       {showLabel ? label : null}

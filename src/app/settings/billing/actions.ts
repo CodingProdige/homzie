@@ -6,6 +6,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { subscriptions } from "@/db/schema";
+import { getOutstandingAdBillingState } from "@/modules/ads/billing";
 import { authOptions } from "@/modules/auth/config";
 import { getStripe, getStripePublishableKey } from "@/modules/billing/stripe";
 
@@ -273,10 +274,11 @@ export async function removePaymentMethod(
 ): Promise<BillingActionResult> {
   try {
     const subscription = await getCurrentUserSubscription();
+    const session = await getServerSession(authOptions);
     const stripe = await getStripe();
     const customerId = subscription.providerCustomerId;
 
-    if (!customerId) {
+    if (!customerId || !session?.user?.id) {
       throw new Error("No active billing account was found.");
     }
 
@@ -304,6 +306,8 @@ export async function removePaymentMethod(
     const alternativePaymentMethod = paymentMethods.find(
       (item) => item.id !== paymentMethodId,
     );
+    const removingLastPaymentMethod = !alternativePaymentMethod;
+    const adBillingState = await getOutstandingAdBillingState(session.user.id);
 
     if (
       isDefault &&
@@ -312,6 +316,15 @@ export async function removePaymentMethod(
     ) {
       throw new Error(
         "Add another payment method before removing the default card for an active subscription.",
+      );
+    }
+
+    if (
+      removingLastPaymentMethod &&
+      (adBillingState.hasOpenInvoices || adBillingState.uninvoicedSpendCents > 0)
+    ) {
+      throw new Error(
+        "Keep a payment method on file while you still have ad spend waiting to bill to Homzie.",
       );
     }
 

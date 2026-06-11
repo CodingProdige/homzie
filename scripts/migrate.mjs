@@ -142,6 +142,11 @@ try {
 
   await sql`
     ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS ads_billing_anchor_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE users
     ALTER COLUMN username DROP NOT NULL
   `;
 
@@ -1370,6 +1375,8 @@ try {
       objective text NOT NULL DEFAULT 'awareness',
       listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
       reel_id uuid REFERENCES reels(id) ON DELETE SET NULL,
+      target_scope text NOT NULL DEFAULT 'custom',
+      target_areas jsonb NOT NULL DEFAULT '[]'::jsonb,
       target_location text,
       headline text,
       copy text,
@@ -1394,7 +1401,62 @@ try {
 
   await sql`
     ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS target_scope text NOT NULL DEFAULT 'custom'
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS target_areas jsonb NOT NULL DEFAULT '[]'::jsonb
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
     ADD COLUMN IF NOT EXISTS promoted_url text
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS target_location_place_id text
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS target_population_estimate integer NOT NULL DEFAULT 0
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS target_active_users_estimate integer NOT NULL DEFAULT 0
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS target_published_listings_estimate integer NOT NULL DEFAULT 0
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS delivered_spend_cents integer NOT NULL DEFAULT 0
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS billed_spend_cents integer NOT NULL DEFAULT 0
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS last_spend_synced_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS paused_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE ad_campaigns
+    ADD COLUMN IF NOT EXISTS resumed_at timestamptz
   `;
 
   await sql`
@@ -1433,6 +1495,178 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS ad_invoices (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      period_start timestamptz NOT NULL,
+      period_end timestamptz NOT NULL,
+      subtotal_cents integer NOT NULL DEFAULT 0,
+      credits_cents integer NOT NULL DEFAULT 0,
+      total_cents integer NOT NULL DEFAULT 0,
+      currency text NOT NULL DEFAULT 'ZAR',
+      status text NOT NULL DEFAULT 'open',
+      provider_payment_intent_id text,
+      provider_charge_id text,
+      failure_message text,
+      charged_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_invoices_user_id_idx
+    ON ad_invoices (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_invoices_status_idx
+    ON ad_invoices (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_invoices_period_start_idx
+    ON ad_invoices (period_start)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ad_spend_ledger (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      campaign_id uuid NOT NULL REFERENCES ad_campaigns(id) ON DELETE CASCADE,
+      invoice_id uuid REFERENCES ad_invoices(id) ON DELETE SET NULL,
+      channel text NOT NULL DEFAULT 'homzie',
+      entry_type text NOT NULL DEFAULT 'spend',
+      amount_cents integer NOT NULL DEFAULT 0,
+      description text,
+      external_reference text,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      occurred_at timestamptz NOT NULL,
+      billing_period_start timestamptz NOT NULL,
+      billing_period_end timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_spend_ledger_user_id_idx
+    ON ad_spend_ledger (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_spend_ledger_campaign_id_idx
+    ON ad_spend_ledger (campaign_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_spend_ledger_invoice_id_idx
+    ON ad_spend_ledger (invoice_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_spend_ledger_occurred_at_idx
+    ON ad_spend_ledger (occurred_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS location_population_cache (
+      place_id text PRIMARY KEY,
+      label text NOT NULL,
+      population_estimate integer NOT NULL DEFAULT 0,
+      source text,
+      source_entity_id text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS location_population_cache_updated_at_idx
+    ON location_population_cache (updated_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS profile_view_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      profile_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      source text NOT NULL DEFAULT 'profile_page',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    DELETE FROM profile_view_events a
+    USING profile_view_events b
+    WHERE a.profile_user_id = b.profile_user_id
+      AND a.viewer_session_id = b.viewer_session_id
+      AND (
+        a.created_at > b.created_at
+        OR (a.created_at = b.created_at AND a.id::text > b.id::text)
+      )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS profile_view_events_profile_session_unique
+    ON profile_view_events (profile_user_id, viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS profile_view_events_profile_user_id_idx
+    ON profile_view_events (profile_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS profile_view_events_viewer_user_id_idx
+    ON profile_view_events (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS profile_view_events_viewer_session_id_idx
+    ON profile_view_events (viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS profile_view_events_created_at_idx
+    ON profile_view_events (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ad_campaign_delivery_daily (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      campaign_id uuid NOT NULL REFERENCES ad_campaigns(id) ON DELETE CASCADE,
+      channel text NOT NULL DEFAULT 'homzie',
+      metric_date date NOT NULL,
+      impressions integer NOT NULL DEFAULT 0,
+      clicks integer NOT NULL DEFAULT 0,
+      results integer NOT NULL DEFAULT 0,
+      amount_cents integer NOT NULL DEFAULT 0,
+      source text NOT NULL DEFAULT 'homzie_live',
+      external_reference text,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ad_campaign_delivery_daily_campaign_date_source_unique
+    ON ad_campaign_delivery_daily (campaign_id, metric_date, source)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_campaign_delivery_daily_user_id_idx
+    ON ad_campaign_delivery_daily (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS ad_campaign_delivery_daily_metric_date_idx
+    ON ad_campaign_delivery_daily (metric_date)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS hashtag_stats (
       tag text PRIMARY KEY,
       reel_count integer NOT NULL DEFAULT 0,
@@ -1459,6 +1693,28 @@ try {
 
   await sql`
     CREATE INDEX IF NOT EXISTS hashtag_stats_usage_count_idx ON hashtag_stats (usage_count DESC)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS music_tracks (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      title text NOT NULL,
+      artist text NOT NULL,
+      audio_path text NOT NULL,
+      cover_path text,
+      duration_seconds integer NOT NULL DEFAULT 0,
+      genre text,
+      tags jsonb NOT NULL DEFAULT '[]'::jsonb,
+      is_active boolean NOT NULL DEFAULT true,
+      sort_order integer NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS music_tracks_is_active_sort_order_idx
+    ON music_tracks (is_active, sort_order)
   `;
 
   console.log("Database migration completed.");

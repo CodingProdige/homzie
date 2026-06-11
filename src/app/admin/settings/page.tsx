@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, CreditCard, Megaphone } from "lucide-react";
+import { ChevronRight, CreditCard, Megaphone, Music } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Admin Settings | Homzie",
@@ -21,6 +21,13 @@ const settingsItems = [
     label: "Ads",
     description:
       "Control platform ad pricing, channel availability, and the forecast model users see in Ads Center.",
+  },
+  {
+    href: "/admin/settings/music",
+    icon: Music,
+    label: "Music APIs",
+    description:
+      "Configure Pixabay and Freesound API keys so reel creators can browse and preview royalty-free tracks.",
   },
 ];
 

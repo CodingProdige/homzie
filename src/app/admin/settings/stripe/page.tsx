@@ -2,10 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-import {
-  getStoredStripeSettings,
-  type StripeModeSettings,
-} from "@/modules/platform-settings/stripe-settings";
+import { getStoredStripeSettings } from "@/modules/platform-settings/stripe-settings";
 import {
   AdminStripeSettingsForm,
   type AdminStripeSettingsView,
@@ -16,23 +13,13 @@ export const metadata: Metadata = {
   description: "Manage Stripe payment credentials for Homzie.",
 };
 
-function settingsSavedMap(settings: StripeModeSettings) {
-  return {
-    publishableKey: Boolean(settings.publishableKey),
-    secretKey: Boolean(settings.secretKey),
-    webhookSecret: Boolean(settings.webhookSecret),
-    monthlyPriceId: Boolean(settings.monthlyPriceId),
-    yearlyPriceId: Boolean(settings.yearlyPriceId),
-  };
-}
-
 function toStripeSettingsView(
   settings: Awaited<ReturnType<typeof getStoredStripeSettings>>,
 ): AdminStripeSettingsView {
   return {
     mode: settings.mode,
-    test: settingsSavedMap(settings.test),
-    live: settingsSavedMap(settings.live),
+    test: settings.test,
+    live: settings.live,
   };
 }
 

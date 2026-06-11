@@ -16,7 +16,7 @@ const worker = spawn(npmCommand, ["run", "worker:reels"], {
 const messages = spawn(npmCommand, ["run", "start:messages"], {
   stdio: "inherit",
 });
-const web = spawn(npmCommand, ["run", "dev"], {
+const web = spawn(npmCommand, ["run", "dev:web"], {
   stdio: "inherit",
 });
 const studio = spawn(npmCommand, ["run", "db:studio"], {

@@ -18,6 +18,12 @@ const outputAudioSampleRate = "44100";
 
 const ffmpegBinary = process.env.FFMPEG_PATH || "ffmpeg";
 
+function ffmpegUnavailableError() {
+  return new Error(
+    `FFmpeg is not available at "${ffmpegBinary}". Install ffmpeg or set FFMPEG_PATH before rendering reels.`,
+  );
+}
+
 function seconds(value: number) {
   return Math.max(0, Number.isFinite(value) ? value : 0).toFixed(3);
 }
@@ -36,7 +42,9 @@ async function runFfmpeg(args: string[]) {
     const errors: Buffer[] = [];
 
     child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
-    child.on("error", reject);
+    child.on("error", (error: NodeJS.ErrnoException) => {
+      reject(error.code === "ENOENT" ? ffmpegUnavailableError() : error);
+    });
     child.on("close", (code) => {
       if (code === 0) {
         resolve();
@@ -60,7 +68,9 @@ async function hasAudioStream(inputPath: string) {
     const errors: Buffer[] = [];
 
     child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
-    child.on("error", reject);
+    child.on("error", (error: NodeJS.ErrnoException) => {
+      reject(error.code === "ENOENT" ? ffmpegUnavailableError() : error);
+    });
     child.on("close", () => {
       resolve(Buffer.concat(errors).toString("utf8").includes("Audio:"));
     });

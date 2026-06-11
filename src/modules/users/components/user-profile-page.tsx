@@ -45,6 +45,7 @@ import { ListingCard, type ListingCardData } from "@/modules/listings/components
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
 
 type UserProfile = {
+  id: string;
   name: string;
   username: string;
   avatarUrl?: string;
@@ -94,6 +95,7 @@ type ProfileReel = {
   durationLabel: string;
   editHref: string;
   id: string;
+  renderProgress?: number | null;
   status: ProfileReelStatus;
   viewCountLabel: string;
 };
@@ -1260,6 +1262,7 @@ function ProfileReelCard({
         durationLabel: reel.durationLabel,
         href,
         id: reel.id,
+        renderProgress: reel.renderProgress,
         status: reel.status,
         viewCountLabel: reel.viewCountLabel,
         watched,
@@ -1475,6 +1478,52 @@ export function UserProfilePage({
       return () => window.clearTimeout(timeout);
     }
   }, [activeTab, canViewSaved, handleTabChange]);
+
+  useEffect(() => {
+    if (profile.isOwner) {
+      return;
+    }
+
+    const sessionStorageKey = `homzie-profile-view:${profile.id}`;
+    const localStorageKey = "homzie-profile-viewer-session";
+
+    if (window.sessionStorage.getItem(sessionStorageKey)) {
+      return;
+    }
+
+    let viewerSessionId = window.localStorage.getItem(localStorageKey);
+
+    if (!viewerSessionId) {
+      viewerSessionId = crypto.randomUUID();
+      window.localStorage.setItem(localStorageKey, viewerSessionId);
+    }
+
+    let aborted = false;
+
+    void (async () => {
+      const response = await fetch("/api/users/profile-view", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          profileUserId: profile.id,
+          source: "profile_page",
+          viewerSessionId,
+        }),
+      });
+
+      if (!aborted && response.ok) {
+        window.sessionStorage.setItem(sessionStorageKey, "1");
+      }
+    })().catch(() => {
+      // Ignore tracking failures so they never disrupt the profile experience.
+    });
+
+    return () => {
+      aborted = true;
+    };
+  }, [profile.id, profile.isOwner]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">

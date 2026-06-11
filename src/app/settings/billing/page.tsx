@@ -14,6 +14,10 @@ import type Stripe from "stripe";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { subscriptions, users } from "@/db/schema";
+import {
+  getUserAdBillingSummary,
+  listUserAdInvoices,
+} from "@/modules/ads/billing";
 import { authOptions } from "@/modules/auth/config";
 import {
   agentSubscriptionPrice,
@@ -85,6 +89,8 @@ type BillingIssue = {
   title: string;
 };
 
+type AdsBillingSummary = Awaited<ReturnType<typeof getUserAdBillingSummary>>;
+
 function formatDate(value: Date | number | null | undefined) {
   if (!value) {
     return "Not available";
@@ -104,6 +110,18 @@ function formatMoney(cents: number, currency = "ZAR") {
     style: "currency",
     currency,
   }).format(cents / 100);
+}
+
+function formatShortDate(value: Date | null | undefined) {
+  if (!value) {
+    return "Not available";
+  }
+
+  return new Intl.DateTimeFormat("en-ZA", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(value);
 }
 
 function getTrialDaysRemaining(trialEndUnix: number | null | undefined) {
@@ -590,6 +608,106 @@ function InvoiceHistory({ invoices }: { invoices: BillingInvoice[] }) {
   );
 }
 
+function AdsBillingOverview({
+  summary,
+}: {
+  summary: AdsBillingSummary;
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="font-bold">Ads billing</h2>
+          <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            Delivered ad spend rolls into monthly ads invoices on your billing cycle.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background px-4 py-3 text-right text-sm font-semibold">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            Next ads billing date
+          </p>
+          <p className="mt-1 font-black text-foreground">
+            {formatShortDate(summary.nextBillingDate)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-border bg-background p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            Delivered spend
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {formatMoney(summary.deliveredSpendCents)}
+          </p>
+          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            Measured campaign spend accrued to date.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            Awaiting invoice
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {formatMoney(summary.uninvoicedSpendCents)}
+          </p>
+          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            Delivered spend not yet invoiced.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            Open invoices
+          </p>
+          <p className="mt-2 text-2xl font-black">{summary.openInvoiceCount}</p>
+          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            {formatMoney(summary.openInvoiceTotalCents)} currently due or queued.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            Paid to date
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {formatMoney(summary.paidInvoiceTotalCents)}
+          </p>
+          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            Across {summary.activeCampaignCount + summary.pausedCampaignCount} tracked campaigns.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AdsInvoiceHistory({
+  invoices,
+}: {
+  invoices: BillingInvoice[];
+}) {
+  const visibleInvoices = invoices.length
+    ? invoices
+    : [
+        {
+          id: "empty-ads",
+          date: "No ad invoices yet",
+          description: "Ad invoices will appear once a billing period closes with delivered spend.",
+          amount: "-",
+          status: "pending",
+          downloadUrl: null,
+        },
+      ];
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold">Ads invoice history</h2>
+      </div>
+      <InvoiceHistoryTable invoices={visibleInvoices} />
+    </section>
+  );
+}
+
 function SubscriptionDetails({ billing }: { billing: BillingData | null }) {
   const rows = [
     { label: "Plan", value: billing?.planName || "No active plan" },
@@ -703,6 +821,18 @@ export default async function BillingSettingsPage() {
     .limit(1);
 
   const billing = await getBillingData(user.id);
+  const [adsBillingSummary, adInvoices] = await Promise.all([
+    getUserAdBillingSummary(user.id),
+    listUserAdInvoices(user.id, 8),
+  ]);
+  const adsInvoiceRows: BillingInvoice[] = adInvoices.map((invoice) => ({
+    amount: formatMoney(invoice.totalCents),
+    date: formatShortDate(invoice.createdAt),
+    description: `${formatShortDate(invoice.periodStart)} - ${formatShortDate(invoice.periodEnd)}`,
+    downloadUrl: null,
+    id: invoice.id,
+    status: invoice.status,
+  }));
   const trialEligible = !user.agentTrialUsedAt && !previousSubscription;
   return (
     <main className="mx-auto min-h-dvh w-full max-w-[1180px] overflow-x-clip bg-background px-4 pb-10 text-foreground sm:px-6 lg:px-10">
@@ -712,14 +842,19 @@ export default async function BillingSettingsPage() {
         {!billing ? <CompactAgentUpgradeCta trialEligible={trialEligible} /> : null}
         {billing?.issue ? <BillingIssueNotice issue={billing.issue} /> : null}
 
-        <CurrentPlanCard billing={billing} />
+        {billing ? (
+          <>
+            <CurrentPlanCard billing={billing} />
+            <div className="grid gap-5 lg:grid-cols-2">
+              <PaymentMethodCard billing={billing} />
+              <SubscriptionDetails billing={billing} />
+            </div>
+          </>
+        ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <PaymentMethodCard billing={billing} />
-          <SubscriptionDetails billing={billing} />
-        </div>
-
-        <InvoiceHistory invoices={billing?.invoices || []} />
+        <AdsBillingOverview summary={adsBillingSummary} />
+        <AdsInvoiceHistory invoices={adsInvoiceRows} />
+        {billing ? <InvoiceHistory invoices={billing.invoices} /> : null}
 
         <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
           <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">

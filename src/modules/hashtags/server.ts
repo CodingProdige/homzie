@@ -53,6 +53,19 @@ async function incrementHashtagStats({
     });
 }
 
+async function ensureHashtagStats(tags: string[]) {
+  if (!tags.length) return;
+
+  await db
+    .insert(hashtagStats)
+    .values(
+      tags.map((tag) => ({
+        tag,
+      })),
+    )
+    .onConflictDoNothing();
+}
+
 export async function recordHashtagUsage({
   sourceId,
   sourceType,
@@ -67,6 +80,8 @@ export async function recordHashtagUsage({
   const uniqueTags = Array.from(new Set(tags.map((tag) => tag.toLowerCase())));
 
   if (!uniqueTags.length) return;
+
+  await ensureHashtagStats(uniqueTags);
 
   const insertedUsages = await db
     .insert(hashtagUsages)

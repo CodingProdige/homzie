@@ -7,43 +7,73 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import { adCampaigns, propertyListings, reels, users } from "@/db/schema";
+import {
+  recordAdCampaignLifecycleEvent,
+  syncAdCampaignSpend,
+} from "@/modules/ads/billing";
 import { buildAdForecast } from "@/modules/ads/forecast";
+import { getActiveAgentSubscription } from "@/modules/agents/queries";
 import {
   adChannels,
-  adObjectives,
   adPromotedTypes,
   type AdChannel,
 } from "@/modules/ads/shared";
-import { syncGoogleDsaCampaignState } from "@/modules/google-ads/dsa";
+import { getStripe } from "@/modules/billing/stripe";
+import {
+  getGoogleDsaAutomationHealth,
+  getGoogleDsaChannelAvailability,
+  syncGoogleDsaCampaignState,
+} from "@/modules/google-ads/dsa";
 import { getStoredAdsSettings } from "@/modules/platform-settings/ads-settings";
 import { getStoredGoogleAdsSettings } from "@/modules/platform-settings/google-ads-settings";
 import { authOptions } from "@/modules/auth/config";
 import { absoluteUrl } from "@/modules/site/url";
-
-export type CreateAdCampaignState = {
-  message: string;
-  ok: boolean;
-};
-
-export const emptyCreateAdCampaignState: CreateAdCampaignState = {
-  message: "",
-  ok: false,
-};
+import type { CreateAdCampaignState } from "./action-state";
+import type { TargetAreaScope, TargetAreaSelection } from "./types";
 
 const createAdCampaignSchema = z.object({
-  name: z.string().trim().min(3).max(80),
-  channel: z.enum(adChannels),
+  channels: z.array(z.enum(adChannels)).min(1, "Choose at least one ad channel."),
   promotedType: z.enum(adPromotedTypes),
-  objective: z.enum(adObjectives),
   listingId: z.string().uuid().optional().or(z.literal("")),
   reelId: z.string().uuid().optional().or(z.literal("")),
-  targetLocation: z.string().trim().max(120).optional(),
-  headline: z.string().trim().max(80).optional(),
-  copy: z.string().trim().max(280).optional(),
+  targetAreasJson: z.string().trim().min(2),
+  targetScope: z.enum(["custom", "global"] satisfies TargetAreaScope[]),
+  targetSummaryLabel: z.string().trim().max(160).optional(),
+  targetPopulationEstimate: z.coerce.number().int().min(0).optional(),
+  targetActiveUsersEstimate: z.coerce.number().int().min(0).optional(),
+  targetPublishedListingsEstimate: z.coerce.number().int().min(0).optional(),
   durationDays: z.coerce.number().int().min(1).max(90),
   totalBudgetRands: z.coerce.number().min(1),
-  launchNow: z.boolean(),
 });
+
+function parseTargetAreas(targetAreasJson: string): TargetAreaSelection[] {
+  const parsed = JSON.parse(targetAreasJson) as unknown;
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("Choose at least one target area before publishing.");
+  }
+
+  return parsed
+    .filter(
+      (item): item is TargetAreaSelection =>
+        Boolean(
+          item &&
+            typeof item === "object" &&
+            "label" in item &&
+            "placeId" in item &&
+            typeof item.label === "string" &&
+            typeof item.placeId === "string",
+        ),
+    )
+    .map((item) => ({
+      activeUsersEstimate: Math.max(0, Number(item.activeUsersEstimate || 0)),
+      label: item.label.trim(),
+      placeId: item.placeId.trim(),
+      populationEstimate: Math.max(0, Number(item.populationEstimate || 0)),
+      publishedListingsEstimate: Math.max(0, Number(item.publishedListingsEstimate || 0)),
+    }))
+    .filter((item) => item.label && item.placeId);
+}
 
 async function requireSessionUser() {
   const session = await getServerSession(authOptions);
@@ -162,6 +192,50 @@ function isChannelEnabled({
     : adsSettings.allowHomzieAds;
 }
 
+async function assertBillingReadiness(userId: string) {
+  const subscription = await getActiveAgentSubscription(userId);
+
+  if (!subscription?.providerCustomerId) {
+    throw new Error("You need an active subscription before you can publish ads.");
+  }
+
+  const stripe = await getStripe();
+  const paymentMethods = await stripe.paymentMethods.list({
+    customer: subscription.providerCustomerId,
+    type: "card",
+    limit: 20,
+  });
+
+  if (!paymentMethods.data.some((paymentMethod) => Boolean(paymentMethod.card))) {
+    throw new Error("Add a payment method in Billing before publishing ads.");
+  }
+}
+
+function buildGeneratedCampaignName(promotedType: "profile" | "listing" | "reel") {
+  const dateLabel = new Intl.DateTimeFormat("en-ZA", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date());
+
+  if (promotedType === "listing") {
+    return `Listing promotion - ${dateLabel}`;
+  }
+
+  if (promotedType === "reel") {
+    return `Reel promotion - ${dateLabel}`;
+  }
+
+  return `Profile promotion - ${dateLabel}`;
+}
+
+function splitBudget(totalBudgetCents: number, channelsCount: number, index: number) {
+  const base = Math.floor(totalBudgetCents / channelsCount);
+  const remainder = totalBudgetCents % channelsCount;
+
+  return base + (index < remainder ? 1 : 0);
+}
+
 export async function createAdCampaign(
   _previousState: CreateAdCampaignState,
   formData: FormData,
@@ -174,18 +248,24 @@ export async function createAdCampaign(
       getStoredGoogleAdsSettings(),
     ]);
     const parsed = createAdCampaignSchema.safeParse({
-      name: formData.get("name"),
-      channel: formData.get("channel"),
+      channels: formData
+        .getAll("channels")
+        .map((value) => String(value))
+        .filter((value): value is AdChannel =>
+          (adChannels as readonly string[]).includes(value),
+        ),
       promotedType: formData.get("promotedType"),
-      objective: formData.get("objective"),
       listingId: formData.get("listingId") || "",
       reelId: formData.get("reelId") || "",
-      targetLocation: formData.get("targetLocation") || "",
-      headline: formData.get("headline") || "",
-      copy: formData.get("copy") || "",
+      targetAreasJson: formData.get("targetAreasJson") || "[]",
+      targetScope: formData.get("targetScope") || "custom",
+      targetSummaryLabel: formData.get("targetSummaryLabel") || "",
+      targetPopulationEstimate: formData.get("targetPopulationEstimate") || 0,
+      targetActiveUsersEstimate: formData.get("targetActiveUsersEstimate") || 0,
+      targetPublishedListingsEstimate:
+        formData.get("targetPublishedListingsEstimate") || 0,
       durationDays: formData.get("durationDays"),
       totalBudgetRands: formData.get("totalBudgetRands"),
-      launchNow: formData.get("launchNow") === "on",
     });
 
     if (!parsed.success) {
@@ -199,24 +279,65 @@ export async function createAdCampaign(
       return { ok: false, message: "Finish setting up your profile before creating ads." };
     }
 
-    if (
-      !isChannelEnabled({
-        adsSettings: settings,
-        channel: parsed.data.channel,
-        googleAdsEnabled: googleAdsSettings.enabled,
-      })
-    ) {
+    const targetAreas = parseTargetAreas(parsed.data.targetAreasJson);
+
+    if (!targetAreas.length) {
       return {
         ok: false,
-        message: "That ad channel is not available right now.",
+        message: "Choose at least one target area before publishing.",
       };
     }
 
-    if (parsed.data.channel === "google" && parsed.data.promotedType !== "listing") {
+    if (
+      parsed.data.targetScope === "global" &&
+      !targetAreas.some((area) => area.placeId === "__global__")
+    ) {
+      return {
+        ok: false,
+        message: "Global targeting needs the all countries and regions option selected.",
+      };
+    }
+
+    await assertBillingReadiness(userId);
+
+    const uniqueChannels = [...new Set(parsed.data.channels)];
+
+    if (
+      uniqueChannels.some(
+        (channel) =>
+          !isChannelEnabled({
+            adsSettings: settings,
+            channel,
+            googleAdsEnabled: googleAdsSettings.enabled,
+          }),
+      )
+    ) {
+      return {
+        ok: false,
+        message: "One or more selected ad channels are not available right now.",
+      };
+    }
+
+    if (uniqueChannels.includes("google") && parsed.data.promotedType !== "listing") {
       return {
         ok: false,
         message: "Google promotion currently supports published listings only.",
       };
+    }
+
+    if (uniqueChannels.includes("google")) {
+      const googleChannelStatus = getGoogleDsaChannelAvailability(
+        await getGoogleDsaAutomationHealth(),
+      );
+
+      if (!googleChannelStatus.available) {
+        return {
+          ok: false,
+          message:
+            googleChannelStatus.blockedReason ||
+            "Google delivery is not available right now.",
+        };
+      }
     }
 
     await assertPromotedAssetOwnership({
@@ -233,82 +354,110 @@ export async function createAdCampaign(
         settings.maxCampaignBudgetCents,
       ),
     );
-    const forecast = buildAdForecast({
-      channel: parsed.data.channel,
-      durationDays: parsed.data.durationDays,
-      objective: parsed.data.objective,
-      promotedType: parsed.data.promotedType,
-      settings,
-      totalBudgetCents,
-    });
-    const shouldLaunch = parsed.data.launchNow;
     const now = new Date();
     const promotedUrl = buildPromotedUrl({
       listingId: parsed.data.listingId || undefined,
       promotedType: parsed.data.promotedType,
       username: user.username,
     });
+    const generatedName = buildGeneratedCampaignName(parsed.data.promotedType);
+    const targetLocation =
+      parsed.data.targetSummaryLabel?.trim() ||
+      (parsed.data.targetScope === "global"
+        ? "All countries and regions"
+        : targetAreas.length > 1
+          ? `${targetAreas.length} target areas`
+          : targetAreas[0]?.label ||
+            null);
+    const targetLocationPlaceId =
+      parsed.data.targetScope === "global"
+        ? "__global__"
+        : targetAreas[0]?.placeId || null;
 
-    const [campaign] = await db
+    const insertedCampaigns = await db
       .insert(adCampaigns)
-      .values({
-      userId,
-      name: parsed.data.name,
-      channel: parsed.data.channel,
-      promotedType: parsed.data.promotedType,
-      objective: parsed.data.objective,
-      listingId:
-        parsed.data.promotedType === "listing" ? parsed.data.listingId || null : null,
-      reelId: parsed.data.promotedType === "reel" ? parsed.data.reelId || null : null,
-      targetLocation: parsed.data.targetLocation || null,
-      headline: parsed.data.headline || null,
-      copy: parsed.data.copy || null,
-      durationDays: parsed.data.durationDays,
-      totalBudgetCents,
-      netMediaBudgetCents: forecast.netMediaBudgetCents,
-      platformMarginBasisPoints: Math.round(forecast.marginPercent * 100),
-      estimatedReach: forecast.estimatedReach,
-      estimatedImpressions: forecast.estimatedImpressions,
-      estimatedClicks: forecast.estimatedClicks,
-      estimatedResults: forecast.estimatedResults,
-      promotedUrl,
-      googleSyncStatus:
-        parsed.data.channel === "google"
-          ? shouldLaunch
-            ? "feed_active"
-            : "not_in_feed"
-          : "not_applicable",
-      status: shouldLaunch ? "ready" : "draft",
-      launchedAt: shouldLaunch ? now : null,
-      updatedAt: now,
-    })
+      .values(
+        uniqueChannels.map((channel, index) => {
+          const channelBudgetCents = splitBudget(totalBudgetCents, uniqueChannels.length, index);
+          const forecast = buildAdForecast({
+            channel,
+            durationDays: parsed.data.durationDays,
+            objective: "traffic",
+            promotedType: parsed.data.promotedType,
+            settings,
+            targetActiveUsersEstimate: parsed.data.targetActiveUsersEstimate || 0,
+            targetPopulationEstimate: parsed.data.targetPopulationEstimate || 0,
+            totalBudgetCents: channelBudgetCents,
+          });
+
+          return {
+            userId,
+            name: generatedName,
+            channel,
+            promotedType: parsed.data.promotedType,
+            objective: "traffic" as const,
+            listingId:
+              parsed.data.promotedType === "listing" ? parsed.data.listingId || null : null,
+            reelId: parsed.data.promotedType === "reel" ? parsed.data.reelId || null : null,
+            targetAreas,
+            targetScope: parsed.data.targetScope,
+            targetLocation,
+            targetLocationPlaceId,
+            targetPopulationEstimate: parsed.data.targetPopulationEstimate || 0,
+            targetActiveUsersEstimate: parsed.data.targetActiveUsersEstimate || 0,
+            targetPublishedListingsEstimate:
+              parsed.data.targetPublishedListingsEstimate || 0,
+            headline: null,
+            copy: null,
+            durationDays: parsed.data.durationDays,
+            totalBudgetCents: channelBudgetCents,
+            netMediaBudgetCents: forecast.netMediaBudgetCents,
+            platformMarginBasisPoints: Math.round(forecast.marginPercent * 100),
+            estimatedReach: forecast.estimatedReach,
+            estimatedImpressions: forecast.estimatedImpressions,
+            estimatedClicks: forecast.estimatedClicks,
+            estimatedResults: forecast.estimatedResults,
+            promotedUrl,
+            googleSyncStatus: channel === "google" ? "feed_active" : "not_applicable",
+            status: "ready" as const,
+            launchedAt: now,
+            updatedAt: now,
+          };
+        }),
+      )
       .returning({
         id: adCampaigns.id,
         channel: adCampaigns.channel,
         promotedType: adCampaigns.promotedType,
       });
 
-    if (campaign?.channel === "google" && campaign.promotedType === "listing") {
+    const needsGoogleSync = insertedCampaigns.some(
+      (campaign) => campaign.channel === "google" && campaign.promotedType === "listing",
+    );
+
+    if (needsGoogleSync) {
       try {
         await syncGoogleDsaCampaignState();
       } catch (error) {
         return {
-          ok: shouldLaunch ? false : true,
+          ok: true,
           message:
-            shouldLaunch
-              ? error instanceof Error
-                ? error.message
-                : "Google listing sync failed."
-              : "Campaign saved as a draft.",
+            error instanceof Error
+              ? `Campaign published, but Google feed sync needs attention: ${error.message}`
+              : "Campaign published, but Google feed sync needs attention.",
         };
       }
     }
 
     revalidatePath("/settings/ads-center");
+    revalidatePath("/settings/ads-center/campaigns");
 
     return {
       ok: true,
-      message: shouldLaunch ? "Campaign marked ready." : "Campaign saved as a draft.",
+      message:
+        uniqueChannels.length > 1
+          ? "Campaign published across your selected channels."
+          : "Campaign published.",
     };
   } catch (error) {
     return {
@@ -328,6 +477,7 @@ export async function updateAdCampaignStatus(
     .select({
       channel: adCampaigns.channel,
       id: adCampaigns.id,
+      launchedAt: adCampaigns.launchedAt,
       promotedType: adCampaigns.promotedType,
     })
     .from(adCampaigns)
@@ -339,23 +489,40 @@ export async function updateAdCampaignStatus(
     throw new Error("We could not find that campaign.");
   }
 
-  await db
-    .update(adCampaigns)
-    .set({
-      status: nextStatus,
-      launchedAt: nextStatus === "ready" ? new Date() : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(adCampaigns.id, campaign.id));
+  const now = new Date();
+
+  if (nextStatus === "paused") {
+    await syncAdCampaignSpend(campaign.id);
+
+    await db
+      .update(adCampaigns)
+      .set({ pausedAt: now, status: "paused", updatedAt: now })
+      .where(eq(adCampaigns.id, campaign.id));
+
+    await recordAdCampaignLifecycleEvent(campaign.id, "pause");
+  } else {
+    await db
+      .update(adCampaigns)
+      .set({
+        launchedAt: campaign.launchedAt || now,
+        resumedAt: now,
+        status: "ready",
+        updatedAt: now,
+      })
+      .where(eq(adCampaigns.id, campaign.id));
+
+    await recordAdCampaignLifecycleEvent(campaign.id, "resume");
+  }
 
   if (campaign.channel === "google" && campaign.promotedType === "listing") {
     await syncGoogleDsaCampaignState();
   }
 
   revalidatePath("/settings/ads-center");
+  revalidatePath("/settings/ads-center/campaigns");
 
   return {
     ok: true,
-    message: nextStatus === "ready" ? "Campaign marked ready." : "Campaign paused.",
+    message: nextStatus === "ready" ? "Campaign resumed." : "Campaign paused.",
   };
 }

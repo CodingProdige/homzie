@@ -2,7 +2,16 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { CheckCircle2, KeyRound, Save, TestTube2, XCircle, Zap } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Save,
+  TestTube2,
+  XCircle,
+  Zap,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,19 +26,15 @@ import {
   type AdminStripeSettingsState,
 } from "./actions";
 
-type AdminStripeSettingsFormProps = {
-  settings: AdminStripeSettingsView;
+export type AdminStripeSettingsView = {
+  mode: StripeMode;
+  test: StripeModeSettings;
+  live: StripeModeSettings;
 };
 
 const initialState: AdminStripeSettingsState = {
   message: "",
   ok: false,
-};
-
-export type AdminStripeSettingsView = {
-  mode: StripeMode;
-  test: Record<keyof StripeModeSettings, boolean>;
-  live: Record<keyof StripeModeSettings, boolean>;
 };
 
 const fields: Array<{
@@ -95,12 +100,63 @@ function SavedHint({ saved }: { saved: boolean }) {
   );
 }
 
+function SettingsField({
+  mode,
+  fieldKey,
+  label,
+  placeholder,
+  secret,
+  defaultValue,
+}: {
+  mode: StripeMode;
+  fieldKey: keyof StripeModeSettings;
+  label: string;
+  placeholder: string;
+  secret?: boolean;
+  defaultValue: string;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const id = `${mode}.${fieldKey}`;
+  const saved = Boolean(defaultValue);
+  const inputType = secret ? (revealed ? "text" : "password") : "text";
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={id}>{label}</Label>
+        <SavedHint saved={saved} />
+      </div>
+      <div className="relative">
+        <Input
+          id={id}
+          name={id}
+          type={inputType}
+          autoComplete="off"
+          defaultValue={defaultValue}
+          placeholder={saved ? "Leave blank to keep saved value" : placeholder}
+          className={secret ? "pr-11" : undefined}
+        />
+        {secret ? (
+          <button
+            type="button"
+            onClick={() => setRevealed((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label={revealed ? `Hide ${label}` : `Reveal ${label}`}
+          >
+            {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ModeFields({
   mode,
   settings,
 }: {
   mode: StripeMode;
-  settings: Record<keyof StripeModeSettings, boolean>;
+  settings: StripeModeSettings;
 }) {
   const Icon = mode === "test" ? TestTube2 : Zap;
 
@@ -121,25 +177,17 @@ function ModeFields({
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {fields.map((field) => {
-          const saved = settings[field.key];
-
-          return (
-            <div key={field.key} className="grid gap-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor={`${mode}.${field.key}`}>{field.label}</Label>
-                <SavedHint saved={saved} />
-              </div>
-              <Input
-                id={`${mode}.${field.key}`}
-                name={`${mode}.${field.key}`}
-                type={field.secret ? "password" : "text"}
-                autoComplete="off"
-                placeholder={saved ? "Leave blank to keep saved value" : field.placeholder}
-              />
-            </div>
-          );
-        })}
+        {fields.map((field) => (
+          <SettingsField
+            key={field.key}
+            mode={mode}
+            fieldKey={field.key}
+            label={field.label}
+            placeholder={field.placeholder}
+            secret={field.secret}
+            defaultValue={settings[field.key]}
+          />
+        ))}
       </div>
     </section>
   );
@@ -147,7 +195,9 @@ function ModeFields({
 
 export function AdminStripeSettingsForm({
   settings,
-}: AdminStripeSettingsFormProps) {
+}: {
+  settings: AdminStripeSettingsView;
+}) {
   const [selectedMode, setSelectedMode] = useState<StripeMode>(settings.mode);
   const [state, action] = useActionState(
     updateAdminStripeSettings,

@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "npm run local:start",
+    "dev:web": "next dev",
     "dev:local": "npm run local:start",
     "dev:full": "npm run selfhost:start",
     "dev:stop": "node scripts/stop-local.mjs && docker compose -p homzie_dev down",

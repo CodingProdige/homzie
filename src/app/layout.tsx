@@ -36,8 +36,7 @@ export const metadata: Metadata = {
   },
 };
 
-const googleAnalyticsId =
-  process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || "G-R76VMT2VVG";
+const googleAnalyticsId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
 
 export default function RootLayout({
   children,
@@ -50,18 +49,22 @@ export default function RootLayout({
       className={`${poppins.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${googleAnalyticsId}');
-          `}
-        </Script>
+        {googleAnalyticsId ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="google-analytics" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${googleAnalyticsId}');
+              `}
+            </Script>
+          </>
+        ) : null}
         <CurrencyProvider>
           <CountryPreferenceBootstrap />
           <PushNotificationBootstrap />

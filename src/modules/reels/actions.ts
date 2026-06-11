@@ -1,6 +1,7 @@
 "use server";
 
 import { and, asc, eq, ilike, inArray, isNotNull, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
@@ -675,6 +676,38 @@ export async function deleteReel(formData: FormData) {
   await db.delete(reels).where(and(eq(reels.id, parsed.data), eq(reels.userId, userId)));
 
   redirect(`/users/${user.username}?tab=reels`);
+}
+
+export async function deleteReelById(reelId: string) {
+  const parsed = reelIdSchema.safeParse(reelId);
+  const userId = await requireUserId();
+
+  if (!parsed.success || !userId) {
+    return { error: "Sign in to delete this reel.", ok: false as const };
+  }
+
+  const [reel] = await db
+    .select({
+      id: reels.id,
+      username: users.username,
+    })
+    .from(reels)
+    .innerJoin(users, eq(users.id, reels.userId))
+    .where(and(eq(reels.id, parsed.data), eq(reels.userId, userId)))
+    .limit(1);
+
+  if (!reel) {
+    return { error: "We could not find that reel.", ok: false as const };
+  }
+
+  await db.delete(reels).where(and(eq(reels.id, parsed.data), eq(reels.userId, userId)));
+
+  if (reel.username) {
+    revalidatePath(`/users/${reel.username}`);
+    revalidatePath(`/users/${reel.username}/reels`);
+  }
+
+  return { ok: true as const };
 }
 
 export async function linkReelListing(input: unknown) {

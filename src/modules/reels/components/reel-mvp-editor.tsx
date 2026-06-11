@@ -35,6 +35,7 @@ import {
   Repeat2,
   RotateCcw,
   Scissors,
+  Search,
   Send,
   Settings2,
   Sparkles,
@@ -49,6 +50,12 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  getLibraryTracks,
+  searchFreesoundTracks,
+  searchJamendo,
+} from "@/modules/music/actions";
+import type { ExternalTrack, LibraryTrack } from "@/modules/music/types";
 
 import {
   getReelHashtagSuggestions,
@@ -86,6 +93,7 @@ type Sound = {
   duration?: number;
   file?: File;
   url?: string;
+  storedMediaPath?: string;
 };
 
 type TimelineAudioClip = {
@@ -472,11 +480,23 @@ async function readAudioDuration(url: string) {
   });
 }
 
+function resolveAudioFetchUrl(url: string): string {
+  try {
+    const parsed = new URL(url, window.location.href);
+    if (parsed.origin !== window.location.origin) {
+      return `/api/audio/waveform?url=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    // relative URL — same origin, fetch directly
+  }
+  return url;
+}
+
 async function createAudioWaveformPeaks(sound: Sound, peakCount = 2400) {
   const sourceBuffer = sound.file
     ? await sound.file.arrayBuffer()
     : sound.url
-      ? await fetch(sound.url).then((response) => response.arrayBuffer())
+      ? await fetch(resolveAudioFetchUrl(sound.url)).then((response) => response.arrayBuffer())
       : null;
 
   if (!sourceBuffer) return [];
@@ -1676,7 +1696,9 @@ export function ReelMvpEditor({
           }
         | undefined;
 
-      if (selectedSound.file) {
+      if (selectedSound.storedMediaPath) {
+        audioUpload = { mediaPath: selectedSound.storedMediaPath };
+      } else if (selectedSound.file) {
         audioUpload = await uploadReelMedia(
           "audio",
           selectedSound.file,
@@ -1908,47 +1930,53 @@ export function ReelMvpEditor({
         />
       ) : null}
 
-      {sheet === "music" ? (
-        <MusicSheet
-          onClose={() => setSheet(null)}
-          onSelect={selectSound}
-          onUpload={() => audioInputRef.current?.click()}
-          selectedSound={selectedSound}
-        />
-      ) : null}
+      {sheet ? (
+        <div className="absolute inset-0 z-50 flex justify-center">
+          <div className="relative h-full w-full max-w-[430px]">
+            {sheet === "music" ? (
+              <MusicSheet
+                onClose={() => setSheet(null)}
+                onSelect={selectSound}
+                onUpload={() => audioInputRef.current?.click()}
+                selectedSound={selectedSound}
+              />
+            ) : null}
 
-      {sheet === "cover" ? (
-        <CoverSheet
-          frames={allFrames}
-          onClose={() => setSheet(null)}
-          onSelect={(frame) => {
-            setCoverFrame(frame);
-            setSheet(null);
-          }}
-          selectedFrame={coverFrame}
-        />
-      ) : null}
+            {sheet === "cover" ? (
+              <CoverSheet
+                frames={allFrames}
+                onClose={() => setSheet(null)}
+                onSelect={(frame) => {
+                  setCoverFrame(frame);
+                  setSheet(null);
+                }}
+                selectedFrame={coverFrame}
+              />
+            ) : null}
 
-      {sheet === "volume" ? (
-        <VolumeSheet
-          audioVolume={audioVolume}
-          onAudioVolumeChange={setAudioVolume}
-          onClose={() => setSheet(null)}
-          onClipVolumeChange={(volume) =>
-            updateSelectedClip({ muted: false, volume })
-          }
-          selectedClip={selectedClip}
-          selectedTimelineItem={volumeTarget}
-          selectedSound={selectedSound}
-        />
-      ) : null}
+            {sheet === "volume" ? (
+              <VolumeSheet
+                audioVolume={audioVolume}
+                onAudioVolumeChange={setAudioVolume}
+                onClose={() => setSheet(null)}
+                onClipVolumeChange={(volume) =>
+                  updateSelectedClip({ muted: false, volume })
+                }
+                selectedClip={selectedClip}
+                selectedTimelineItem={volumeTarget}
+                selectedSound={selectedSound}
+              />
+            ) : null}
 
-      {sheet === "fade" ? (
-        <AudioFadeSheet
-          onClose={() => setSheet(null)}
-          onFadeChange={updateSelectedAudioFade}
-          selectedAudioClip={selectedAudioClip}
-        />
+            {sheet === "fade" ? (
+              <AudioFadeSheet
+                onClose={() => setSheet(null)}
+                onFadeChange={updateSelectedAudioFade}
+                selectedAudioClip={selectedAudioClip}
+              />
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       {renderState.status !== "idle" ? (
@@ -2323,10 +2351,9 @@ function TimelineScreen({
   >("video");
   const [playbackClipId, setPlaybackClipId] = useState<string | null>(null);
   const [dragOverClipId, setDragOverClipId] = useState<string | null>(null);
-  const [dragGhost, setDragGhost] = useState<{
+  const [clipDragOffset, setClipDragOffset] = useState<{
     clipId: string;
-    left: number;
-    width: number;
+    x: number;
   } | null>(null);
   const timelineScrollerRef = useRef<HTMLDivElement | null>(null);
   const timelineContentRef = useRef<HTMLDivElement | null>(null);
@@ -2362,7 +2389,6 @@ function TimelineScreen({
     maxVisualStart: number;
     startIndex: number;
     targetIndex: number;
-    ghostStartLeft: number;
   } | null>(null);
   const audioTrimGestureRef = useRef<{
     edge: "start" | "end";
@@ -2789,7 +2815,7 @@ function TimelineScreen({
     if (
       event.button !== 0 ||
       (event.target as HTMLElement).closest(
-        "[data-timeline-control='true'], [data-clip-draggable='true']",
+        "[data-timeline-control='true'], [data-timeline-item='true']",
       )
     ) {
       return;
@@ -2909,6 +2935,7 @@ function TimelineScreen({
     event.preventDefault();
     event.stopPropagation();
     videoTrimGestureRef.current = null;
+    didDragTimelineRef.current = false;
 
     if (gesture.edge === "start") {
       onNormalizeFirstVideoClip(gesture.clipId);
@@ -2984,6 +3011,7 @@ function TimelineScreen({
     event.preventDefault();
     event.stopPropagation();
     audioTrimGestureRef.current = null;
+    didDragTimelineRef.current = false;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -3047,6 +3075,7 @@ function TimelineScreen({
     event.preventDefault();
     event.stopPropagation();
     audioMoveGestureRef.current = null;
+    didDragTimelineRef.current = false;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -3086,12 +3115,10 @@ function TimelineScreen({
       maxVisualStart: Math.max(0, audioEditDuration - segment.duration),
       startIndex: Math.max(0, clipIndex),
       targetIndex: Math.max(0, clipIndex),
-      ghostStartLeft: segment.start * clipPixelsPerSecond,
     };
-    setDragGhost({
+    setClipDragOffset({
       clipId,
-      left: segment.start * clipPixelsPerSecond,
-      width: segment.duration * clipPixelsPerSecond,
+      x: 0,
     });
   }
 
@@ -3109,11 +3136,11 @@ function TimelineScreen({
     if (!hasMoved) return;
 
     didDragTimelineRef.current = true;
-    setDragGhost((current) =>
+    setClipDragOffset((current) =>
       current?.clipId === gesture.clipId
         ? {
             ...current,
-            left: gesture.ghostStartLeft + event.clientX - gesture.startX,
+            x: event.clientX - gesture.startX,
           }
         : current,
     );
@@ -3133,7 +3160,6 @@ function TimelineScreen({
 
     if (nextIndex !== gesture.targetIndex) {
       gesture.targetIndex = nextIndex;
-      onReorderClip(gesture.clipId, nextIndex);
     }
 
     if (timelineScrollerRef.current) {
@@ -3142,14 +3168,20 @@ function TimelineScreen({
   }
 
   function endClipMove(event: PointerEvent<HTMLElement>) {
-    if (!clipMoveGestureRef.current) return;
+    const gesture = clipMoveGestureRef.current;
+
+    if (!gesture) return;
 
     event.preventDefault();
     event.stopPropagation();
     clipMoveGestureRef.current = null;
     draggedClipIdRef.current = null;
+    didDragTimelineRef.current = false;
     setDragOverClipId(null);
-    setDragGhost(null);
+    setClipDragOffset(null);
+    if (gesture.targetIndex !== gesture.startIndex) {
+      onReorderClip(gesture.clipId, gesture.targetIndex);
+    }
     onDragEnd();
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -3158,6 +3190,10 @@ function TimelineScreen({
   }
 
   function beginActionToolbarScroll(event: PointerEvent<HTMLDivElement>) {
+    if ((event.target as HTMLElement).closest("[data-toolbar-action='true']")) {
+      return;
+    }
+
     isActionToolbarDraggingRef.current = true;
     didDragActionToolbarRef.current = false;
     actionToolbarPointerStartXRef.current = event.clientX;
@@ -3183,6 +3219,7 @@ function TimelineScreen({
     if (!isActionToolbarDraggingRef.current) return;
 
     isActionToolbarDraggingRef.current = false;
+    didDragActionToolbarRef.current = false;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -3330,7 +3367,7 @@ function TimelineScreen({
       <div className="relative min-h-0 flex-1 overflow-hidden px-3">
         <div className="pointer-events-none absolute left-1/2 top-7 z-20 h-[calc(100%-1.75rem)] w-0.5 -translate-x-1/2 bg-white" />
         <div
-          className="cursor-grab overflow-x-auto pb-1 active:cursor-grabbing"
+          className="h-full cursor-grab overflow-x-auto overflow-y-hidden pb-1 active:cursor-grabbing [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onPointerCancel={handleTimelinePointerCancel}
           onPointerDown={handleTimelinePointerDown}
           onPointerMove={handleTimelinePointerMove}
@@ -3364,6 +3401,8 @@ function TimelineScreen({
                   const isSelected =
                     selectedTimelineItem === "video" &&
                     selectedClip?.id === clip.id;
+                  const dragOffset =
+                    clipDragOffset?.clipId === clip.id ? clipDragOffset.x : 0;
                   const stripDuration = Math.max(
                     0.25,
                     clip.duration - clip.baseTrimStart,
@@ -3398,17 +3437,19 @@ function TimelineScreen({
                   return (
                     <div
                       className={cn(
-                        "relative h-16 shrink-0 touch-none overflow-hidden rounded-xl border-2 bg-white/10 transition-[left,opacity,transform,border-color] duration-150",
+                        "relative h-16 shrink-0 touch-none overflow-hidden rounded-xl border-2 bg-white/10 transition-[left,opacity,border-color] duration-150",
                         isSelected
                           ? "border-[#8a62ff] shadow-[0_0_0_2px_rgba(255,255,255,0.95)]"
                           : "border-transparent",
-                        draggedClipId === clip.id && "scale-[0.96] opacity-45",
+                        draggedClipId === clip.id && "z-30 shadow-2xl",
                         dragOverClipId === clip.id &&
                           draggedClipId !== clip.id &&
                           "border-white/80",
                       )}
                       data-clip-id={clip.id}
+                      data-timeline-item="true"
                       key={clip.id}
+                      onDragStart={(event) => event.preventDefault()}
                       onClick={() => {
                         if (didDragTimelineRef.current) {
                           didDragTimelineRef.current = false;
@@ -3423,6 +3464,7 @@ function TimelineScreen({
                         left: segment.start * clipPixelsPerSecond,
                         position: "absolute",
                         top: 8,
+                        transform: `translate3d(${dragOffset}px, 0, 0)`,
                         width: segment.duration * clipPixelsPerSecond,
                       }}
                     >
@@ -3480,6 +3522,7 @@ function TimelineScreen({
                             <img
                               alt=""
                               className="h-full w-full object-cover"
+                              draggable={false}
                               src={frame.src}
                             />
                           </span>
@@ -3525,13 +3568,6 @@ function TimelineScreen({
                     </div>
                   );
                 })}
-                {dragGhost ? (
-                  <VideoDragGhost
-                    clip={clips.find((clip) => clip.id === dragGhost.clipId)}
-                    left={dragGhost.left}
-                    width={dragGhost.width}
-                  />
-                ) : null}
                 <button
                   className="absolute top-[13px] grid h-14 w-14 place-items-center rounded-2xl bg-white text-black"
                   data-timeline-control="true"
@@ -3573,6 +3609,7 @@ function TimelineScreen({
                               "border-2 border-[#8a62ff] shadow-[0_0_0_2px_rgba(255,255,255,0.92)]",
                           )}
                           key={segment.clip.id}
+                          data-timeline-item="true"
                           onClick={() => {
                             if (didDragTimelineRef.current) {
                               didDragTimelineRef.current = false;
@@ -3770,57 +3807,13 @@ function TimelineTool({
   return (
     <button
       className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-2 rounded-2xl bg-white/10 text-xs font-black"
+      data-toolbar-action="true"
       onClick={onClick}
       type="button"
     >
       <Icon className="size-6" />
       {label}
     </button>
-  );
-}
-
-function VideoDragGhost({
-  clip,
-  left,
-  width,
-}: {
-  clip?: ReelClip;
-  left: number;
-  width: number;
-}) {
-  if (!clip) return null;
-
-  const frames = clip.frames.length ? clip.frames : [];
-  const ghostFrames = Array.from(
-    { length: Math.max(1, Math.ceil(width / 42)) },
-    (_, index) => frames[index % Math.max(1, frames.length)],
-  ).filter((frame): frame is CoverFrame => Boolean(frame));
-
-  return (
-    <div
-      className="pointer-events-none absolute top-1 z-40 h-[4.5rem] overflow-hidden rounded-xl border-2 border-dashed border-white bg-white/15 shadow-2xl backdrop-blur-sm"
-      style={{
-        left,
-        width,
-      }}
-    >
-      <div className="flex h-full opacity-80">
-        {ghostFrames.length ? (
-          ghostFrames.map((frame, index) => (
-            <span
-              className="h-full min-w-10 flex-1 overflow-hidden"
-              key={`${frame.clipId}-${frame.time}-ghost-${index}`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element -- Canvas-generated data URL thumbnails are not remote/image-loader assets. */}
-              <img alt="" className="h-full w-full object-cover" src={frame.src} />
-            </span>
-          ))
-        ) : (
-          <span className="h-full w-full bg-white/20" />
-        )}
-      </div>
-      <span className="absolute inset-0 rounded-xl ring-2 ring-[#8a62ff]" />
-    </div>
   );
 }
 
@@ -3850,7 +3843,7 @@ function VolumeSheet({
   const label = isVideo ? "Clip volume" : `${selectedSound.title} volume`;
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end bg-black/45">
+    <div className="absolute inset-0 flex items-end bg-black/45">
       <div className="w-full rounded-t-[28px] bg-white px-5 pb-7 pt-3 text-black">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-black/15" />
         <div className="mb-5 flex items-center justify-between">
@@ -3913,7 +3906,7 @@ function AudioFadeSheet({
   const maxFade = Math.max(0, duration / 2);
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end bg-black/45">
+    <div className="absolute inset-0 flex items-end bg-black/45">
       <div className="w-full rounded-t-[28px] bg-white px-5 pb-7 pt-3 text-black">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-black/15" />
         <div className="mb-5 flex items-center justify-between">
@@ -3979,6 +3972,42 @@ function AudioFadeControl({
   );
 }
 
+type MusicTab = "library" | "jamendo" | "freesound";
+
+// Module-level cache — survives sheet close/reopen for the page session
+const _musicCache: {
+  library: LibraryTrack[] | null;
+  jamendo: Map<string, ExternalTrack[]>;
+  freesound: Map<string, ExternalTrack[]>;
+} = { library: null, jamendo: new Map(), freesound: new Map() };
+
+const JAMENDO_TAGS: Array<{ id: string; label: string }> = [
+  { id: "", label: "All" },
+  { id: "ambient", label: "Ambient" },
+  { id: "electronic", label: "Electronic" },
+  { id: "pop", label: "Pop" },
+  { id: "rock", label: "Rock" },
+  { id: "jazz", label: "Jazz" },
+  { id: "classical", label: "Classical" },
+  { id: "hiphop", label: "Hip-Hop" },
+  { id: "soundtrack", label: "Soundtracks" },
+  { id: "lounge", label: "Lounge" },
+  { id: "folk", label: "Folk" },
+];
+
+const FREESOUND_TAGS: Array<{ id: string; label: string }> = [
+  { id: "", label: "All" },
+  { id: "ambient", label: "Ambient" },
+  { id: "piano", label: "Piano" },
+  { id: "electronic", label: "Electronic" },
+  { id: "acoustic", label: "Acoustic" },
+  { id: "guitar", label: "Guitar" },
+  { id: "cinematic", label: "Cinematic" },
+  { id: "lofi", label: "Lo-Fi" },
+  { id: "nature", label: "Nature" },
+  { id: "drums", label: "Drums" },
+];
+
 function MusicSheet({
   onClose,
   onSelect,
@@ -3990,94 +4019,453 @@ function MusicSheet({
   onUpload: () => void;
   selectedSound: Sound;
 }) {
-  const selectedUploadedSound =
-    selectedSound.id !== "none" && selectedSound.url ? selectedSound : null;
+  const [tab, setTab] = useState<MusicTab>("library");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [libraryTracks, setLibraryTracks] = useState<LibraryTrack[]>(
+    _musicCache.library ?? [],
+  );
+  const [externalTracks, setExternalTracks] = useState<ExternalTrack[]>([]);
+  const [isLoading, setIsLoading] = useState(!_musicCache.library);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (_musicCache.library) return;
+    getLibraryTracks()
+      .then((tracks) => {
+        _musicCache.library = tracks;
+        setLibraryTracks(tracks);
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (tab === "library") return;
+    const cacheMap = tab === "jamendo" ? _musicCache.jamendo : _musicCache.freesound;
+    const cacheKey = `${query}::${category}`;
+    const cached = cacheMap.get(cacheKey);
+    let isActive = true;
+    const timer = setTimeout(async () => {
+      if (cached) {
+        setExternalTracks(cached);
+        setHasSearched(true);
+        setSearchError(null);
+        setIsLoading(false);
+        return;
+      }
+
+      setExternalTracks([]);
+      setSearchError(null);
+      setHasSearched(false);
+      setIsLoading(true);
+
+      try {
+        const results =
+          tab === "jamendo"
+            ? await searchJamendo(query, category || undefined)
+            : await searchFreesoundTracks(query, category || undefined);
+        if (!isActive) return;
+        cacheMap.set(cacheKey, results);
+        setExternalTracks(results);
+        setHasSearched(true);
+      } catch (err) {
+        if (!isActive) return;
+        setSearchError(err instanceof Error ? err.message : "Search failed.");
+        setHasSearched(true);
+      } finally {
+        if (!isActive) return;
+        setIsLoading(false);
+      }
+    }, cached || !query ? 0 : 500);
+    return () => {
+      isActive = false;
+      clearTimeout(timer);
+    };
+  }, [tab, query, category]);
+
+  function togglePreview(id: string, url: string) {
+    if (previewId === id) {
+      audioRef.current?.pause();
+      setPreviewId(null);
+    } else {
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.addEventListener("ended", () => setPreviewId(null));
+      }
+      audioRef.current.src = url;
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+      setPreviewId(id);
+    }
+  }
+
+  function stopPreview() {
+    audioRef.current?.pause();
+    setPreviewId(null);
+  }
+
+  function handleSelectLibrary(track: LibraryTrack) {
+    stopPreview();
+    onSelect({
+      id: `library_${track.id}`,
+      title: track.title,
+      artist: track.artist,
+      url: track.audioUrl,
+      duration: track.durationSeconds || undefined,
+      storedMediaPath: track.audioUrl.startsWith("/media/")
+        ? track.audioUrl.slice("/media/".length)
+        : track.audioUrl,
+    });
+  }
+
+  function handleSelectExternal(track: ExternalTrack) {
+    stopPreview();
+    onSelect({
+      id: track.id,
+      title: track.title,
+      artist: track.artist,
+      url: track.audioUrl,
+      duration: track.durationSeconds || undefined,
+    });
+  }
+
+  function handleNoMusic() {
+    stopPreview();
+    onSelect(sounds[0]);
+  }
+
+  const uploadedSound =
+    selectedSound.id !== "none" &&
+    selectedSound.url &&
+    !selectedSound.id.startsWith("library_") &&
+    !selectedSound.id.startsWith("jamendo_") &&
+    !selectedSound.id.startsWith("freesound_")
+      ? selectedSound
+      : null;
+
+  const tabs: Array<{ id: MusicTab; label: string }> = [
+    { id: "library", label: "Library" },
+    { id: "jamendo", label: "Jamendo" },
+    { id: "freesound", label: "Freesound" },
+  ];
+
+  const externalTabActive = tab === "jamendo" || tab === "freesound";
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end bg-black/45">
-      <div className="w-full rounded-t-[28px] bg-white px-5 pb-6 pt-3 text-black">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-black/15" />
-        <div className="mb-4 flex items-center justify-between">
+    <div className="absolute inset-0 flex flex-col bg-black/55">
+      <button
+        aria-label="Close sounds"
+        className="flex-1"
+        onClick={() => {
+          stopPreview();
+          onClose();
+        }}
+        type="button"
+      />
+      <div className="flex max-h-[80dvh] flex-col rounded-t-[28px] bg-white text-black">
+        <div className="mx-auto mt-3 h-1 w-12 shrink-0 rounded-full bg-black/15" />
+
+        <div className="flex items-center justify-between px-5 py-4 shrink-0">
           <h2 className="text-2xl font-black">Sounds</h2>
           <button
             className="grid size-10 place-items-center rounded-full bg-black/5"
-            onClick={onClose}
+            onClick={() => {
+              stopPreview();
+              onClose();
+            }}
             type="button"
           >
             <X className="size-6" />
           </button>
         </div>
-        <button
-          className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-[#8a62ff] px-3 py-3 text-left text-white"
-          onClick={onUpload}
-          type="button"
-        >
-          <span className="grid size-11 place-items-center rounded-full bg-white/15">
-            <Upload className="size-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-base font-black">
-              Upload music
-            </span>
-            <span className="block truncate text-sm font-semibold text-white/70">
-              MP3, M4A, WAV, AAC, or OGG
-            </span>
-          </span>
-          <ChevronRight className="size-5" />
-        </button>
-        <div className="space-y-2">
-          {selectedUploadedSound ? (
+
+        <div className="flex gap-1 border-b border-black/10 px-5 shrink-0">
+          {tabs.map((t) => (
             <button
-              className="flex w-full items-center gap-3 rounded-2xl border-2 border-[#8a62ff] bg-black/[0.04] px-3 py-3 text-left"
-              onClick={() => onSelect(selectedUploadedSound)}
+              key={t.id}
               type="button"
+              onClick={() => {
+                setTab(t.id);
+                setQuery("");
+                setCategory("");
+                setExternalTracks([]);
+                setSearchError(null);
+                setHasSearched(false);
+              }}
+              className={cn(
+                "pb-2 px-3 text-sm font-black transition border-b-2 -mb-px",
+                tab === t.id
+                  ? "border-[#8a62ff] text-[#8a62ff]"
+                  : "border-transparent text-black/45 hover:text-black/70",
+              )}
             >
-              <span className="grid size-11 place-items-center rounded-full bg-black text-white">
-                <Music2 className="size-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-black">
-                  {selectedUploadedSound.title}
-                </span>
-                <span className="block truncate text-sm font-semibold text-black/45">
-                  {selectedUploadedSound.artist}
-                  {selectedUploadedSound.duration
-                    ? ` · ${formatTime(selectedUploadedSound.duration)}`
-                    : ""}
-                </span>
-              </span>
-              <Check className="size-6 text-[#ff315f]" />
-            </button>
-          ) : null}
-          {sounds.map((sound) => (
-            <button
-              className="flex w-full items-center gap-3 rounded-2xl bg-black/[0.04] px-3 py-3 text-left"
-              key={sound.id}
-              onClick={() => onSelect(sound)}
-              type="button"
-            >
-              <span className="grid size-11 place-items-center rounded-full bg-black text-white">
-                {sound.id === "none" ? (
-                  <Pause className="size-5" />
-                ) : (
-                  <Music2 className="size-5" />
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-black">
-                  {sound.title}
-                </span>
-                <span className="block truncate text-sm font-semibold text-black/45">
-                  {sound.artist}
-                </span>
-              </span>
-              {selectedSound.id === sound.id ? (
-                <Check className="size-6 text-[#ff315f]" />
-              ) : null}
+              {t.label}
             </button>
           ))}
         </div>
+
+        {externalTabActive ? (
+          <div className="px-5 pt-3 pb-1 shrink-0 space-y-2">
+            <div className="flex items-center gap-2 rounded-xl bg-black/[0.06] px-3 py-2.5">
+              <Search className="size-4 shrink-0 text-black/40" />
+              <input
+                type="search"
+                placeholder={`Search ${tab === "jamendo" ? "Jamendo" : "Freesound"}…`}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-black/35"
+              />
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+              {(tab === "jamendo" ? JAMENDO_TAGS : FREESOUND_TAGS).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setCategory(cat.id)}
+                  className={cn(
+                    "shrink-0 rounded-full px-3 py-1 text-xs font-black transition",
+                    category === cat.id
+                      ? "bg-[#8a62ff] text-white"
+                      : "bg-black/[0.07] text-black/60 hover:bg-black/[0.12]",
+                  )}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex-1 overflow-y-auto px-5 pb-6 pt-2">
+          <div className="space-y-2">
+            <button
+              className={cn(
+                "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition",
+                selectedSound.id === "none"
+                  ? "border-2 border-[#8a62ff] bg-black/[0.04]"
+                  : "bg-black/[0.04] hover:bg-black/[0.07]",
+              )}
+              onClick={handleNoMusic}
+              type="button"
+            >
+              <span className="grid size-11 place-items-center rounded-full bg-black text-white">
+                <Pause className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-black">No music</span>
+                <span className="block truncate text-sm font-semibold text-black/40">
+                  Muted
+                </span>
+              </span>
+              {selectedSound.id === "none" ? (
+                <Check className="size-6 text-[#ff315f]" />
+              ) : null}
+            </button>
+
+            <button
+              className="flex w-full items-center gap-3 rounded-2xl bg-[#8a62ff] px-3 py-3 text-left text-white transition hover:opacity-90"
+              onClick={() => {
+                stopPreview();
+                onUpload();
+              }}
+              type="button"
+            >
+              <span className="grid size-11 place-items-center rounded-full bg-white/15">
+                <Upload className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-black">
+                  Upload your own
+                </span>
+                <span className="block truncate text-sm font-semibold text-white/65">
+                  MP3, M4A, WAV, AAC, OGG
+                </span>
+              </span>
+              <ChevronRight className="size-5" />
+            </button>
+
+            {uploadedSound ? (
+              <MusicTrackRow
+                id={uploadedSound.id}
+                title={uploadedSound.title}
+                artist={uploadedSound.artist}
+                audioUrl={uploadedSound.url!}
+                coverUrl={null}
+                durationSeconds={uploadedSound.duration}
+                isSelected={selectedSound.id === uploadedSound.id}
+                isPreviewing={previewId === uploadedSound.id}
+                onPreview={togglePreview}
+                onSelect={() => {
+                  stopPreview();
+                  onSelect(uploadedSound);
+                }}
+              />
+            ) : null}
+
+            {tab === "library" ? (
+              isLoading ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="size-5 animate-spin text-black/30" />
+                </div>
+              ) : libraryTracks.length === 0 ? (
+                <div className="py-8 text-center">
+                  <Music2 className="mx-auto mb-2 size-7 text-black/20" />
+                  <p className="text-sm font-semibold text-black/40">
+                    No library tracks yet
+                  </p>
+                  <p className="mt-0.5 text-xs text-black/30">
+                    Browse Jamendo or Freesound, or upload your own.
+                  </p>
+                </div>
+              ) : (
+                libraryTracks.map((track) => (
+                  <MusicTrackRow
+                    key={track.id}
+                    id={`library_${track.id}`}
+                    title={track.title}
+                    artist={track.artist}
+                    audioUrl={track.audioUrl}
+                    coverUrl={track.coverUrl}
+                    durationSeconds={track.durationSeconds}
+                    genre={track.genre ?? undefined}
+                    isSelected={selectedSound.id === `library_${track.id}`}
+                    isPreviewing={previewId === `library_${track.id}`}
+                    onPreview={togglePreview}
+                    onSelect={() => handleSelectLibrary(track)}
+                  />
+                ))
+              )
+            ) : externalTabActive ? (
+              isLoading ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="size-5 animate-spin text-black/30" />
+                </div>
+              ) : searchError ? (
+                <div className="py-6 text-center">
+                  <p className="text-sm font-semibold text-red-500">{searchError}</p>
+                  <p className="mt-1 text-xs text-black/40">Check your API key in Admin → Settings → Music APIs.</p>
+                </div>
+              ) : !hasSearched ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="size-5 animate-spin text-black/30" />
+                </div>
+              ) : externalTracks.length === 0 ? (
+                <div className="py-8 text-center">
+                  <Search className="mx-auto mb-2 size-7 text-black/20" />
+                  <p className="text-sm font-semibold text-black/40">No results found</p>
+                  <p className="mt-0.5 text-xs text-black/30">Try a different search term.</p>
+                </div>
+              ) : (
+                externalTracks.map((track) => (
+                  <MusicTrackRow
+                    key={track.id}
+                    id={track.id}
+                    title={track.title}
+                    artist={track.artist}
+                    audioUrl={track.audioUrl}
+                    coverUrl={track.coverUrl}
+                    durationSeconds={track.durationSeconds}
+                    isSelected={selectedSound.id === track.id}
+                    isPreviewing={previewId === track.id}
+                    onPreview={togglePreview}
+                    onSelect={() => handleSelectExternal(track)}
+                  />
+                ))
+              )
+            ) : null}
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function MusicTrackRow({
+  id,
+  title,
+  artist,
+  audioUrl,
+  coverUrl,
+  durationSeconds,
+  genre,
+  isSelected,
+  isPreviewing,
+  onPreview,
+  onSelect,
+}: {
+  id: string;
+  title: string;
+  artist: string;
+  audioUrl: string;
+  coverUrl: string | null | undefined;
+  durationSeconds: number | undefined;
+  genre?: string;
+  isSelected: boolean;
+  isPreviewing: boolean;
+  onPreview: (id: string, url: string) => void;
+  onSelect: () => void;
+}) {
+  const minutes = Math.floor((durationSeconds ?? 0) / 60);
+  const seconds = (durationSeconds ?? 0) % 60;
+  const durationLabel =
+    durationSeconds && durationSeconds > 0
+      ? `${minutes}:${String(seconds).padStart(2, "0")}`
+      : null;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-2xl px-3 py-3 transition",
+        isSelected
+          ? "border-2 border-[#8a62ff] bg-[#8a62ff]/[0.06]"
+          : "bg-black/[0.04] hover:bg-black/[0.07]",
+      )}
+    >
+      <button
+        type="button"
+        aria-label={isPreviewing ? "Pause preview" : "Play preview"}
+        onClick={() => onPreview(id, audioUrl)}
+        className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-black text-white"
+      >
+        {coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={coverUrl} alt="" className="absolute inset-0 size-full object-cover opacity-60" />
+        ) : null}
+        {isPreviewing ? (
+          <span className="relative z-10 flex items-end gap-0.5 h-4">
+            {[0, 0.2, 0.1].map((delay, i) => (
+              <span
+                key={i}
+                className="w-1 rounded-full bg-white animate-bounce"
+                style={{ height: "100%", animationDelay: `${delay}s` }}
+              />
+            ))}
+          </span>
+        ) : (
+          <Play className="relative z-10 size-4 translate-x-0.5" />
+        )}
+      </button>
+
+      <button
+        type="button"
+        className="min-w-0 flex-1 text-left"
+        onClick={onSelect}
+      >
+        <span className="block truncate text-base font-black">{title}</span>
+        <span className="block truncate text-sm font-semibold text-black/40">
+          {artist}
+          {genre ? ` · ${genre}` : ""}
+          {durationLabel ? ` · ${durationLabel}` : ""}
+        </span>
+      </button>
+
+      {isSelected ? (
+        <Check className="size-6 shrink-0 text-[#ff315f]" />
+      ) : null}
     </div>
   );
 }
@@ -4094,7 +4482,7 @@ function CoverSheet({
   selectedFrame: CoverFrame | null;
 }) {
   return (
-    <div className="absolute inset-0 z-50 flex items-end bg-black/45">
+    <div className="absolute inset-0 flex items-end bg-black/45">
       <div className="w-full rounded-t-[28px] bg-white px-5 pb-6 pt-3 text-black">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-black/15" />
         <div className="mb-4 flex items-center justify-between">

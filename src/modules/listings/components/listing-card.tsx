@@ -49,6 +49,7 @@ export type ListingCardData = {
   priceLabel?: string | null;
   pricePrefix?: string | null;
   propertyTypeLabel: string;
+  isPromoted?: boolean;
   savedByViewer?: boolean;
   saveCount?: number;
   saveCountLabel?: string;
@@ -409,6 +410,11 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         ) : null}
       </div>
       <div className="p-4">
+        {listing.isPromoted ? (
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+            Promoted
+          </p>
+        ) : null}
         <p className="text-xs font-black uppercase tracking-wide text-primary">
           {listing.unavailable ? unavailableLabel : listing.propertyTypeLabel}
         </p>

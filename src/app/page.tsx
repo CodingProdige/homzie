@@ -60,7 +60,10 @@ import {
 } from "@/modules/listings/server/discover-listings";
 import { getPlatformStats } from "@/modules/platform-stats/actions";
 import { LivePlatformStats } from "@/modules/platform-stats/components/live-platform-stats";
+import { ImpressionTracker } from "@/modules/ads/components/impression-tracker";
+import { getPromotedItems } from "@/modules/ads/promoted";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
+import { UserProfileCard } from "@/modules/users/components/user-profile-card";
 import { getRecommendedReelPreviews } from "@/modules/reels/server/recommendations";
 
 type HomePageProps = {
@@ -107,6 +110,7 @@ type HomeListingSummary = {
 
 type TopAgent = {
   avatarUrl: string | null;
+  headline: string | null;
   location: string;
   name: string;
   soldCount: number;
@@ -185,14 +189,6 @@ function formatCurrencyCompact(cents: number) {
   }).format(amount);
 }
 
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
 
 async function getHomeListings(countryName?: string) {
   const filters = [
@@ -247,6 +243,7 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
   const agentRows = await db
     .select({
       avatarUrl: users.avatarUrl,
+      headline: agentProfiles.headline,
       id: users.id,
       location: agentProfiles.location,
       name: users.name,
@@ -329,6 +326,7 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
 
       return {
         avatarUrl: toPublicMediaUrl(agent.avatarUrl),
+        headline: agent.headline,
         location: agent.location || countryName || "Homzie agent",
         name: agent.name,
         soldCount: totals.soldCount,
@@ -550,133 +548,7 @@ function MediaCard({
   );
 }
 
-function TopAgentRail({ agents }: { agents: TopAgent[] }) {
-  const shouldRotate = agents.length > 4;
-  const railAgents = shouldRotate ? [...agents, ...agents] : agents;
-  const agentRows = shouldRotate ? railAgents : agents;
 
-  return (
-    <div className="w-full overflow-hidden border-y border-border py-6">
-      <div className="mb-4 flex items-end justify-between gap-4">
-        <div>
-          <h2 className="text-base font-black tracking-tight text-foreground">
-            Top agents near you
-          </h2>
-          <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-            Ranked by recorded sold value over the past year.
-          </p>
-        </div>
-        <Link
-          href="/agents"
-          className="inline-flex shrink-0 items-center gap-1 text-xs font-black text-primary"
-        >
-          View all agents
-          <ChevronRight className="size-3.5" />
-        </Link>
-      </div>
-
-      {!agents.length ? (
-        <SectionEmptyState
-          actionHref="/agents"
-          actionLabel="Browse agents"
-          description="Agents will appear here once they have subscribed profiles or recorded sales activity."
-          title="No top agents to rank yet"
-        />
-      ) : shouldRotate ? (
-        <div className="[mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
-          <div className="flex w-max gap-3 motion-safe:animate-[top-agent-marquee_32s_linear_infinite] hover:[animation-play-state:paused]">
-            {agentRows.map((agent, index) => (
-              <Link
-                key={`${agent.username}-${index}`}
-                href={`/users/${agent.username}`}
-                className="group flex w-80 shrink-0 items-center gap-3 border-r border-border/70 pr-5 text-left text-foreground transition hover:text-primary"
-              >
-                <span className="w-6 text-sm font-black text-muted-foreground">
-                  {String((index % agents.length) + 1).padStart(2, "0")}
-                </span>
-                <div className="rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-0.5 transition group-hover:scale-105">
-                  {agent.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={agent.avatarUrl}
-                      alt={agent.name}
-                      className="size-12 rounded-full border-2 border-background object-cover"
-                    />
-                  ) : (
-                    <span className="grid size-12 place-items-center rounded-full border-2 border-background bg-brand-midnight text-sm font-black text-white">
-                      {initials(agent.name)}
-                    </span>
-                  )}
-                </div>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-black">
-                    {agent.name}
-                  </span>
-                  <span className="mt-0.5 block truncate text-xs font-semibold text-muted-foreground">
-                    {agent.location}
-                  </span>
-                  <span className="mt-1 block text-xs font-black text-primary">
-                    {agent.totalSoldValueCents > 0
-                      ? `${agent.totalSoldValueLabel} sold past year`
-                      : "Building sales record"}
-                  </span>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="divide-y divide-border border-y border-border">
-          {agentRows.map((agent, index) => (
-            <Link
-              key={agent.username}
-              href={`/users/${agent.username}`}
-              className="group grid gap-3 py-4 text-left text-foreground transition hover:bg-muted/35 hover:text-primary sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-            >
-              <span className="flex min-w-0 items-center gap-3">
-                <span className="w-6 text-sm font-black text-muted-foreground">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-0.5 transition group-hover:scale-105">
-                  {agent.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={agent.avatarUrl}
-                      alt={agent.name}
-                      className="size-12 rounded-full border-2 border-background object-cover"
-                    />
-                  ) : (
-                    <span className="grid size-12 place-items-center rounded-full border-2 border-background bg-brand-midnight text-sm font-black text-white">
-                      {initials(agent.name)}
-                    </span>
-                  )}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-black">
-                    {agent.name}
-                  </span>
-                  <span className="mt-0.5 block truncate text-xs font-semibold text-muted-foreground">
-                    {agent.location}
-                  </span>
-                </span>
-              </span>
-              <span className="grid gap-1 text-xs font-black text-primary sm:min-w-52 sm:text-right">
-                <span>
-                  {agent.totalSoldValueCents > 0
-                    ? `${agent.totalSoldValueLabel} sold past year`
-                    : "Building sales record"}
-                </span>
-                <span className="text-muted-foreground">
-                  {agent.soldCount} {agent.soldCount === 1 ? "sale" : "sales"} recorded
-                </span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const session = await getServerSession(authOptions);
@@ -698,6 +570,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     topAgents,
     platformStats,
     propertyFeed,
+    promotedItems,
   ] = await Promise.all([
     getHomeListings(countryLabel),
     getDiscoverListingFilterOptions({
@@ -715,7 +588,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       limit: homeDiscoverListingsPageSize,
       viewerUserId: session?.user?.id || null,
     }),
+    getPromotedItems({ areas: discoverFilters.areas }),
   ]);
+
+  // Shuffle promoted items so each page load shows a different order
+  const shuffle = <T,>(arr: T[]): T[] =>
+    arr
+      .map((item) => ({ item, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ item }) => item);
+
+  promotedItems.listings = shuffle(promotedItems.listings);
+  promotedItems.profiles = shuffle(promotedItems.profiles);
+  promotedItems.reels = shuffle(promotedItems.reels);
   const featuredListings: ListingCardData[] = [];
   const homeStats = buildHomeListingStats(homeListings);
 
@@ -761,8 +646,145 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </section>
 
         <section className="page-body mt-10">
-          <TopAgentRail agents={topAgents} />
+          <SectionHeader
+            actionHref="/agents"
+            actionLabel="View all agents"
+            eyebrow="Ranked by recorded sold value over the past year."
+            title="Top agents near you"
+          />
+          {topAgents.length ? (
+            <HorizontalScrollRail>
+              {topAgents.map((agent) => (
+                <UserProfileCard
+                  key={agent.username}
+                  profile={{
+                    avatarUrl: agent.avatarUrl,
+                    displayName: agent.name,
+                    headline: agent.headline,
+                    location: agent.location,
+                    soldCount: agent.soldCount,
+                    totalSoldValueLabel: agent.totalSoldValueLabel,
+                    username: agent.username,
+                  }}
+                />
+              ))}
+            </HorizontalScrollRail>
+          ) : (
+            <SectionEmptyState
+              actionHref="/agents"
+              actionLabel="Browse agents"
+              description="Agents will appear here once they have subscribed profiles or recorded sales activity."
+              title="No top agents to rank yet"
+            />
+          )}
         </section>
+
+        {promotedItems.listings.length ? (
+          <section className="page-body mt-10">
+            <SectionHeader
+              actionHref={appendCountryPreference("/listings", countryPreference)}
+              actionLabel="View all"
+              eyebrow="Listings being promoted by agents in your area."
+              title="Promoted Listings"
+            />
+            <HorizontalScrollRail>
+              {promotedItems.listings.map((listing) => (
+                <ImpressionTracker
+                  key={listing.campaignId}
+                  campaignId={listing.campaignId}
+                  className="w-72 shrink-0"
+                >
+                  <ListingCard
+                    listing={{
+                      bathrooms: listing.bathrooms,
+                      bedrooms: listing.bedrooms,
+                      coverImageUrl: listing.coverImageUrl,
+                      erfSize: listing.erfSize,
+                      floorSize: listing.floorSize,
+                      garages: listing.garages,
+                      href: listing.href,
+                      id: listing.id,
+                      isPromoted: true,
+                      listingType: listing.listingType,
+                      listingTypeLabel: listing.listingTypeLabel,
+                      location: listing.location,
+                      mandateType: listing.mandateType,
+                      parking: listing.parking,
+                      priceCents: listing.priceCents,
+                      priceLabel: listing.priceLabel,
+                      propertyTypeLabel: listing.propertyTypeLabel,
+                      title: listing.title,
+                    }}
+                  />
+                </ImpressionTracker>
+              ))}
+            </HorizontalScrollRail>
+          </section>
+        ) : null}
+
+        {promotedItems.profiles.length ? (
+          <section className="page-body mt-10">
+            <SectionHeader
+              actionHref="/agents"
+              actionLabel="View all agents"
+              eyebrow="Agents promoting their profiles in your area."
+              title="Promoted Agents"
+            />
+            <HorizontalScrollRail>
+              {promotedItems.profiles.map((profile) => (
+                <ImpressionTracker
+                  key={profile.campaignId}
+                  campaignId={profile.campaignId}
+                >
+                  <UserProfileCard
+                    profile={{
+                      avatarUrl: profile.avatarUrl,
+                      displayName: profile.displayName,
+                      headline: profile.headline,
+                      isPromoted: true,
+                      location: profile.location,
+                      username: profile.username,
+                    }}
+                  />
+                </ImpressionTracker>
+              ))}
+            </HorizontalScrollRail>
+          </section>
+        ) : null}
+
+        {promotedItems.reels.length ? (
+          <section className="page-body mt-10">
+            <SectionHeader
+              actionHref="/reels"
+              actionLabel="View all reels"
+              eyebrow="Reels being promoted by agents in your area."
+              title="Promoted Reels"
+            />
+            <HorizontalScrollRail>
+              {promotedItems.reels.map((reel) => (
+                <ImpressionTracker
+                  key={reel.campaignId}
+                  campaignId={reel.campaignId}
+                  className="w-44 shrink-0 sm:w-52"
+                >
+                  <ReelPreviewCard
+                    reel={{
+                      coverUrl: reel.coverUrl,
+                      durationLabel: reel.durationLabel,
+                      href: reel.href,
+                      id: reel.id,
+                      isPromoted: true,
+                      status: "published",
+                      title: reel.title,
+                      username: reel.username,
+                      viewCountLabel: reel.viewCountLabel,
+                    }}
+                  />
+                </ImpressionTracker>
+              ))}
+            </HorizontalScrollRail>
+          </section>
+        ) : null}
 
         <section className="page-body mt-10">
           <SectionHeader

@@ -32,7 +32,14 @@ export async function runReelRenderJob(job: ReelRenderJob) {
     });
 
     if (job.targetStatus === "published") {
-      await recordReelHashtagUsage(job.reelId);
+      try {
+        await recordReelHashtagUsage(job.reelId);
+      } catch (error) {
+        console.error("[reels] hashtag usage failed after render", {
+          error: error instanceof Error ? error.message : String(error),
+          reelId: job.reelId,
+        });
+      }
     }
   } catch (error) {
     await setReelRenderState({
