@@ -1,12 +1,14 @@
 "use server";
 
+import { createHash, randomBytes } from "node:crypto";
+
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { passwordResetTokens, users } from "@/db/schema";
 import {
   absoluteAppUrl,
   sendTemplatedEmailToUser,
@@ -39,6 +41,31 @@ const registerSchema = z.object({
 const usernameSchema = z.object({
   username: z.string().trim().min(1, "Choose a username."),
 });
+
+const passwordResetRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address."),
+});
+
+const resetPasswordSchema = z
+  .object({
+    confirmPassword: z.string().min(1, "Confirm your new password."),
+    password: z.string().min(8, "Password must be at least 8 characters."),
+    token: z.string().min(32, "This password reset link is invalid."),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
+const passwordResetTokenLifetimeMs = 30 * 60 * 1000;
+
+function hashResetToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function getFirstName(name: string) {
+  return name.split(/\s+/)[0] || name;
+}
 
 export async function checkUsernameAvailability(
   value: string,
@@ -146,6 +173,192 @@ export async function registerWithEmail(input: {
       ok: false,
       error: "Could not create your account. Please try again.",
     };
+  }
+
+  return { ok: true };
+}
+
+export async function requestPasswordReset(
+  _previousState: AuthActionResult,
+  formData: FormData,
+): Promise<AuthActionResult> {
+  const parsed = passwordResetRequestSchema.safeParse({
+    email: formData.get("email"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || "Enter a valid email address.",
+    };
+  }
+
+  const genericSuccess = { ok: true } satisfies AuthActionResult;
+  const [user] = await db
+    .select({
+      email: users.email,
+      id: users.id,
+      name: users.name,
+      passwordHash: users.passwordHash,
+      status: users.status,
+    })
+    .from(users)
+    .where(eq(users.email, parsed.data.email))
+    .limit(1);
+
+  if (!user || user.status !== "active" || !user.passwordHash) {
+    return genericSuccess;
+  }
+
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = hashResetToken(token);
+  const expiresAt = new Date(Date.now() + passwordResetTokenLifetimeMs);
+  const now = new Date();
+
+  await db
+    .update(passwordResetTokens)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(passwordResetTokens.userId, user.id),
+        isNull(passwordResetTokens.usedAt),
+      ),
+    );
+
+  await db.insert(passwordResetTokens).values({
+    expiresAt,
+    tokenHash,
+    userId: user.id,
+  });
+
+  await sendTemplatedEmailToUser({
+    bypassPreferences: true,
+    eventKey: "security.password_reset_requested",
+    templateKey: "security.password_reset_requested",
+    userId: user.id,
+    variables: {
+      app: {
+        name: "Homzie",
+        url: absoluteAppUrl("/"),
+      },
+      reset: {
+        expiresIn: "30 minutes",
+        url: absoluteAppUrl(`/reset-password?token=${encodeURIComponent(token)}`),
+      },
+      user: {
+        firstName: getFirstName(user.name),
+        name: user.name,
+      },
+    },
+  }).catch((error) => {
+    console.error("[email] password reset link failed", error);
+  });
+
+  return genericSuccess;
+}
+
+export async function validatePasswordResetToken(token: string) {
+  if (!token || token.length < 32) {
+    return null;
+  }
+
+  const [resetToken] = await db
+    .select({
+      expiresAt: passwordResetTokens.expiresAt,
+      userId: passwordResetTokens.userId,
+    })
+    .from(passwordResetTokens)
+    .where(
+      and(
+        eq(passwordResetTokens.tokenHash, hashResetToken(token)),
+        isNull(passwordResetTokens.usedAt),
+        gt(passwordResetTokens.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+
+  return resetToken || null;
+}
+
+export async function resetPasswordWithToken(
+  _previousState: AuthActionResult,
+  formData: FormData,
+): Promise<AuthActionResult> {
+  const parsed = resetPasswordSchema.safeParse({
+    confirmPassword: formData.get("confirmPassword"),
+    password: formData.get("password"),
+    token: formData.get("token"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || "Check your new password.",
+    };
+  }
+
+  const tokenHash = hashResetToken(parsed.data.token);
+  const [resetToken] = await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(
+      and(
+        eq(passwordResetTokens.tokenHash, tokenHash),
+        isNull(passwordResetTokens.usedAt),
+        gt(passwordResetTokens.expiresAt, new Date()),
+      ),
+    )
+    .returning({ userId: passwordResetTokens.userId });
+
+  if (!resetToken) {
+    return {
+      ok: false,
+      error: "This password reset link has expired or has already been used.",
+    };
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  const [updatedUser] = await db
+    .update(users)
+    .set({
+      passwordHash,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, resetToken.userId))
+    .returning({
+      id: users.id,
+      name: users.name,
+    });
+
+  if (updatedUser) {
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(passwordResetTokens.userId, updatedUser.id),
+          isNull(passwordResetTokens.usedAt),
+        ),
+      );
+
+    await sendTemplatedEmailToUser({
+      bypassPreferences: true,
+      eventKey: "security.password_changed",
+      templateKey: "security.password_changed",
+      userId: updatedUser.id,
+      variables: {
+        app: {
+          name: "Homzie",
+          url: absoluteAppUrl("/"),
+        },
+        user: {
+          firstName: getFirstName(updatedUser.name),
+          name: updatedUser.name,
+        },
+      },
+    }).catch((error) => {
+      console.error("[email] password changed failed", error);
+    });
   }
 
   return { ok: true };

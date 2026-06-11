@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import {
@@ -43,10 +45,7 @@ import {
   parseCountryPreference,
   type CountryPreference,
 } from "@/modules/location/country-preference";
-import {
-  ListingCard,
-  type ListingCardData,
-} from "@/modules/listings/components/listing-card";
+import { ListingCard } from "@/modules/listings/components/listing-card";
 import { ListingsInfiniteGrid } from "@/modules/listings/components/listings-infinite-grid";
 import { PropertySearchBar } from "@/modules/listings/components/property-search-bar";
 import {
@@ -461,6 +460,38 @@ function SectionEmptyState({
   );
 }
 
+function RailSkeleton({
+  cardClassName = "h-44 w-64",
+  count = 4,
+}: {
+  cardClassName?: string;
+  count?: number;
+}) {
+  return (
+    <div className="flex gap-4 overflow-hidden">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className={`${cardClassName} shrink-0 animate-pulse rounded-lg border border-border bg-muted/55`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function GridSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-80 animate-pulse rounded-lg border border-border bg-muted/55"
+        />
+      ))}
+    </div>
+  );
+}
+
 function CategoryCard({
   count,
   href,
@@ -548,6 +579,374 @@ function MediaCard({
   );
 }
 
+const shuffle = <T,>(arr: T[]): T[] =>
+  arr
+    .map((item) => ({ item, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ item }) => item);
+
+async function LiveStatsSection() {
+  const platformStats = await getPlatformStats();
+
+  return <LivePlatformStats initialStats={platformStats} />;
+}
+
+async function TopAgentsSection({
+  countryLabel,
+}: {
+  countryLabel?: string;
+}) {
+  const topAgents = await getTopSubscribedAgents(countryLabel);
+
+  return (
+    <section className="page-body mt-10">
+      <SectionHeader
+        actionHref="/agents"
+        actionLabel="View all agents"
+        eyebrow="Ranked by recorded sold value over the past year."
+        title="Top agents near you"
+      />
+      {topAgents.length ? (
+        <HorizontalScrollRail>
+          {topAgents.map((agent) => (
+            <UserProfileCard
+              key={agent.username}
+              profile={{
+                avatarUrl: agent.avatarUrl,
+                displayName: agent.name,
+                headline: agent.headline,
+                location: agent.location,
+                soldCount: agent.soldCount,
+                totalSoldValueLabel: agent.totalSoldValueLabel,
+                username: agent.username,
+              }}
+            />
+          ))}
+        </HorizontalScrollRail>
+      ) : (
+        <SectionEmptyState
+          actionHref="/agents"
+          actionLabel="Browse agents"
+          description="Agents will appear here once they have subscribed profiles or recorded sales activity."
+          title="No top agents to rank yet"
+        />
+      )}
+    </section>
+  );
+}
+
+async function PromotedHomeSections({
+  areas,
+  countryPreference,
+}: {
+  areas: string[];
+  countryPreference?: CountryPreference | null;
+}) {
+  const promotedItems = await getPromotedItems({ areas });
+  const promotedListings = shuffle(promotedItems.listings);
+  const promotedProfiles = shuffle(promotedItems.profiles);
+  const promotedReels = shuffle(promotedItems.reels);
+
+  return (
+    <>
+      {promotedListings.length ? (
+        <section className="page-body mt-10">
+          <SectionHeader
+            actionHref={appendCountryPreference("/listings", countryPreference)}
+            actionLabel="View all"
+            eyebrow="Listings being promoted by agents in your area."
+            title="Promoted Listings"
+          />
+          <HorizontalScrollRail>
+            {promotedListings.map((listing) => (
+              <ImpressionTracker
+                key={listing.campaignId}
+                campaignId={listing.campaignId}
+                className="w-72 shrink-0"
+              >
+                <ListingCard
+                  listing={{
+                    bathrooms: listing.bathrooms,
+                    bedrooms: listing.bedrooms,
+                    coverImageUrl: listing.coverImageUrl,
+                    erfSize: listing.erfSize,
+                    floorSize: listing.floorSize,
+                    garages: listing.garages,
+                    href: listing.href,
+                    id: listing.id,
+                    isPromoted: true,
+                    listingType: listing.listingType,
+                    listingTypeLabel: listing.listingTypeLabel,
+                    location: listing.location,
+                    mandateType: listing.mandateType,
+                    parking: listing.parking,
+                    priceCents: listing.priceCents,
+                    priceLabel: listing.priceLabel,
+                    propertyTypeLabel: listing.propertyTypeLabel,
+                    title: listing.title,
+                  }}
+                />
+              </ImpressionTracker>
+            ))}
+          </HorizontalScrollRail>
+        </section>
+      ) : null}
+
+      {promotedProfiles.length ? (
+        <section className="page-body mt-10">
+          <SectionHeader
+            actionHref="/agents"
+            actionLabel="View all agents"
+            eyebrow="Agents promoting their profiles in your area."
+            title="Promoted Agents"
+          />
+          <HorizontalScrollRail>
+            {promotedProfiles.map((profile) => (
+              <ImpressionTracker
+                key={profile.campaignId}
+                campaignId={profile.campaignId}
+              >
+                <UserProfileCard
+                  profile={{
+                    avatarUrl: profile.avatarUrl,
+                    displayName: profile.displayName,
+                    headline: profile.headline,
+                    isPromoted: true,
+                    location: profile.location,
+                    username: profile.username,
+                  }}
+                />
+              </ImpressionTracker>
+            ))}
+          </HorizontalScrollRail>
+        </section>
+      ) : null}
+
+      {promotedReels.length ? (
+        <section className="page-body mt-10">
+          <SectionHeader
+            actionHref="/reels"
+            actionLabel="View all reels"
+            eyebrow="Reels being promoted by agents in your area."
+            title="Promoted Reels"
+          />
+          <HorizontalScrollRail>
+            {promotedReels.map((reel) => (
+              <ImpressionTracker
+                key={reel.campaignId}
+                campaignId={reel.campaignId}
+                className="w-44 shrink-0 sm:w-52"
+              >
+                <ReelPreviewCard
+                  reel={{
+                    coverUrl: reel.coverUrl,
+                    durationLabel: reel.durationLabel,
+                    href: reel.href,
+                    id: reel.id,
+                    isPromoted: true,
+                    status: "published",
+                    title: reel.title,
+                    username: reel.username,
+                    viewCountLabel: reel.viewCountLabel,
+                  }}
+                />
+              </ImpressionTracker>
+            ))}
+          </HorizontalScrollRail>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+async function BrowseHomeSections({
+  countryLabel,
+  countryPreference,
+}: {
+  countryLabel?: string;
+  countryPreference?: CountryPreference | null;
+}) {
+  const homeListings = await getHomeListings(countryLabel);
+  const homeStats = buildHomeListingStats(homeListings);
+
+  return (
+    <>
+      <section className="page-body mt-10">
+        <SectionHeader
+          actionHref={appendCountryPreference("/listings", countryPreference)}
+          actionLabel="View all"
+          title="Browse by listing type"
+        />
+        <HorizontalScrollRail>
+          {listingTypeOptions.map((option) => (
+            <CategoryCard
+              key={option.value}
+              count={homeStats.listingTypeCounts.get(option.value) || 0}
+              href={categoryHref(
+                { listingType: option.value },
+                countryPreference,
+              )}
+              icon={option.icon}
+              label={option.label}
+              sublabel={option.description}
+            />
+          ))}
+        </HorizontalScrollRail>
+      </section>
+
+      <section className="page-body mt-10">
+        <SectionHeader
+          actionHref={appendCountryPreference("/listings", countryPreference)}
+          actionLabel="View all"
+          title="Browse by property type"
+        />
+        <HorizontalScrollRail>
+          {propertyTypeOptions.map((option) => (
+            <CategoryCard
+              key={option.value}
+              count={homeStats.propertyTypeCounts.get(option.value) || 0}
+              href={categoryHref(
+                { propertyType: option.value },
+                countryPreference,
+              )}
+              icon={option.icon}
+              label={option.label}
+              sublabel={`${option.listingTypes.length} listing ${
+                option.listingTypes.length === 1 ? "type" : "types"
+              }`}
+            />
+          ))}
+        </HorizontalScrollRail>
+      </section>
+
+      <section className="page-body mt-10">
+        <SectionHeader
+          actionHref={appendCountryPreference("/listings", countryPreference)}
+          actionLabel="View all areas"
+          title="Explore by Area"
+        />
+        {homeStats.areas.length ? (
+          <HorizontalScrollRail>
+            {homeStats.areas.map((area) => (
+              <div key={area.title} className="w-60 shrink-0 sm:w-72">
+                <MediaCard
+                  aspect="aspect-[5/3]"
+                  compact
+                  item={{
+                    imageUrl: area.imageUrl,
+                    meta: listingCountLabel(area.count),
+                    showBadge: false,
+                    title: area.title,
+                    href: areaHref(area.title, countryPreference),
+                  }}
+                />
+              </div>
+            ))}
+          </HorizontalScrollRail>
+        ) : (
+          <SectionEmptyState
+            actionHref={appendCountryPreference("/listings", countryPreference)}
+            actionLabel="Browse listings"
+            description="Areas will appear here once listings include searchable location data."
+            title="No areas to explore yet"
+          />
+        )}
+      </section>
+    </>
+  );
+}
+
+async function AgentReelsSection({
+  areas,
+  countryPreference,
+  viewerUserId,
+}: {
+  areas: string[];
+  countryPreference?: CountryPreference | null;
+  viewerUserId?: string | null;
+}) {
+  const homeReels = await getHomeReels({
+    areas,
+    countryPreference,
+    viewerUserId,
+  });
+
+  return (
+    <section className="page-body mt-10">
+      <SectionHeader
+        actionHref="/reels"
+        actionLabel="View all reels"
+        eyebrow="Get inspired by agents. Watch, connect and find your next home."
+        title="Agent Reels"
+      />
+      {homeReels.length ? (
+        <HorizontalScrollRail>
+          {homeReels.map((reel) => (
+            <div key={reel.id} className="w-44 shrink-0 sm:w-52">
+              <ReelPreviewCard reel={reel} />
+            </div>
+          ))}
+        </HorizontalScrollRail>
+      ) : (
+        <SectionEmptyState
+          actionHref="/reels"
+          actionLabel="Open reels"
+          description="Property reels will appear here once agents begin publishing video."
+          title="No agent reels yet"
+        />
+      )}
+    </section>
+  );
+}
+
+async function DiscoverPropertiesSection({
+  countryLabel,
+  countryPreference,
+  discoverFilters,
+  viewerUserId,
+}: {
+  countryLabel?: string;
+  countryPreference?: CountryPreference | null;
+  discoverFilters: ReturnType<typeof normalizeDiscoverListingFilters>;
+  viewerUserId?: string | null;
+}) {
+  const propertyFeed = await getDiscoverListings({
+    filters: discoverFilters,
+    limit: homeDiscoverListingsPageSize,
+    viewerUserId,
+  });
+
+  return (
+    <section className="page-body mt-10">
+      <SectionHeader
+        eyebrow={
+          countryLabel
+            ? `Showing published listings in ${countryLabel}.`
+            : "Showing recently published listings."
+        }
+        title="Discover Properties"
+      />
+      {propertyFeed.listings.length ? (
+        <ListingsInfiniteGrid
+          filters={discoverFilters}
+          initialHasMore={propertyFeed.hasMore}
+          initialListings={propertyFeed.listings}
+          initialNextOffset={propertyFeed.nextOffset}
+          loadMoreLimit={homeDiscoverListingsPageSize}
+          totalCount={propertyFeed.totalCount}
+        />
+      ) : (
+        <SectionEmptyState
+          actionHref={appendCountryPreference("/listings", countryPreference)}
+          actionLabel="View all listings"
+          description="No published listings match the current home search filters."
+          title="No listings found"
+        />
+      )}
+    </section>
+  );
+}
+
 
 
 export default async function HomePage({ searchParams }: HomePageProps) {
@@ -563,46 +962,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     ...query,
     countryName: query.countryName || countryLabel,
   });
-  const [
-    homeListings,
-    filterOptions,
-    homeReels,
-    topAgents,
-    platformStats,
-    propertyFeed,
-    promotedItems,
-  ] = await Promise.all([
-    getHomeListings(countryLabel),
-    getDiscoverListingFilterOptions({
-      countryName: discoverFilters.countryName,
-    }),
-    getHomeReels({
-      areas: discoverFilters.areas,
-      countryPreference,
-      viewerUserId: session?.user?.id || null,
-    }),
-    getTopSubscribedAgents(countryLabel),
-    getPlatformStats(),
-    getDiscoverListings({
-      filters: discoverFilters,
-      limit: homeDiscoverListingsPageSize,
-      viewerUserId: session?.user?.id || null,
-    }),
-    getPromotedItems({ areas: discoverFilters.areas }),
-  ]);
-
-  // Shuffle promoted items so each page load shows a different order
-  const shuffle = <T,>(arr: T[]): T[] =>
-    arr
-      .map((item) => ({ item, sort: Math.random() }))
-      .sort((a, b) => a.sort - b.sort)
-      .map(({ item }) => item);
-
-  promotedItems.listings = shuffle(promotedItems.listings);
-  promotedItems.profiles = shuffle(promotedItems.profiles);
-  promotedItems.reels = shuffle(promotedItems.reels);
-  const featuredListings: ListingCardData[] = [];
-  const homeStats = buildHomeListingStats(homeListings);
+  const filterOptions = await getDiscoverListingFilterOptions({
+    countryName: discoverFilters.countryName,
+  });
+  const viewerUserId = session?.user?.id || null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -613,9 +976,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       />
       <main className="pb-14">
         <section className="relative isolate min-h-[760px] overflow-hidden pt-16 sm:min-h-[820px] sm:pt-28">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${heroImage})` }}
+          <Image
+            src={heroImage}
+            alt=""
+            fill
+            preload
+            sizes="100vw"
+            className="absolute inset-0 object-cover object-center"
           />
           <div className="hero-theme-overlay absolute inset-0" />
 
@@ -637,304 +1004,112 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               countryName={discoverFilters.countryName}
               filters={discoverFilters}
               options={filterOptions}
-              resultCount={propertyFeed.totalCount}
               variant="hero"
             />
 
-            <LivePlatformStats initialStats={platformStats} />
+            <Suspense
+              fallback={
+                <div className="mt-7 hidden h-5 w-full max-w-3xl animate-pulse rounded-full bg-muted/45 sm:block" />
+              }
+            >
+              <LiveStatsSection />
+            </Suspense>
           </div>
         </section>
 
-        <section className="page-body mt-10">
-          <SectionHeader
-            actionHref="/agents"
-            actionLabel="View all agents"
-            eyebrow="Ranked by recorded sold value over the past year."
-            title="Top agents near you"
+        <Suspense
+          fallback={
+            <section className="page-body mt-10">
+              <SectionHeader
+                actionHref="/agents"
+                actionLabel="View all agents"
+                eyebrow="Ranked by recorded sold value over the past year."
+                title="Top agents near you"
+              />
+              <RailSkeleton />
+            </section>
+          }
+        >
+          <TopAgentsSection countryLabel={countryLabel} />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <PromotedHomeSections
+            areas={discoverFilters.areas}
+            countryPreference={countryPreference}
           />
-          {topAgents.length ? (
-            <HorizontalScrollRail>
-              {topAgents.map((agent) => (
-                <UserProfileCard
-                  key={agent.username}
-                  profile={{
-                    avatarUrl: agent.avatarUrl,
-                    displayName: agent.name,
-                    headline: agent.headline,
-                    location: agent.location,
-                    soldCount: agent.soldCount,
-                    totalSoldValueLabel: agent.totalSoldValueLabel,
-                    username: agent.username,
-                  }}
+        </Suspense>
+
+        <Suspense
+          fallback={
+            <>
+              <section className="page-body mt-10">
+                <SectionHeader
+                  actionHref={appendCountryPreference("/listings", countryPreference)}
+                  actionLabel="View all"
+                  title="Browse by listing type"
                 />
-              ))}
-            </HorizontalScrollRail>
-          ) : (
-            <SectionEmptyState
-              actionHref="/agents"
-              actionLabel="Browse agents"
-              description="Agents will appear here once they have subscribed profiles or recorded sales activity."
-              title="No top agents to rank yet"
-            />
-          )}
-        </section>
-
-        {promotedItems.listings.length ? (
-          <section className="page-body mt-10">
-            <SectionHeader
-              actionHref={appendCountryPreference("/listings", countryPreference)}
-              actionLabel="View all"
-              eyebrow="Listings being promoted by agents in your area."
-              title="Promoted Listings"
-            />
-            <HorizontalScrollRail>
-              {promotedItems.listings.map((listing) => (
-                <ImpressionTracker
-                  key={listing.campaignId}
-                  campaignId={listing.campaignId}
-                  className="w-72 shrink-0"
-                >
-                  <ListingCard
-                    listing={{
-                      bathrooms: listing.bathrooms,
-                      bedrooms: listing.bedrooms,
-                      coverImageUrl: listing.coverImageUrl,
-                      erfSize: listing.erfSize,
-                      floorSize: listing.floorSize,
-                      garages: listing.garages,
-                      href: listing.href,
-                      id: listing.id,
-                      isPromoted: true,
-                      listingType: listing.listingType,
-                      listingTypeLabel: listing.listingTypeLabel,
-                      location: listing.location,
-                      mandateType: listing.mandateType,
-                      parking: listing.parking,
-                      priceCents: listing.priceCents,
-                      priceLabel: listing.priceLabel,
-                      propertyTypeLabel: listing.propertyTypeLabel,
-                      title: listing.title,
-                    }}
-                  />
-                </ImpressionTracker>
-              ))}
-            </HorizontalScrollRail>
-          </section>
-        ) : null}
-
-        {promotedItems.profiles.length ? (
-          <section className="page-body mt-10">
-            <SectionHeader
-              actionHref="/agents"
-              actionLabel="View all agents"
-              eyebrow="Agents promoting their profiles in your area."
-              title="Promoted Agents"
-            />
-            <HorizontalScrollRail>
-              {promotedItems.profiles.map((profile) => (
-                <ImpressionTracker
-                  key={profile.campaignId}
-                  campaignId={profile.campaignId}
-                >
-                  <UserProfileCard
-                    profile={{
-                      avatarUrl: profile.avatarUrl,
-                      displayName: profile.displayName,
-                      headline: profile.headline,
-                      isPromoted: true,
-                      location: profile.location,
-                      username: profile.username,
-                    }}
-                  />
-                </ImpressionTracker>
-              ))}
-            </HorizontalScrollRail>
-          </section>
-        ) : null}
-
-        {promotedItems.reels.length ? (
-          <section className="page-body mt-10">
-            <SectionHeader
-              actionHref="/reels"
-              actionLabel="View all reels"
-              eyebrow="Reels being promoted by agents in your area."
-              title="Promoted Reels"
-            />
-            <HorizontalScrollRail>
-              {promotedItems.reels.map((reel) => (
-                <ImpressionTracker
-                  key={reel.campaignId}
-                  campaignId={reel.campaignId}
-                  className="w-44 shrink-0 sm:w-52"
-                >
-                  <ReelPreviewCard
-                    reel={{
-                      coverUrl: reel.coverUrl,
-                      durationLabel: reel.durationLabel,
-                      href: reel.href,
-                      id: reel.id,
-                      isPromoted: true,
-                      status: "published",
-                      title: reel.title,
-                      username: reel.username,
-                      viewCountLabel: reel.viewCountLabel,
-                    }}
-                  />
-                </ImpressionTracker>
-              ))}
-            </HorizontalScrollRail>
-          </section>
-        ) : null}
-
-        <section className="page-body mt-10">
-          <SectionHeader
-            actionHref={appendCountryPreference("/listings", countryPreference)}
-            actionLabel="View all"
-            title="Browse by listing type"
+                <RailSkeleton />
+              </section>
+              <section className="page-body mt-10">
+                <SectionHeader
+                  actionHref={appendCountryPreference("/listings", countryPreference)}
+                  actionLabel="View all"
+                  title="Browse by property type"
+                />
+                <RailSkeleton />
+              </section>
+            </>
+          }
+        >
+          <BrowseHomeSections
+            countryLabel={countryLabel}
+            countryPreference={countryPreference}
           />
-          <HorizontalScrollRail>
-            {listingTypeOptions.map((option) => (
-              <CategoryCard
-                key={option.value}
-                count={homeStats.listingTypeCounts.get(option.value) || 0}
-                href={categoryHref(
-                  { listingType: option.value },
-                  countryPreference,
-                )}
-                icon={option.icon}
-                label={option.label}
-                sublabel={option.description}
+        </Suspense>
+
+        <Suspense
+          fallback={
+            <section className="page-body mt-10">
+              <SectionHeader
+                actionHref="/reels"
+                actionLabel="View all reels"
+                eyebrow="Get inspired by agents. Watch, connect and find your next home."
+                title="Agent Reels"
               />
-            ))}
-          </HorizontalScrollRail>
-        </section>
-
-        <section className="page-body mt-10">
-          <SectionHeader
-            actionHref={appendCountryPreference("/listings", countryPreference)}
-            actionLabel="View all"
-            title="Browse by property type"
+              <RailSkeleton cardClassName="h-64 w-44 sm:w-52" />
+            </section>
+          }
+        >
+          <AgentReelsSection
+            areas={discoverFilters.areas}
+            countryPreference={countryPreference}
+            viewerUserId={viewerUserId}
           />
-          <HorizontalScrollRail>
-            {propertyTypeOptions.map((option) => (
-              <CategoryCard
-                key={option.value}
-                count={homeStats.propertyTypeCounts.get(option.value) || 0}
-                href={categoryHref(
-                  { propertyType: option.value },
-                  countryPreference,
-                )}
-                icon={option.icon}
-                label={option.label}
-                sublabel={`${option.listingTypes.length} listing ${
-                  option.listingTypes.length === 1 ? "type" : "types"
-                }`}
+        </Suspense>
+
+        <Suspense
+          fallback={
+            <section className="page-body mt-10">
+              <SectionHeader
+                eyebrow={
+                  countryLabel
+                    ? `Showing published listings in ${countryLabel}.`
+                    : "Showing recently published listings."
+                }
+                title="Discover Properties"
               />
-            ))}
-          </HorizontalScrollRail>
-        </section>
-
-        <section className="page-body mt-10">
-          <SectionHeader
-            actionHref="/reels"
-            actionLabel="View all reels"
-            eyebrow="Get inspired by agents. Watch, connect and find your next home."
-            title="Agent Reels"
+              <GridSkeleton />
+            </section>
+          }
+        >
+          <DiscoverPropertiesSection
+            countryLabel={countryLabel}
+            countryPreference={countryPreference}
+            discoverFilters={discoverFilters}
+            viewerUserId={viewerUserId}
           />
-          {homeReels.length ? (
-            <HorizontalScrollRail>
-              {homeReels.map((reel) => (
-                <div key={reel.id} className="w-44 shrink-0 sm:w-52">
-                  <ReelPreviewCard reel={reel} />
-                </div>
-              ))}
-            </HorizontalScrollRail>
-          ) : (
-            <SectionEmptyState
-              actionHref="/reels"
-              actionLabel="Open reels"
-              description="Property reels will appear here once agents begin publishing video."
-              title="No agent reels yet"
-            />
-          )}
-        </section>
-
-        <section className="page-body mt-10">
-          <SectionHeader
-            actionHref={appendCountryPreference("/listings", countryPreference)}
-            actionLabel="View all areas"
-            title="Explore by Area"
-          />
-          {homeStats.areas.length ? (
-            <HorizontalScrollRail>
-              {homeStats.areas.map((area) => (
-                <div key={area.title} className="w-60 shrink-0 sm:w-72">
-                  <MediaCard
-                    aspect="aspect-[5/3]"
-                    compact
-                    item={{
-                      imageUrl: area.imageUrl,
-                      meta: listingCountLabel(area.count),
-                      showBadge: false,
-                      title: area.title,
-                      href: areaHref(area.title, countryPreference),
-                    }}
-                  />
-                </div>
-              ))}
-            </HorizontalScrollRail>
-          ) : (
-            <SectionEmptyState
-              actionHref={appendCountryPreference("/listings", countryPreference)}
-              actionLabel="Browse listings"
-              description="Areas will appear here once listings include searchable location data."
-              title="No areas to explore yet"
-            />
-          )}
-        </section>
-
-        {featuredListings.length ? (
-          <section className="page-body mt-10">
-            <SectionHeader
-              actionHref={appendCountryPreference("/listings", countryPreference)}
-              actionLabel="View featured"
-              title="Featured Properties"
-            />
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {featuredListings.map((listing) => (
-                <ListingCard key={listing.id} listing={listing} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="page-body mt-10">
-          <SectionHeader
-            eyebrow={
-              countryLabel
-                ? `Showing published listings in ${countryLabel}.`
-                : "Showing recently published listings."
-            }
-            title="Discover Properties"
-          />
-          {propertyFeed.listings.length ? (
-            <ListingsInfiniteGrid
-              filters={discoverFilters}
-              initialHasMore={propertyFeed.hasMore}
-              initialListings={propertyFeed.listings}
-              initialNextOffset={propertyFeed.nextOffset}
-              loadMoreLimit={homeDiscoverListingsPageSize}
-              totalCount={propertyFeed.totalCount}
-            />
-          ) : (
-            <SectionEmptyState
-              actionHref={appendCountryPreference("/listings", countryPreference)}
-              actionLabel="View all listings"
-              description="No published listings match the current home search filters."
-              title="No listings found"
-            />
-          )}
-        </section>
+        </Suspense>
 
         <section className="page-body mt-10">
           <div className="grid gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm sm:grid-cols-[1fr_auto] sm:items-center">

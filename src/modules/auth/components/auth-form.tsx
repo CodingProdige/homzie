@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { LockKeyhole, Mail, UserRound } from "lucide-react";
 
@@ -100,9 +101,9 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Password</Label>
           {!isRegister ? (
-            <a href="#" className="text-sm font-semibold text-foreground">
+            <Link href="/forgot-password" className="text-sm font-semibold text-foreground">
               Forgot password?
-            </a>
+            </Link>
           ) : null}
         </div>
         <PasswordInput isRegister={isRegister} />

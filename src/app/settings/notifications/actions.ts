@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { db } from "@/db";
 import { userNotificationPreferences } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
+import { emailNotificationEventKeys } from "@/modules/email/events";
 
 export type NotificationPreferencesState = {
   message: string;
@@ -36,6 +37,12 @@ export async function updateNotificationPreferences(
   const values = {
     callsEnabled: isChecked(formData, "callsEnabled"),
     emailEnabled: isChecked(formData, "emailEnabled"),
+    emailEventPreferences: Object.fromEntries(
+      emailNotificationEventKeys.map((key) => [
+        key,
+        isChecked(formData, `emailEvent:${key}`),
+      ]),
+    ),
     listingActivityEnabled: isChecked(formData, "listingActivityEnabled"),
     marketingEnabled: isChecked(formData, "marketingEnabled"),
     messagesEnabled: isChecked(formData, "messagesEnabled"),

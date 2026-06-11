@@ -11,7 +11,7 @@ import {
   recordAdCampaignLifecycleEvent,
   syncAdCampaignSpend,
 } from "@/modules/ads/billing";
-import { buildAdForecast } from "@/modules/ads/forecast";
+import { buildAdForecast, formatCurrencyFromCents } from "@/modules/ads/forecast";
 import { getActiveAgentSubscription } from "@/modules/agents/queries";
 import {
   adChannels,
@@ -28,6 +28,10 @@ import { getStoredAdsSettings } from "@/modules/platform-settings/ads-settings";
 import { getStoredGoogleAdsSettings } from "@/modules/platform-settings/google-ads-settings";
 import { authOptions } from "@/modules/auth/config";
 import { absoluteUrl } from "@/modules/site/url";
+import {
+  absoluteAppUrl,
+  notifyUser,
+} from "@/modules/email/server";
 import type { CreateAdCampaignState } from "./action-state";
 import type { TargetAreaScope, TargetAreaSelection } from "./types";
 
@@ -227,6 +231,42 @@ function buildGeneratedCampaignName(promotedType: "profile" | "listing" | "reel"
   }
 
   return `Profile promotion - ${dateLabel}`;
+}
+
+async function notifyCampaignPublished({
+  budgetCents,
+  channels,
+  issue,
+  name,
+  userId,
+}: {
+  budgetCents: number;
+  channels: string[];
+  issue?: string;
+  name: string;
+  userId: string;
+}) {
+  await notifyUser({
+    eventKey: issue ? "ads.campaign_needs_attention" : "ads.campaign_published",
+    preferenceCategory: "marketing",
+    templateKey: issue ? "ads.campaign_needs_attention" : "ads.campaign_published",
+    userId,
+    variables: {
+      app: {
+        name: "Homzie",
+        url: absoluteAppUrl("/"),
+      },
+      campaign: {
+        budget: formatCurrencyFromCents(budgetCents),
+        channels: channels
+          .map((channel) => (channel === "google" ? "Google" : "Homzie"))
+          .join(" and "),
+        issue: issue || "",
+        name,
+      },
+      campaignsUrl: absoluteAppUrl("/settings/ads-center/campaigns"),
+    },
+  });
 }
 
 function splitBudget(totalBudgetCents: number, channelsCount: number, index: number) {
@@ -439,6 +479,19 @@ export async function createAdCampaign(
       try {
         await syncGoogleDsaCampaignState();
       } catch (error) {
+        const issue =
+          error instanceof Error
+            ? `Google feed sync needs attention: ${error.message}`
+            : "Google feed sync needs attention.";
+        await notifyCampaignPublished({
+          budgetCents: totalBudgetCents,
+          channels: uniqueChannels,
+          issue,
+          name: generatedName,
+          userId,
+        }).catch((emailError) => {
+          console.error("[email] campaign attention failed", emailError);
+        });
         return {
           ok: true,
           message:
@@ -451,6 +504,15 @@ export async function createAdCampaign(
 
     revalidatePath("/settings/ads-center");
     revalidatePath("/settings/ads-center/campaigns");
+
+    await notifyCampaignPublished({
+      budgetCents: totalBudgetCents,
+      channels: uniqueChannels,
+      name: generatedName,
+      userId,
+    }).catch((error) => {
+      console.error("[email] campaign published failed", error);
+    });
 
     return {
       ok: true,

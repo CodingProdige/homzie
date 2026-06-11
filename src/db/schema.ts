@@ -101,6 +101,24 @@ export const subscriptions = pgTable("subscriptions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("password_reset_tokens_user_id_idx").on(table.userId),
+    index("password_reset_tokens_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
 export const platformSettings = pgTable("platform_settings", {
   key: text("key").primaryKey(),
   value: jsonb("value").notNull().default({}),
@@ -990,6 +1008,9 @@ export const userNotificationPreferences = pgTable(
       .notNull()
       .default(true),
     marketingEnabled: boolean("marketing_enabled").notNull().default(false),
+    emailEventPreferences: jsonb("email_event_preferences")
+      .notNull()
+      .default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1318,6 +1339,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   profileViewEvents: many(profileViewEvents, { relationName: "profileOwner" }),
   recordedProfileViews: many(profileViewEvents, { relationName: "profileViewer" }),
   notificationPreferences: one(userNotificationPreferences),
+  passwordResetTokens: many(passwordResetTokens),
   adCampaigns: many(adCampaigns),
   adCampaignDeliveryDaily: many(adCampaignDeliveryDaily),
   adInvoices: many(adInvoices),
@@ -1350,6 +1372,16 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
     references: [agentProfiles.id],
   }),
 }));
+
+export const passwordResetTokensRelations = relations(
+  passwordResetTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [passwordResetTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const userNotificationPreferencesRelations = relations(
   userNotificationPreferences,

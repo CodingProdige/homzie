@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { getStripe, getStripeWebhookSecret } from "@/modules/billing/stripe";
-import { syncStripeSubscription } from "@/modules/billing/subscription-sync";
+import {
+  sendStripeInvoiceEmail,
+  syncStripeSubscription,
+} from "@/modules/billing/subscription-sync";
 
 export const runtime = "nodejs";
 
@@ -57,6 +60,10 @@ export async function POST(request: Request) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           await syncStripeSubscription(subscription);
         }
+        await sendStripeInvoiceEmail({
+          invoice,
+          type: event.type === "invoice.payment_failed" ? "failed" : "paid",
+        });
         break;
       }
       default:

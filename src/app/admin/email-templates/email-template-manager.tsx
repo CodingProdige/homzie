@@ -4,6 +4,8 @@ import { useActionState, useMemo, useRef, useState } from "react";
 import { Check, Copy, Mail, Save, Send, ToggleLeft, ToggleRight } from "lucide-react";
 
 import {
+  resendEmailDeliveryAction,
+  rollbackEmailTemplateVersionAction,
   saveEmailTemplateAction,
   sendTestEmailTemplateAction,
   type EmailTemplateActionState,
@@ -33,9 +35,17 @@ export type AdminEmailTemplate = {
 type DeliveryLog = {
   createdAt: string;
   error: string | null;
+  id: string;
   recipientEmail: string;
   status: string;
   subject: string | null;
+  templateKey: string;
+};
+
+type TemplateVersion = {
+  createdAt: string;
+  id: string;
+  subject: string;
   templateKey: string;
 };
 
@@ -154,9 +164,11 @@ function TextAreaField({
 export function EmailTemplateManager({
   deliveryLogs,
   templates,
+  versions,
 }: {
   deliveryLogs: DeliveryLog[];
   templates: AdminEmailTemplate[];
+  versions: TemplateVersion[];
 }) {
   const [selectedKey, setSelectedKey] = useState(templates[0]?.key || "");
   const selectedTemplate =
@@ -185,6 +197,16 @@ export function EmailTemplateManager({
     sendTestEmailTemplateAction,
     initialActionState,
   );
+  const [rollbackState, rollbackAction, isRollingBack] = useActionState(
+    rollbackEmailTemplateVersionAction,
+    initialActionState,
+  );
+  const [resendState, resendAction, isResending] = useActionState(
+    resendEmailDeliveryAction,
+    initialActionState,
+  );
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("all");
+  const [deliveryTemplateFilter, setDeliveryTemplateFilter] = useState("all");
 
   const fields = fieldsByKey[selectedTemplate?.key || ""] || {
     enabled: false,
@@ -233,6 +255,17 @@ export function EmailTemplateManager({
       }),
     [fields.html, fields.preheader, selectedTemplate?.sampleVariables],
   );
+  const selectedVersions = versions.filter(
+    (version) => version.templateKey === selectedTemplate.key,
+  );
+  const filteredDeliveryLogs = deliveryLogs.filter((log) => {
+    const statusMatches =
+      deliveryStatusFilter === "all" || log.status === deliveryStatusFilter;
+    const templateMatches =
+      deliveryTemplateFilter === "all" || log.templateKey === deliveryTemplateFilter;
+
+    return statusMatches && templateMatches;
+  });
 
   if (!selectedTemplate) {
     return (
@@ -396,6 +429,52 @@ export function EmailTemplateManager({
               </p>
             ) : null}
           </form>
+
+          <section className="rounded-lg border border-border bg-background p-3">
+            <h3 className="text-sm font-black">Version history</h3>
+            <div className="mt-3 space-y-2">
+              {selectedVersions.length ? (
+                selectedVersions.slice(0, 8).map((version) => (
+                  <form
+                    action={rollbackAction}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-2"
+                    key={version.id}
+                  >
+                    <input name="templateKey" type="hidden" value={selectedTemplate.key} />
+                    <input name="versionId" type="hidden" value={version.id} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-black">
+                        {version.subject}
+                      </span>
+                      <span className="block text-[10px] font-semibold text-muted-foreground">
+                        {new Date(version.createdAt).toLocaleString()}
+                      </span>
+                    </span>
+                    <button
+                      className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-black hover:border-primary/40 disabled:opacity-60"
+                      disabled={isRollingBack}
+                      type="submit"
+                    >
+                      Restore
+                    </button>
+                  </form>
+                ))
+              ) : (
+                <p className="text-sm font-semibold text-muted-foreground">
+                  No saved versions yet.
+                </p>
+              )}
+            </div>
+            {rollbackState.message ? (
+              <p
+                className={`mt-2 text-sm font-bold ${
+                  rollbackState.ok ? "text-emerald-600" : "text-red-600"
+                }`}
+              >
+                {rollbackState.message}
+              </p>
+            ) : null}
+          </section>
         </section>
 
         <aside className="space-y-4">
@@ -434,11 +513,35 @@ export function EmailTemplateManager({
 
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <h3 className="text-sm font-black">Recent deliveries</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <select
+                className="h-9 rounded-md border border-border bg-background px-2 text-xs font-bold"
+                onChange={(event) => setDeliveryTemplateFilter(event.target.value)}
+                value={deliveryTemplateFilter}
+              >
+                <option value="all">All templates</option>
+                {templates.map((template) => (
+                  <option key={template.key} value={template.key}>
+                    {template.key}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-border bg-background px-2 text-xs font-bold"
+                onChange={(event) => setDeliveryStatusFilter(event.target.value)}
+                value={deliveryStatusFilter}
+              >
+                <option value="all">All statuses</option>
+                <option value="sent">Sent</option>
+                <option value="failed">Failed</option>
+                <option value="skipped">Skipped</option>
+              </select>
+            </div>
             <div className="mt-3 space-y-2">
-              {deliveryLogs.length ? (
-                deliveryLogs.map((log) => (
+              {filteredDeliveryLogs.length ? (
+                filteredDeliveryLogs.map((log) => (
                   <div
-                    key={`${log.createdAt}-${log.recipientEmail}-${log.templateKey}`}
+                    key={log.id}
                     className="rounded-md border border-border bg-background p-2"
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -457,6 +560,16 @@ export function EmailTemplateManager({
                         {log.error}
                       </p>
                     ) : null}
+                    <form action={resendAction} className="mt-2">
+                      <input name="logId" type="hidden" value={log.id} />
+                      <button
+                        className="rounded-md border border-border px-2 py-1 text-[10px] font-black hover:border-primary/40 disabled:opacity-60"
+                        disabled={isResending}
+                        type="submit"
+                      >
+                        Resend
+                      </button>
+                    </form>
                   </div>
                 ))
               ) : (
@@ -465,6 +578,15 @@ export function EmailTemplateManager({
                 </p>
               )}
             </div>
+            {resendState.message ? (
+              <p
+                className={`mt-2 text-sm font-bold ${
+                  resendState.ok ? "text-emerald-600" : "text-red-600"
+                }`}
+              >
+                {resendState.message}
+              </p>
+            ) : null}
           </section>
         </aside>
       </div>

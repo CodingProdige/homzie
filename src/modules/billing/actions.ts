@@ -2,6 +2,7 @@
 
 import { getServerSession } from "next-auth";
 import { desc, eq } from "drizzle-orm";
+import type Stripe from "stripe";
 
 import { db } from "@/db";
 import { agentProfiles, subscriptions, users } from "@/db/schema";
@@ -11,7 +12,10 @@ import {
   type AgentPlanInterval,
   agentSubscriptionPlans,
 } from "./plans";
-import { syncStripeSubscription } from "./subscription-sync";
+import {
+  sendSubscriptionTrialStartedEmail,
+  syncStripeSubscription,
+} from "./subscription-sync";
 import {
   getInvalidStripePriceConfigKeys,
   getMissingStripeConfigKeys,
@@ -40,6 +44,58 @@ type SyncAgentSubscriptionResult =
       profilePath: string;
     }
   | { ok: false; error: string };
+
+function toStripeDate(seconds: number | null | undefined) {
+  return seconds ? new Date(seconds * 1000) : null;
+}
+
+function getSubscriptionPeriod(subscription: Stripe.Subscription) {
+  const typedSubscription = subscription as typeof subscription & {
+    current_period_start?: number;
+    current_period_end?: number;
+    trial_end?: number | null;
+  };
+
+  return {
+    currentPeriodStart: toStripeDate(typedSubscription.current_period_start),
+  currentPeriodEnd:
+      toStripeDate(typedSubscription.current_period_end) ||
+      toStripeDate(typedSubscription.trial_end),
+  };
+}
+
+async function getReusableStripeCustomerId({
+  stripe,
+  user,
+  previousCustomerId,
+}: {
+  previousCustomerId?: string | null;
+  stripe: Stripe;
+  user: { email: string; id: string; name: string; username: string | null };
+}) {
+  if (previousCustomerId) {
+    try {
+      const customer = await stripe.customers.retrieve(previousCustomerId);
+
+      if (!customer.deleted) {
+        return customer.id;
+      }
+    } catch {
+      // Fall through and create a fresh customer if the stored one is unavailable.
+    }
+  }
+
+  const customer = await stripe.customers.create({
+    email: user.email,
+    name: user.name,
+    metadata: {
+      userId: user.id,
+      username: user.username,
+    },
+  });
+
+  return customer.id;
+}
 
 async function ensureAgentProfile(user: {
   id: string;
@@ -144,7 +200,11 @@ export async function startAgentSubscriptionCheckout(
   const publishableKey = await getStripePublishableKey();
   const plan = agentSubscriptionPlans[interval];
   const [previousSubscription] = await db
-    .select({ id: subscriptions.id })
+    .select({
+      id: subscriptions.id,
+      providerCustomerId: subscriptions.providerCustomerId,
+      providerReference: subscriptions.providerReference,
+    })
     .from(subscriptions)
     .where(eq(subscriptions.userId, user.id))
     .orderBy(desc(subscriptions.createdAt))
@@ -152,17 +212,39 @@ export async function startAgentSubscriptionCheckout(
   const trialApplied = !user.agentTrialUsedAt && !previousSubscription;
 
   try {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      name: user.name,
-      metadata: {
-        userId: user.id,
-        username: user.username,
-      },
+    if (previousSubscription?.providerReference) {
+      try {
+        const existingStripeSubscription = await stripe.subscriptions.retrieve(
+          previousSubscription.providerReference,
+        );
+
+        if (
+          existingStripeSubscription.status === "active" ||
+          existingStripeSubscription.status === "trialing"
+        ) {
+          await syncStripeSubscription(existingStripeSubscription);
+
+          return {
+            ok: false,
+            error:
+              existingStripeSubscription.status === "trialing"
+                ? "Your agent trial is already active. Open billing to review it."
+                : "Your agent subscription is already active. Open billing to review it.",
+          };
+        }
+      } catch {
+        // If Stripe no longer has the old subscription, continue with a new checkout.
+      }
+    }
+
+    const customerId = await getReusableStripeCustomerId({
+      previousCustomerId: previousSubscription?.providerCustomerId,
+      stripe,
+      user,
     });
 
     const stripeSubscription = await stripe.subscriptions.create({
-      customer: customer.id,
+      customer: customerId,
       items: [{ price: priceId }],
       metadata: {
         userId: user.id,
@@ -193,6 +275,9 @@ export async function startAgentSubscriptionCheckout(
       throw new Error("Stripe did not return a payment form secret.");
     }
 
+    const { currentPeriodStart, currentPeriodEnd } =
+      getSubscriptionPeriod(stripeSubscription);
+
     await db.insert(subscriptions).values({
       userId: user.id,
       agentProfileId: agentProfile.id,
@@ -201,10 +286,12 @@ export async function startAgentSubscriptionCheckout(
       amountCents: plan.amountCents,
       currency: plan.currency,
       interval,
-      providerCustomerId: customer.id,
+      providerCustomerId: customerId,
       providerTransactionId:
         latestInvoice && typeof latestInvoice !== "string" ? latestInvoice.id : null,
       providerReference: stripeSubscription.id,
+      currentPeriodStart,
+      currentPeriodEnd,
     });
 
     if (trialApplied) {
@@ -215,6 +302,15 @@ export async function startAgentSubscriptionCheckout(
           updatedAt: new Date(),
         })
         .where(eq(users.id, user.id));
+      await sendSubscriptionTrialStartedEmail({
+        trialEndsAt:
+          typeof stripeSubscription.trial_end === "number"
+            ? new Date(stripeSubscription.trial_end * 1000)
+            : null,
+        userId: user.id,
+      }).catch((error) => {
+        console.error("[email] subscription trial failed", error);
+      });
     }
 
     return {

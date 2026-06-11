@@ -299,6 +299,10 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
   const trialEndsOn = typedSubscription.trial_end
     ? formatDate(typedSubscription.trial_end)
     : null;
+  const isTrialing =
+    stripeSubscription.status === "trialing" &&
+    trialDaysRemaining !== null &&
+    trialDaysRemaining >= 0;
   const defaultPaymentMethod = stripeSubscription.default_payment_method;
   const defaultPaymentMethodId =
     defaultPaymentMethod && typeof defaultPaymentMethod !== "string"
@@ -356,7 +360,7 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
     recurringInterval === "year" ? "year" : "month"
   }`;
   let nextCharge = standardCharge;
-  let nextChargeLabel = "Next charge";
+  let nextChargeLabel = isTrialing ? "First charge after trial" : "Next charge";
 
   try {
     invoices = (
@@ -415,7 +419,7 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
 
   return {
     issue: null,
-    status: localSubscription.status,
+    status: isTrialing ? "trialing" : localSubscription.status,
     planName: "Homzie Agent Pro",
     cycle: recurringInterval === "year" ? "Yearly" : "Monthly",
     price: `${formatMoney(amountCents, currency)} / ${
@@ -423,7 +427,9 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
     }`,
     nextCharge,
     nextChargeLabel,
-    nextBillingDate: formatDate(period.end || localSubscription.currentPeriodEnd),
+    nextBillingDate: isTrialing
+      ? trialEndsOn || "Not available"
+      : formatDate(period.end || localSubscription.currentPeriodEnd),
     startedOn: formatDate(period.start || localSubscription.currentPeriodStart),
     card,
     paymentMethods,
@@ -552,7 +558,9 @@ function PaymentMethodCard({ billing }: { billing: BillingData | null }) {
         {billing?.paymentMethods.length ? (
           <PaymentMethodList
             hasProtectedSubscription={
-              billing.status === "active" || billing.status === "past_due"
+              billing.status === "active" ||
+              billing.status === "trialing" ||
+              billing.status === "past_due"
             }
             methods={billing.paymentMethods}
           />

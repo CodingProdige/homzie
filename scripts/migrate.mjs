@@ -254,6 +254,27 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash text NOT NULL UNIQUE,
+      expires_at timestamptz NOT NULL,
+      used_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS password_reset_tokens_user_id_idx
+    ON password_reset_tokens (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS password_reset_tokens_expires_at_idx
+    ON password_reset_tokens (expires_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS platform_settings (
       key text PRIMARY KEY,
       value jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -1363,6 +1384,11 @@ try {
   await sql`
     ALTER TABLE user_notification_preferences
     ALTER COLUMN email_enabled SET DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE user_notification_preferences
+    ADD COLUMN IF NOT EXISTS email_event_preferences jsonb NOT NULL DEFAULT '{}'::jsonb
   `;
 
   await sql`

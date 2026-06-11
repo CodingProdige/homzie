@@ -33,13 +33,27 @@ async function subscribeToPush() {
   await saveWebPushSubscriptionAction(subscription.toJSON());
 }
 
+function onIdle(callback: () => void) {
+  if ("requestIdleCallback" in window) {
+    const idleId = window.requestIdleCallback(callback, { timeout: 3000 });
+
+    return () => window.cancelIdleCallback(idleId);
+  }
+
+  const timeoutId = globalThis.setTimeout(callback, 1500);
+
+  return () => globalThis.clearTimeout(timeoutId);
+}
+
 export function PushNotificationBootstrap() {
   useEffect(() => {
     if (!("Notification" in window) || Notification.permission !== "granted") {
       return;
     }
 
-    subscribeToPush();
+    return onIdle(() => {
+      subscribeToPush();
+    });
   }, []);
 
   return null;

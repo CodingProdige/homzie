@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EnableNotificationsButton } from "@/modules/push/components/enable-notifications-button";
+import { emailNotificationEvents } from "@/modules/email/events";
 import { SettingsPageHeader } from "../settings-page-header";
 import {
   emptyNotificationPreferencesState,
@@ -28,6 +29,7 @@ import {
 export type NotificationPreferencesFormValues = {
   callsEnabled: boolean;
   emailEnabled: boolean;
+  emailEventPreferences: Record<string, boolean>;
   listingActivityEnabled: boolean;
   marketingEnabled: boolean;
   messagesEnabled: boolean;
@@ -37,10 +39,15 @@ export type NotificationPreferencesFormValues = {
   reelActivityEnabled: boolean;
 };
 
+type BooleanPreferenceKey = Exclude<
+  keyof NotificationPreferencesFormValues,
+  "emailEventPreferences"
+>;
+
 type PreferenceItem = {
   description: string;
   icon: typeof Bell;
-  key: keyof NotificationPreferencesFormValues;
+  key: BooleanPreferenceKey;
   label: string;
 };
 
@@ -132,7 +139,7 @@ function PreferenceSwitch({
 }: {
   description: string;
   icon: typeof Bell;
-  name: keyof NotificationPreferencesFormValues;
+  name: BooleanPreferenceKey;
   title: string;
   value: boolean;
 }) {
@@ -158,6 +165,63 @@ function PreferenceSwitch({
         className="relative h-7 w-12 shrink-0 rounded-full border border-border bg-muted transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:border-primary peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background"
       />
     </label>
+  );
+}
+
+function EmailEventPreferencesCard({
+  preferences,
+}: {
+  preferences: NotificationPreferencesFormValues;
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
+      <div>
+        <h2 className="text-lg font-bold tracking-normal text-card-foreground">
+          Email event controls
+        </h2>
+        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+          Fine-tune which transactional email templates can send.
+        </p>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        {emailNotificationEvents.map((group) => (
+          <div key={group.category} className="rounded-lg border border-border bg-background p-4">
+            <h3 className="text-sm font-black">{group.category}</h3>
+            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+              {group.description}
+            </p>
+            <div className="mt-3 space-y-2">
+              {group.events.map((event) => (
+                <label
+                  key={event.key}
+                  className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold">
+                      {event.label}
+                    </span>
+                    <span className="block truncate text-xs font-semibold text-muted-foreground">
+                      {event.key}
+                    </span>
+                  </span>
+                  <input
+                    className="peer sr-only"
+                    defaultChecked={preferences.emailEventPreferences[event.key] !== false}
+                    name={`emailEvent:${event.key}`}
+                    type="checkbox"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="relative h-6 w-10 shrink-0 rounded-full border border-border bg-muted transition-colors after:absolute after:left-1 after:top-1 after:size-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:border-primary peer-checked:bg-primary peer-checked:after:translate-x-4"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -234,6 +298,7 @@ export function NotificationsForm({
 
       <div className="flex w-full flex-col gap-5 py-6">
         <BrowserNotificationsCard preferences={preferences} />
+        <EmailEventPreferencesCard preferences={preferences} />
 
         {groups.map((group) => {
           return (

@@ -13,6 +13,7 @@ import {
 const defaultPreferences: NotificationPreferencesFormValues = {
   callsEnabled: true,
   emailEnabled: true,
+  emailEventPreferences: {},
   listingActivityEnabled: true,
   marketingEnabled: false,
   messagesEnabled: true,
@@ -39,6 +40,12 @@ export default async function NotificationSettingsPage() {
     ? {
         callsEnabled: savedPreferences.callsEnabled,
         emailEnabled: savedPreferences.emailEnabled,
+        emailEventPreferences:
+          savedPreferences.emailEventPreferences &&
+          typeof savedPreferences.emailEventPreferences === "object" &&
+          !Array.isArray(savedPreferences.emailEventPreferences)
+            ? (savedPreferences.emailEventPreferences as Record<string, boolean>)
+            : {},
         listingActivityEnabled: savedPreferences.listingActivityEnabled,
         marketingEnabled: savedPreferences.marketingEnabled,
         messagesEnabled: savedPreferences.messagesEnabled,

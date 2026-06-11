@@ -6,10 +6,19 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { emailTemplates, emailTemplateVersions, users } from "@/db/schema";
+import {
+  emailDeliveryLogs,
+  emailTemplates,
+  emailTemplateVersions,
+  users,
+} from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { renderEmailParts } from "@/modules/email/render";
 import { sendSendGridEmail } from "@/modules/email/sendgrid";
+import {
+  notifyUser,
+  sendTemplatedEmailToAddress,
+} from "@/modules/email/server";
 
 export type EmailTemplateActionState = {
   message: string;
@@ -198,6 +207,136 @@ export async function sendTestEmailTemplateAction(
     return {
       message:
         error instanceof Error ? error.message : "Could not send the test email.",
+      ok: false,
+    };
+  }
+}
+
+export async function rollbackEmailTemplateVersionAction(
+  _prevState: EmailTemplateActionState = emptyState,
+  formData: FormData,
+): Promise<EmailTemplateActionState> {
+  void _prevState;
+
+  try {
+    const admin = await requireAdminUser();
+    const templateKey = formValue(formData, "templateKey");
+    const versionId = formValue(formData, "versionId");
+
+    if (!templateKey || !versionId) {
+      return { message: "Choose a template version to restore.", ok: false };
+    }
+
+    const [template] = await db
+      .select({ id: emailTemplates.id })
+      .from(emailTemplates)
+      .where(eq(emailTemplates.key, templateKey))
+      .limit(1);
+
+    if (!template) {
+      return { message: "Template not found.", ok: false };
+    }
+
+    const [version] = await db
+      .select()
+      .from(emailTemplateVersions)
+      .where(eq(emailTemplateVersions.id, versionId))
+      .limit(1);
+
+    if (!version || version.templateId !== template.id) {
+      return { message: "Template version not found.", ok: false };
+    }
+
+    await db
+      .update(emailTemplates)
+      .set({
+        html: version.html,
+        preheader: version.preheader,
+        sampleVariables: version.sampleVariables,
+        subject: version.subject,
+        text: version.text,
+        updatedAt: new Date(),
+        updatedByUserId: admin.id,
+        variables: version.variables,
+      })
+      .where(eq(emailTemplates.id, template.id));
+
+    await db.insert(emailTemplateVersions).values({
+      createdByUserId: admin.id,
+      html: version.html,
+      preheader: version.preheader,
+      sampleVariables: version.sampleVariables,
+      subject: version.subject,
+      templateId: template.id,
+      text: version.text,
+      variables: version.variables,
+    });
+
+    revalidatePath("/admin/email-templates");
+
+    return { message: "Template version restored.", ok: true };
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error ? error.message : "Could not restore template version.",
+      ok: false,
+    };
+  }
+}
+
+export async function resendEmailDeliveryAction(
+  _prevState: EmailTemplateActionState = emptyState,
+  formData: FormData,
+): Promise<EmailTemplateActionState> {
+  void _prevState;
+
+  try {
+    await requireAdminUser();
+
+    const logId = formValue(formData, "logId");
+
+    if (!logId) {
+      return { message: "Choose a delivery log to resend.", ok: false };
+    }
+
+    const [log] = await db
+      .select()
+      .from(emailDeliveryLogs)
+      .where(eq(emailDeliveryLogs.id, logId))
+      .limit(1);
+
+    if (!log) {
+      return { message: "Delivery log not found.", ok: false };
+    }
+
+    const variables =
+      log.variables && typeof log.variables === "object" && !Array.isArray(log.variables)
+        ? (log.variables as Record<string, unknown>)
+        : {};
+
+    if (log.userId) {
+      await notifyUser({
+        bypassPreferences: true,
+        eventKey: `${log.eventKey}.resend`,
+        templateKey: log.templateKey,
+        userId: log.userId,
+        variables,
+      });
+    } else {
+      await sendTemplatedEmailToAddress({
+        eventKey: `${log.eventKey}.resend`,
+        recipientEmail: log.recipientEmail,
+        templateKey: log.templateKey,
+        variables,
+      });
+    }
+
+    revalidatePath("/admin/email-templates");
+
+    return { message: "Email resent.", ok: true };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Could not resend email.",
       ok: false,
     };
   }

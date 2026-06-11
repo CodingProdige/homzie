@@ -4,7 +4,11 @@ import { desc } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
 
 import { db } from "@/db";
-import { emailDeliveryLogs, emailTemplates } from "@/db/schema";
+import {
+  emailDeliveryLogs,
+  emailTemplates,
+  emailTemplateVersions,
+} from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { ensureDefaultEmailTemplates } from "@/modules/email/server";
 
@@ -49,13 +53,14 @@ function asVariables(value: unknown): AdminEmailTemplate["variables"] {
 export default async function AdminEmailTemplatesPage() {
   await ensureDefaultEmailTemplates();
 
-  const [templateRows, logs] = await Promise.all([
+  const [templateRows, logs, versionRows] = await Promise.all([
     db
       .select()
       .from(emailTemplates)
       .orderBy(emailTemplates.category, emailTemplates.name),
     db
       .select({
+        id: emailDeliveryLogs.id,
         createdAt: emailDeliveryLogs.createdAt,
         error: emailDeliveryLogs.error,
         recipientEmail: emailDeliveryLogs.recipientEmail,
@@ -66,6 +71,16 @@ export default async function AdminEmailTemplatesPage() {
       .from(emailDeliveryLogs)
       .orderBy(desc(emailDeliveryLogs.createdAt))
       .limit(20),
+    db
+      .select({
+        createdAt: emailTemplateVersions.createdAt,
+        id: emailTemplateVersions.id,
+        subject: emailTemplateVersions.subject,
+        templateId: emailTemplateVersions.templateId,
+      })
+      .from(emailTemplateVersions)
+      .orderBy(desc(emailTemplateVersions.createdAt))
+      .limit(60),
   ]);
 
   const templates: AdminEmailTemplate[] = templateRows.map((template) => ({
@@ -82,6 +97,9 @@ export default async function AdminEmailTemplatesPage() {
     updatedAt: template.updatedAt.toISOString(),
     variables: asVariables(template.variables),
   }));
+  const templateKeyById = new Map(
+    templateRows.map((template) => [template.id, template.key]),
+  );
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
@@ -109,12 +127,19 @@ export default async function AdminEmailTemplatesPage() {
         deliveryLogs={logs.map((log) => ({
           createdAt: log.createdAt.toISOString(),
           error: log.error,
+          id: log.id,
           recipientEmail: log.recipientEmail,
           status: log.status,
           subject: log.subject,
           templateKey: log.templateKey,
         }))}
         templates={templates}
+        versions={versionRows.map((version) => ({
+          createdAt: version.createdAt.toISOString(),
+          id: version.id,
+          subject: version.subject,
+          templateKey: templateKeyById.get(version.templateId) || "",
+        }))}
       />
     </main>
   );

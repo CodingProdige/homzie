@@ -18,6 +18,7 @@ type EmailPreferenceCategory =
 
 type PreferenceRow = {
   email_enabled: boolean;
+  email_event_preferences: Record<string, unknown> | null;
   listing_activity_enabled: boolean;
   marketing_enabled: boolean;
   messages_enabled: boolean;
@@ -67,9 +68,16 @@ export async function ensureDefaultEmailTemplates() {
 function preferenceAllows(
   preferences: PreferenceRow | undefined,
   category?: EmailPreferenceCategory,
+  eventKey?: string,
 ) {
   if (!preferences) return true;
   if (!preferences.email_enabled) return false;
+
+  if (eventKey && preferences.email_event_preferences) {
+    const eventPreference = preferences.email_event_preferences[eventKey];
+
+    if (eventPreference === false) return false;
+  }
 
   if (category === "messages") return preferences.messages_enabled;
   if (category === "listingActivity") return preferences.listing_activity_enabled;
@@ -78,6 +86,18 @@ function preferenceAllows(
   if (category === "marketing") return preferences.marketing_enabled;
 
   return true;
+}
+
+async function getTemplate(templateKey: string) {
+  await ensureDefaultEmailTemplates();
+
+  const [template] = await db
+    .select()
+    .from(emailTemplates)
+    .where(eq(emailTemplates.key, templateKey))
+    .limit(1);
+
+  return template || null;
 }
 
 async function logEmailDelivery({
@@ -127,8 +147,6 @@ export async function sendTemplatedEmailToUser({
   userId: string;
   variables: Record<string, unknown>;
 }) {
-  await ensureDefaultEmailTemplates();
-
   const [recipient] = await db
     .select({
       email: users.email,
@@ -141,12 +159,7 @@ export async function sendTemplatedEmailToUser({
 
   if (!recipient?.email) return { ok: false as const, skipped: true as const };
 
-  const [template] = await db
-    .select()
-    .from(emailTemplates)
-    .where(eq(emailTemplates.key, templateKey))
-    .limit(1);
-
+  const template = await getTemplate(templateKey);
   const key = eventKey || templateKey;
 
   if (!template || !template.enabled) {
@@ -166,6 +179,7 @@ export async function sendTemplatedEmailToUser({
     const [preferences] = await sql<PreferenceRow[]>`
       SELECT
         email_enabled,
+        email_event_preferences,
         messages_enabled,
         listing_activity_enabled,
         reel_activity_enabled,
@@ -176,7 +190,7 @@ export async function sendTemplatedEmailToUser({
       LIMIT 1
     `;
 
-    if (!preferenceAllows(preferences, preferenceCategory)) {
+    if (!preferenceAllows(preferences, preferenceCategory, key)) {
       await logEmailDelivery({
         error: "User email preferences disabled this notification.",
         eventKey: key,
@@ -234,4 +248,86 @@ export async function sendTemplatedEmailToUser({
       ok: false as const,
     };
   }
+}
+
+export async function sendTemplatedEmailToAddress({
+  eventKey,
+  from,
+  recipientEmail,
+  recipientName,
+  replyTo,
+  templateKey,
+  variables,
+}: {
+  eventKey?: string;
+  from?: { email: string; name?: string };
+  recipientEmail: string;
+  recipientName?: string;
+  replyTo?: { email: string; name?: string };
+  templateKey: string;
+  variables: Record<string, unknown>;
+}) {
+  const template = await getTemplate(templateKey);
+  const key = eventKey || templateKey;
+
+  if (!template || !template.enabled) {
+    await logEmailDelivery({
+      error: template ? "Template disabled." : "Template not found.",
+      eventKey: key,
+      recipientEmail,
+      status: "skipped",
+      templateKey,
+      variables,
+    });
+    return { ok: false as const, skipped: true as const };
+  }
+
+  const rendered = renderEmailParts({
+    html: template.html,
+    preheader: template.preheader,
+    subject: template.subject,
+    text: template.text,
+    variables,
+  });
+
+  try {
+    await sendSendGridEmail({
+      from,
+      html: rendered.html,
+      replyTo,
+      subject: rendered.subject,
+      text: rendered.text,
+      to: { email: recipientEmail, name: recipientName },
+    });
+
+    await logEmailDelivery({
+      eventKey: key,
+      recipientEmail,
+      status: "sent",
+      subject: rendered.subject,
+      templateKey,
+      variables,
+    });
+
+    return { ok: true as const };
+  } catch (error) {
+    await logEmailDelivery({
+      error: error instanceof Error ? error.message : String(error),
+      eventKey: key,
+      recipientEmail,
+      status: "failed",
+      subject: rendered.subject,
+      templateKey,
+      variables,
+    });
+
+    return {
+      error: error instanceof Error ? error.message : "Could not send email.",
+      ok: false as const,
+    };
+  }
+}
+
+export async function notifyUser(input: Parameters<typeof sendTemplatedEmailToUser>[0]) {
+  return sendTemplatedEmailToUser(input);
 }

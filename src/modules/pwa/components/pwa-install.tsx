@@ -31,12 +31,20 @@ function notifyInstallPromptChange() {
   window.dispatchEvent(new Event(installPromptEventName));
 }
 
+function onIdle(callback: () => void) {
+  if ("requestIdleCallback" in window) {
+    const idleId = window.requestIdleCallback(callback, { timeout: 3000 });
+
+    return () => window.cancelIdleCallback(idleId);
+  }
+
+  const timeoutId = globalThis.setTimeout(callback, 1500);
+
+  return () => globalThis.clearTimeout(timeoutId);
+}
+
 export function PwaInstallBootstrap() {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-    }
-
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       window.__homzieInstallPrompt = event as BeforeInstallPromptEvent;
@@ -50,8 +58,14 @@ export function PwaInstallBootstrap() {
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
+    const cancelIdleWork = onIdle(() => {
+      if ("serviceWorker" in navigator) {
+        void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      }
+    });
 
     return () => {
+      cancelIdleWork();
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };

@@ -51,6 +51,18 @@ function getVisitorId() {
   return next;
 }
 
+function onIdle(callback: () => void) {
+  if ("requestIdleCallback" in window) {
+    const idleId = window.requestIdleCallback(callback, { timeout: 3000 });
+
+    return () => window.cancelIdleCallback(idleId);
+  }
+
+  const timeoutId = globalThis.setTimeout(callback, 1500);
+
+  return () => globalThis.clearTimeout(timeoutId);
+}
+
 function pluralize(count: number, singular: string, plural: string) {
   return count === 1 ? singular : plural;
 }
@@ -103,7 +115,9 @@ export function LivePlatformStats({ initialStats }: LivePlatformStatsProps) {
       }
     }
 
-    refresh();
+    const cancelInitialRefresh = onIdle(() => {
+      refresh();
+    });
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
@@ -121,6 +135,7 @@ export function LivePlatformStats({ initialStats }: LivePlatformStatsProps) {
 
     return () => {
       mounted = false;
+      cancelInitialRefresh();
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

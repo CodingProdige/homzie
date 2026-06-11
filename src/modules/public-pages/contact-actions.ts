@@ -5,7 +5,9 @@ import "server-only";
 import { headers } from "next/headers";
 import { z } from "zod";
 
-import { sendSendGridEmail } from "@/modules/email/sendgrid";
+import {
+  sendTemplatedEmailToAddress,
+} from "@/modules/email/server";
 
 const contactSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name.").max(120, "Keep your name under 120 characters."),
@@ -66,15 +68,6 @@ function checkRateLimit(key: string): RateLimitResult {
   return { ok: true };
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
 function contactRecipient() {
   return {
     email:
@@ -127,37 +120,43 @@ export async function sendContactMessage(
   }
 
   const phone = parsed.data.phone || "Not provided";
-  const subject = `Homzie contact: ${parsed.data.subject}`;
-  const text = [
-    `Name: ${parsed.data.name}`,
-    `Email: ${parsed.data.email}`,
-    `Phone: ${phone}`,
-    `Subject: ${parsed.data.subject}`,
-    "",
-    parsed.data.message,
-  ].join("\n");
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#111827">
-      <h2 style="margin:0 0 16px">New Homzie contact message</h2>
-      <p><strong>Name:</strong> ${escapeHtml(parsed.data.name)}</p>
-      <p><strong>Email:</strong> ${escapeHtml(parsed.data.email)}</p>
-      <p><strong>Phone:</strong> ${escapeHtml(phone)}</p>
-      <p><strong>Subject:</strong> ${escapeHtml(parsed.data.subject)}</p>
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0" />
-      <p style="white-space:pre-wrap">${escapeHtml(parsed.data.message)}</p>
-    </div>
-  `;
+  const recipient = contactRecipient();
+  const variables = {
+    app: {
+      name: "Homzie",
+      url:
+        process.env.NEXT_PUBLIC_APP_URL ||
+        process.env.APP_URL ||
+        process.env.NEXTAUTH_URL ||
+        "https://homzie.co.za",
+    },
+    contact: {
+      email: parsed.data.email,
+      message: parsed.data.message,
+      name: parsed.data.name,
+      phone,
+      subject: parsed.data.subject,
+    },
+  };
 
   try {
-    await sendSendGridEmail({
-      to: contactRecipient(),
+    await sendTemplatedEmailToAddress({
+      eventKey: "support.contact_received",
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
       replyTo: {
         email: parsed.data.email,
         name: parsed.data.name,
       },
-      subject,
-      text,
-      html,
+      templateKey: "support.contact_received",
+      variables,
+    });
+    await sendTemplatedEmailToAddress({
+      eventKey: "support.contact_confirmation",
+      recipientEmail: parsed.data.email,
+      recipientName: parsed.data.name,
+      templateKey: "support.contact_confirmation",
+      variables,
     });
   } catch (error) {
     console.error("Failed to send contact email", error);
