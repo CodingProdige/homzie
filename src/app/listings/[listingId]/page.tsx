@@ -6,6 +6,11 @@ import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import { ListingDetailPage } from "@/modules/listings/components/listing-detail-page";
 import { getListingDetail } from "@/modules/listings/server/listing-data";
+import {
+  buildListingSeoDescription,
+  buildListingSeoTitle,
+} from "@/modules/listings/seo";
+import { absoluteUrl } from "@/modules/site/url";
 
 type ListingPageProps = {
   params: Promise<{
@@ -29,11 +34,31 @@ export async function generateMetadata({
     };
   }
 
+  const title = `${buildListingSeoTitle(listing)} | Homzie`;
+  const description = buildListingSeoDescription(listing);
+
   return {
-    title: `${listing.title} | Homzie`,
-    description:
-      listing.location ||
-      `${listing.propertyTypeLabel} listed by ${listing.agent.name} on Homzie.`,
+    alternates: {
+      canonical: absoluteUrl(listing.href),
+    },
+    description,
+    openGraph: {
+      description,
+      images: listing.coverImageUrl
+        ? [{ url: absoluteUrl(listing.coverImageUrl) }]
+        : undefined,
+      siteName: "Homzie",
+      title,
+      type: "website",
+      url: absoluteUrl(listing.href),
+    },
+    title,
+    twitter: {
+      card: "summary_large_image",
+      description,
+      images: listing.coverImageUrl ? [absoluteUrl(listing.coverImageUrl)] : undefined,
+      title,
+    },
   };
 }
 

@@ -28,6 +28,7 @@ import { getStoredAdsSettings } from "@/modules/platform-settings/ads-settings";
 import { getStoredGoogleAdsSettings } from "@/modules/platform-settings/google-ads-settings";
 import { authOptions } from "@/modules/auth/config";
 import { absoluteUrl } from "@/modules/site/url";
+import { buildListingPath } from "@/modules/listings/seo";
 import {
   absoluteAppUrl,
   notifyUser,
@@ -162,7 +163,7 @@ async function assertPromotedAssetOwnership({
   }
 }
 
-function buildPromotedUrl({
+async function buildPromotedUrl({
   listingId,
   promotedType,
   username,
@@ -172,7 +173,43 @@ function buildPromotedUrl({
   username: string;
 }) {
   if (promotedType === "listing" && listingId) {
-    return absoluteUrl(`/listings/${listingId}`);
+    const [listing] = await db
+      .select({
+        details: propertyListings.details,
+        id: propertyListings.id,
+        listingType: propertyListings.listingType,
+        location: propertyListings.location,
+        propertyType: propertyListings.propertyType,
+        title: propertyListings.title,
+      })
+      .from(propertyListings)
+      .where(eq(propertyListings.id, listingId))
+      .limit(1);
+
+    if (!listing) return null;
+
+    const details =
+      listing.details && typeof listing.details === "object" && !Array.isArray(listing.details)
+        ? (listing.details as Record<string, unknown>)
+        : {};
+
+    return absoluteUrl(
+      buildListingPath({
+        bedrooms: details.bedrooms as number | string | null,
+        city: typeof details.city === "string" ? details.city : "",
+        country: typeof details.country === "string" ? details.country : "",
+        id: listing.id,
+        listingType: listing.listingType,
+        location: listing.location,
+        propertyType: listing.propertyType,
+        province:
+          (typeof details.province === "string" ? details.province : "") ||
+          (typeof details.state === "string" ? details.state : "") ||
+          (typeof details.region === "string" ? details.region : ""),
+        suburb: typeof details.suburb === "string" ? details.suburb : "",
+        title: listing.title,
+      }),
+    );
   }
 
   if (promotedType === "profile") {
@@ -395,7 +432,7 @@ export async function createAdCampaign(
       ),
     );
     const now = new Date();
-    const promotedUrl = buildPromotedUrl({
+    const promotedUrl = await buildPromotedUrl({
       listingId: parsed.data.listingId || undefined,
       promotedType: parsed.data.promotedType,
       username: user.username,

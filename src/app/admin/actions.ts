@@ -39,6 +39,12 @@ import {
   saveStoredReservationSettings,
   type ReservationSettings,
 } from "@/modules/platform-settings/reservation-settings";
+import {
+  defaultSeoSettings,
+  saveStoredSeoSettings,
+  type SeoIndexingMode,
+  type SeoSettings,
+} from "@/modules/seo/settings";
 import { hashPassword } from "@/modules/auth/password";
 import { normalizeUsername, validateUsername } from "@/modules/auth/username";
 
@@ -69,6 +75,11 @@ export type AdminReservationSettingsState = {
 };
 
 export type AdminDemoProfileSettingsState = {
+  message: string;
+  ok: boolean;
+};
+
+export type AdminSeoSettingsState = {
   message: string;
   ok: boolean;
 };
@@ -121,6 +132,12 @@ function formNumber(formData: FormData, key: string, fallback: number) {
 
 function formBoolean(formData: FormData, key: string) {
   return formData.get(key) === "on";
+}
+
+function formIndexingMode(formData: FormData, key: string): SeoIndexingMode {
+  const value = formString(formData, key);
+
+  return value === "force_index" || value === "noindex" ? value : "auto";
 }
 
 function mergeModeSettings(
@@ -218,6 +235,71 @@ export async function updateAdminStripeSettings(
         error instanceof Error
           ? error.message
           : "Could not save Stripe settings.",
+    };
+  }
+}
+
+function seoSettingsFromFormData(formData: FormData): SeoSettings {
+  return {
+    allowIndexing: formBoolean(formData, "allowIndexing"),
+    bingVerification: formString(formData, "bingVerification"),
+    defaultDescription:
+      formString(formData, "defaultDescription") ||
+      defaultSeoSettings.defaultDescription,
+    defaultOgHeadline:
+      formString(formData, "defaultOgHeadline") ||
+      defaultSeoSettings.defaultOgHeadline,
+    defaultOgImageUrl: formString(formData, "defaultOgImageUrl"),
+    defaultOgSubtitle:
+      formString(formData, "defaultOgSubtitle") ||
+      defaultSeoSettings.defaultOgSubtitle,
+    defaultUnavailableListingIndexing: formIndexingMode(
+      formData,
+      "defaultUnavailableListingIndexing",
+    ),
+    googleSearchConsoleVerification: formString(
+      formData,
+      "googleSearchConsoleVerification",
+    ),
+    indexDemoContent: formBoolean(formData, "indexDemoContent"),
+    organizationAddress: formString(formData, "organizationAddress"),
+    organizationEmail: formString(formData, "organizationEmail"),
+    organizationName:
+      formString(formData, "organizationName") ||
+      defaultSeoSettings.organizationName,
+    organizationPhone: formString(formData, "organizationPhone"),
+    sitemapMaxEntries: defaultSeoSettings.sitemapMaxEntries,
+    titleTemplate:
+      formString(formData, "titleTemplate") || defaultSeoSettings.titleTemplate,
+  };
+}
+
+export async function updateAdminSeoSettings(
+  _previousState: AdminSeoSettingsState,
+  formData: FormData,
+): Promise<AdminSeoSettingsState> {
+  try {
+    await assertActiveAdmin();
+    await saveStoredSeoSettings(seoSettingsFromFormData(formData));
+
+    revalidatePath("/");
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/settings/seo");
+    revalidatePath("/sitemap.xml");
+    revalidatePath("/sitemaps/static.xml");
+    revalidatePath("/sitemaps/listings.xml");
+    revalidatePath("/sitemaps/profiles.xml");
+    revalidatePath("/sitemaps/locations.xml");
+
+    return {
+      ok: true,
+      message: "SEO settings saved.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Could not save SEO settings.",
     };
   }
 }

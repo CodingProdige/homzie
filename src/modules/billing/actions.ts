@@ -99,6 +99,13 @@ async function getReusableStripeCustomerId({
 
 async function ensureAgentProfile(user: {
   id: string;
+  location: string | null;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationPlaceData: unknown;
+  locationPlaceId: string | null;
+  locationProvince: string | null;
+  locationSuburb: string | null;
   name: string;
   username: string | null;
 }) {
@@ -114,6 +121,13 @@ async function ensureAgentProfile(user: {
       userId: user.id,
       displayName: user.name,
       headline: "Property agent",
+      location: user.location,
+      locationCity: user.locationCity,
+      locationCountry: user.locationCountry,
+      locationPlaceData: user.locationPlaceData,
+      locationPlaceId: user.locationPlaceId,
+      locationProvince: user.locationProvince,
+      locationSuburb: user.locationSuburb,
       status: "draft",
     })
     .returning();
@@ -137,6 +151,13 @@ export async function startAgentSubscriptionCheckout(
     .select({
       agentTrialUsedAt: users.agentTrialUsedAt,
       id: users.id,
+      location: users.location,
+      locationCity: users.locationCity,
+      locationCountry: users.locationCountry,
+      locationPlaceData: users.locationPlaceData,
+      locationPlaceId: users.locationPlaceId,
+      locationProvince: users.locationProvince,
+      locationSuburb: users.locationSuburb,
       name: users.name,
       username: users.username,
       email: users.email,

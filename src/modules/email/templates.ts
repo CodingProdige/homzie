@@ -74,7 +74,7 @@ export const defaultEmailTemplates = [
         location: "Camps Bay, Cape Town",
         priceLabel: "R 4,250,000",
         title: "Modern coastal home",
-        url: "https://homzie.co.za/listings/00000000-0000-0000-0000-000000000000",
+        url: "https://homzie.co.za/property/for-sale/western-cape/paarl/3-bedroom-house-in-val-de-vie-00000000",
       },
       user: { firstName: "Sam", name: "Sam Buyer" },
     },
@@ -120,7 +120,7 @@ export const defaultEmailTemplates = [
       listing: {
         location: "Camps Bay, Cape Town",
         title: "Modern coastal home",
-        url: "https://homzie.co.za/listings/00000000-0000-0000-0000-000000000000",
+        url: "https://homzie.co.za/property/for-sale/western-cape/paarl/3-bedroom-house-in-val-de-vie-00000000",
       },
       reservation: {
         adminUrl:

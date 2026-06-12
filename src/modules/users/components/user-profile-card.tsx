@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { countryFlagFromLocation } from "@/modules/location/country-preference";
+
 export type UserProfileCardData = {
   avatarUrl: string | null;
   displayName: string;
@@ -21,6 +23,8 @@ function initials(name: string) {
 }
 
 export function UserProfileCard({ profile }: { profile: UserProfileCardData }) {
+  const locationFlag = countryFlagFromLocation(profile.location);
+
   return (
     <Link
       href={`/users/${profile.username}`}
@@ -49,6 +53,7 @@ export function UserProfileCard({ profile }: { profile: UserProfileCardData }) {
         </p>
         {profile.location ? (
           <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+            {locationFlag ? <span className="mr-1">{locationFlag}</span> : null}
             {profile.location}
           </p>
         ) : null}

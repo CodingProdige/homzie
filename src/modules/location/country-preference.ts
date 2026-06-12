@@ -147,3 +147,42 @@ export function locationMatchesCountry(
       (label && normalizedLocation.includes(label)),
   );
 }
+
+export function countryOptionForName(value?: string | null) {
+  const normalized = (value || "").trim().toLowerCase();
+
+  if (!normalized) return null;
+
+  return (
+    countryPreferenceOptions.find(
+      (option) => option.country.toLowerCase() === normalized,
+    ) || null
+  );
+}
+
+export function countryOptionForCode(value?: string | null) {
+  const normalized = (value || "").trim().toUpperCase();
+
+  if (!normalized) return null;
+
+  return (
+    countryPreferenceOptions.find((option) => option.countryCode === normalized) ||
+    null
+  );
+}
+
+export function countryOptionFromLocation(value?: string | null) {
+  const normalized = (value || "").toLowerCase();
+
+  if (!normalized) return null;
+
+  return (
+    countryPreferenceOptions.find((option) =>
+      normalized.includes(option.country.toLowerCase()),
+    ) || null
+  );
+}
+
+export function countryFlagFromLocation(value?: string | null) {
+  return countryOptionFromLocation(value)?.flag || "";
+}

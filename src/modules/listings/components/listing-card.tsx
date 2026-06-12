@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { type MouseEvent, type PointerEvent, useState, useTransition } from "react";
+import { type MouseEvent, type PointerEvent, useRef, useState, useTransition } from "react";
 import {
   Bath,
   BedDouble,
@@ -10,6 +10,7 @@ import {
   Car,
   Heart,
   ParkingCircle,
+  Play,
   Ruler,
   Trees,
   Upload,
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { toggleListingLike, toggleListingSave } from "@/modules/listings/actions";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import { mandateTypeOptions, type ListingType } from "@/modules/listings/options";
+import { countryFlagFromLocation } from "@/modules/location/country-preference";
 
 export type ListingCardData = {
   bathrooms?: number | string | null;
@@ -34,6 +36,7 @@ export type ListingCardData = {
   href?: string;
   id?: string;
   imageUrls?: string[];
+  videoUrls?: string[];
   likedByViewer?: boolean;
   likeCount?: number;
   likeCountLabel?: string;
@@ -308,11 +311,14 @@ export function ListingEngagementActions({
 
 export function ListingCard({ listing }: { listing: ListingCardData }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isVideoPreviewing, setIsVideoPreviewing] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const { formatPriceCents } = useCurrency();
   const imageUrls = Array.from(
     new Set([...(listing.coverImageUrl ? [listing.coverImageUrl] : []), ...(listing.imageUrls || [])]),
   ).filter(Boolean);
   const activeImageUrl = imageUrls[activeImageIndex] || listing.coverImageUrl;
+  const videoUrl = listing.videoUrls?.[0] || "";
   const formattedPrice =
     listing.priceCents && listing.priceCents > 0
       ? formatPriceCents(listing.priceCents)
@@ -330,9 +336,27 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   const visibleFeatures = features.slice(0, 5);
   const hiddenFeatureCount = Math.max(features.length - visibleFeatures.length, 0);
   const unavailableLabel = listing.unavailableLabel || "No longer available";
+  const locationFlag = countryFlagFromLocation(listing.location);
+
+  function stopVideoPreview() {
+    setIsVideoPreviewing(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  }
+
+  function startVideoPreview() {
+    if (!videoUrl || listing.unavailable) return;
+
+    setIsVideoPreviewing(true);
+    void videoRef.current?.play().catch(() => {
+      setIsVideoPreviewing(false);
+    });
+  }
 
   function handleImagePointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (imageUrls.length <= 1) return;
+    if (videoUrl || imageUrls.length <= 1) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
     const progress = Math.min(
@@ -348,7 +372,13 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
       <div
         className="relative aspect-[4/3] bg-muted"
         onPointerMove={handleImagePointerMove}
-        onPointerLeave={() => setActiveImageIndex(0)}
+        onPointerEnter={startVideoPreview}
+        onPointerLeave={() => {
+          setActiveImageIndex(0);
+          stopVideoPreview();
+        }}
+        onFocus={startVideoPreview}
+        onBlur={stopVideoPreview}
       >
         {activeImageUrl ? (
           <Image
@@ -367,6 +397,27 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             <Upload className="size-8" />
           </div>
         )}
+        {videoUrl ? (
+          <>
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className={cn(
+                "absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-200",
+                (isVideoPreviewing || !activeImageUrl) && "opacity-100",
+                listing.unavailable && "grayscale",
+              )}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+            />
+            <span className="absolute left-3 bottom-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
+              <Play className="size-3 fill-current" />
+              Video
+            </span>
+          </>
+        ) : null}
         <span className="absolute left-3 top-3 rounded-full bg-background/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-foreground">
           {listing.unavailable ? unavailableLabel : listing.listingTypeLabel}
         </span>
@@ -390,7 +441,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             </p>
           </div>
         ) : null}
-        {imageUrls.length > 1 ? (
+        {!videoUrl && imageUrls.length > 1 ? (
           <div
             className={
               listing.buyerIncentive
@@ -422,6 +473,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
           {listing.title || "Your listing title"}
         </h3>
         <p className="mt-1 line-clamp-2 text-sm font-bold text-muted-foreground">
+          {locationFlag ? <span className="mr-1.5">{locationFlag}</span> : null}
           {listing.location || "Location not set"}
         </p>
         {listing.pricePrefix ? (

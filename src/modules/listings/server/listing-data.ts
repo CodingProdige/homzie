@@ -16,6 +16,7 @@ import {
   type ListingType,
   type PropertyType,
 } from "@/modules/listings/options";
+import { buildListingPath } from "@/modules/listings/seo";
 import {
   calculateReservationFees,
   getStoredReservationSettings,
@@ -57,7 +58,9 @@ export type ListingDetailData = {
   floorSize: number | null;
   furnishedStatus: string;
   garages: number | null;
+  googlePlaceData: string;
   googlePlaceId: string;
+  href: string;
   id: string;
   insuranceEstimateCents: number | null;
   isOwner: boolean;
@@ -93,6 +96,7 @@ export type ListingDetailData = {
   priceQualifier: string;
   propertyType: PropertyType | string;
   propertyTypeLabel: string;
+  province: string;
   rentalYield: number | null;
   shortLetAllowed: string;
   status: string;
@@ -120,6 +124,17 @@ function numberValue(value: unknown) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : "";
+}
+
+function jsonStringValue(value: unknown) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "";
+  }
 }
 
 function stringArray(value: unknown) {
@@ -229,6 +244,20 @@ async function getListingRow(listingId: string) {
     .limit(1);
 
   return row || null;
+}
+
+export async function getListingIdByShortId(shortId: string) {
+  if (!/^[a-f0-9]{8}$/i.test(shortId)) {
+    return null;
+  }
+
+  const rows = await db
+    .select({ id: propertyListings.id })
+    .from(propertyListings)
+    .where(sql`${propertyListings.id}::text ilike ${`${shortId}%`}`)
+    .limit(2);
+
+  return rows.length === 1 ? rows[0].id : null;
 }
 
 export async function getListingDetail({
@@ -442,7 +471,23 @@ async function mapListingRow(
     floorSize: numberValue(details.floorSize),
     furnishedStatus: stringValue(details.furnishedStatus),
     garages: numberValue(details.garages),
+    googlePlaceData: jsonStringValue(details.googlePlaceData),
     googlePlaceId: stringValue(details.googlePlaceId),
+    href: buildListingPath({
+      bedrooms: numberValue(details.bedrooms),
+      city: stringValue(details.city),
+      country: stringValue(details.country),
+      id: row.id,
+      listingType: row.listingType,
+      location: row.location,
+      propertyType: row.propertyType,
+      province:
+        stringValue(details.province) ||
+        stringValue(details.state) ||
+        stringValue(details.region),
+      suburb: stringValue(details.suburb),
+      title: row.title,
+    }),
     id: row.id,
     insuranceEstimateCents: numberValue(details.insuranceEstimateCents),
     isOwner: viewerState.isOwner,
@@ -483,6 +528,10 @@ async function mapListingRow(
     priceQualifier: stringValue(details.priceQualifier),
     propertyType: row.propertyType,
     propertyTypeLabel,
+    province:
+      stringValue(details.province) ||
+      stringValue(details.state) ||
+      stringValue(details.region),
     rentalYield: numberValue(details.rentalYield),
     shortLetAllowed: stringValue(details.shortLetAllowed),
     status: row.status,

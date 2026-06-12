@@ -33,6 +33,7 @@ import {
   House,
   ImagePlus,
   MapPin,
+  Play,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -80,6 +81,24 @@ type GoogleAutocompletePrediction = {
   types?: string[];
 };
 
+type GooglePlaceDetails = {
+  address_components?: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
+  formatted_address?: string;
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+  name?: string;
+  place_id?: string;
+  types?: string[];
+};
+
 type GoogleAutocompleteService = {
   getPlacePredictions: (
     request: {
@@ -93,6 +112,17 @@ type GoogleAutocompleteService = {
   ) => void;
 };
 
+type GooglePlacesService = {
+  getDetails: (
+    request: {
+      fields: string[];
+      placeId: string;
+      sessionToken?: unknown;
+    },
+    callback: (place: GooglePlaceDetails | null, status: string) => void,
+  ) => void;
+};
+
 type GoogleWindow = Window & {
   __homzieGoogleMapsPromise?: Promise<void>;
   google?: {
@@ -100,6 +130,7 @@ type GoogleWindow = Window & {
       places?: {
         AutocompleteService: new () => GoogleAutocompleteService;
         AutocompleteSessionToken: new () => unknown;
+        PlacesService: new (attrContainer: HTMLElement) => GooglePlacesService;
         PlacesServiceStatus: {
           OK: string;
         };
@@ -144,6 +175,7 @@ export type ListingDraft = {
   furnishedStatus: string;
   garages: string;
   googlePlaceId: string;
+  googlePlaceData: string;
   insuranceEstimate: string;
   listingType: ListingType;
   location: string;
@@ -157,6 +189,7 @@ export type ListingDraft = {
   previousAskingPrice: string;
   priceQualifier: string;
   propertyType: PropertyType;
+  province: string;
   reservationAmount: string;
   reservationEnabled: boolean;
   rentalYield: string;
@@ -190,6 +223,9 @@ const maxDescriptionLength = 3000;
 const maxTitleLength = 120;
 const maxListingImages = 30;
 const maxListingImageSizeMb = 15;
+const maxListingVideoSizeMb = 80;
+const videoCompressionMimeType = "video/webm;codecs=vp9,opus";
+const videoCompressionBitrate = 2_500_000;
 const aiActionCooldownSeconds = 30;
 const maxListingFeatures = 10;
 const maxFeatureLength = 24;
@@ -219,6 +255,7 @@ const initialDraft: ListingDraft = {
   furnishedStatus: "",
   garages: "",
   googlePlaceId: "",
+  googlePlaceData: "",
   insuranceEstimate: "",
   listingType: "sale",
   location: "",
@@ -232,6 +269,7 @@ const initialDraft: ListingDraft = {
   previousAskingPrice: "",
   priceQualifier: "",
   propertyType: "free_standing_house",
+  province: "",
   reservationAmount: "",
   reservationEnabled: false,
   rentalYield: "",
@@ -410,6 +448,10 @@ function getPublishIssues(draft: ListingDraft, mediaCount: number) {
 
   if (draft.location.trim().length < 2) {
     issues.push({ message: "Add the property location.", step: 1 });
+  }
+
+  if (!draft.city.trim() || !draft.province.trim() || !draft.country.trim()) {
+    issues.push({ message: "Add city, province, and country.", step: 1 });
   }
 
   if (richTextToPlainText(draft.description).length < 40) {
@@ -864,6 +906,113 @@ async function compressImageFile(file: File) {
   });
 }
 
+function isVideoMedia(item: Pick<ListingFormMedia, "type" | "name" | "previewUrl">) {
+  return (
+    item.type?.startsWith("video/") ||
+    /\.(mp4|mov|webm)$/i.test(item.name) ||
+    /\.(mp4|mov|webm)(?:\?|$)/i.test(item.previewUrl)
+  );
+}
+
+function isImageMedia(item: Pick<ListingFormMedia, "type" | "name" | "previewUrl">) {
+  return !isVideoMedia(item);
+}
+
+async function videoDuration(file: File) {
+  const url = URL.createObjectURL(file);
+
+  try {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    video.src = url;
+
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Could not read that video."));
+    });
+
+    return Number.isFinite(video.duration) ? video.duration : 0;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function compressVideoFile(file: File) {
+  if (!file.type.startsWith("video/")) return file;
+
+  const duration = await videoDuration(file);
+
+  if (duration > 90) {
+    throw new Error("Listing videos must be 90 seconds or shorter.");
+  }
+
+  const canCompress =
+    typeof MediaRecorder !== "undefined" &&
+    MediaRecorder.isTypeSupported(videoCompressionMimeType);
+
+  if (!canCompress || file.size <= maxListingVideoSizeMb * 1024 * 1024) {
+    return file;
+  }
+
+  const url = URL.createObjectURL(file);
+
+  try {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.src = url;
+
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Could not optimize that video."));
+    });
+
+    const captureStream = (video as HTMLVideoElement & {
+      captureStream?: () => MediaStream;
+    }).captureStream;
+    const stream = typeof captureStream === "function" ? captureStream.call(video) : null;
+
+    if (!stream) return file;
+
+    const chunks: BlobPart[] = [];
+    const recorder = new MediaRecorder(stream, {
+      mimeType: videoCompressionMimeType,
+      videoBitsPerSecond: videoCompressionBitrate,
+      audioBitsPerSecond: 128_000,
+    });
+
+    const compressedBlob = await new Promise<Blob>((resolve, reject) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) chunks.push(event.data);
+      };
+      recorder.onerror = () => reject(new Error("Could not optimize that video."));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+      video.onended = () => {
+        if (recorder.state !== "inactive") recorder.stop();
+      };
+      recorder.start(1000);
+      void video.play().catch(reject);
+    });
+
+    if (!compressedBlob.size || compressedBlob.size >= file.size) return file;
+
+    return new File([compressedBlob], file.name.replace(/\.[^.]+$/, ".webm"), {
+      type: "video/webm",
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function optimizeMediaFile(file: File) {
+  if (file.type.startsWith("image/")) return compressImageFile(file);
+  if (file.type.startsWith("video/")) return compressVideoFile(file);
+
+  return file;
+}
+
 function formatFileSize(size: number) {
   if (size >= 1024 * 1024) {
     return `${(size / 1024 / 1024).toFixed(1)}MB`;
@@ -1072,10 +1221,80 @@ function splitLocation(value: string) {
     .filter(Boolean);
 
   return {
-    city: parts.length > 1 ? parts[parts.length - 2] || "" : "",
+    city:
+      parts.length > 4
+        ? parts[parts.length - 3] || ""
+        : parts.length > 1
+          ? parts[parts.length - 2] || ""
+          : "",
     country: parts[parts.length - 1] || "",
+    province: parts.length > 4 ? parts[parts.length - 2] || "" : "",
     suburb: parts.length > 2 ? parts[parts.length - 3] || "" : "",
   };
+}
+
+function addressComponent(
+  place: GooglePlaceDetails,
+  type: string,
+  mode: "long_name" | "short_name" = "long_name",
+) {
+  return (
+    place.address_components?.find((component) =>
+      component.types.includes(type),
+    )?.[mode] || ""
+  );
+}
+
+function placeLocationParts(place: GooglePlaceDetails, fallback: string) {
+  const fallbackParts = splitLocation(fallback);
+
+  return {
+    city:
+      addressComponent(place, "locality") ||
+      addressComponent(place, "postal_town") ||
+      addressComponent(place, "administrative_area_level_2") ||
+      fallbackParts.city,
+    country: addressComponent(place, "country") || fallbackParts.country,
+    province:
+      addressComponent(place, "administrative_area_level_1") ||
+      fallbackParts.province,
+    suburb:
+      addressComponent(place, "sublocality") ||
+      addressComponent(place, "sublocality_level_1") ||
+      addressComponent(place, "neighborhood") ||
+      fallbackParts.suburb,
+  };
+}
+
+function serializablePlaceData(
+  place: GooglePlaceDetails | null,
+  prediction: GoogleAutocompletePrediction,
+) {
+  if (!place) {
+    return JSON.stringify({
+      description: prediction.description,
+      placeId: prediction.place_id,
+      source: "autocomplete_prediction",
+      structuredFormatting: prediction.structured_formatting || null,
+      types: prediction.types || [],
+    });
+  }
+
+  return JSON.stringify({
+    addressComponents: place.address_components || [],
+    description: prediction.description,
+    formattedAddress: place.formatted_address || prediction.description,
+    geometry: place.geometry?.location
+      ? {
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+        }
+      : null,
+    name: place.name || prediction.structured_formatting?.main_text || "",
+    placeId: place.place_id || prediction.place_id,
+    source: "place_details",
+    types: place.types || prediction.types || [],
+  });
 }
 
 export function CreateListingPage({
@@ -1271,14 +1490,38 @@ export function CreateListingPage({
 
     if (!files.length) return;
 
-    setMediaStatus("Optimizing images...");
-    const compressedFiles = await Promise.all(files.map(compressImageFile));
+    setMediaStatus("Optimizing media...");
+
+    let compressedFiles: File[];
+
+    try {
+      compressedFiles = await Promise.all(files.map(optimizeMediaFile));
+    } catch (error) {
+      setMediaStatus(
+        error instanceof Error ? error.message : "Could not optimize that media.",
+      );
+      return;
+    }
+    const oversizedVideo = compressedFiles.find(
+      (file) =>
+        file.type.startsWith("video/") &&
+        file.size > maxListingVideoSizeMb * 1024 * 1024,
+    );
+
+    if (oversizedVideo) {
+      setMediaStatus(
+        `Video ${oversizedVideo.name} is too large. Keep listing videos under ${maxListingVideoSizeMb}MB after optimization.`,
+      );
+      return;
+    }
+
     const nextMedia = compressedFiles.map((file) => ({
       file,
       id: crypto.randomUUID?.() || `${file.name}-${Date.now()}`,
       name: file.name,
       previewUrl: URL.createObjectURL(file),
       sizeLabel: formatFileSize(file.size),
+      type: file.type,
     }));
     setMedia((current) => {
       const updatedMedia = [...current, ...nextMedia];
@@ -1424,6 +1667,18 @@ export function CreateListingPage({
     );
   }
 
+  const previewImageUrls = media
+    .filter(isImageMedia)
+    .map((item) => item.previewUrl);
+  const previewVideoUrls = media
+    .filter(isVideoMedia)
+    .map((item) => item.previewUrl);
+  const selectedCoverMedia = media[coverIndex];
+  const previewCover =
+    selectedCoverMedia && isImageMedia(selectedCoverMedia)
+      ? selectedCoverMedia.previewUrl
+      : previewImageUrls[0];
+
   return (
     <main className="min-h-dvh w-full max-w-full bg-background text-foreground">
       <form
@@ -1466,7 +1721,9 @@ export function CreateListingPage({
         <input type="hidden" name="garages" value={draft.garages} />
         <input type="hidden" name="insuranceEstimate" value={draft.insuranceEstimate} />
         <input type="hidden" name="suburb" value={draft.suburb} />
+        <input type="hidden" name="province" value={draft.province} />
         <input type="hidden" name="googlePlaceId" value={draft.googlePlaceId} />
+        <input type="hidden" name="googlePlaceData" value={draft.googlePlaceData} />
         <input type="hidden" name="listingType" value={draft.listingType} />
         <input type="hidden" name="location" value={draft.location} />
         <input type="hidden" name="localTaxes" value={draft.localTaxes} />
@@ -1532,7 +1789,7 @@ export function CreateListingPage({
           ref={mediaInputRef}
           type="file"
           name="mediaFiles"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
           multiple
           className="sr-only"
           onChange={(event) => void handleMediaChange(event)}
@@ -1806,9 +2063,10 @@ export function CreateListingPage({
                   <PreviewStep
                     activeListingType={activeListingType?.label || "Listing"}
                     activePropertyType={activePropertyType?.label || "Property"}
-                    cover={media[coverIndex]?.previewUrl}
+                    cover={previewCover}
                     draft={draft}
-                    imageUrls={media.map((item) => item.previewUrl)}
+                    imageUrls={previewImageUrls}
+                    videoUrls={previewVideoUrls}
                   />
                 ) : null}
               </div>
@@ -1859,9 +2117,10 @@ export function CreateListingPage({
                 <ListingPreview
                   activeListingType={activeListingType?.label || "Listing"}
                   activePropertyType={activePropertyType?.label || "Property"}
-                  cover={media[coverIndex]?.previewUrl}
+                  cover={previewCover}
                   draft={draft}
-                  imageUrls={media.map((item) => item.previewUrl)}
+                  imageUrls={previewImageUrls}
+                  videoUrls={previewVideoUrls}
                   profilePath={profilePath}
                 />
               </div>
@@ -1872,12 +2131,13 @@ export function CreateListingPage({
             <MobileListingPreviewDialog
               activeListingType={activeListingType?.label || "Listing"}
               activePropertyType={activePropertyType?.label || "Property"}
-              cover={media[coverIndex]?.previewUrl}
+              cover={previewCover}
               draft={draft}
-              imageUrls={media.map((item) => item.previewUrl)}
+              imageUrls={previewImageUrls}
               open={previewOpen}
               profilePath={profilePath}
               setOpen={setPreviewOpen}
+              videoUrls={previewVideoUrls}
             />
           )}
         </div>
@@ -2037,8 +2297,52 @@ function LocationStep({
     };
   }, [isLocked, query]);
 
-  function selectLocation(option: GoogleAutocompletePrediction) {
-    const parts = splitLocation(option.description);
+  function updateAddressPart(key: "city" | "country" | "province" | "suburb", value: string) {
+    setDraft((current) => ({
+      ...current,
+      [key]: value,
+      googlePlaceData: current.googlePlaceId ? current.googlePlaceData : "",
+    }));
+  }
+
+  async function selectLocation(option: GoogleAutocompletePrediction) {
+    let place: GooglePlaceDetails | null = null;
+
+    try {
+      await loadGooglePlaces();
+      const places = (window as GoogleWindow).google?.maps?.places;
+
+      if (places) {
+        const service = new places.PlacesService(document.createElement("div"));
+        const sessionToken = new places.AutocompleteSessionToken();
+
+        place = await new Promise<GooglePlaceDetails | null>((resolve) => {
+          service.getDetails(
+            {
+              fields: [
+                "address_components",
+                "formatted_address",
+                "geometry",
+                "name",
+                "place_id",
+                "types",
+              ],
+              placeId: option.place_id,
+              sessionToken,
+            },
+            (result, status) => {
+              resolve(status === places.PlacesServiceStatus.OK ? result : null);
+            },
+          );
+        });
+      }
+    } catch {
+      place = null;
+    }
+
+    const formattedAddress = place?.formatted_address || option.description;
+    const parts = placeLocationParts(place || {}, formattedAddress);
+
     setQuery(option.description);
     setPredictions([]);
     setDraft((current) => ({
@@ -2046,7 +2350,9 @@ function LocationStep({
       city: parts.city,
       country: parts.country,
       googlePlaceId: option.place_id,
-      location: option.description,
+      googlePlaceData: serializablePlaceData(place, option),
+      location: formattedAddress,
+      province: parts.province,
       suburb: parts.suburb,
     }));
   }
@@ -2075,7 +2381,9 @@ function LocationStep({
               city: parts.city,
               country: parts.country,
               googlePlaceId: "",
+              googlePlaceData: "",
               location: value,
+              province: parts.province,
               suburb: parts.suburb,
             }));
           }}
@@ -2120,6 +2428,67 @@ function LocationStep({
           </p>
         </div>
       ) : null}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-black">Address details</h3>
+            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              If Google cannot find the exact property, enter these manually.
+            </p>
+          </div>
+          {draft.googlePlaceId ? (
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-primary">
+              Google matched
+            </span>
+          ) : (
+            <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+              Manual entry
+            </span>
+          )}
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+            Suburb
+            <input
+              value={draft.suburb}
+              onChange={(event) => updateAddressPart("suburb", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="Denneburg"
+            />
+          </label>
+          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+            City
+            <input
+              value={draft.city}
+              onChange={(event) => updateAddressPart("city", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="Paarl"
+            />
+          </label>
+          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+            Province
+            <input
+              value={draft.province}
+              onChange={(event) => updateAddressPart("province", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="Western Cape"
+            />
+          </label>
+          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+            Country
+            <input
+              value={draft.country}
+              onChange={(event) => updateAddressPart("country", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="South Africa"
+            />
+          </label>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2945,9 +3314,9 @@ function MediaStep({
       <div>
         <h2 className="text-lg font-black">Media</h2>
         <p className="mt-1 text-sm font-semibold text-muted-foreground">
-          Upload up to {maxListingImages} images. Images are optimized before
-          saving. JPG, PNG, or WebP, max {maxListingImageSizeMb}MB each after
-          optimization.
+          Upload up to {maxListingImages} photos or videos. Photos are optimized
+          before saving. Videos are limited to 90 seconds and {maxListingVideoSizeMb}MB
+          after optimization.
         </p>
       </div>
       <button
@@ -2956,9 +3325,9 @@ function MediaStep({
         onClick={onOpenFilePicker}
       >
         <ImagePlus className="size-8 text-primary" />
-        <span className="mt-3 text-sm font-black">Upload listing images</span>
+        <span className="mt-3 text-sm font-black">Upload listing media</span>
         <span className="mt-1 text-xs font-semibold text-muted-foreground">
-          Choose photos, then select one as the cover.
+          Choose photos or video. Select a photo as the cover when possible.
         </span>
       </button>
       {media.length ? (
@@ -2993,13 +3362,28 @@ function MediaStep({
               }}
               onDragEnd={() => setDraggedIndex(null)}
             >
-              <Image
-                src={item.previewUrl}
-                alt={item.name}
-                width={320}
-                height={240}
-                className="aspect-[4/3] w-full object-cover"
-              />
+              {isVideoMedia(item) ? (
+                <div className="relative aspect-[4/3] w-full bg-black">
+                  <video
+                    src={item.previewUrl}
+                    className="size-full object-cover"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                  <span className="absolute inset-0 grid place-items-center bg-black/15 text-white">
+                    <Play className="size-7 fill-white" />
+                  </span>
+                </div>
+              ) : (
+                <Image
+                  src={item.previewUrl}
+                  alt={item.name}
+                  width={320}
+                  height={240}
+                  className="aspect-[4/3] w-full object-cover"
+                />
+              )}
               <div className="absolute left-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm">
                 <Grip className="size-3.5" aria-hidden="true" />
               </div>
@@ -3127,6 +3511,7 @@ function PreviewStep(props: {
   cover?: string;
   draft: ListingDraft;
   imageUrls?: string[];
+  videoUrls?: string[];
 }) {
   return (
     <div className="space-y-6">
@@ -3150,6 +3535,7 @@ function MobileListingPreviewDialog({
   profilePath,
   setOpen,
   imageUrls,
+  videoUrls,
 }: {
   activeListingType: string;
   activePropertyType: string;
@@ -3159,6 +3545,7 @@ function MobileListingPreviewDialog({
   profilePath: string;
   setOpen: (open: boolean) => void;
   imageUrls?: string[];
+  videoUrls?: string[];
 }) {
   const [buttonPosition, setButtonPosition] = useState<{
     left: number;
@@ -3293,11 +3680,12 @@ function MobileListingPreviewDialog({
           <ListingPreview
             activeListingType={activeListingType}
             activePropertyType={activePropertyType}
-            cover={cover}
-            draft={draft}
-            imageUrls={imageUrls}
-            profilePath={profilePath}
-          />
+                cover={cover}
+                draft={draft}
+                imageUrls={imageUrls}
+                profilePath={profilePath}
+                videoUrls={videoUrls}
+              />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -3310,6 +3698,7 @@ function ListingPreview({
   cover,
   draft,
   imageUrls,
+  videoUrls,
   profilePath,
 }: {
   activeListingType: string;
@@ -3317,6 +3706,7 @@ function ListingPreview({
   cover?: string;
   draft: ListingDraft;
   imageUrls?: string[];
+  videoUrls?: string[];
   profilePath: string;
 }) {
   const priceAmount = Number(draft.askingPrice);
@@ -3350,6 +3740,7 @@ function ListingPreview({
     pricePrefix: draft.priceQualifier,
     propertyTypeLabel: activePropertyType,
     title: draft.title,
+    videoUrls,
   };
 
   return <ListingCard listing={listing} />;

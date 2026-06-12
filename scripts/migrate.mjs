@@ -62,6 +62,11 @@ try {
       bio text,
       location text,
       location_place_id text,
+      location_place_data jsonb,
+      location_country text,
+      location_province text,
+      location_city text,
+      location_suburb text,
       contact_email text,
       contact_phone text,
       whatsapp_number text,
@@ -98,6 +103,31 @@ try {
   await sql`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS location_place_id text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location_place_data jsonb
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location_country text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location_province text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location_city text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location_suburb text
   `;
 
   await sql`
@@ -190,6 +220,12 @@ try {
       headline text,
       bio text,
       location text,
+      location_place_id text,
+      location_place_data jsonb,
+      location_country text,
+      location_province text,
+      location_city text,
+      location_suburb text,
       status agent_profile_status NOT NULL DEFAULT 'draft',
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
@@ -202,6 +238,65 @@ try {
 
   await sql`
     CREATE INDEX IF NOT EXISTS agent_profiles_status_idx ON agent_profiles (status)
+  `;
+
+  await sql`
+    ALTER TABLE agent_profiles
+    ADD COLUMN IF NOT EXISTS location_place_id text
+  `;
+
+  await sql`
+    ALTER TABLE agent_profiles
+    ADD COLUMN IF NOT EXISTS location_place_data jsonb
+  `;
+
+  await sql`
+    ALTER TABLE agent_profiles
+    ADD COLUMN IF NOT EXISTS location_country text
+  `;
+
+  await sql`
+    ALTER TABLE agent_profiles
+    ADD COLUMN IF NOT EXISTS location_province text
+  `;
+
+  await sql`
+    ALTER TABLE agent_profiles
+    ADD COLUMN IF NOT EXISTS location_city text
+  `;
+
+  await sql`
+    ALTER TABLE agent_profiles
+    ADD COLUMN IF NOT EXISTS location_suburb text
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agent_profiles_location_parts_idx
+    ON agent_profiles (location_country, location_province, location_city, location_suburb)
+  `;
+
+  await sql`
+    UPDATE agent_profiles
+    SET
+      location = COALESCE(agent_profiles.location, users.location),
+      location_place_id = COALESCE(agent_profiles.location_place_id, users.location_place_id),
+      location_place_data = COALESCE(agent_profiles.location_place_data, users.location_place_data),
+      location_country = COALESCE(agent_profiles.location_country, users.location_country),
+      location_province = COALESCE(agent_profiles.location_province, users.location_province),
+      location_city = COALESCE(agent_profiles.location_city, users.location_city),
+      location_suburb = COALESCE(agent_profiles.location_suburb, users.location_suburb),
+      updated_at = now()
+    FROM users
+    WHERE agent_profiles.user_id = users.id
+      AND (
+        agent_profiles.location IS NULL
+        OR agent_profiles.location_place_id IS NULL
+        OR agent_profiles.location_place_data IS NULL
+        OR agent_profiles.location_country IS NULL
+        OR agent_profiles.location_province IS NULL
+        OR agent_profiles.location_city IS NULL
+        OR agent_profiles.location_suburb IS NULL
+      )
   `;
 
   await sql`
@@ -293,7 +388,9 @@ try {
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       normalized_address text,
       google_place_id text,
+      google_place_data jsonb,
       country text,
+      province text,
       city text,
       suburb text,
       property_type text,
@@ -306,6 +403,16 @@ try {
   `;
 
   await sql`
+    ALTER TABLE property_identities
+    ADD COLUMN IF NOT EXISTS google_place_data jsonb
+  `;
+
+  await sql`
+    ALTER TABLE property_identities
+    ADD COLUMN IF NOT EXISTS province text
+  `;
+
+  await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS property_identities_google_place_id_idx
     ON property_identities (google_place_id)
   `;
@@ -313,6 +420,11 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS property_identities_location_idx
     ON property_identities (country, city, suburb)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_identities_location_v2_idx
+    ON property_identities (country, province, city, suburb)
   `;
 
   await sql`

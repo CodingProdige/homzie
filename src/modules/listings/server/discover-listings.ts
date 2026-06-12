@@ -13,6 +13,7 @@ import {
   listingTypeOptions,
   propertyTypeOptions,
 } from "@/modules/listings/options";
+import { buildListingPath } from "@/modules/listings/seo";
 
 export type DiscoverListingFilters = {
   area?: string[] | string;
@@ -115,6 +116,10 @@ function stringArray(value: unknown) {
 
 function isNonEmptyString(value: string | null | undefined): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+function isVideoMediaType(value: unknown) {
+  return typeof value === "string" && value.startsWith("video/");
 }
 
 function optionLabel<T extends { label: string; value: string }>(
@@ -450,11 +455,34 @@ export async function getDiscoverListings({
     visibleRows.map(async (listing) => {
       const details = metadataObject(listing.details);
       const media = Array.isArray(listing.media) ? listing.media : [];
+      const coverMedia = media.find((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+
+        const mediaItem = item as Record<string, unknown>;
+
+        return (
+          mediaItem.path === listing.coverImageUrl &&
+          !isVideoMediaType(mediaItem.type)
+        );
+      });
       const imageUrls = media
         .map((item) => {
           if (!item || typeof item !== "object" || Array.isArray(item)) {
             return "";
           }
+
+          if (isVideoMediaType((item as Record<string, unknown>).type)) return "";
+
+          return toPublicMediaUrl((item as Record<string, unknown>).path as string);
+        })
+        .filter(isNonEmptyString);
+      const videoUrls = media
+        .map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            return "";
+          }
+
+          if (!isVideoMediaType((item as Record<string, unknown>).type)) return "";
 
           return toPublicMediaUrl((item as Record<string, unknown>).path as string);
         })
@@ -497,12 +525,31 @@ export async function getDiscoverListings({
         bedrooms: numberValue(details.bedrooms),
         buyerIncentive:
           typeof details.buyerIncentive === "string" ? details.buyerIncentive : null,
-        coverImageUrl: toPublicMediaUrl(listing.coverImageUrl) || imageUrls[0],
+        coverImageUrl:
+          toPublicMediaUrl(
+            (coverMedia as Record<string, unknown> | undefined)?.path as
+              | string
+              | undefined,
+          ) || imageUrls[0],
         erfSize: numberValue(details.erfSize),
         features: stringArray(listing.features).slice(0, 10),
         floorSize: numberValue(details.floorSize),
         garages: numberValue(details.garages),
-        href: `/listings/${listing.id}`,
+        href: buildListingPath({
+          bedrooms: numberValue(details.bedrooms),
+          city: cleanParam(details.city as string),
+          country: cleanParam(details.country as string),
+          id: listing.id,
+          listingType: listing.listingType,
+          location: listing.location,
+          propertyType: listing.propertyType,
+          province:
+            cleanParam(details.province as string) ||
+            cleanParam(details.state as string) ||
+            cleanParam(details.region as string),
+          suburb: cleanParam(details.suburb as string),
+          title: listing.title,
+        }),
         id: listing.id,
         imageUrls,
         likedByViewer: Boolean(viewerLike),
@@ -531,6 +578,7 @@ export async function getDiscoverListings({
         saveCount,
         saveCountLabel: formatCompactCount(saveCount),
         title: listing.title,
+        videoUrls,
       };
     }),
   );

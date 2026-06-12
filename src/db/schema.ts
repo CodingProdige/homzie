@@ -39,6 +39,11 @@ export const users = pgTable("users", {
   bio: text("bio"),
   location: text("location"),
   locationPlaceId: text("location_place_id"),
+  locationPlaceData: jsonb("location_place_data"),
+  locationCountry: text("location_country"),
+  locationProvince: text("location_province"),
+  locationCity: text("location_city"),
+  locationSuburb: text("location_suburb"),
   contactEmail: text("contact_email"),
   contactPhone: text("contact_phone"),
   whatsappNumber: text("whatsapp_number"),
@@ -67,10 +72,23 @@ export const agentProfiles = pgTable("agent_profiles", {
   headline: text("headline"),
   bio: text("bio"),
   location: text("location"),
+  locationPlaceId: text("location_place_id"),
+  locationPlaceData: jsonb("location_place_data"),
+  locationCountry: text("location_country"),
+  locationProvince: text("location_province"),
+  locationCity: text("location_city"),
+  locationSuburb: text("location_suburb"),
   status: agentProfileStatusEnum("status").notNull().default("draft"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("agent_profiles_location_parts_idx").on(
+    table.locationCountry,
+    table.locationProvince,
+    table.locationCity,
+    table.locationSuburb,
+  ),
+]);
 
 export const subscriptions = pgTable("subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -133,7 +151,9 @@ export const propertyIdentities = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     normalizedAddress: text("normalized_address"),
     googlePlaceId: text("google_place_id"),
+    googlePlaceData: jsonb("google_place_data"),
     country: text("country"),
+    province: text("province"),
     city: text("city"),
     suburb: text("suburb"),
     propertyType: text("property_type"),
@@ -145,7 +165,12 @@ export const propertyIdentities = pgTable(
   },
   (table) => [
     uniqueIndex("property_identities_google_place_id_idx").on(table.googlePlaceId),
-    index("property_identities_location_idx").on(table.country, table.city, table.suburb),
+    index("property_identities_location_idx").on(
+      table.country,
+      table.province,
+      table.city,
+      table.suburb,
+    ),
     index("property_identities_normalized_address_idx").on(table.normalizedAddress),
   ],
 );

@@ -44,6 +44,7 @@ import {
   mandateTypeOptions,
   propertyTypeOptions,
 } from "@/modules/listings/options";
+import { buildListingPath } from "@/modules/listings/seo";
 import {
   calculateReservationFees,
   getStoredReservationSettings,
@@ -56,6 +57,7 @@ import {
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 const maxListingImageBytes = 15 * 1024 * 1024;
+const maxListingVideoBytes = 80 * 1024 * 1024;
 const maxListingImages = 30;
 const maxListingTitleLength = 120;
 const maxListingDescriptionLength = 3000;
@@ -69,6 +71,11 @@ const listingImageTypes: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+};
+const listingVideoTypes: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
 };
 
 const listingTypeValues = listingTypeOptions.map((option) => option.value) as [
@@ -132,6 +139,7 @@ const listingSchema = z.object({
   furnishedStatus: z.enum(["", "yes", "no"]).optional(),
   garages: z.coerce.number().int().min(0).max(99).optional(),
   googlePlaceId: z.string().trim().max(180).optional(),
+  googlePlaceData: z.string().trim().max(10_000).optional(),
   insuranceEstimate: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   listingType: z.enum(listingTypeValues),
   location: z.string().trim().min(2).max(240),
@@ -150,6 +158,7 @@ const listingSchema = z.object({
     .optional(),
   priceQualifier: z.string().trim().max(40).optional(),
   propertyType: z.enum(propertyTypeValues),
+  province: z.string().trim().max(120).optional(),
   publishIntent: z.enum(["draft", "published"]),
   reservationAmount: z.coerce
     .number()
@@ -243,6 +252,7 @@ function parseListingFormData(formData: FormData) {
     furnishedStatus: formData.get("furnishedStatus") || "",
     garages: numberOrUndefined(formData.get("garages")),
     googlePlaceId: formData.get("googlePlaceId"),
+    googlePlaceData: formData.get("googlePlaceData"),
     insuranceEstimate: numberOrUndefined(formData.get("insuranceEstimate")),
     listingType: formData.get("listingType"),
     location:
@@ -258,6 +268,7 @@ function parseListingFormData(formData: FormData) {
     previousAskingPrice: numberOrUndefined(formData.get("previousAskingPrice")),
     priceQualifier: formData.get("priceQualifier"),
     propertyType: formData.get("propertyType"),
+    province: formData.get("province"),
     publishIntent,
     reservationAmount: numberOrUndefined(formData.get("reservationAmount")),
     reservationEnabled: formData.get("reservationEnabled") === "on",
@@ -286,6 +297,33 @@ function parseListingFormData(formData: FormData) {
   return { data: parsed.data, description };
 }
 
+function parseGooglePlaceData(value: string | undefined) {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function listingCoverImagePath(
+  media: StoredListingMedia[],
+  preferredIndex: number,
+) {
+  const preferred = media[preferredIndex];
+
+  if (preferred?.type.startsWith("image/")) {
+    return preferred.path;
+  }
+
+  return media.find((item) => item.type.startsWith("image/"))?.path || null;
+}
+
 function assertListingCanPublish(
   data: z.infer<typeof listingSchema>,
   description: string,
@@ -302,6 +340,10 @@ function assertListingCanPublish(
 
   if (data.location === "Location not set" || data.location.trim().length < 2) {
     issues.push("Add the property location.");
+  }
+
+  if (!data.city || !data.province || !data.country) {
+    issues.push("Add the city, province, and country.");
   }
 
   if (descriptionText.length < 40) {
@@ -434,14 +476,14 @@ export async function createListing(formData: FormData) {
     redirect(`/listings/new?duplicateListing=${duplicateListing.id}`);
   }
 
-  const media = await storeListingImages(formData.getAll("mediaFiles"));
+  const media = await storeListingMedia(formData.getAll("mediaFiles"));
   assertListingCanPublish(data, description, media.length);
   const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
     Math.max(media.length - 1, 0),
   );
-  const coverImageUrl = media[coverIndex]?.path || null;
+  const coverImageUrl = listingCoverImagePath(media, coverIndex);
   const askingPriceCents =
     typeof data.askingPrice === "number"
       ? Math.round(data.askingPrice * 100)
@@ -475,13 +517,16 @@ export async function createListing(formData: FormData) {
     listingType: data.listingType,
     qualifier: data.priceQualifier,
   });
+  const googlePlaceData = parseGooglePlaceData(data.googlePlaceData);
   const [identity] = await db
     .insert(propertyIdentities)
     .values({
       city: data.city || null,
       country: data.country || null,
+      googlePlaceData,
       googlePlaceId: data.googlePlaceId || null,
       normalizedAddress: data.location.toLowerCase(),
+      province: data.province || null,
       suburb: data.suburb || null,
       propertyType: data.propertyType,
     })
@@ -505,14 +550,20 @@ export async function createListing(formData: FormData) {
         floorSize: data.floorSize ?? null,
         furnishedStatus: data.furnishedStatus || null,
         garages: data.garages ?? null,
+        googlePlaceData,
+        googlePlaceId: data.googlePlaceId || null,
         insuranceEstimateCents,
         localTaxesCents,
+        city: data.city || null,
+        country: data.country || null,
         parking: data.parking ?? null,
         petsAllowed: data.petsAllowed || null,
         previousAskingPriceCents,
         priceQualifier: data.priceQualifier || null,
+        province: data.province || null,
         rentalYield: data.rentalYield ?? null,
         shortLetAllowed: data.shortLetAllowed || null,
+        suburb: data.suburb || null,
         transferCostsEstimateCents,
         utilitiesEstimateCents,
       },
@@ -617,7 +668,7 @@ export async function updateListing(formData: FormData) {
 
   const agentProfile = await getAgentProfileForUser(session.user.id);
   const { data, description } = parseListingFormData(formData);
-  const uploadedMedia = await storeListingImages(formData.getAll("mediaFiles"));
+  const uploadedMedia = await storeListingMedia(formData.getAll("mediaFiles"));
   const media = [
     ...parseExistingListingMedia(formData.get("existingMedia")),
     ...uploadedMedia,
@@ -628,7 +679,7 @@ export async function updateListing(formData: FormData) {
     Math.max(Number(formData.get("coverIndex") || 0), 0),
     Math.max(media.length - 1, 0),
   );
-  const coverImageUrl = media[coverIndex]?.path || null;
+  const coverImageUrl = listingCoverImagePath(media, coverIndex);
   const askingPriceCents =
     typeof data.askingPrice === "number"
       ? Math.round(data.askingPrice * 100)
@@ -662,6 +713,7 @@ export async function updateListing(formData: FormData) {
     listingType: data.listingType,
     qualifier: data.priceQualifier,
   });
+  const googlePlaceData = parseGooglePlaceData(data.googlePlaceData);
   const nextStatus =
     existingListing.status === "reserved" ? "reserved" : data.publishIntent;
   const [identity] = await db
@@ -669,8 +721,10 @@ export async function updateListing(formData: FormData) {
     .values({
       city: data.city || null,
       country: data.country || null,
+      googlePlaceData,
       googlePlaceId: data.googlePlaceId || null,
       normalizedAddress: data.location.toLowerCase(),
+      province: data.province || null,
       suburb: data.suburb || null,
       propertyType: data.propertyType,
     })
@@ -695,14 +749,20 @@ export async function updateListing(formData: FormData) {
         floorSize: data.floorSize ?? null,
         furnishedStatus: data.furnishedStatus || null,
         garages: data.garages ?? null,
+        googlePlaceData,
+        googlePlaceId: data.googlePlaceId || null,
         insuranceEstimateCents,
+        city: data.city || null,
+        country: data.country || null,
         localTaxesCents,
         parking: data.parking ?? null,
         petsAllowed: data.petsAllowed || null,
         previousAskingPriceCents,
         priceQualifier: data.priceQualifier || null,
+        province: data.province || null,
         rentalYield: data.rentalYield ?? null,
         shortLetAllowed: data.shortLetAllowed || null,
+        suburb: data.suburb || null,
         transferCostsEstimateCents,
         utilitiesEstimateCents,
       },
@@ -928,8 +988,11 @@ export async function startListingReservationCheckout(listingId: string) {
 
   const [listing] = await db
     .select({
+      details: propertyListings.details,
       id: propertyListings.id,
       listingType: propertyListings.listingType,
+      location: propertyListings.location,
+      propertyType: propertyListings.propertyType,
       reservationAmountCents: propertyListings.reservationAmountCents,
       reservationEnabled: propertyListings.reservationEnabled,
       status: propertyListings.status,
@@ -1000,6 +1063,25 @@ export async function startListingReservationCheckout(listingId: string) {
     amountCents: listing.reservationAmountCents,
     settings,
   });
+  const listingDetails =
+    listing.details && typeof listing.details === "object" && !Array.isArray(listing.details)
+      ? (listing.details as Record<string, unknown>)
+      : {};
+  const reservationReturnPath = buildListingPath({
+    bedrooms: listingDetails.bedrooms as number | string | null,
+    city: typeof listingDetails.city === "string" ? listingDetails.city : "",
+    country: typeof listingDetails.country === "string" ? listingDetails.country : "",
+    id: listing.id,
+    listingType: listing.listingType,
+    location: listing.location,
+    propertyType: listing.propertyType,
+    province:
+      (typeof listingDetails.province === "string" ? listingDetails.province : "") ||
+      (typeof listingDetails.state === "string" ? listingDetails.state : "") ||
+      (typeof listingDetails.region === "string" ? listingDetails.region : ""),
+    suburb: typeof listingDetails.suburb === "string" ? listingDetails.suburb : "",
+    title: listing.title,
+  });
 
   try {
     const stripe = await getStripe();
@@ -1019,7 +1101,7 @@ export async function startListingReservationCheckout(listingId: string) {
       .returning({ id: listingReservations.id });
 
     const checkout = await stripe.checkout.sessions.create({
-      cancel_url: absoluteAppUrl(`/listings/${listing.id}?reservation=cancelled`),
+      cancel_url: absoluteAppUrl(`${reservationReturnPath}?reservation=cancelled`),
       customer_email: buyer.email,
       line_items: [
         {
@@ -1053,7 +1135,7 @@ export async function startListingReservationCheckout(listingId: string) {
           type: "listing_reservation",
         },
       },
-      success_url: absoluteAppUrl(`/listings/${listing.id}?reservation=success`),
+      success_url: absoluteAppUrl(`${reservationReturnPath}?reservation=success`),
     });
 
     await db
@@ -1897,16 +1979,24 @@ async function notifyFollowersAboutPublishedListing({
   ownerUserId: string;
 }) {
   const [listing] = await rawSql<{
+    details: Record<string, unknown> | null;
+    id: string;
+    listing_type: string;
     location: string | null;
     price_label: string | null;
+    property_type: string;
     title: string;
     user_name: string;
     username: string | null;
   }[]>`
     SELECT
+      pl.id,
       pl.title,
       pl.location,
       pl.price_label,
+      pl.listing_type,
+      pl.property_type,
+      pl.details,
       u.name AS user_name,
       u.username
     FROM property_listings pl
@@ -1918,6 +2008,27 @@ async function notifyFollowersAboutPublishedListing({
   `;
 
   if (!listing) return;
+
+  const listingUrl = absoluteAppUrl(
+    buildListingPath({
+      bedrooms: listing.details?.bedrooms as number | string | null,
+      city: typeof listing.details?.city === "string" ? listing.details.city : "",
+      country:
+        typeof listing.details?.country === "string" ? listing.details.country : "",
+      id: listing.id,
+      listingType: listing.listing_type,
+      location: listing.location,
+      propertyType: listing.property_type,
+      province:
+        (typeof listing.details?.province === "string"
+          ? listing.details.province
+          : "") ||
+        (typeof listing.details?.state === "string" ? listing.details.state : "") ||
+        (typeof listing.details?.region === "string" ? listing.details.region : ""),
+      suburb: typeof listing.details?.suburb === "string" ? listing.details.suburb : "",
+      title: listing.title,
+    }),
+  );
 
   const followers = await rawSql<{
     follower_id: string;
@@ -1951,7 +2062,7 @@ async function notifyFollowersAboutPublishedListing({
             location: listing.location || "Location not set",
             priceLabel: listing.price_label || "Price on request",
             title: listing.title,
-            url: absoluteAppUrl(`/listings/${listingId}`),
+            url: listingUrl,
           },
           user: {
             firstName: follower.name.split(/\s+/)[0] || follower.name,
@@ -1994,7 +2105,7 @@ function parseExistingListingMedia(value: FormDataEntryValue | null) {
   }
 }
 
-async function storeListingImages(values: FormDataEntryValue[]) {
+async function storeListingMedia(values: FormDataEntryValue[]) {
   const files = values
     .filter((value): value is File => value instanceof File && value.size > 0)
     .slice(0, maxListingImages);
@@ -2007,14 +2118,21 @@ async function storeListingImages(values: FormDataEntryValue[]) {
   }> = [];
 
   for (const file of files) {
-    if (file.size > maxListingImageBytes) {
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+
+    if (isImage && file.size > maxListingImageBytes) {
       throw new Error("Listing images must be 15MB or smaller after optimization.");
     }
 
-    const extension = listingImageTypes[file.type];
+    if (isVideo && file.size > maxListingVideoBytes) {
+      throw new Error("Listing videos must be 80MB or smaller after optimization.");
+    }
+
+    const extension = isVideo ? listingVideoTypes[file.type] : listingImageTypes[file.type];
 
     if (!extension) {
-      throw new Error("Upload JPG, PNG, or WebP listing images.");
+      throw new Error("Upload JPG, PNG, WebP, MP4, MOV, or WebM listing media.");
     }
 
     const now = new Date();

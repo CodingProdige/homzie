@@ -20,6 +20,12 @@ import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { getAgentPerformanceStats } from "@/modules/agents/performance";
 import { UserProfilePage as UserProfile } from "@/modules/users/components/user-profile-page";
 import { toPublicMediaUrl } from "@/media/paths";
+import { buildListingPath } from "@/modules/listings/seo";
+import {
+  formatSeoTitle,
+  getStoredSeoSettings,
+} from "@/modules/seo/settings";
+import { absoluteUrl } from "@/modules/site/url";
 
 type UserProfileRouteProps = {
   params: Promise<{
@@ -45,11 +51,16 @@ const getUserProfile = cache(async function getUserProfile(usernameParam: string
   const [user] = await db
     .select({
       id: users.id,
+      isDemo: users.isDemo,
       name: users.name,
       username: users.username,
       avatarUrl: users.avatarUrl,
       bio: users.bio,
       location: users.location,
+      locationCity: users.locationCity,
+      locationCountry: users.locationCountry,
+      locationProvince: users.locationProvince,
+      locationSuburb: users.locationSuburb,
       contactEmail: users.contactEmail,
       contactPhone: users.contactPhone,
       whatsappNumber: users.whatsappNumber,
@@ -125,7 +136,7 @@ function isString(value: string | null): value is string {
   return typeof value === "string";
 }
 
-function listingMediaUrls(value: unknown) {
+function listingMediaUrls(value: unknown, mediaType: "image" | "video") {
   if (!Array.isArray(value)) return [];
 
   return value
@@ -133,10 +144,21 @@ function listingMediaUrls(value: unknown) {
       if (!item || typeof item !== "object" || Array.isArray(item)) return "";
 
       const path = (item as { path?: unknown }).path;
+      const type = (item as { type?: unknown }).type;
+      const isVideo = typeof type === "string" && type.startsWith("video/");
+
+      if (mediaType === "video" ? !isVideo : isVideo) return "";
 
       return typeof path === "string" ? toPublicMediaUrl(path) : "";
     })
     .filter(isString);
+}
+
+function listingCoverImageUrl(coverImageUrl: string | null, media: unknown) {
+  const coverUrl = toPublicMediaUrl(coverImageUrl);
+  const imageUrls = listingMediaUrls(media, "image");
+
+  return imageUrls.includes(coverUrl || "") ? coverUrl : imageUrls[0] || coverUrl;
 }
 
 function listingUnavailableLabel(status: string) {
@@ -148,6 +170,53 @@ function listingUnavailableLabel(status: string) {
   if (status === "expired") return "Expired";
 
   return status === "published" ? "" : "No longer available";
+}
+
+function profileLocationLabel(profile: {
+  location: string | null;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationProvince: string | null;
+  locationSuburb: string | null;
+}) {
+  return (
+    [
+      profile.locationSuburb,
+      profile.locationCity,
+      profile.locationProvince,
+      profile.locationCountry,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
+    profile.location ||
+    ""
+  );
+}
+
+function profilePostalAddress(profile: {
+  location: string | null;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationProvince: string | null;
+  locationSuburb: string | null;
+}) {
+  if (
+    !profile.location &&
+    !profile.locationCity &&
+    !profile.locationCountry &&
+    !profile.locationProvince &&
+    !profile.locationSuburb
+  ) {
+    return undefined;
+  }
+
+  return {
+    "@type": "PostalAddress",
+    addressCountry: profile.locationCountry || undefined,
+    addressLocality: profile.locationCity || undefined,
+    addressRegion: profile.locationProvince || undefined,
+    streetAddress: profile.locationSuburb || profile.location || undefined,
+  };
 }
 
 function archiveFeedbackMessage(status?: string) {
@@ -337,13 +406,28 @@ async function getProfileListings({
       bedrooms: listingNumber(details.bedrooms),
       buyerIncentive:
         typeof details.buyerIncentive === "string" ? details.buyerIncentive : "",
-      coverImageUrl: toPublicMediaUrl(listing.coverImageUrl),
+      coverImageUrl: listingCoverImageUrl(listing.coverImageUrl, listing.media),
       erfSize: listingNumber(details.erfSize),
       features: listingStringArray(listing.features).slice(0, 10),
       floorSize: listingNumber(details.floorSize),
       garages: listingNumber(details.garages),
+      href: buildListingPath({
+        bedrooms: listingNumber(details.bedrooms),
+        city: typeof details.city === "string" ? details.city : "",
+        country: typeof details.country === "string" ? details.country : "",
+        id: listing.id,
+        listingType: listing.listingType,
+        location: listing.location,
+        propertyType: listing.propertyType,
+        province:
+          (typeof details.province === "string" ? details.province : "") ||
+          (typeof details.state === "string" ? details.state : "") ||
+          (typeof details.region === "string" ? details.region : ""),
+        suburb: typeof details.suburb === "string" ? details.suburb : "",
+        title: listing.title,
+      }),
       id: listing.id,
-      imageUrls: listingMediaUrls(listing.media),
+      imageUrls: listingMediaUrls(listing.media, "image"),
       listingType: listing.listingType,
       likedByViewer: listing.likedByViewer,
       likeCount: listing.likeCount,
@@ -363,6 +447,7 @@ async function getProfileListings({
       title: listing.title,
       unavailable,
       unavailableLabel: unavailable ? listingUnavailableLabel(listing.status) : "",
+      videoUrls: listingMediaUrls(listing.media, "video"),
     };
   });
 }
@@ -437,13 +522,28 @@ async function getSavedListings({
       bedrooms: listingNumber(details.bedrooms),
       buyerIncentive:
         typeof details.buyerIncentive === "string" ? details.buyerIncentive : "",
-      coverImageUrl: toPublicMediaUrl(listing.coverImageUrl),
+      coverImageUrl: listingCoverImageUrl(listing.coverImageUrl, listing.media),
       erfSize: listingNumber(details.erfSize),
       features: listingStringArray(listing.features).slice(0, 10),
       floorSize: listingNumber(details.floorSize),
       garages: listingNumber(details.garages),
+      href: buildListingPath({
+        bedrooms: listingNumber(details.bedrooms),
+        city: typeof details.city === "string" ? details.city : "",
+        country: typeof details.country === "string" ? details.country : "",
+        id: listing.id,
+        listingType: listing.listingType,
+        location: listing.location,
+        propertyType: listing.propertyType,
+        province:
+          (typeof details.province === "string" ? details.province : "") ||
+          (typeof details.state === "string" ? details.state : "") ||
+          (typeof details.region === "string" ? details.region : ""),
+        suburb: typeof details.suburb === "string" ? details.suburb : "",
+        title: listing.title,
+      }),
       id: listing.id,
-      imageUrls: listingMediaUrls(listing.media),
+      imageUrls: listingMediaUrls(listing.media, "image"),
       listingType: listing.listingType,
       likedByViewer: listing.likedByViewer,
       likeCount: listing.likeCount,
@@ -463,6 +563,7 @@ async function getSavedListings({
       title: listing.title,
       unavailable: listing.status !== "published",
       unavailableLabel: listingUnavailableLabel(listing.status),
+      videoUrls: listingMediaUrls(listing.media, "video"),
     };
   });
 }
@@ -471,17 +572,57 @@ export async function generateMetadata({
   params,
 }: UserProfileRouteProps): Promise<Metadata> {
   const { username } = await params;
-  const profile = await getUserProfile(username);
+  const [profile, seoSettings] = await Promise.all([
+    getUserProfile(username),
+    getStoredSeoSettings(),
+  ]);
 
   if (!profile?.username) {
     return {
       title: "Profile not found | Homzie",
+      robots: {
+        follow: false,
+        index: false,
+      },
     };
   }
 
+  const profileUrl = absoluteUrl(`/users/${profile.username}`);
+  const locationLabel = profileLocationLabel(profile);
+  const profileTitle =
+    `${profile.name}${locationLabel ? ` - Property Agent in ${locationLabel}` : " on Homzie"}`;
+  const description =
+    profile.bio ||
+    `View ${profile.name}'s Homzie profile, listings, reels and agent details.`;
+  const image = absoluteUrl(`/users/${profile.username}/opengraph-image`);
+  const indexable =
+    seoSettings.allowIndexing &&
+    (!profile.isDemo || seoSettings.indexDemoContent);
+
   return {
-    title: `${profile.name} (@${profile.username}) | Homzie`,
-    description: `View ${profile.name}'s Homzie profile.`,
+    alternates: {
+      canonical: profileUrl,
+    },
+    description,
+    openGraph: {
+      description,
+      images: [{ url: image }],
+      siteName: seoSettings.organizationName,
+      title: formatSeoTitle(profileTitle, seoSettings),
+      type: "profile",
+      url: profileUrl,
+    },
+    robots: {
+      follow: indexable,
+      index: indexable,
+    },
+    title: formatSeoTitle(profileTitle, seoSettings),
+    twitter: {
+      card: "summary_large_image",
+      description,
+      images: [image],
+      title: formatSeoTitle(profileTitle, seoSettings),
+    },
   };
 }
 
@@ -555,15 +696,44 @@ export default async function UserProfilePage({
     }),
   ]);
 
+  const publicProfileUrl = absoluteUrl(`/users/${profile.username}`);
+  const avatarImage = toPublicMediaUrl(profile.avatarUrl);
+  const locationLabel = profileLocationLabel(profile);
+  const profileJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "RealEstateAgent",
+    "@id": `${publicProfileUrl}#agent`,
+    address: profilePostalAddress(profile),
+    description: profile.bio || undefined,
+    email:
+      profile.publicContactVisible && profile.contactEmail
+        ? profile.contactEmail
+        : undefined,
+    image: avatarImage ? absoluteUrl(avatarImage) : undefined,
+    name: profile.name,
+    telephone:
+      profile.publicContactVisible && profile.contactPhone
+        ? profile.contactPhone
+        : undefined,
+    url: publicProfileUrl,
+  };
+
   return (
-    <UserProfile
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(profileJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+      <UserProfile
       profile={{
         id: profile.id,
         name: profile.name,
         username: profile.username,
         avatarUrl: toPublicMediaUrl(profile.avatarUrl) || undefined,
         bio: profile.bio || undefined,
-        location: profile.location || undefined,
+        location: locationLabel || undefined,
         contactEmail: profile.publicContactVisible
           ? profile.contactEmail || undefined
           : undefined,
@@ -594,6 +764,7 @@ export default async function UserProfilePage({
           toPublicMediaUrl(session?.user?.image) ||
           undefined,
       }}
-    />
+      />
+    </>
   );
 }

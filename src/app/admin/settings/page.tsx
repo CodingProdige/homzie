@@ -7,6 +7,7 @@ import {
   Mail,
   Megaphone,
   Music,
+  SearchCheck,
   UserRoundCog,
 } from "lucide-react";
 
@@ -36,6 +37,13 @@ const settingsItems = [
     label: "Ads",
     description:
       "Control platform ad pricing, channel availability, and the forecast model users see in Ads Center.",
+  },
+  {
+    href: "/admin/settings/seo",
+    icon: SearchCheck,
+    label: "SEO",
+    description:
+      "Control search indexing, verification tags, metadata defaults, social previews, and public page health.",
   },
   {
     href: "/admin/settings/reservations",

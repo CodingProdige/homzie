@@ -39,7 +39,12 @@ type ProfileSettingsFormProps = {
     contactPhone: string;
     initials: string;
     location: string;
+    locationCity: string;
+    locationCountry: string;
+    locationPlaceData: string;
     locationPlaceId: string;
+    locationProvince: string;
+    locationSuburb: string;
     name: string;
     publicContactVisible: boolean;
     username: string;
@@ -116,6 +121,7 @@ type GoogleAutocompletePrediction = {
     main_text?: string;
     secondary_text?: string;
   };
+  types?: string[];
 };
 
 type GoogleAutocompleteService = {
@@ -123,6 +129,7 @@ type GoogleAutocompleteService = {
     request: {
       input: string;
       sessionToken?: unknown;
+      types?: string[];
     },
     callback: (
       predictions: GoogleAutocompletePrediction[] | null,
@@ -136,14 +143,44 @@ type GoogleWindow = Window & {
   google?: {
     maps?: {
       places?: {
-        AutocompleteService: new () => GoogleAutocompleteService;
-        AutocompleteSessionToken: new () => unknown;
-        PlacesServiceStatus: {
-          OK: string;
-        };
+      AutocompleteService: new () => GoogleAutocompleteService;
+      AutocompleteSessionToken: new () => unknown;
+      PlacesService: new (attrContainer: HTMLElement) => GooglePlacesService;
+      PlacesServiceStatus: {
+        OK: string;
+      };
       };
     };
   };
+};
+
+type GooglePlaceDetails = {
+  address_components?: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
+  formatted_address?: string;
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+  name?: string;
+  place_id?: string;
+  types?: string[];
+};
+
+type GooglePlacesService = {
+  getDetails: (
+    request: {
+      fields: string[];
+      placeId: string;
+      sessionToken?: unknown;
+    },
+    callback: (place: GooglePlaceDetails | null, status: string) => void,
+  ) => void;
 };
 
 function loadGooglePlaces() {
@@ -190,6 +227,97 @@ function loadGooglePlaces() {
   });
 
   return googleWindow.__homzieGoogleMapsPromise;
+}
+
+function splitLocation(value: string) {
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    city:
+      parts.length > 4
+        ? parts[parts.length - 3] || ""
+        : parts.length > 1
+          ? parts[parts.length - 2] || ""
+          : "",
+    country: parts[parts.length - 1] || "",
+    province: parts.length > 4 ? parts[parts.length - 2] || "" : "",
+    suburb: parts.length > 2 ? parts[parts.length - 3] || "" : "",
+  };
+}
+
+function displayCityLabel(parts: {
+  city: string;
+  country: string;
+  province: string;
+}) {
+  return [parts.city, parts.province, parts.country].filter(Boolean).join(", ");
+}
+
+function addressComponent(
+  place: GooglePlaceDetails,
+  type: string,
+  mode: "long_name" | "short_name" = "long_name",
+) {
+  return (
+    place.address_components?.find((component) =>
+      component.types.includes(type),
+    )?.[mode] || ""
+  );
+}
+
+function placeLocationParts(place: GooglePlaceDetails, fallback: string) {
+  const fallbackParts = splitLocation(fallback);
+
+  return {
+    city:
+      addressComponent(place, "locality") ||
+      addressComponent(place, "postal_town") ||
+      addressComponent(place, "administrative_area_level_2") ||
+      fallbackParts.city,
+    country: addressComponent(place, "country") || fallbackParts.country,
+    province:
+      addressComponent(place, "administrative_area_level_1") ||
+      fallbackParts.province,
+    suburb:
+      addressComponent(place, "sublocality") ||
+      addressComponent(place, "sublocality_level_1") ||
+      addressComponent(place, "neighborhood") ||
+      fallbackParts.suburb,
+  };
+}
+
+function serializablePlaceData(
+  place: GooglePlaceDetails | null,
+  prediction: GoogleAutocompletePrediction,
+) {
+  if (!place) {
+    return JSON.stringify({
+      description: prediction.description,
+      placeId: prediction.place_id,
+      source: "autocomplete_prediction",
+      structuredFormatting: prediction.structured_formatting || null,
+      types: prediction.types || [],
+    });
+  }
+
+  return JSON.stringify({
+    addressComponents: place.address_components || [],
+    description: prediction.description,
+    formattedAddress: place.formatted_address || prediction.description,
+    geometry: place.geometry?.location
+      ? {
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+        }
+      : null,
+    name: place.name || prediction.structured_formatting?.main_text || "",
+    placeId: place.place_id || prediction.place_id,
+    source: "place_details",
+    types: place.types || prediction.types || [],
+  });
 }
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
@@ -308,17 +436,41 @@ function UsernameField({
 
 function LocationField({
   location,
+  locationCity,
+  locationCountry,
+  locationPlaceId,
+  locationProvince,
+  setLocationCity,
+  setLocationCountry,
   setLocation,
+  setLocationPlaceData,
   setLocationPlaceId,
+  setLocationProvince,
+  setLocationSuburb,
 }: {
   location: string;
+  locationCity: string;
+  locationCountry: string;
+  locationPlaceId: string;
+  locationProvince: string;
+  setLocationCity: (value: string) => void;
+  setLocationCountry: (value: string) => void;
   setLocation: (value: string) => void;
+  setLocationPlaceData: (value: string) => void;
   setLocationPlaceId: (value: string) => void;
+  setLocationProvince: (value: string) => void;
+  setLocationSuburb: (value: string) => void;
 }) {
   const [predictions, setPredictions] = useState<GoogleAutocompletePrediction[]>([]);
   const [placesError, setPlacesError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const hasGoogleSelection = Boolean(
+    locationCity.trim() &&
+      locationCountry.trim() &&
+      locationPlaceId.trim() &&
+      locationProvince.trim(),
+  );
 
   useEffect(() => {
     if (!hasInteracted) {
@@ -351,17 +503,29 @@ function LocationField({
             {
               input: location,
               sessionToken,
+              types: ["(cities)"],
             },
             (results, status) => {
               if (!isCurrent) return;
 
-              if (status !== places.PlacesServiceStatus.OK || !results?.length) {
+              const cityResults = (results || []).filter((result) => {
+                const types = result.types || [];
+
+                return (
+                  types.includes("locality") ||
+                  types.includes("postal_town") ||
+                  types.includes("administrative_area_level_2") ||
+                  types.includes("administrative_area_level_3")
+                );
+              });
+
+              if (status !== places.PlacesServiceStatus.OK || !cityResults.length) {
                 setPredictions([]);
                 setIsSearching(false);
                 return;
               }
 
-              setPredictions(results.slice(0, 5));
+              setPredictions(cityResults.slice(0, 5));
               setIsSearching(false);
             },
           );
@@ -382,31 +546,141 @@ function LocationField({
     };
   }, [hasInteracted, location]);
 
+  function setLocationParts(parts: {
+    city: string;
+    country: string;
+    province: string;
+    suburb: string;
+  }) {
+    setLocationCity(parts.city);
+    setLocationCountry(parts.country);
+    setLocationProvince(parts.province);
+    setLocationSuburb(parts.suburb);
+  }
+
+  function clearGoogleMatch() {
+    setLocationPlaceId("");
+    setLocationPlaceData("");
+    setLocationCountry("");
+    setLocationProvince("");
+  }
+
   function selectLocation(option: GoogleAutocompletePrediction) {
-    setLocation(option.description);
-    setLocationPlaceId(option.place_id);
-    setPredictions([]);
-    setHasInteracted(false);
+    setIsSearching(true);
+
+    void loadGooglePlaces()
+      .then(
+        () =>
+          new Promise<GooglePlaceDetails | null>((resolve) => {
+            const places = (window as GoogleWindow).google?.maps?.places;
+
+            if (!places?.PlacesService) {
+              resolve(null);
+              return;
+            }
+
+            const service = new places.PlacesService(document.createElement("div"));
+
+            service.getDetails(
+              {
+                fields: [
+                  "address_components",
+                  "formatted_address",
+                  "geometry",
+                  "name",
+                  "place_id",
+                  "types",
+                ],
+                placeId: option.place_id,
+              },
+              (place, status) => {
+                resolve(status === places.PlacesServiceStatus.OK ? place : null);
+              },
+            );
+          }),
+      )
+      .then((place) => {
+        const formattedAddress = place?.formatted_address || option.description;
+        const parts = placeLocationParts(place || {}, formattedAddress);
+        const city = parts.city || option.structured_formatting?.main_text || formattedAddress;
+
+        if (!parts.country || !parts.province) {
+          throw new Error("Choose a city suggestion with province and country data.");
+        }
+
+        setLocation(city);
+        setLocationPlaceId(place?.place_id || option.place_id);
+        setLocationPlaceData(serializablePlaceData(place, option));
+        setLocationParts({
+          ...parts,
+          city,
+          suburb: "",
+        });
+        setPredictions([]);
+        setPlacesError(null);
+        setHasInteracted(false);
+      })
+      .catch((error: unknown) => {
+        clearGoogleMatch();
+        setPredictions([]);
+        setPlacesError(
+          error instanceof Error
+            ? error.message
+            : "Could not load full place details.",
+        );
+        setHasInteracted(false);
+      })
+      .finally(() => setIsSearching(false));
   }
 
   return (
     <div className="grid gap-2">
-      <span className="text-sm font-bold">Location</span>
+      <span className="text-sm font-bold">Operating city required</span>
       <div className="relative">
         <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           name="location"
           value={location}
           onChange={(event) => {
+            const value = event.target.value;
             setHasInteracted(true);
-            setLocation(event.target.value);
-            setLocationPlaceId("");
+            setLocation(value);
+            setLocationParts({
+              city: value,
+              country: "",
+              province: "",
+              suburb: "",
+            });
+            clearGoogleMatch();
           }}
           maxLength={120}
-          placeholder="Start typing a city, suburb, or country"
+          placeholder="Start typing your operating city"
+          autoComplete="address-level2"
+          required
           className="pl-10"
         />
       </div>
+      <p className="text-xs font-medium leading-5 text-muted-foreground">
+        Choose the city you operate from. Homzie stores province and country from
+        the selected city when available.
+      </p>
+      {locationCity || locationProvince || locationCountry ? (
+        <p
+          className={cn(
+            "rounded-md px-3 py-2 text-xs font-semibold",
+            hasGoogleSelection
+              ? "bg-muted text-muted-foreground"
+              : "bg-destructive/10 text-destructive",
+          )}
+        >
+          {hasGoogleSelection ? "Selected city" : "Select a Google city suggestion"}:{" "}
+          {displayCityLabel({
+            city: locationCity || location,
+            country: locationCountry,
+            province: locationProvince,
+          }) || location}
+        </p>
+      ) : null}
       {placesError ? (
         <p className="rounded-md bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
           {placesError}
@@ -434,7 +708,7 @@ function LocationField({
           ))}
           {isSearching ? (
             <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
-              Searching places
+              Searching cities
             </p>
           ) : null}
           <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
@@ -442,6 +716,15 @@ function LocationField({
           </p>
         </div>
       ) : null}
+      <input type="hidden" name="locationCity" value={locationCity || location} />
+      <input type="hidden" name="locationProvince" value={locationProvince} />
+      <input type="hidden" name="locationCountry" value={locationCountry} />
+      <input type="hidden" name="locationSuburb" value="" />
+      <input
+        type="hidden"
+        name="locationGoogleSelected"
+        value={hasGoogleSelection ? "on" : ""}
+      />
     </div>
   );
 }
@@ -553,8 +836,21 @@ export function ProfileSettingsForm({
   const [username, setUsername] = useState(initialProfile.username);
   const [bio, setBio] = useState(initialProfile.bio);
   const [location, setLocation] = useState(initialProfile.location);
+  const [locationCity, setLocationCity] = useState(initialProfile.locationCity);
+  const [locationCountry, setLocationCountry] = useState(
+    initialProfile.locationCountry,
+  );
+  const [locationPlaceData, setLocationPlaceData] = useState(
+    initialProfile.locationPlaceData,
+  );
   const [locationPlaceId, setLocationPlaceId] = useState(
     initialProfile.locationPlaceId,
+  );
+  const [locationProvince, setLocationProvince] = useState(
+    initialProfile.locationProvince,
+  );
+  const [locationSuburb, setLocationSuburb] = useState(
+    initialProfile.locationSuburb,
   );
   const [contactEmail, setContactEmail] = useState(initialProfile.contactEmail);
   const [contactPhone, setContactPhone] = useState(initialProfile.contactPhone);
@@ -639,7 +935,12 @@ export function ProfileSettingsForm({
     username !== initialProfile.username ||
     bio !== initialProfile.bio ||
     location !== initialProfile.location ||
+    locationCity !== initialProfile.locationCity ||
+    locationCountry !== initialProfile.locationCountry ||
+    locationPlaceData !== initialProfile.locationPlaceData ||
     locationPlaceId !== initialProfile.locationPlaceId ||
+    locationProvince !== initialProfile.locationProvince ||
+    locationSuburb !== initialProfile.locationSuburb ||
     contactEmail !== initialProfile.contactEmail ||
     contactPhone !== initialProfile.contactPhone ||
     whatsappNumber !== initialProfile.whatsappNumber ||
@@ -647,13 +948,24 @@ export function ProfileSettingsForm({
   const usernameReady =
     username === initialProfile.username ||
     (availability.status === "available" && !pendingUsername);
+  const locationReady = Boolean(
+    location.trim() &&
+      locationCity.trim() &&
+      locationCountry.trim() &&
+      locationPlaceData.trim() &&
+      locationPlaceId.trim() &&
+      locationProvince.trim(),
+  );
 
   return (
     <form
       action={formAction}
       className="flex w-full min-w-0 max-w-none flex-col gap-6"
     >
-      <HeaderActions disabled={!hasChanges || !usernameReady} state={state} />
+      <HeaderActions
+        disabled={!hasChanges || !usernameReady || !locationReady}
+        state={state}
+      />
       <div className="flex w-full min-w-0 max-w-none flex-col gap-6 pt-2">
         <section className="w-full rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="grid min-w-0 gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
@@ -748,8 +1060,22 @@ export function ProfileSettingsForm({
 
             <LocationField
               location={location}
+              locationCity={locationCity}
+              locationCountry={locationCountry}
+              locationPlaceId={locationPlaceId}
+              locationProvince={locationProvince}
+              setLocationCity={setLocationCity}
+              setLocationCountry={setLocationCountry}
               setLocation={setLocation}
+              setLocationPlaceData={setLocationPlaceData}
               setLocationPlaceId={setLocationPlaceId}
+              setLocationProvince={setLocationProvince}
+              setLocationSuburb={setLocationSuburb}
+            />
+            <input
+              type="hidden"
+              name="locationPlaceData"
+              value={locationPlaceData}
             />
             <input type="hidden" name="locationPlaceId" value={locationPlaceId} />
           </div>

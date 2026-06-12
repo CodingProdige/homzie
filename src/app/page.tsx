@@ -41,6 +41,7 @@ import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import {
   appendCountryPreference,
+  countryOptionForName,
   countryPreferenceCookie,
   parseCountryPreference,
   type CountryPreference,
@@ -111,6 +112,9 @@ type TopAgent = {
   avatarUrl: string | null;
   headline: string | null;
   location: string;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationProvince: string | null;
   name: string;
   soldCount: number;
   totalSoldValueCents: number;
@@ -144,7 +148,13 @@ function listingImageUrl(listing: HomeListingSummary) {
   for (const item of media) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
 
-    const mediaUrl = toPublicMediaUrl((item as Record<string, unknown>).path as string);
+    const mediaItem = item as Record<string, unknown>;
+
+    if (typeof mediaItem.type === "string" && mediaItem.type.startsWith("video/")) {
+      continue;
+    }
+
+    const mediaUrl = toPublicMediaUrl(mediaItem.path as string);
 
     if (mediaUrl) return mediaUrl;
   }
@@ -172,6 +182,21 @@ function listingAreaName(listing: HomeListingSummary) {
 
 function listingCountLabel(count: number) {
   return `${count} ${count === 1 ? "listing" : "listings"}`;
+}
+
+function profileLocationLabel(location: {
+  location: string | null;
+  locationCity?: string | null;
+  locationCountry?: string | null;
+  locationProvince?: string | null;
+}) {
+  return (
+    [location.locationCity, location.locationProvince, location.locationCountry]
+      .filter(Boolean)
+      .join(", ") ||
+    location.location ||
+    ""
+  );
 }
 
 function formatCurrencyCompact(cents: number) {
@@ -216,6 +241,20 @@ async function getHomeListings(countryName?: string) {
     .limit(200);
 }
 
+async function getHomeListingsWithFallback(countryName?: string) {
+  if (!countryName) {
+    return { listings: await getHomeListings(), usedCountryFallback: false };
+  }
+
+  const localListings = await getHomeListings(countryName);
+
+  if (localListings.length) {
+    return { listings: localListings, usedCountryFallback: false };
+  }
+
+  return { listings: await getHomeListings(), usedCountryFallback: true };
+}
+
 async function getHomeReels({
   areas,
   countryPreference,
@@ -245,6 +284,9 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
       headline: agentProfiles.headline,
       id: users.id,
       location: agentProfiles.location,
+      locationCity: agentProfiles.locationCity,
+      locationCountry: agentProfiles.locationCountry,
+      locationProvince: agentProfiles.locationProvince,
       name: users.name,
       username: users.username,
     })
@@ -326,7 +368,11 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
       return {
         avatarUrl: toPublicMediaUrl(agent.avatarUrl),
         headline: agent.headline,
-        location: agent.location || countryName || "Homzie agent",
+        location:
+          profileLocationLabel(agent) || countryName || "Homzie agent",
+        locationCity: agent.locationCity,
+        locationCountry: agent.locationCountry,
+        locationProvince: agent.locationProvince,
         name: agent.name,
         soldCount: totals.soldCount,
         totalSoldValueCents: totals.totalSoldValueCents,
@@ -393,6 +439,20 @@ function buildHomeListingStats(listings: HomeListingSummary[]) {
     listingTypeCounts,
     propertyTypeCounts,
   };
+}
+
+function hasListingFilterOptions(options: Awaited<ReturnType<typeof getDiscoverListingFilterOptions>>) {
+  return (
+    options.areas.length ||
+    options.bathrooms.length ||
+    options.bedrooms.length ||
+    options.buyerIncentives.length ||
+    options.erfSizes.length ||
+    options.floorSizes.length ||
+    options.garages.length ||
+    options.parking.length ||
+    options.prices.length
+  );
 }
 
 function SectionHeader({
@@ -684,6 +744,7 @@ async function PromotedHomeSections({
                     priceLabel: listing.priceLabel,
                     propertyTypeLabel: listing.propertyTypeLabel,
                     title: listing.title,
+                    videoUrls: listing.videoUrls,
                   }}
                 />
               </ImpressionTracker>
@@ -766,8 +827,10 @@ async function BrowseHomeSections({
   countryLabel?: string;
   countryPreference?: CountryPreference | null;
 }) {
-  const homeListings = await getHomeListings(countryLabel);
+  const { listings: homeListings, usedCountryFallback } =
+    await getHomeListingsWithFallback(countryLabel);
   const homeStats = buildHomeListingStats(homeListings);
+  const countryFlag = countryOptionForName(countryLabel)?.flag || "";
 
   return (
     <>
@@ -775,6 +838,11 @@ async function BrowseHomeSections({
         <SectionHeader
           actionHref={appendCountryPreference("/listings", countryPreference)}
           actionLabel="View all"
+          eyebrow={
+            usedCountryFallback && countryLabel
+              ? `No listings in ${countryLabel} yet, showing global options.`
+              : undefined
+          }
           title="Browse by listing type"
         />
         <HorizontalScrollRail>
@@ -798,6 +866,11 @@ async function BrowseHomeSections({
         <SectionHeader
           actionHref={appendCountryPreference("/listings", countryPreference)}
           actionLabel="View all"
+          eyebrow={
+            usedCountryFallback && countryLabel
+              ? `No listings in ${countryLabel} yet, showing global options.`
+              : undefined
+          }
           title="Browse by property type"
         />
         <HorizontalScrollRail>
@@ -834,7 +907,7 @@ async function BrowseHomeSections({
                   compact
                   item={{
                     imageUrl: area.imageUrl,
-                    meta: listingCountLabel(area.count),
+                    meta: `${countryFlag ? `${countryFlag} ` : ""}${listingCountLabel(area.count)}`,
                     showBadge: false,
                     title: area.title,
                     href: areaHref(area.title, countryPreference),
@@ -910,17 +983,35 @@ async function DiscoverPropertiesSection({
   discoverFilters: ReturnType<typeof normalizeDiscoverListingFilters>;
   viewerUserId?: string | null;
 }) {
-  const propertyFeed = await getDiscoverListings({
+  const localPropertyFeed = await getDiscoverListings({
     filters: discoverFilters,
     limit: homeDiscoverListingsPageSize,
     viewerUserId,
   });
+  const shouldFallbackGlobal =
+    Boolean(countryLabel && discoverFilters.countryName) &&
+    localPropertyFeed.totalCount === 0;
+  const fallbackFilters = shouldFallbackGlobal
+    ? {
+        ...discoverFilters,
+        countryName: "",
+      }
+    : discoverFilters;
+  const propertyFeed = shouldFallbackGlobal
+    ? await getDiscoverListings({
+        filters: fallbackFilters,
+        limit: homeDiscoverListingsPageSize,
+        viewerUserId,
+      })
+    : localPropertyFeed;
 
   return (
     <section className="page-body mt-10">
       <SectionHeader
         eyebrow={
-          countryLabel
+          shouldFallbackGlobal && countryLabel
+            ? `No listings in ${countryLabel} yet, showing global listings.`
+            : countryLabel
             ? `Showing published listings in ${countryLabel}.`
             : "Showing recently published listings."
         }
@@ -928,7 +1019,7 @@ async function DiscoverPropertiesSection({
       />
       {propertyFeed.listings.length ? (
         <ListingsInfiniteGrid
-          filters={discoverFilters}
+          filters={fallbackFilters}
           initialHasMore={propertyFeed.hasMore}
           initialListings={propertyFeed.listings}
           initialNextOffset={propertyFeed.nextOffset}
@@ -962,9 +1053,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     ...query,
     countryName: query.countryName || countryLabel,
   });
-  const filterOptions = await getDiscoverListingFilterOptions({
+  const localFilterOptions = await getDiscoverListingFilterOptions({
     countryName: discoverFilters.countryName,
   });
+  const filterOptions =
+    discoverFilters.countryName && !hasListingFilterOptions(localFilterOptions)
+      ? await getDiscoverListingFilterOptions()
+      : localFilterOptions;
   const viewerUserId = session?.user?.id || null;
 
   return (

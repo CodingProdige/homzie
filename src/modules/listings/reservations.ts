@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { createUserEvent } from "@/modules/events/server";
 import { absoluteAppUrl, notifyUser } from "@/modules/email/server";
+import { buildListingPath } from "@/modules/listings/seo";
 
 function paymentIntentId(
   value: string | Stripe.PaymentIntent | null | undefined,
@@ -58,7 +59,11 @@ export async function syncListingReservationCheckoutSession(
 
   const [listing] = await db
     .select({
+      details: propertyListings.details,
+      id: propertyListings.id,
+      listingType: propertyListings.listingType,
       location: propertyListings.location,
+      propertyType: propertyListings.propertyType,
       status: propertyListings.status,
       title: propertyListings.title,
     })
@@ -133,6 +138,27 @@ export async function syncListingReservationCheckoutSession(
     .from(users)
     .where(eq(users.id, reservation.agentUserId))
     .limit(1);
+  const listingDetails =
+    listing.details && typeof listing.details === "object" && !Array.isArray(listing.details)
+      ? (listing.details as Record<string, unknown>)
+      : {};
+  const listingUrl = absoluteAppUrl(
+    buildListingPath({
+      bedrooms: listingDetails.bedrooms as number | string | null,
+      city: typeof listingDetails.city === "string" ? listingDetails.city : "",
+      country: typeof listingDetails.country === "string" ? listingDetails.country : "",
+      id: listing.id,
+      listingType: listing.listingType,
+      location: listing.location,
+      propertyType: listing.propertyType,
+      province:
+        (typeof listingDetails.province === "string" ? listingDetails.province : "") ||
+        (typeof listingDetails.state === "string" ? listingDetails.state : "") ||
+        (typeof listingDetails.region === "string" ? listingDetails.region : ""),
+      suburb: typeof listingDetails.suburb === "string" ? listingDetails.suburb : "",
+      title: listing.title,
+    }),
+  );
 
   await notifyUser({
     eventKey: "listing.reservation_document_request",
@@ -151,7 +177,7 @@ export async function syncListingReservationCheckoutSession(
       listing: {
         location: listing.location || "",
         title: listing.title,
-        url: absoluteAppUrl(`/listings/${listingId}`),
+        url: listingUrl,
       },
       reservation: {
         adminUrl: absoluteAppUrl(

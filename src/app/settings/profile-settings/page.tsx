@@ -20,6 +20,24 @@ function initialsFromName(name: string) {
   );
 }
 
+function locationPartsFromDisplay(value: string | null) {
+  const parts = (value || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    city:
+      parts.length > 4
+        ? parts[parts.length - 3] || ""
+        : parts.length > 1
+          ? parts[parts.length - 2] || ""
+          : parts[0] || "",
+    country: parts[parts.length - 1] || "",
+    province: parts.length > 4 ? parts[parts.length - 2] || "" : "",
+  };
+}
+
 export default async function ProfileSettingsPage() {
   const session = await getServerSession(authOptions);
 
@@ -35,7 +53,12 @@ export default async function ProfileSettingsPage() {
       avatarUrl: users.avatarUrl,
       bio: users.bio,
       location: users.location,
+      locationCity: users.locationCity,
+      locationCountry: users.locationCountry,
+      locationPlaceData: users.locationPlaceData,
       locationPlaceId: users.locationPlaceId,
+      locationProvince: users.locationProvince,
+      locationSuburb: users.locationSuburb,
       contactEmail: users.contactEmail,
       contactPhone: users.contactPhone,
       whatsappNumber: users.whatsappNumber,
@@ -49,6 +72,9 @@ export default async function ProfileSettingsPage() {
     redirect("/onboarding/username");
   }
 
+  const fallbackLocation = locationPartsFromDisplay(profile.location);
+  const operatingCity = profile.locationCity || fallbackLocation.city;
+
   return (
     <main className="mx-auto min-h-dvh w-full max-w-[1180px] overflow-x-clip bg-background px-4 pb-10 text-foreground sm:px-6 lg:px-10">
       <ProfileSettingsForm
@@ -58,8 +84,15 @@ export default async function ProfileSettingsPage() {
           contactEmail: profile.contactEmail || profile.email || "",
           contactPhone: profile.contactPhone || "",
           initials: initialsFromName(profile.name),
-          location: profile.location || "",
+          location: operatingCity || profile.location || "",
+          locationCity: operatingCity,
+          locationCountry: profile.locationCountry || fallbackLocation.country,
+          locationPlaceData: profile.locationPlaceData
+            ? JSON.stringify(profile.locationPlaceData)
+            : "",
           locationPlaceId: profile.locationPlaceId || "",
+          locationProvince: profile.locationProvince || fallbackLocation.province,
+          locationSuburb: profile.locationSuburb || "",
           name: profile.name,
           publicContactVisible: profile.publicContactVisible,
           username: profile.username,

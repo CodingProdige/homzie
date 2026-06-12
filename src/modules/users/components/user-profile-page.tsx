@@ -110,6 +110,7 @@ type ProfileListing = {
   features: string[];
   floorSize: number;
   garages: number;
+  href?: string;
   id: string;
   imageUrls: string[];
   likedByViewer?: boolean;
@@ -131,6 +132,7 @@ type ProfileListing = {
   title: string;
   unavailable?: boolean;
   unavailableLabel?: string;
+  videoUrls?: string[];
 };
 
 const agentCtaFeatures = [
@@ -1088,7 +1090,7 @@ function ProfileListingCard({
     features: listing.features,
     floorSize: listing.floorSize,
     garages: listing.garages,
-    href: `/listings/${listing.id}`,
+    href: listing.href || `/listings/${listing.id}`,
     id: listing.id,
     imageUrls: listing.imageUrls,
     likedByViewer: listing.likedByViewer,
@@ -1113,6 +1115,7 @@ function ProfileListingCard({
     unavailableLabel:
       listing.unavailableLabel ||
       (listing.unavailable ? unavailableListingLabel(listing.status) : undefined),
+    videoUrls: listing.videoUrls,
   };
 
   return <ListingCard listing={listingCard} />;

@@ -13,6 +13,7 @@ import {
   listingTypeOptions,
   propertyTypeOptions,
 } from "@/modules/listings/options";
+import { buildListingPath } from "@/modules/listings/seo";
 
 type TargetArea = { label?: string; placeId?: string };
 
@@ -72,6 +73,9 @@ export type PromotedProfile = {
   displayName: string;
   headline: string | null;
   location: string | null;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationProvince: string | null;
   username: string;
 };
 
@@ -82,6 +86,7 @@ export type PromotedListing = {
   title: string;
   location: string | null;
   coverImageUrl: string | null;
+  videoUrls: string[];
   priceCents: number | null;
   priceLabel: string | null;
   listingType: string;
@@ -128,6 +133,9 @@ export async function getPromotedItems({
         displayName: agentProfiles.displayName,
         headline: agentProfiles.headline,
         location: agentProfiles.location,
+        locationCity: agentProfiles.locationCity,
+        locationCountry: agentProfiles.locationCountry,
+        locationProvince: agentProfiles.locationProvince,
         username: users.username,
       })
       .from(adCampaigns)
@@ -157,6 +165,7 @@ export async function getPromotedItems({
         listingType: propertyListings.listingType,
         propertyType: propertyListings.propertyType,
         details: propertyListings.details,
+        media: propertyListings.media,
         mandateType: propertyListings.mandateType,
       })
       .from(adCampaigns)
@@ -206,7 +215,13 @@ export async function getPromotedItems({
       avatarUrl: toPublicMediaUrl(r.avatarUrl),
       displayName: r.displayName,
       headline: r.headline,
-      location: r.location,
+      location:
+        [r.locationCity, r.locationProvince, r.locationCountry]
+          .filter(Boolean)
+          .join(", ") || r.location,
+      locationCity: r.locationCity,
+      locationCountry: r.locationCountry,
+      locationProvince: r.locationProvince,
       username: r.username ?? "",
     }));
 
@@ -215,13 +230,43 @@ export async function getPromotedItems({
     .slice(0, 8)
     .map((r) => {
       const details = metadataObject(r.details);
+      const media = Array.isArray(r.media) ? r.media : [];
+      const videoUrls = media
+        .map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return "";
+
+          const mediaItem = item as Record<string, unknown>;
+
+          if (typeof mediaItem.type !== "string" || !mediaItem.type.startsWith("video/")) {
+            return "";
+          }
+
+          return toPublicMediaUrl(mediaItem.path as string) || "";
+        })
+        .filter(Boolean);
+
       return {
         campaignId: r.campaignId,
         id: r.listingId,
-        href: `/listings/${r.listingId}`,
+        href: buildListingPath({
+          bedrooms: numVal(details.bedrooms),
+          city: typeof details.city === "string" ? details.city : "",
+          country: typeof details.country === "string" ? details.country : "",
+          id: r.listingId,
+          listingType: r.listingType,
+          location: r.location,
+          propertyType: r.propertyType,
+          province:
+            (typeof details.province === "string" ? details.province : "") ||
+            (typeof details.state === "string" ? details.state : "") ||
+            (typeof details.region === "string" ? details.region : ""),
+          suburb: typeof details.suburb === "string" ? details.suburb : "",
+          title: r.title,
+        }),
         title: r.title,
         location: r.location,
         coverImageUrl: toPublicMediaUrl(r.coverImageUrl),
+        videoUrls,
         priceCents: r.askingPriceCents,
         priceLabel: r.priceLabel,
         listingType: r.listingType,

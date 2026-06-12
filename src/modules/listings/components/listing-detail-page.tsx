@@ -759,8 +759,8 @@ function SendListingMessageButton({
             try {
               const listingUrl =
                 typeof window !== "undefined"
-                  ? new URL(`/listings/${listing.id}`, window.location.origin).toString()
-                  : `/listings/${listing.id}`;
+                  ? new URL(listing.href, window.location.origin).toString()
+                  : listing.href;
               const clientId =
                 typeof crypto !== "undefined" && "randomUUID" in crypto
                   ? `listing-inquiry-${crypto.randomUUID()}`
@@ -970,7 +970,9 @@ export function ListingDetailPage({
       Array.from(
         new Set([
           ...(listing.coverImageUrl ? [listing.coverImageUrl] : []),
-          ...listing.media.map((item) => item.previewUrl),
+          ...listing.media
+            .filter((item) => !item.type.startsWith("video/"))
+            .map((item) => item.previewUrl),
         ]),
       ).filter(Boolean),
     [listing.coverImageUrl, listing.media],

@@ -9,7 +9,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { agentProfiles, users } from "@/db/schema";
 import { getMediaStorageRoot } from "@/media/storage";
 import type { UsernameAvailability } from "@/modules/auth/actions";
 import { authOptions } from "@/modules/auth/config";
@@ -36,8 +36,38 @@ const profileSettingsSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters.").max(80),
   username: z.string().trim().min(1, "Username is required."),
   bio: z.string().trim().max(280, "Bio must be 280 characters or less.").optional(),
-  location: z.string().trim().max(120, "Location must be 120 characters or less.").optional(),
-  locationPlaceId: z.string().trim().max(160).optional(),
+  location: z
+    .string()
+    .trim()
+    .min(1, "Operating city is required.")
+    .max(120, "Operating city must be 120 characters or less."),
+  locationCity: z
+    .string()
+    .trim()
+    .min(1, "Operating city is required.")
+    .max(120, "Operating city must be 120 characters or less."),
+  locationCountry: z
+    .string()
+    .trim()
+    .min(1, "Choose a city with country data.")
+    .max(120, "Country must be 120 characters or less."),
+  locationGoogleSelected: z.boolean(),
+  locationPlaceData: z
+    .string()
+    .trim()
+    .min(1, "Choose your operating city from the Google suggestions.")
+    .max(10_000),
+  locationPlaceId: z
+    .string()
+    .trim()
+    .min(1, "Choose your operating city from the Google suggestions.")
+    .max(160),
+  locationProvince: z
+    .string()
+    .trim()
+    .min(1, "Choose a city with province data.")
+    .max(120, "Province must be 120 characters or less."),
+  locationSuburb: z.string().trim().max(120, "Area must be 120 characters or less.").optional(),
   contactEmail: z
     .string()
     .trim()
@@ -143,6 +173,20 @@ function normalizedInternationalPhone(value: string) {
   return `+${digits}`;
 }
 
+function parseLocationPlaceData(value?: string) {
+  if (!value?.trim()) return null;
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 async function storeAvatar(file: File, userId: string) {
   if (!file.size) return null;
 
@@ -188,7 +232,13 @@ export async function updateProfileSettings(
     username: formString(formData, "username"),
     bio: formString(formData, "bio"),
     location: formString(formData, "location"),
+    locationCity: formString(formData, "locationCity"),
+    locationCountry: formString(formData, "locationCountry"),
+    locationGoogleSelected: formData.get("locationGoogleSelected") === "on",
+    locationPlaceData: formString(formData, "locationPlaceData"),
     locationPlaceId: formString(formData, "locationPlaceId"),
+    locationProvince: formString(formData, "locationProvince"),
+    locationSuburb: formString(formData, "locationSuburb"),
     contactEmail: formString(formData, "contactEmail"),
     contactPhone: formString(formData, "contactPhone"),
     whatsappNumber: formString(formData, "whatsappNumber"),
@@ -200,6 +250,24 @@ export async function updateProfileSettings(
     return {
       ok: false,
       message: parsed.error.issues[0]?.message || "Check your profile details.",
+    };
+  }
+
+  if (!parsed.data.locationGoogleSelected) {
+    return {
+      ok: false,
+      message: "Choose your operating city from the Google suggestions.",
+    };
+  }
+
+  const parsedLocationPlaceData = parseLocationPlaceData(
+    parsed.data.locationPlaceData,
+  );
+
+  if (!parsedLocationPlaceData) {
+    return {
+      ok: false,
+      message: "Choose your operating city again so Homzie can save its Google data.",
     };
   }
 
@@ -248,14 +316,31 @@ export async function updateProfileSettings(
     };
   }
 
+  const operatingCity = cleanSingleLine(
+    parsed.data.locationCity || parsed.data.location,
+  );
+
+  const locationFields = {
+    location: operatingCity,
+    locationCity: operatingCity,
+    locationCountry: optionalValue(
+      cleanSingleLine(parsed.data.locationCountry || ""),
+    ),
+    locationPlaceData: parsedLocationPlaceData,
+    locationPlaceId: optionalValue(parsed.data.locationPlaceId || ""),
+    locationProvince: optionalValue(
+      cleanSingleLine(parsed.data.locationProvince || ""),
+    ),
+    locationSuburb: null,
+  };
+
   await db
     .update(users)
     .set({
       name: cleanSingleLine(parsed.data.name),
       username,
       bio: optionalValue(cleanMultiLine(parsed.data.bio || "")),
-      location: optionalValue(cleanSingleLine(parsed.data.location || "")),
-      locationPlaceId: optionalValue(parsed.data.locationPlaceId || ""),
+      ...locationFields,
       contactEmail: optionalValue(parsed.data.contactEmail || ""),
       contactPhone: normalizedInternationalPhone(parsed.data.contactPhone || ""),
       whatsappNumber: normalizedInternationalPhone(parsed.data.whatsappNumber || ""),
@@ -265,12 +350,23 @@ export async function updateProfileSettings(
     })
     .where(eq(users.id, session.user.id));
 
+  await db
+    .update(agentProfiles)
+    .set({
+      displayName: cleanSingleLine(parsed.data.name),
+      bio: optionalValue(cleanMultiLine(parsed.data.bio || "")),
+      ...locationFields,
+      updatedAt: new Date(),
+    })
+    .where(eq(agentProfiles.userId, session.user.id));
+
   revalidatePath("/settings");
   revalidatePath("/settings/profile-settings");
   if (existingUser.username) {
     revalidatePath(`/users/${existingUser.username}`);
   }
   revalidatePath(`/users/${username}`);
+  revalidatePath("/agents");
   revalidatePath("/listings");
 
   return { ok: true, message: "Profile updated." };

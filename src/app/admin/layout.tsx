@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
 
 import { sql } from "@/db";
@@ -9,6 +10,13 @@ type AdminUser = {
   email: string;
   role: "user" | "admin";
   status: string;
+};
+
+export const metadata: Metadata = {
+  robots: {
+    follow: false,
+    index: false,
+  },
 };
 
 async function getAdminUser(userId: string) {

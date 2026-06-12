@@ -28,6 +28,10 @@ type AgentDirectoryItem = {
   headline: string;
   id: string;
   location: string;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationProvince: string | null;
+  locationSuburb: string | null;
   name: string;
   soldCount: number;
   totalSoldValueCents: number;
@@ -65,6 +69,27 @@ function formatCurrencyCompact(cents: number) {
   }).format(cents / 100);
 }
 
+function agentLocationLabel(agent: {
+  location: string | null;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationProvince: string | null;
+  locationSuburb: string | null;
+}) {
+  return (
+    [
+      agent.locationSuburb,
+      agent.locationCity,
+      agent.locationProvince,
+      agent.locationCountry,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
+    agent.location ||
+    ""
+  );
+}
+
 async function getAgentDirectory({
   location,
   q,
@@ -87,6 +112,10 @@ async function getAgentDirectory({
       headline: agentProfiles.headline,
       id: users.id,
       location: agentProfiles.location,
+      locationCity: agentProfiles.locationCity,
+      locationCountry: agentProfiles.locationCountry,
+      locationProvince: agentProfiles.locationProvince,
+      locationSuburb: agentProfiles.locationSuburb,
       name: users.name,
       username: users.username,
     })
@@ -106,9 +135,21 @@ async function getAgentDirectory({
               ilike(agentProfiles.displayName, search),
               ilike(agentProfiles.headline, search),
               ilike(agentProfiles.location, search),
+              ilike(agentProfiles.locationCity, search),
+              ilike(agentProfiles.locationCountry, search),
+              ilike(agentProfiles.locationProvince, search),
+              ilike(agentProfiles.locationSuburb, search),
             )
           : undefined,
-        locationSearch ? ilike(agentProfiles.location, locationSearch) : undefined,
+        locationSearch
+          ? or(
+              ilike(agentProfiles.location, locationSearch),
+              ilike(agentProfiles.locationCity, locationSearch),
+              ilike(agentProfiles.locationCountry, locationSearch),
+              ilike(agentProfiles.locationProvince, locationSearch),
+              ilike(agentProfiles.locationSuburb, locationSearch),
+            )
+          : undefined,
       ),
     )
     .orderBy(desc(subscriptions.currentPeriodEnd))
@@ -125,7 +166,7 @@ async function getAgentDirectory({
   const locations = Array.from(
     new Set(
       uniqueAgents
-        .map((agent) => agent.location)
+        .map(agentLocationLabel)
         .filter((value): value is string => Boolean(value)),
     ),
   ).sort((first, second) => first.localeCompare(second));
@@ -197,7 +238,11 @@ async function getAgentDirectory({
       avatarUrl: toPublicMediaUrl(agent.avatarUrl),
       headline: agent.headline || "Homzie agent",
       id: agent.id,
-      location: agent.location || "Location available on profile",
+      location: agentLocationLabel(agent) || "Location available on profile",
+      locationCity: agent.locationCity,
+      locationCountry: agent.locationCountry,
+      locationProvince: agent.locationProvince,
+      locationSuburb: agent.locationSuburb,
       name: agent.name,
       soldCount: stats.soldCount,
       totalSoldValueCents: stats.totalSoldValueCents,
