@@ -37,7 +37,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-CMD ["node", "--import", "tsx", "scripts/reel-render-worker.ts"]
+CMD ["node", "--conditions=react-server", "--import", "tsx", "scripts/reel-render-worker.ts"]
 
 FROM builder AS realtime
 WORKDIR /app
