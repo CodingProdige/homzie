@@ -119,13 +119,19 @@ export function formatSeoTitle(title: string, settings: SeoSettings) {
 }
 
 export async function getStoredSeoSettings() {
-  const [row] = await db
-    .select({ value: platformSettings.value })
-    .from(platformSettings)
-    .where(eq(platformSettings.key, seoSettingsKey))
-    .limit(1);
+  try {
+    const [row] = await db
+      .select({ value: platformSettings.value })
+      .from(platformSettings)
+      .where(eq(platformSettings.key, seoSettingsKey))
+      .limit(1);
 
-  return row ? normalizeSeoSettings(row.value) : defaultSeoSettings;
+    return row ? normalizeSeoSettings(row.value) : defaultSeoSettings;
+  } catch (error) {
+    console.warn("SEO settings unavailable; using defaults.", { error });
+
+    return defaultSeoSettings;
+  }
 }
 
 export async function saveStoredSeoSettings(settings: SeoSettings) {
