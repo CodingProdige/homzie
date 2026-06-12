@@ -39,6 +39,8 @@ import {
   saveStoredReservationSettings,
   type ReservationSettings,
 } from "@/modules/platform-settings/reservation-settings";
+import { hashPassword } from "@/modules/auth/password";
+import { normalizeUsername, validateUsername } from "@/modules/auth/username";
 
 export type AdminStripeSettingsState = {
   message: string;
@@ -62,6 +64,11 @@ export type AdminGoogleAdsAutomationState = {
 };
 
 export type AdminReservationSettingsState = {
+  message: string;
+  ok: boolean;
+};
+
+export type AdminDemoProfileSettingsState = {
   message: string;
   ok: boolean;
 };
@@ -495,6 +502,620 @@ export async function updateAdminReservationSettlement(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/reservations");
+}
+
+const demoProfileUsername = "avamorgandemo";
+const demoProfileEmail = "demo.agent@homzie.co.za";
+const defaultDemoProfilePassword = "HomzieDemo2026!";
+const demoSubscriptionReference = "demo:homzie-agent-pro";
+
+type DemoListingSeed = {
+  askingPriceCents: number;
+  bathrooms: number;
+  bedrooms: number;
+  buyerIncentive: string;
+  daysOnMarket: number;
+  erfSize: number;
+  features: string[];
+  floorSize: number;
+  garages: number;
+  location: string;
+  parking: number;
+  soldAt?: string;
+  soldPriceCents?: number;
+  status: "published" | "sold";
+  title: string;
+};
+
+type DemoProfileSeed = {
+  bio: string;
+  contactEmail: string;
+  email: string;
+  headline: string;
+  location: string;
+  name: string;
+  username: string;
+};
+
+const defaultDemoProfileSeed: DemoProfileSeed = {
+  bio: "Luxury coastal specialist. This demo profile shows agents how Homzie can turn verified sales history, active listings, and profile analytics into a high-trust public portfolio.",
+  contactEmail: demoProfileEmail,
+  email: demoProfileEmail,
+  headline: "Top-performing luxury coastal specialist",
+  location: "Cape Town, Western Cape",
+  name: "Ava Morgan",
+  username: demoProfileUsername,
+};
+
+const demoListingSeeds: DemoListingSeed[] = [
+  {
+    askingPriceCents: 1895000000,
+    bathrooms: 5,
+    bedrooms: 6,
+    buyerIncentive: "Private buyer shortlist",
+    daysOnMarket: 21,
+    erfSize: 1260,
+    features: ["Ocean views", "Cinema room", "Wine cellar", "Solar backup"],
+    floorSize: 620,
+    garages: 4,
+    location: "Clifton, Cape Town",
+    parking: 6,
+    soldAt: "2026-05-22T10:30:00.000Z",
+    soldPriceCents: 1870000000,
+    status: "sold",
+    title: "Clifton glass villa with panoramic Atlantic views",
+  },
+  {
+    askingPriceCents: 1420000000,
+    bathrooms: 4,
+    bedrooms: 5,
+    buyerIncentive: "Sold above guide",
+    daysOnMarket: 18,
+    erfSize: 980,
+    features: ["Mountain views", "Designer kitchen", "Heated pool", "Staff suite"],
+    floorSize: 510,
+    garages: 3,
+    location: "Constantia, Cape Town",
+    parking: 5,
+    soldAt: "2026-04-16T12:00:00.000Z",
+    soldPriceCents: 1455000000,
+    status: "sold",
+    title: "Contemporary Constantia estate with vineyard outlook",
+  },
+  {
+    askingPriceCents: 975000000,
+    bathrooms: 3,
+    bedrooms: 4,
+    buyerIncentive: "Cash buyer matched",
+    daysOnMarket: 14,
+    erfSize: 540,
+    features: ["Lock-up-and-go", "Sea-facing terrace", "Lift access", "Concierge"],
+    floorSize: 315,
+    garages: 2,
+    location: "Bantry Bay, Cape Town",
+    parking: 3,
+    soldAt: "2026-03-28T09:15:00.000Z",
+    soldPriceCents: 982500000,
+    status: "sold",
+    title: "Bantry Bay penthouse with wraparound terrace",
+  },
+  {
+    askingPriceCents: 680000000,
+    bathrooms: 3,
+    bedrooms: 4,
+    buyerIncentive: "Exclusive mandate converted",
+    daysOnMarket: 25,
+    erfSize: 742,
+    features: ["Greenbelt position", "Separate studio", "Borehole", "Battery backup"],
+    floorSize: 360,
+    garages: 2,
+    location: "Bishopscourt, Cape Town",
+    parking: 4,
+    soldAt: "2026-02-19T11:45:00.000Z",
+    soldPriceCents: 672000000,
+    status: "sold",
+    title: "Bishopscourt family residence beside the greenbelt",
+  },
+  {
+    askingPriceCents: 520000000,
+    bathrooms: 2,
+    bedrooms: 3,
+    buyerIncentive: "Offer accepted in 9 days",
+    daysOnMarket: 9,
+    erfSize: 0,
+    features: ["Harbour views", "Corner apartment", "Two parking bays", "Airbnb-ready"],
+    floorSize: 188,
+    garages: 0,
+    location: "V&A Waterfront, Cape Town",
+    parking: 2,
+    soldAt: "2026-01-31T08:45:00.000Z",
+    soldPriceCents: 535000000,
+    status: "sold",
+    title: "Waterfront corner apartment with harbour views",
+  },
+  {
+    askingPriceCents: 1290000000,
+    bathrooms: 4,
+    bedrooms: 5,
+    buyerIncentive: "Private viewing list",
+    daysOnMarket: 0,
+    erfSize: 870,
+    features: ["Beach access", "Rooftop deck", "Smart home", "Double-volume living"],
+    floorSize: 455,
+    garages: 3,
+    location: "Camps Bay, Cape Town",
+    parking: 5,
+    status: "published",
+    title: "Camps Bay beach house with elevated entertainment deck",
+  },
+  {
+    askingPriceCents: 735000000,
+    bathrooms: 3,
+    bedrooms: 4,
+    buyerIncentive: "Reservation enabled",
+    daysOnMarket: 0,
+    erfSize: 690,
+    features: ["Secure estate", "Home office", "Pool pavilion", "Solar inverter"],
+    floorSize: 330,
+    garages: 2,
+    location: "Hout Bay, Cape Town",
+    parking: 4,
+    status: "published",
+    title: "Secure Hout Bay estate home with mountain outlook",
+  },
+];
+
+function demoListingDetails(listing: DemoListingSeed) {
+  return JSON.stringify({
+    bathrooms: listing.bathrooms,
+    bedrooms: listing.bedrooms,
+    buyerIncentive: listing.buyerIncentive,
+    erfSize: listing.erfSize,
+    floorSize: listing.floorSize,
+    garages: listing.garages,
+    parking: listing.parking,
+    previousAskingPriceCents: Math.round(listing.askingPriceCents * 1.04),
+  });
+}
+
+function demoListingFeatures(listing: DemoListingSeed) {
+  return JSON.stringify(listing.features);
+}
+
+function demoListedAt(listing: DemoListingSeed) {
+  const soldAt = listing.soldAt ? new Date(listing.soldAt) : new Date();
+  soldAt.setDate(soldAt.getDate() - listing.daysOnMarket);
+  return soldAt.toISOString();
+}
+
+const adminDemoListingSchema = z.object({
+  askingPriceCents: z.coerce.number().int().nonnegative(),
+  bathrooms: z.coerce.number().int().nonnegative(),
+  bedrooms: z.coerce.number().int().nonnegative(),
+  buyerIncentive: z.string().trim().catch(""),
+  daysOnMarket: z.coerce.number().int().nonnegative().catch(0),
+  erfSize: z.coerce.number().int().nonnegative().catch(0),
+  features: z.array(z.string().trim()).catch([]),
+  floorSize: z.coerce.number().int().nonnegative().catch(0),
+  garages: z.coerce.number().int().nonnegative().catch(0),
+  location: z.string().trim().min(2),
+  parking: z.coerce.number().int().nonnegative().catch(0),
+  soldAt: z.string().trim().optional(),
+  soldPriceCents: z.coerce.number().int().nonnegative().optional(),
+  status: z.enum(["published", "sold"]),
+  title: z.string().trim().min(3),
+});
+
+const adminDemoListingsSchema = z.array(adminDemoListingSchema).min(1);
+
+function parseAdminDemoListings(value: string) {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error("Listings JSON is not valid JSON.");
+  }
+
+  const result = adminDemoListingsSchema.safeParse(parsed);
+
+  if (!result.success) {
+    throw new Error(
+      result.error.issues[0]?.message || "Check the demo listings JSON.",
+    );
+  }
+
+  return result.data.map((listing) => ({
+    ...listing,
+    buyerIncentive: listing.buyerIncentive || "",
+    features: listing.features.filter(Boolean),
+    soldAt: listing.status === "sold" ? listing.soldAt : undefined,
+    soldPriceCents:
+      listing.status === "sold" ? listing.soldPriceCents || listing.askingPriceCents : undefined,
+  }));
+}
+
+function revalidateDemoProfile() {
+  revalidatePath("/admin");
+  revalidatePath("/agents");
+  revalidatePath("/listings");
+  revalidatePath("/admin/settings/demo-profile");
+  revalidatePath("/settings/billing");
+  revalidatePath(`/users/${demoProfileUsername}`);
+  revalidatePath(`/users/${demoProfileUsername}/performance`);
+}
+
+async function setDemoSubscriptionActive(active: boolean) {
+  const [demo] = await sql<Array<{ agent_profile_id: string | null; id: string }>>`
+    SELECT u.id, ap.id AS agent_profile_id
+    FROM users u
+    LEFT JOIN agent_profiles ap ON ap.user_id = u.id
+    WHERE u.email = ${demoProfileEmail}
+      AND u.is_demo = true
+    LIMIT 1
+  `;
+
+  if (!demo) {
+    await ensureDemoProfile({ visible: true });
+    return setDemoSubscriptionActive(active);
+  }
+
+  const now = new Date();
+  const currentPeriodEnd = new Date(now);
+  currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+  const expiredAt = new Date(now.getTime() - 60_000);
+
+  await sql`
+    INSERT INTO subscriptions (
+      user_id,
+      agent_profile_id,
+      provider,
+      status,
+      amount_cents,
+      currency,
+      interval,
+      provider_customer_id,
+      provider_reference,
+      current_period_start,
+      current_period_end,
+      cancelled_at,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      ${demo.id}::uuid,
+      ${demo.agent_profile_id}::uuid,
+      'stripe',
+      ${active ? "active" : "cancelled"},
+      9900,
+      'ZAR',
+      'month',
+      'cus_demo_homzie_agent',
+      ${demoSubscriptionReference},
+      ${now.toISOString()},
+      ${active ? currentPeriodEnd.toISOString() : expiredAt.toISOString()},
+      ${active ? null : now.toISOString()},
+      now(),
+      now()
+    )
+    ON CONFLICT (provider_reference) DO UPDATE
+    SET
+      user_id = EXCLUDED.user_id,
+      agent_profile_id = EXCLUDED.agent_profile_id,
+      status = EXCLUDED.status,
+      amount_cents = EXCLUDED.amount_cents,
+      currency = EXCLUDED.currency,
+      interval = EXCLUDED.interval,
+      provider_customer_id = EXCLUDED.provider_customer_id,
+      current_period_start = EXCLUDED.current_period_start,
+      current_period_end = EXCLUDED.current_period_end,
+      cancelled_at = EXCLUDED.cancelled_at,
+      updated_at = now()
+  `;
+}
+
+async function ensureDemoProfile({
+  listings = demoListingSeeds,
+  password,
+  profile = defaultDemoProfileSeed,
+  visible,
+}: {
+  listings?: DemoListingSeed[];
+  password?: string;
+  profile?: DemoProfileSeed;
+  visible: boolean;
+}) {
+  await assertActiveAdmin();
+  const passwordHash = await hashPassword(password || defaultDemoProfilePassword);
+  const shouldResetPassword = Boolean(password);
+
+  const [user] = await sql<Array<{ id: string }>>`
+    INSERT INTO users (
+      name,
+      username,
+      email,
+      password_hash,
+      bio,
+      location,
+      contact_email,
+      public_contact_visible,
+      profile_visible,
+      search_visible,
+      is_demo,
+      role,
+      status,
+      email_verified,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      ${profile.name},
+      ${profile.username},
+      ${profile.email},
+      ${passwordHash},
+      ${profile.bio},
+      ${profile.location},
+      ${profile.contactEmail},
+      true,
+      ${visible},
+      ${visible},
+      true,
+      'user',
+      'active',
+      true,
+      now(),
+      now()
+    )
+    ON CONFLICT (email) DO UPDATE
+    SET
+      name = EXCLUDED.name,
+      username = EXCLUDED.username,
+      bio = EXCLUDED.bio,
+      location = EXCLUDED.location,
+      contact_email = EXCLUDED.contact_email,
+      public_contact_visible = true,
+      profile_visible = EXCLUDED.profile_visible,
+      search_visible = EXCLUDED.search_visible,
+      is_demo = true,
+      password_hash = CASE
+        WHEN ${shouldResetPassword} THEN EXCLUDED.password_hash
+        ELSE COALESCE(users.password_hash, EXCLUDED.password_hash)
+      END,
+      status = 'active',
+      email_verified = true,
+      updated_at = now()
+    RETURNING id
+  `;
+
+  if (!user) {
+    throw new Error("Could not create the demo profile.");
+  }
+
+  const [agentProfile] = await sql<Array<{ id: string }>>`
+    INSERT INTO agent_profiles (
+      user_id,
+      display_name,
+      headline,
+      bio,
+      location,
+      status,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      ${user.id}::uuid,
+      ${profile.name},
+      ${profile.headline},
+      'A benchmark profile for agents: verified sales, standout mandates, and visible performance signals all in one place.',
+      ${profile.location},
+      'active',
+      now(),
+      now()
+    )
+    ON CONFLICT (user_id) DO UPDATE
+    SET
+      display_name = EXCLUDED.display_name,
+      headline = EXCLUDED.headline,
+      bio = EXCLUDED.bio,
+      location = EXCLUDED.location,
+      status = 'active',
+      updated_at = now()
+    RETURNING id
+  `;
+
+  if (!agentProfile) {
+    throw new Error("Could not create the demo agent profile.");
+  }
+
+  await sql`
+    DELETE FROM property_listings
+    WHERE user_id = ${user.id}::uuid
+      AND is_demo_content = true
+  `;
+
+  for (const listing of listings) {
+    const soldAt = listing.soldAt || null;
+    const status = visible ? listing.status : "archived";
+    const outcomeAt = listing.status === "sold" ? soldAt : null;
+    const reservationEnabled = listing.status === "published";
+    const reservationAmountCents = reservationEnabled ? 5000000 : null;
+    const archivedAt = visible ? null : new Date().toISOString();
+
+    await sql`
+      INSERT INTO property_listings (
+        user_id,
+        agent_profile_id,
+        listing_type,
+        property_type,
+        title,
+        description,
+        location,
+        price_label,
+        asking_price_cents,
+        sold_price_cents,
+        reservation_enabled,
+        reservation_amount_cents,
+        is_demo_content,
+        media,
+        details,
+        features,
+        mandate_type,
+        status,
+        proof_status,
+        listed_at,
+        outcome_at,
+        sold_at,
+        archived_at,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${user.id}::uuid,
+        ${agentProfile.id}::uuid,
+        'sale',
+        'free_standing_house',
+        ${listing.title},
+        ${"A premium demo listing used to show how a polished Homzie profile can present trust, momentum, and high-value sales outcomes."},
+        ${listing.location},
+        ${`R ${(listing.askingPriceCents / 100).toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`},
+        ${listing.askingPriceCents},
+        ${listing.soldPriceCents || null},
+        ${reservationEnabled && visible},
+        ${reservationAmountCents},
+        true,
+        '[]'::jsonb,
+        ${demoListingDetails(listing)}::jsonb,
+        ${demoListingFeatures(listing)}::jsonb,
+        'exclusive',
+        ${status},
+        ${listing.status === "sold" ? "verified" : "not_required"},
+        ${demoListedAt(listing)},
+        ${outcomeAt},
+        ${soldAt},
+        ${archivedAt},
+        ${demoListedAt(listing)},
+        now()
+      )
+    `;
+  }
+}
+
+export async function updateAdminDemoProfileSettings(
+  _previousState: AdminDemoProfileSettingsState,
+  formData: FormData,
+): Promise<AdminDemoProfileSettingsState> {
+  try {
+    const username = normalizeUsername(
+      formString(formData, "username") || demoProfileUsername,
+    );
+    const usernameIssue = validateUsername(username);
+
+    if (usernameIssue) {
+      return {
+        ok: false,
+        message: usernameIssue,
+      };
+    }
+
+    const email = z
+      .string()
+      .email()
+      .parse(formString(formData, "email") || demoProfileEmail)
+      .toLowerCase();
+    const password = formString(formData, "password");
+
+    if (password && password.length < 8) {
+      return {
+        ok: false,
+        message: "Demo password must be at least 8 characters.",
+      };
+    }
+
+    const listings = parseAdminDemoListings(formString(formData, "listingsJson"));
+    const visible = formBoolean(formData, "visible");
+
+    await ensureDemoProfile({
+      listings,
+      password: password || undefined,
+      profile: {
+        bio: formString(formData, "bio") || defaultDemoProfileSeed.bio,
+        contactEmail: formString(formData, "contactEmail") || email,
+        email,
+        headline: formString(formData, "headline") || defaultDemoProfileSeed.headline,
+        location: formString(formData, "location") || defaultDemoProfileSeed.location,
+        name: formString(formData, "name") || defaultDemoProfileSeed.name,
+        username,
+      },
+      visible,
+    });
+    revalidateDemoProfile();
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/settings/demo-profile");
+
+    return {
+      ok: true,
+      message: password
+        ? "Demo profile saved and password reset."
+        : "Demo profile saved.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not save demo profile settings.",
+    };
+  }
+}
+
+export async function toggleAdminDemoSubscriptionAction(formData: FormData) {
+  await assertActiveAdmin();
+  await setDemoSubscriptionActive(formData.get("subscribed") === "true");
+  revalidateDemoProfile();
+}
+
+export async function refreshDemoProfileAction() {
+  await ensureDemoProfile({ visible: true });
+  revalidateDemoProfile();
+}
+
+export async function showDemoProfileAction() {
+  await ensureDemoProfile({ visible: true });
+  revalidateDemoProfile();
+}
+
+export async function hideDemoProfileAction() {
+  await assertActiveAdmin();
+
+  await sql`
+    UPDATE users
+    SET
+      profile_visible = false,
+      search_visible = false,
+      updated_at = now()
+    WHERE email = ${demoProfileEmail}
+      AND is_demo = true
+  `;
+
+  await sql`
+    UPDATE property_listings
+    SET
+      status = 'archived',
+      reservation_enabled = false,
+      archived_at = COALESCE(archived_at, now()),
+      updated_at = now()
+    WHERE user_id = (
+      SELECT id
+      FROM users
+      WHERE email = ${demoProfileEmail}
+        AND is_demo = true
+      LIMIT 1
+    )
+      AND is_demo_content = true
+  `;
+
+  revalidateDemoProfile();
 }
 
 export async function updateAdminAdsSettings(

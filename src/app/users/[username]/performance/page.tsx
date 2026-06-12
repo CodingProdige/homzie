@@ -527,13 +527,13 @@ export default async function AgentPerformancePage({
             return (
               <article
                 key={card.label}
-                className={cn(surfaceClassName, "p-4 sm:p-5 lg:min-h-[160px] lg:p-6")}
+                className={cn(surfaceClassName, "p-4 sm:p-5 lg:min-h-[150px]")}
               >
                 <div className="flex items-center gap-3 lg:block">
-                  <div className={cn("grid size-10 shrink-0 place-items-center rounded-full lg:size-11", card.accent)}>
+                  <div className={cn("grid size-10 shrink-0 place-items-center rounded-full", card.accent)}>
                     <Icon className="size-5" />
                   </div>
-                  <div className="min-w-0 flex-1 lg:mt-7">
+                  <div className="min-w-0 flex-1 lg:mt-5">
                     <div className="flex items-center gap-1.5">
                       <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground lg:text-[11px]">
                         {card.label}
@@ -544,7 +544,14 @@ export default async function AgentPerformancePage({
                       />
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <p className="text-xl font-black tracking-tight sm:text-2xl lg:text-3xl">
+                      <p
+                        className={cn(
+                          "min-w-0 break-words font-black leading-tight tracking-tight",
+                          card.isCurrency
+                            ? "text-[1.35rem] sm:text-2xl xl:text-[1.65rem]"
+                            : "text-xl sm:text-2xl lg:text-3xl",
+                        )}
+                      >
                         {card.isCurrency ? (
                           <CurrencyAmount cents={card.value as number} />
                         ) : (

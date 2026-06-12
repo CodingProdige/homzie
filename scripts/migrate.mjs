@@ -132,6 +132,11 @@ try {
 
   await sql`
     ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE users
     ADD COLUMN IF NOT EXISTS deleted_at timestamptz
   `;
 
@@ -332,6 +337,7 @@ try {
       reservation_enabled boolean NOT NULL DEFAULT false,
       reservation_amount_cents integer,
       active_reservation_id uuid,
+      is_demo_content boolean NOT NULL DEFAULT false,
       cover_image_url text,
       media jsonb,
       details jsonb,
@@ -395,6 +401,11 @@ try {
   await sql`
     ALTER TABLE property_listings
     ADD COLUMN IF NOT EXISTS active_reservation_id uuid
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS is_demo_content boolean NOT NULL DEFAULT false
   `;
 
   await sql`
@@ -480,6 +491,11 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS property_listings_status_idx
     ON property_listings (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_is_demo_content_idx
+    ON property_listings (is_demo_content)
   `;
 
   await sql`

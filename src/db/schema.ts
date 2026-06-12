@@ -45,6 +45,7 @@ export const users = pgTable("users", {
   publicContactVisible: boolean("public_contact_visible").notNull().default(true),
   profileVisible: boolean("profile_visible").notNull().default(true),
   searchVisible: boolean("search_visible").notNull().default(true),
+  isDemo: boolean("is_demo").notNull().default(false),
   passwordHash: text("password_hash"),
   role: userRoleEnum("role").notNull().default("user"),
   status: userStatusEnum("status").notNull().default("active"),
@@ -176,6 +177,7 @@ export const propertyListings = pgTable(
     reservationEnabled: boolean("reservation_enabled").notNull().default(false),
     reservationAmountCents: integer("reservation_amount_cents"),
     activeReservationId: uuid("active_reservation_id"),
+    isDemoContent: boolean("is_demo_content").notNull().default(false),
     coverImageUrl: text("cover_image_url"),
     media: jsonb("media"),
     details: jsonb("details"),
@@ -199,6 +201,7 @@ export const propertyListings = pgTable(
     index("property_listings_agent_profile_id_idx").on(table.agentProfileId),
     index("property_listings_property_identity_id_idx").on(table.propertyIdentityId),
     index("property_listings_status_idx").on(table.status),
+    index("property_listings_is_demo_content_idx").on(table.isDemoContent),
     index("property_listings_active_reservation_id_idx").on(
       table.activeReservationId,
     ),

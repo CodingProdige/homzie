@@ -7,12 +7,21 @@ import {
   Building2,
   CircleDollarSign,
   Clapperboard,
+  Eye,
+  EyeOff,
   Flag,
+  RefreshCw,
+  Sparkles,
   UsersRound,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { sql } from "@/db";
+import {
+  hideDemoProfileAction,
+  refreshDemoProfileAction,
+  showDemoProfileAction,
+} from "./actions";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Homzie",
@@ -69,6 +78,19 @@ type RecentOffer = {
   buyer_name: string;
   agent_name: string;
   created_at: string;
+};
+
+type DemoProfileSummary = {
+  id: string;
+  username: string | null;
+  name: string;
+  profile_visible: boolean;
+  search_visible: boolean;
+  listing_count: number | string | null;
+  published_count: number | string | null;
+  sold_count: number | string | null;
+  sold_value_cents: number | string | null;
+  updated_at: string;
 };
 
 function numberFrom(value: number | string | null | undefined) {
@@ -171,7 +193,50 @@ async function getDashboardData() {
     LIMIT 6
   `;
 
+  const [demoProfile] = await sql<DemoProfileSummary[]>`
+    SELECT
+      u.id,
+      u.username,
+      u.name,
+      u.profile_visible,
+      u.search_visible,
+      u.updated_at,
+      (
+        SELECT count(*)
+        FROM property_listings pl
+        WHERE pl.user_id = u.id
+          AND pl.is_demo_content = true
+      ) AS listing_count,
+      (
+        SELECT count(*)
+        FROM property_listings pl
+        WHERE pl.user_id = u.id
+          AND pl.is_demo_content = true
+          AND pl.status = 'published'
+      ) AS published_count,
+      (
+        SELECT count(*)
+        FROM property_listings pl
+        WHERE pl.user_id = u.id
+          AND pl.is_demo_content = true
+          AND pl.status = 'sold'
+      ) AS sold_count,
+      (
+        SELECT COALESCE(sum(pl.sold_price_cents), 0)
+        FROM property_listings pl
+        WHERE pl.user_id = u.id
+          AND pl.is_demo_content = true
+          AND pl.status = 'sold'
+      ) AS sold_value_cents
+    FROM users u
+    WHERE u.is_demo = true
+      AND u.email = 'demo.agent@homzie.co.za'
+    ORDER BY u.updated_at DESC
+    LIMIT 1
+  `;
+
   return {
+    demoProfile,
     metrics,
     recentListings,
     recentOffers,
@@ -249,13 +314,14 @@ function EmptyRow({ label }: { label: string }) {
 }
 
 export default async function AdminPage() {
-  const { metrics, recentListings, recentOffers, recentUsers } =
+  const { demoProfile, metrics, recentListings, recentOffers, recentUsers } =
     await getDashboardData();
 
   const moderationQueue =
     numberFrom(metrics?.open_reports) +
     numberFrom(metrics?.pending_sale_claims) +
     numberFrom(metrics?.pending_disputes);
+  const demoProfileIsVisible = Boolean(demoProfile?.profile_visible);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
@@ -334,6 +400,124 @@ export default async function AdminPage() {
             value={formatNumber(metrics?.reel_events_24h)}
           />
           </div>
+        </section>
+
+        <section className="mt-8 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="flex items-center gap-3">
+                <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary">
+                  <Sparkles className="size-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+                    Demo profile
+                  </p>
+                  <h2 className="text-xl font-black tracking-tight">
+                    Future-agent showcase
+                  </h2>
+                </div>
+              </div>
+              <p className="mt-4 text-sm font-semibold leading-6 text-muted-foreground">
+                Seed a polished mock agent profile with verified sales history,
+                premium listings, and strong performance analytics. Hide it when
+                you do not want demo content visible on the public site.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <form action={refreshDemoProfileAction}>
+                <Button type="submit" variant="outline">
+                  <RefreshCw className="mr-2 size-4" />
+                  Refresh
+                </Button>
+              </form>
+              <form
+                action={
+                  demoProfileIsVisible
+                    ? hideDemoProfileAction
+                    : showDemoProfileAction
+                }
+              >
+                <Button
+                  type="submit"
+                  variant={demoProfileIsVisible ? "outline" : "default"}
+                >
+                  {demoProfileIsVisible ? (
+                    <EyeOff className="mr-2 size-4" />
+                  ) : (
+                    <Eye className="mr-2 size-4" />
+                  )}
+                  {demoProfileIsVisible ? "Hide" : "Show"}
+                </Button>
+              </form>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+                Status
+              </p>
+              <p className="mt-2 text-lg font-black">
+                {demoProfile?.profile_visible ? "Visible" : "Hidden"}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                {demoProfile
+                  ? `Updated ${formatDateTime(demoProfile.updated_at)}`
+                  : "Not seeded yet"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+                Listings
+              </p>
+              <p className="mt-2 text-lg font-black">
+                {formatNumber(demoProfile?.listing_count)}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                {formatNumber(demoProfile?.published_count)} active showcase
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+                Verified sales
+              </p>
+              <p className="mt-2 text-lg font-black">
+                {formatNumber(demoProfile?.sold_count)}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                Sales history powers the analytics page.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+                Sold value
+              </p>
+              <p className="mt-2 text-lg font-black">
+                {formatMoney(numberFrom(demoProfile?.sold_value_cents), "ZAR")}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                Current-year demo performance.
+              </p>
+            </div>
+          </div>
+
+          {demoProfile?.username ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href="/admin/settings/demo-profile">Manage demo profile</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={`/users/${demoProfile.username}`}>Open profile</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={`/users/${demoProfile.username}/performance`}>
+                  Open analytics
+                </Link>
+              </Button>
+            </div>
+          ) : null}
         </section>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-3">

@@ -7,6 +7,7 @@ import {
   Mail,
   Megaphone,
   Music,
+  UserRoundCog,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -15,6 +16,13 @@ export const metadata: Metadata = {
 };
 
 const settingsItems = [
+  {
+    href: "/admin/settings/demo-profile",
+    icon: UserRoundCog,
+    label: "Demo Profile",
+    description:
+      "Edit the mock agent profile, login credentials, active showcase listings, and sold-history analytics data.",
+  },
   {
     href: "/admin/settings/stripe",
     icon: CreditCard,
