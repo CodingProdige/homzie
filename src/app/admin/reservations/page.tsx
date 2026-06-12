@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { ArrowUpRight, FileCheck2, HandCoins } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -320,6 +321,8 @@ function ReservationCard({ reservation }: { reservation: ReservationRow }) {
 }
 
 export default async function AdminReservationsPage() {
+  await connection();
+
   const reservations = await getReservations();
 
   return (

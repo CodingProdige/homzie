@@ -127,8 +127,8 @@ export async function getStoredSeoSettings() {
       .limit(1);
 
     return row ? normalizeSeoSettings(row.value) : defaultSeoSettings;
-  } catch (error) {
-    console.warn("SEO settings unavailable; using defaults.", { error });
+  } catch {
+    console.warn("SEO settings unavailable; using defaults.");
 
     return defaultSeoSettings;
   }
