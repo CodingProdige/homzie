@@ -3,6 +3,7 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { propertyListings, users } from "@/db/schema";
+import { shouldSkipDatabaseDuringBuild } from "@/modules/build-flags";
 import { buildListingPath } from "@/modules/listings/seo";
 import { getStoredSeoSettings } from "@/modules/seo/settings";
 import { absoluteUrl } from "@/modules/site/url";
@@ -31,6 +32,8 @@ export async function getStaticSitemapEntries(now = new Date()): Promise<Metadat
 }
 
 export async function getListingSitemapEntries(now = new Date()): Promise<MetadataRoute.Sitemap> {
+  if (shouldSkipDatabaseDuringBuild()) return [];
+
   const seoSettings = await getStoredSeoSettings();
 
   if (!seoSettings.allowIndexing) return [];
@@ -83,6 +86,8 @@ export async function getListingSitemapEntries(now = new Date()): Promise<Metada
 }
 
 export async function getProfileSitemapEntries(now = new Date()): Promise<MetadataRoute.Sitemap> {
+  if (shouldSkipDatabaseDuringBuild()) return [];
+
   const seoSettings = await getStoredSeoSettings();
 
   if (!seoSettings.allowIndexing) return [];

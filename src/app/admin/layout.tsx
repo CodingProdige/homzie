@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   },
 };
 
+export const dynamic = "force-dynamic";
+
 async function getAdminUser(userId: string) {
   const [admin] = await sql<AdminUser[]>`
     SELECT email, role, status

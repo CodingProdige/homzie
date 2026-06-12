@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import { platformSettings } from "@/db/schema";
+import { shouldSkipDatabaseDuringBuild } from "@/modules/build-flags";
 
 export type SeoIndexingMode = "auto" | "force_index" | "noindex";
 
@@ -119,6 +120,10 @@ export function formatSeoTitle(title: string, settings: SeoSettings) {
 }
 
 export async function getStoredSeoSettings() {
+  if (shouldSkipDatabaseDuringBuild()) {
+    return defaultSeoSettings;
+  }
+
   try {
     const [row] = await db
       .select({ value: platformSettings.value })

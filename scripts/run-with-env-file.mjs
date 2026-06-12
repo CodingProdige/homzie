@@ -42,6 +42,10 @@ for (const line of readFileSync(envFile, "utf8").split(/\r?\n/)) {
   env[key] = value;
 }
 
+if (command === "npm" && args[0] === "run" && args[1] === "build") {
+  env.HOMZIE_SKIP_DATABASE_DURING_BUILD ??= "1";
+}
+
 const result = spawnSync(command, args, {
   env,
   shell: false,
