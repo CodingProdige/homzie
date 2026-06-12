@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { GlobalFooter } from "@/components/global-footer";
@@ -192,9 +193,9 @@ export async function PropertyLandingPage(input: PropertyLandingInput) {
             <p className="text-sm font-black text-muted-foreground">
               {feed.totalCount} {feed.totalCount === 1 ? "listing" : "listings"}
             </p>
-            <a href="/listings" className="text-sm font-black text-primary">
+            <Link href="/listings" className="text-sm font-black text-primary">
               Explore all listings
-            </a>
+            </Link>
           </div>
           {feed.listings.length ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">

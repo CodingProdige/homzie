@@ -222,7 +222,6 @@ const imageQuality = 0.82;
 const maxDescriptionLength = 3000;
 const maxTitleLength = 120;
 const maxListingImages = 30;
-const maxListingImageSizeMb = 15;
 const maxListingVideoSizeMb = 80;
 const videoCompressionMimeType = "video/webm;codecs=vp9,opus";
 const videoCompressionBitrate = 2_500_000;
