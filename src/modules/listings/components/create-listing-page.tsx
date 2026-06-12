@@ -442,6 +442,14 @@ async function clearAutosavedMedia(key: string) {
 function getPublishIssues(draft: ListingDraft, mediaCount: number) {
   const issues: Array<{ message: string; step: number }> = [];
 
+  if (!draft.listingType) {
+    issues.push({ message: "Choose whether this listing is for sale or rent.", step: 0 });
+  }
+
+  if (!draft.propertyType) {
+    issues.push({ message: "Choose the property type.", step: 0 });
+  }
+
   if (draft.title.trim().length < 4) {
     issues.push({ message: "Add a listing title.", step: 2 });
   }
@@ -462,12 +470,14 @@ function getPublishIssues(draft: ListingDraft, mediaCount: number) {
     issues.push({ message: "Add bedrooms, bathrooms, and floor size.", step: 2 });
   }
 
-  if (!draft.askingPrice || Number(draft.askingPrice) <= 0) {
+  const askingPrice = Number(draft.askingPrice);
+
+  if (!draft.askingPrice || !Number.isFinite(askingPrice) || askingPrice <= 0) {
     issues.push({ message: "Set the asking price.", step: 3 });
   }
 
   if (mediaCount < 1) {
-    issues.push({ message: "Upload at least one listing image.", step: 4 });
+    issues.push({ message: "Upload at least one listing photo or video.", step: 4 });
   }
 
   return issues;
@@ -482,7 +492,12 @@ function isListingStepComplete(
     case 0:
       return Boolean(draft.listingType && draft.propertyType);
     case 1:
-      return draft.location.trim().length >= 2;
+      return Boolean(
+        draft.location.trim().length >= 2 &&
+          draft.city.trim() &&
+          draft.province.trim() &&
+          draft.country.trim(),
+      );
     case 2:
       return Boolean(
         draft.title.trim().length >= 4 &&

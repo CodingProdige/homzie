@@ -334,6 +334,14 @@ function assertListingCanPublish(
   const issues: string[] = [];
   const descriptionText = plainListingDescription(description);
 
+  if (!data.listingType) {
+    issues.push("Choose whether the listing is for sale or rent.");
+  }
+
+  if (!data.propertyType) {
+    issues.push("Choose the property type.");
+  }
+
   if (data.title === "Untitled listing" || data.title.trim().length < 4) {
     issues.push("Add a listing title.");
   }
@@ -354,12 +362,16 @@ function assertListingCanPublish(
     issues.push("Add bedrooms, bathrooms, and floor size.");
   }
 
-  if (!data.askingPrice || data.askingPrice <= 0) {
+  if (
+    typeof data.askingPrice !== "number" ||
+    !Number.isFinite(data.askingPrice) ||
+    data.askingPrice <= 0
+  ) {
     issues.push("Set the asking price.");
   }
 
   if (mediaCount < 1) {
-    issues.push("Upload at least one listing image.");
+    issues.push("Upload at least one listing photo or video.");
   }
 
   if (issues.length) {
