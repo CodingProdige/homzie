@@ -2,7 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { type MouseEvent, type PointerEvent, useRef, useState, useTransition } from "react";
+import {
+  type MouseEvent,
+  type PointerEvent,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   Bath,
   BedDouble,
@@ -18,10 +25,16 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { toggleListingLike, toggleListingSave } from "@/modules/listings/actions";
+import {
+  toggleListingLike,
+  toggleListingSave,
+  trackListingAction,
+  trackListingView,
+} from "@/modules/listings/actions";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import { mandateTypeOptions, type ListingType } from "@/modules/listings/options";
 import { countryFlagFromLocation } from "@/modules/location/country-preference";
+import { getAnalyticsViewerSessionId } from "@/modules/analytics/browser-session";
 
 export type ListingCardData = {
   bathrooms?: number | string | null;
@@ -314,6 +327,9 @@ export function ListingEngagementActions({
 export function ListingCard({ listing }: { listing: ListingCardData }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isVideoPreviewing, setIsVideoPreviewing] = useState(false);
+  const hoverTimerRef = useRef<number | null>(null);
+  const hasTrackedHoverRef = useRef(false);
+  const hasTrackedImpressionRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { formatPriceCents } = useCurrency();
   const imageUrls = Array.from(
@@ -342,6 +358,57 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   const statusLabel = listing.statusLabel || "Reserved";
   const isUnavailableButNotReserved = listing.unavailable && !isReserved;
   const locationFlag = countryFlagFromLocation(listing.location);
+
+  function trackCardAction(actionType: "card_click" | "hover") {
+    if (!listing.id || isUnavailableButNotReserved) return;
+
+    void trackListingAction({
+      actionType,
+      listingId: listing.id,
+      source: "listing_card",
+      viewerSessionId: getAnalyticsViewerSessionId(),
+    });
+  }
+
+  useEffect(() => {
+    if (!listing.id || hasTrackedImpressionRef.current || isUnavailableButNotReserved) {
+      return;
+    }
+
+    hasTrackedImpressionRef.current = true;
+    void trackListingView({
+      listingId: listing.id,
+      source: "listing_card_impression",
+      viewerSessionId: getAnalyticsViewerSessionId(),
+    });
+  }, [isUnavailableButNotReserved, listing.id]);
+
+  useEffect(
+    () => () => {
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  function scheduleHoverTracking() {
+    if (!listing.id || hasTrackedHoverRef.current || isUnavailableButNotReserved) {
+      return;
+    }
+
+    hoverTimerRef.current = window.setTimeout(() => {
+      hasTrackedHoverRef.current = true;
+      trackCardAction("hover");
+    }, 450);
+  }
+
+  function cancelHoverTracking() {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }
 
   function stopVideoPreview() {
     setIsVideoPreviewing(false);
@@ -575,6 +642,9 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
       <Link
         href={listing.href}
         className="group block overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        onClick={() => trackCardAction("card_click")}
+        onPointerEnter={scheduleHoverTracking}
+        onPointerLeave={cancelHoverTracking}
       >
         {cardContent}
       </Link>
@@ -582,7 +652,11 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   }
 
   return (
-    <article className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm">
+    <article
+      className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm"
+      onPointerEnter={scheduleHoverTracking}
+      onPointerLeave={cancelHoverTracking}
+    >
       {cardContent}
     </article>
   );

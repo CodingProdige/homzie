@@ -8,6 +8,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   BadgeCheck,
+  BarChart3,
   Bookmark,
   Check,
   ChevronDown,
@@ -58,6 +59,10 @@ type UserProfile = {
   contactEmail?: string;
   contactPhone?: string;
   whatsappNumber?: string;
+  connections: {
+    followers: ProfileConnection[];
+    following: ProfileConnection[];
+  };
   agentStats: AgentPerformanceStats;
   archiveFeedback?: string;
   isOwner: boolean;
@@ -74,7 +79,18 @@ type UserProfile = {
 };
 
 type ProfileTab = "reels" | "listings" | "saved";
+type ConnectionTab = "followers" | "following";
 type ProfileReelStatus = "draft" | "failed" | "processing" | "published";
+
+type ProfileConnection = {
+  avatarUrl?: string;
+  bio?: string;
+  id: string;
+  isFollowingByViewer: boolean;
+  isViewer: boolean;
+  name: string;
+  username: string;
+};
 
 type AgentPerformanceStats = {
   avgDaysToSellLabel: string;
@@ -520,6 +536,11 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
   const [followerCount, setFollowerCount] = useState(() =>
     profileCountNumber(profile.followerCount),
   );
+  const [followingCount, setFollowingCount] = useState(() =>
+    profileCountNumber(profile.followingCount),
+  );
+  const [connectionDialogTab, setConnectionDialogTab] =
+    useState<ConnectionTab | null>(null);
 
   return (
     <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-start gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-x-5 lg:py-16">
@@ -544,21 +565,54 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
         </p>
 
         <div className="mt-3 grid max-w-sm grid-cols-3 gap-2 sm:mt-5 sm:flex sm:gap-10">
+          <div className="min-w-0">
+            <div className="text-lg font-bold leading-none tracking-tight sm:text-2xl">
+              {formatProfileCount(profile.postCount)}
+            </div>
+            <div className="mt-1 truncate text-[11px] leading-none text-muted-foreground sm:text-sm">
+              Posts
+            </div>
+          </div>
           {[
-            { label: "Posts", value: formatProfileCount(profile.postCount) },
-            { label: "Followers", value: formatProfileCount(followerCount) },
-            { label: "Following", value: formatProfileCount(profile.followingCount) },
+            {
+              label: "Followers",
+              tab: "followers" as const,
+              value: formatProfileCount(followerCount),
+            },
+            {
+              label: "Following",
+              tab: "following" as const,
+              value: formatProfileCount(followingCount),
+            },
           ].map((stat) => (
-            <div key={stat.label} className="min-w-0">
+            <button
+              key={stat.label}
+              type="button"
+              className="min-w-0 text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={() => setConnectionDialogTab(stat.tab)}
+            >
               <div className="text-lg font-bold leading-none tracking-tight sm:text-2xl">
                 {stat.value}
               </div>
               <div className="mt-1 truncate text-[11px] leading-none text-muted-foreground sm:text-sm">
                 {stat.label}
               </div>
-            </div>
+            </button>
           ))}
         </div>
+        <ProfileConnectionsDialog
+          activeTab={connectionDialogTab || "followers"}
+          followers={profile.connections.followers}
+          following={profile.connections.following}
+          onFollowingCountChange={setFollowingCount}
+          open={Boolean(connectionDialogTab)}
+          profileIsOwner={profile.isOwner}
+          profileName={profile.name}
+          onOpenChange={(open) => {
+            if (!open) setConnectionDialogTab(null);
+          }}
+          onTabChange={setConnectionDialogTab}
+        />
       </div>
 
       {profile.bio || profile.location ? (
@@ -620,6 +674,15 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
               username={profile.username}
               name={profile.name}
             />
+            <Button asChild variant="outline" size="icon" className="shrink-0">
+              <Link
+                href={`/users/${profile.username}/analytics`}
+                aria-label="Open content analytics"
+                title="Content analytics"
+              >
+                <BarChart3 className="size-4" />
+              </Link>
+            </Button>
           </>
         ) : (
           <ProfileVisitorActions
@@ -650,6 +713,219 @@ function formatProfileCount(value: unknown) {
   const compactValue = safeValue / 1000;
 
   return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
+}
+
+function ConnectionAvatar({ connection }: { connection: ProfileConnection }) {
+  const safeAvatarUrl = toPublicMediaUrl(connection.avatarUrl);
+
+  return (
+    <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--homzie-gradient)] p-0.5 text-white">
+      {safeAvatarUrl ? (
+        <Image
+          src={safeAvatarUrl}
+          alt={connection.name}
+          width={44}
+          height={44}
+          className="size-full rounded-full border-2 border-background object-cover"
+        />
+      ) : (
+        <span className="grid size-full place-items-center rounded-full border-2 border-background bg-brand-midnight text-xs font-black">
+          {initialsFromName(connection.name) || "H"}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ProfileConnectionsDialog({
+  activeTab,
+  followers,
+  following,
+  onFollowingCountChange,
+  onOpenChange,
+  onTabChange,
+  open,
+  profileIsOwner,
+  profileName,
+}: {
+  activeTab: ConnectionTab;
+  followers: ProfileConnection[];
+  following: ProfileConnection[];
+  onFollowingCountChange: (updater: (count: number) => number) => void;
+  onOpenChange: (open: boolean) => void;
+  onTabChange: (tab: ConnectionTab) => void;
+  open: boolean;
+  profileIsOwner: boolean;
+  profileName: string;
+}) {
+  const [followerRows, setFollowerRows] = useState(followers);
+  const [followingRows, setFollowingRows] = useState(following);
+  const [pendingUsername, setPendingUsername] = useState("");
+  const [notice, setNotice] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  const rows = activeTab === "followers" ? followerRows : followingRows;
+
+  function updateFollowState(username: string, isFollowing: boolean) {
+    const updateRows = (items: ProfileConnection[]) =>
+      items.map((item) =>
+        item.username === username
+          ? { ...item, isFollowingByViewer: isFollowing }
+          : item,
+      );
+
+    setFollowerRows(updateRows);
+    setFollowingRows(updateRows);
+  }
+
+  function removeFollowingRow(username: string) {
+    setFollowingRows((items) => items.filter((item) => item.username !== username));
+  }
+
+  function handleToggle(connection: ProfileConnection) {
+    const previous = connection.isFollowingByViewer;
+
+    setNotice("");
+    setPendingUsername(connection.username);
+    updateFollowState(connection.username, !previous);
+
+    if (profileIsOwner) {
+      onFollowingCountChange((count) =>
+        Math.max(0, profileCountNumber(count) + (previous ? -1 : 1)),
+      );
+    }
+
+    startTransition(async () => {
+      const result = await toggleProfileFollow(connection.username);
+
+      setPendingUsername("");
+
+      if (!result.ok) {
+        updateFollowState(connection.username, previous);
+        if (profileIsOwner) {
+          onFollowingCountChange((count) =>
+            Math.max(0, profileCountNumber(count) + (previous ? 1 : -1)),
+          );
+        }
+        setNotice(result.error || "Could not update follow status.");
+        return;
+      }
+
+      updateFollowState(connection.username, result.following);
+
+      if (profileIsOwner && activeTab === "following" && !result.following) {
+        removeFollowingRow(connection.username);
+      }
+    });
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/45 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] flex max-h-[min(34rem,calc(100dvh-2rem))] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl">
+          <div className="flex items-start justify-between gap-4 border-b border-border p-4">
+            <div className="min-w-0">
+              <Dialog.Title className="text-lg font-black">
+                {profileName}
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+                View followers and following.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <Button type="button" variant="ghost" size="icon" aria-label="Close">
+                <X className="size-5" />
+              </Button>
+            </Dialog.Close>
+          </div>
+
+          <div className="grid grid-cols-2 border-b border-border">
+            {[
+              { label: "Followers", tab: "followers" as const },
+              { label: "Following", tab: "following" as const },
+            ].map((item) => (
+              <button
+                key={item.tab}
+                type="button"
+                className={cn(
+                  "border-b-2 px-4 py-3 text-sm font-black transition-colors",
+                  activeTab === item.tab
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => onTabChange(item.tab)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {notice ? (
+            <p className="border-b border-border px-4 py-2 text-sm font-bold text-destructive">
+              {notice}
+            </p>
+          ) : null}
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {rows.length ? (
+              rows.map((connection) => (
+                <div
+                  key={`${activeTab}-${connection.id}`}
+                  className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/70"
+                >
+                  <Link href={`/users/${connection.username}`} className="shrink-0">
+                    <ConnectionAvatar connection={connection} />
+                  </Link>
+                  <Link
+                    href={`/users/${connection.username}`}
+                    className="min-w-0 flex-1"
+                  >
+                    <p className="truncate text-sm font-black">{connection.name}</p>
+                    <p className="truncate text-xs font-semibold text-muted-foreground">
+                      @{connection.username}
+                    </p>
+                    {connection.bio ? (
+                      <p className="mt-0.5 line-clamp-1 text-xs font-medium text-muted-foreground">
+                        {connection.bio}
+                      </p>
+                    ) : null}
+                  </Link>
+                  {connection.isViewer ? (
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs font-black text-muted-foreground">
+                      You
+                    </span>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={connection.isFollowingByViewer ? "outline" : "default"}
+                      disabled={isPending && pendingUsername === connection.username}
+                      onClick={() => handleToggle(connection)}
+                    >
+                      {connection.isFollowingByViewer ? "Following" : "Follow"}
+                    </Button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="grid min-h-44 place-items-center px-6 text-center">
+                <div>
+                  <UsersRound className="mx-auto size-8 text-muted-foreground" />
+                  <p className="mt-3 text-sm font-black">
+                    No {activeTab} yet
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                    People will appear here as profiles connect.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
 }
 
 function ProfileVisitorActions({

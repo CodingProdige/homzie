@@ -16,6 +16,18 @@ export const metadata: Metadata = {
   description: "Review paid listing reservations and settlement status.",
 };
 
+const reservationTablePageSize = 10;
+
+type AdminReservationsPageProps = {
+  searchParams?: Promise<{ page?: string }>;
+};
+
+function positivePage(value: unknown) {
+  const parsed = Number(value);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
 function formatMoney(cents: number | null, currency = "ZAR") {
   if (cents === null) return "Not set";
 
@@ -129,9 +141,13 @@ const reservationColumns: Array<CanonicalTableColumn<ReservationRow>> = [
   },
 ];
 
-export default async function AdminReservationsPage() {
+export default async function AdminReservationsPage({
+  searchParams,
+}: AdminReservationsPageProps) {
   await connection();
 
+  const query = searchParams ? await searchParams : {};
+  const currentPage = positivePage(query.page);
   const reservations = await getReservations();
 
   return (
@@ -179,6 +195,11 @@ export default async function AdminReservationsPage() {
           getRowHref={(reservation) => `/admin/reservations/${reservation.id}`}
           getRowKey={(reservation) => reservation.id}
           minWidth="1040px"
+          pagination={{
+            currentPage,
+            hrefForPage: (page) => `/admin/reservations?page=${page}`,
+            pageSize: reservationTablePageSize,
+          }}
           rows={reservations}
         />
       </section>

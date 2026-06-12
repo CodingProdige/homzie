@@ -43,7 +43,16 @@ import { renderPayloadSchema } from "@/modules/reels/server/render-schema";
 const reelWatchProgressSchema = z.object({
   completed: z.boolean().optional(),
   durationSeconds: z.number().finite().min(0).max(3600).optional(),
-  eventType: z.enum(["view", "progress", "complete"]),
+  eventType: z.enum([
+    "view",
+    "progress",
+    "complete",
+    "impression",
+    "hover",
+    "click",
+    "share",
+    "follow",
+  ]),
   progressSeconds: z.number().finite().min(0).max(3600).optional(),
   reelId: z.string().uuid(),
   source: z.string().trim().min(1).max(64).optional(),
@@ -208,6 +217,9 @@ export async function trackReelWatchProgress(input: unknown) {
     (durationSeconds > 0 && progressPercent >= 95);
   const watchSeconds = Math.round(parsed.data.watchSeconds || 0);
   const source = parsed.data.source || "feed";
+  const isWatchEvent = ["view", "progress", "complete"].includes(
+    parsed.data.eventType,
+  );
 
   const [reel] = await db
     .select({
@@ -224,22 +236,24 @@ export async function trackReelWatchProgress(input: unknown) {
     return { ok: false as const };
   }
 
-  const [insertedSession] = await db
-    .insert(reelWatchSessions)
-    .values({
-      completed,
-      durationSeconds,
-      lastProgressSeconds: progressSeconds,
-      maxProgressPercent: progressPercent,
-      maxProgressSeconds: progressSeconds,
-      reelId: parsed.data.reelId,
-      source,
-      totalWatchSeconds: watchSeconds,
-      viewerSessionId: parsed.data.viewerSessionId,
-      viewerUserId: session?.user?.id || null,
-    })
-    .onConflictDoNothing()
-    .returning({ id: reelWatchSessions.id });
+  const [insertedSession] = isWatchEvent
+    ? await db
+        .insert(reelWatchSessions)
+        .values({
+          completed,
+          durationSeconds,
+          lastProgressSeconds: progressSeconds,
+          maxProgressPercent: progressPercent,
+          maxProgressSeconds: progressSeconds,
+          reelId: parsed.data.reelId,
+          source,
+          totalWatchSeconds: watchSeconds,
+          viewerSessionId: parsed.data.viewerSessionId,
+          viewerUserId: session?.user?.id || null,
+        })
+        .onConflictDoNothing()
+        .returning({ id: reelWatchSessions.id })
+    : [];
 
   if (insertedSession) {
     await db
@@ -270,26 +284,28 @@ export async function trackReelWatchProgress(input: unknown) {
     }
   }
 
-  await db
-    .update(reelWatchSessions)
-    .set({
-      completed: sql`${reelWatchSessions.completed} OR ${completed}`,
-      durationSeconds: sql`GREATEST(${reelWatchSessions.durationSeconds}, ${durationSeconds})`,
-      lastProgressSeconds: progressSeconds,
-      lastWatchedAt: new Date(),
-      maxProgressPercent: sql`GREATEST(${reelWatchSessions.maxProgressPercent}, ${progressPercent})`,
-      maxProgressSeconds: sql`GREATEST(${reelWatchSessions.maxProgressSeconds}, ${progressSeconds})`,
-      source,
-      totalWatchSeconds: sql`${reelWatchSessions.totalWatchSeconds} + ${watchSeconds}`,
-      updatedAt: new Date(),
-      viewerUserId: session?.user?.id || null,
-    })
-    .where(
-      and(
-        eq(reelWatchSessions.reelId, parsed.data.reelId),
-        eq(reelWatchSessions.viewerSessionId, parsed.data.viewerSessionId),
-      ),
-    );
+  if (isWatchEvent) {
+    await db
+      .update(reelWatchSessions)
+      .set({
+        completed: sql`${reelWatchSessions.completed} OR ${completed}`,
+        durationSeconds: sql`GREATEST(${reelWatchSessions.durationSeconds}, ${durationSeconds})`,
+        lastProgressSeconds: progressSeconds,
+        lastWatchedAt: new Date(),
+        maxProgressPercent: sql`GREATEST(${reelWatchSessions.maxProgressPercent}, ${progressPercent})`,
+        maxProgressSeconds: sql`GREATEST(${reelWatchSessions.maxProgressSeconds}, ${progressSeconds})`,
+        source,
+        totalWatchSeconds: sql`${reelWatchSessions.totalWatchSeconds} + ${watchSeconds}`,
+        updatedAt: new Date(),
+        viewerUserId: session?.user?.id || null,
+      })
+      .where(
+        and(
+          eq(reelWatchSessions.reelId, parsed.data.reelId),
+          eq(reelWatchSessions.viewerSessionId, parsed.data.viewerSessionId),
+        ),
+      );
+  }
 
   await db.insert(reelWatchEvents).values({
     completed,

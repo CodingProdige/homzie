@@ -275,7 +275,9 @@ function ReelCard({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captionRef = useRef<HTMLDivElement | null>(null);
   const hasRecordedViewRef = useRef(false);
+  const hasTrackedHoverRef = useRef(false);
   const fastSkipRecordedRef = useRef(false);
+  const hoverTimerRef = useRef<number | null>(null);
   const isSeekingRef = useRef(false);
   const lastTapRef = useRef(0);
   const tapTimeoutRef = useRef<number | null>(null);
@@ -387,6 +389,14 @@ function ReelCard({
     }
 
     setFollowingAgent(result.following);
+    if (result.following) {
+      void trackReelWatchProgress({
+        eventType: "follow",
+        reelId: reel.id,
+        source: analyticsSource,
+        viewerSessionId: getViewerSessionId(),
+      });
+    }
   };
 
   const handleLikeToggle = async () => {
@@ -625,8 +635,32 @@ function ReelCard({
       if (tapTimeoutRef.current !== null) {
         window.clearTimeout(tapTimeoutRef.current);
       }
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
     };
   }, []);
+
+  function scheduleHoverTracking() {
+    if (hasTrackedHoverRef.current) return;
+
+    hoverTimerRef.current = window.setTimeout(() => {
+      hasTrackedHoverRef.current = true;
+      void trackReelWatchProgress({
+        eventType: "hover",
+        reelId: reel.id,
+        source: analyticsSource,
+        viewerSessionId: getViewerSessionId(),
+      });
+    }, 450);
+  }
+
+  function cancelHoverTracking() {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }
 
   return (
     <section
@@ -634,6 +668,8 @@ function ReelCard({
       data-reel-card
       className="relative h-dvh snap-start overflow-hidden bg-black text-white lg:mx-auto lg:aspect-[9/16] lg:h-[clamp(640px,100dvh,920px)] lg:w-auto lg:rounded-2xl lg:shadow-2xl lg:shadow-black/45"
       onClick={handleVideoTap}
+      onPointerEnter={scheduleHoverTracking}
+      onPointerLeave={cancelHoverTracking}
     >
       {reel.videoUrl ? (
         <video
@@ -906,6 +942,14 @@ function ReelCard({
         open={isShareOpen}
         reel={reel}
         onClose={() => setIsShareOpen(false)}
+        onShare={() => {
+          void trackReelWatchProgress({
+            eventType: "share",
+            reelId: reel.id,
+            source: analyticsSource,
+            viewerSessionId: getViewerSessionId(),
+          });
+        }}
       />
     </section>
   );
@@ -2179,10 +2223,12 @@ function CommentsSheet({
 
 function ShareSheet({
   onClose,
+  onShare,
   open,
   reel,
 }: {
   onClose: () => void;
+  onShare?: () => void;
   open: boolean;
   reel: ReelFeedItem;
 }) {
@@ -2213,6 +2259,7 @@ function ShareSheet({
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(reelUrl);
+    onShare?.();
     onClose();
   };
 
@@ -2227,6 +2274,7 @@ function ShareSheet({
       title: "Homzie reel",
       url: reelUrl,
     });
+    onShare?.();
     onClose();
   };
 
@@ -2268,6 +2316,7 @@ function ShareSheet({
               className="flex flex-col items-center gap-2 rounded-2xl bg-black/5 p-3 text-xs font-bold"
               target={target.href.startsWith("http") ? "_blank" : undefined}
               rel="noreferrer"
+              onClick={onShare}
             >
               <span className="grid size-11 place-items-center rounded-full bg-white shadow-sm">
                 <ShareBrandIcon brand={target.brand} />

@@ -191,8 +191,10 @@ const listingViewerSessionSchema = z.string().trim().min(4).max(160);
 const listingActionTypeSchema = z.enum([
   "bond_calculator",
   "call_agent",
+  "card_click",
   "contact_agent",
   "email_agent",
+  "hover",
   "like",
   "place_offer",
   "reserve_now",

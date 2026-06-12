@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 
-import { db } from "@/db";
+import { db, sql as rawSql } from "@/db";
 import {
   listingLikes,
   listingSaves,
@@ -111,6 +111,16 @@ function countNumber(value: unknown) {
 
   return Number.isFinite(parsed) ? parsed : 0;
 }
+
+type ProfileConnectionRow = {
+  avatar_url: string | null;
+  bio: string | null;
+  followed_by_viewer: boolean | null;
+  id: string;
+  is_viewer: boolean | null;
+  name: string;
+  username: string | null;
+};
 
 function reelStatus(value: string): "draft" | "failed" | "processing" | "published" {
   return value === "draft" ||
@@ -621,6 +631,72 @@ async function getProfileSocialStats(userId: string) {
   };
 }
 
+async function getProfileConnections(profileUserId: string, viewerUserId?: string | null) {
+  const [followers, following] = await Promise.all([
+    rawSql<ProfileConnectionRow[]>`
+      SELECT
+        u.id,
+        u.name,
+        u.username,
+        u.avatar_url,
+        u.bio,
+        EXISTS (
+          SELECT 1
+          FROM user_follows vf
+          WHERE vf.follower_id = ${viewerUserId || null}
+            AND vf.following_id = u.id
+        ) AS followed_by_viewer,
+        u.id = ${viewerUserId || null} AS is_viewer
+      FROM user_follows uf
+      JOIN users u ON u.id = uf.follower_id
+      WHERE uf.following_id = ${profileUserId}
+        AND u.status = 'active'
+        AND u.profile_visible = true
+        AND u.username IS NOT NULL
+      ORDER BY uf.created_at DESC
+      LIMIT 250
+    `,
+    rawSql<ProfileConnectionRow[]>`
+      SELECT
+        u.id,
+        u.name,
+        u.username,
+        u.avatar_url,
+        u.bio,
+        EXISTS (
+          SELECT 1
+          FROM user_follows vf
+          WHERE vf.follower_id = ${viewerUserId || null}
+            AND vf.following_id = u.id
+        ) AS followed_by_viewer,
+        u.id = ${viewerUserId || null} AS is_viewer
+      FROM user_follows uf
+      JOIN users u ON u.id = uf.following_id
+      WHERE uf.follower_id = ${profileUserId}
+        AND u.status = 'active'
+        AND u.profile_visible = true
+        AND u.username IS NOT NULL
+      ORDER BY uf.created_at DESC
+      LIMIT 250
+    `,
+  ]);
+
+  const mapConnection = (connection: ProfileConnectionRow) => ({
+    avatarUrl: toPublicMediaUrl(connection.avatar_url) || undefined,
+    bio: connection.bio || undefined,
+    id: connection.id,
+    isFollowingByViewer: Boolean(connection.followed_by_viewer),
+    isViewer: Boolean(connection.is_viewer),
+    name: connection.name,
+    username: connection.username || "",
+  });
+
+  return {
+    followers: followers.filter((connection) => connection.username).map(mapConnection),
+    following: following.filter((connection) => connection.username).map(mapConnection),
+  };
+}
+
 export async function generateMetadata({
   params,
 }: UserProfileRouteProps): Promise<Metadata> {
@@ -713,6 +789,7 @@ export default async function UserProfilePage({
     profileListings,
     agentStats,
     socialStats,
+    connections,
   ] = await Promise.all([
     hasActiveAgentSubscription(profile.id),
     viewerUserId
@@ -751,6 +828,7 @@ export default async function UserProfilePage({
     }),
     getAgentPerformanceStats(profile.id),
     getProfileSocialStats(profile.id),
+    getProfileConnections(profile.id, viewerUserId),
   ]);
   const canViewSaved = isOwner || hasSubscription;
   const [savedReels, savedListings] = await Promise.all([
@@ -805,6 +883,7 @@ export default async function UserProfilePage({
         location: locationLabel || undefined,
         followerCount: socialStats.followers,
         followingCount: socialStats.following,
+        connections,
         postCount: socialStats.posts,
         contactEmail: profile.publicContactVisible
           ? profile.contactEmail || undefined

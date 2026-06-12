@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Clock3, Loader2, PlayCircle, RotateCcw, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { deleteReelById, retryReelRender } from "@/modules/reels/actions";
+import {
+  deleteReelById,
+  retryReelRender,
+  trackReelWatchProgress,
+} from "@/modules/reels/actions";
+import { getAnalyticsViewerSessionId } from "@/modules/analytics/browser-session";
 
 export type ReelPreviewCardData = {
   coverUrl?: string | null;
@@ -27,6 +32,9 @@ export function ReelPreviewCard({ reel }: { reel: ReelPreviewCardData }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [isRetryPending, startRetryTransition] = useTransition();
   const [isDeletePending, startDeleteTransition] = useTransition();
+  const hasTrackedHoverRef = useRef(false);
+  const hasTrackedImpressionRef = useRef(false);
+  const hoverTimerRef = useRef<number | null>(null);
   const [polledProgress, setPolledProgress] = useState<number | null>(
     typeof reel.renderProgress === "number"
       ? Math.max(0, Math.min(100, Math.round(reel.renderProgress)))
@@ -77,6 +85,48 @@ export function ReelPreviewCard({ reel }: { reel: ReelPreviewCardData }) {
       window.clearInterval(interval);
     };
   }, [reel.id, reel.status]);
+
+  useEffect(() => {
+    if (reel.status !== "published" || hasTrackedImpressionRef.current) return;
+
+    hasTrackedImpressionRef.current = true;
+    void trackReelWatchProgress({
+      eventType: "impression",
+      reelId: reel.id,
+      source: "reel_preview_card",
+      viewerSessionId: getAnalyticsViewerSessionId(),
+    });
+  }, [reel.id, reel.status]);
+
+  useEffect(
+    () => () => {
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  function scheduleHoverTracking() {
+    if (reel.status !== "published" || hasTrackedHoverRef.current) return;
+
+    hoverTimerRef.current = window.setTimeout(() => {
+      hasTrackedHoverRef.current = true;
+      void trackReelWatchProgress({
+        eventType: "hover",
+        reelId: reel.id,
+        source: "reel_preview_card",
+        viewerSessionId: getAnalyticsViewerSessionId(),
+      });
+    }, 450);
+  }
+
+  function cancelHoverTracking() {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }
 
   const cardClassName = cn(
     "group relative isolate block aspect-[3/4] min-w-0 overflow-hidden rounded-lg bg-brand-midnight text-white shadow-sm transition",
@@ -249,7 +299,21 @@ export function ReelPreviewCard({ reel }: { reel: ReelPreviewCardData }) {
   }
 
   return (
-    <Link href={reel.href} draggable={false} className={cardClassName}>
+    <Link
+      href={reel.href}
+      draggable={false}
+      className={cardClassName}
+      onClick={() => {
+        void trackReelWatchProgress({
+          eventType: "click",
+          reelId: reel.id,
+          source: "reel_preview_card_click",
+          viewerSessionId: getAnalyticsViewerSessionId(),
+        });
+      }}
+      onPointerEnter={scheduleHoverTracking}
+      onPointerLeave={cancelHoverTracking}
+    >
       {content}
     </Link>
   );
