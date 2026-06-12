@@ -56,6 +56,8 @@ export type ListingCardData = {
   savedByViewer?: boolean;
   saveCount?: number;
   saveCountLabel?: string;
+  status?: string | null;
+  statusLabel?: string | null;
   title?: string | null;
   unavailable?: boolean;
   unavailableLabel?: string;
@@ -336,6 +338,9 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   const visibleFeatures = features.slice(0, 5);
   const hiddenFeatureCount = Math.max(features.length - visibleFeatures.length, 0);
   const unavailableLabel = listing.unavailableLabel || "No longer available";
+  const isReserved = listing.status === "reserved";
+  const statusLabel = listing.statusLabel || "Reserved";
+  const isUnavailableButNotReserved = listing.unavailable && !isReserved;
   const locationFlag = countryFlagFromLocation(listing.location);
 
   function stopVideoPreview() {
@@ -347,7 +352,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   }
 
   function startVideoPreview() {
-    if (!videoUrl || listing.unavailable) return;
+    if (!videoUrl || isUnavailableButNotReserved) return;
 
     setIsVideoPreviewing(true);
     void videoRef.current?.play().catch(() => {
@@ -385,13 +390,13 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             src={activeImageUrl}
             alt={listing.title || "Listing cover"}
             fill
-            className={cn("object-cover", listing.unavailable && "grayscale")}
+            className={cn("object-cover", isUnavailableButNotReserved && "grayscale")}
           />
         ) : (
           <div
             className={cn(
               "grid size-full place-items-center text-muted-foreground",
-              listing.unavailable && "grayscale",
+              isUnavailableButNotReserved && "grayscale",
             )}
           >
             <Upload className="size-8" />
@@ -405,7 +410,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
               className={cn(
                 "absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-200",
                 (isVideoPreviewing || !activeImageUrl) && "opacity-100",
-                listing.unavailable && "grayscale",
+                isUnavailableButNotReserved && "grayscale",
               )}
               muted
               loop
@@ -418,9 +423,16 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             </span>
           </>
         ) : null}
-        <span className="absolute left-3 top-3 rounded-full bg-background/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-foreground">
-          {listing.unavailable ? unavailableLabel : listing.listingTypeLabel}
-        </span>
+        <div className="absolute left-3 top-3 flex flex-col items-start gap-1.5">
+          <span className="rounded-full bg-background/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-foreground">
+            {listing.listingTypeLabel}
+          </span>
+          {isReserved ? (
+            <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-sm">
+              {statusLabel}
+            </span>
+          ) : null}
+        </div>
         {listing.buyerIncentive ? (
           <span className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-primary px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-lg">
             {listing.buyerIncentive}
@@ -430,10 +442,10 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
           <ListingEngagementActions
             className="absolute right-3 top-3 z-10"
             listing={listing}
-            likeDisabled={listing.unavailable}
+            likeDisabled={isUnavailableButNotReserved}
           />
         ) : null}
-        {listing.unavailable ? (
+        {isUnavailableButNotReserved ? (
           <div className="absolute inset-x-3 bottom-3 rounded-md bg-background/95 p-3 text-xs font-bold text-foreground shadow-lg backdrop-blur">
             <p className="font-black">{unavailableLabel}</p>
             <p className="mt-1 text-muted-foreground">
@@ -467,7 +479,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
           </p>
         ) : null}
         <p className="text-xs font-black uppercase tracking-wide text-primary">
-          {listing.unavailable ? unavailableLabel : listing.propertyTypeLabel}
+          {listing.propertyTypeLabel}
         </p>
         <h3 className="mt-1 line-clamp-2 text-lg font-black">
           {listing.title || "Your listing title"}

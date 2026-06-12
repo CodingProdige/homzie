@@ -1199,7 +1199,7 @@ export function MessagesPage({
                 onReport={() => setReportOpen(true)}
               />
             ) : (
-              <div className="flex h-full min-h-0 w-full flex-1 flex-col">
+              <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-background">
                 <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <Button
@@ -1300,11 +1300,12 @@ export function MessagesPage({
                   </div>
                 ) : null}
 
-                <div
-                  ref={scrollRef}
-                  className="relative isolate min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-4 py-6 before:pointer-events-none before:absolute before:inset-0 before:-z-20 before:bg-[url('/backgrounds/chat-window-background-clipped.png')] before:bg-cover before:bg-center before:bg-no-repeat before:opacity-[0.18] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-background/70 dark:before:opacity-[0.2] dark:before:invert dark:before:brightness-150 dark:after:bg-background/82"
-                >
-                  <div className="relative z-10 mx-auto flex max-w-4xl flex-col gap-3">
+                <div className="relative isolate min-h-0 flex-1 overflow-hidden bg-background before:pointer-events-none before:absolute before:inset-0 before:-z-20 before:bg-[url('/backgrounds/chat-window-background-clipped.png')] before:bg-cover before:bg-center before:bg-no-repeat before:opacity-[0.18] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-background/70 dark:before:opacity-[0.2] dark:before:invert dark:before:brightness-150 dark:after:bg-background/82">
+                  <div
+                    ref={scrollRef}
+                    className="relative z-10 h-full overflow-y-auto overscroll-contain px-4 py-6"
+                  >
+                    <div className="mx-auto flex max-w-4xl flex-col gap-3">
                     {messages.map((message) => {
                       const mine = message.senderUserId === viewer.id;
 
@@ -1362,6 +1363,7 @@ export function MessagesPage({
                         Typing...
                       </div>
                     ) : null}
+                    </div>
                   </div>
                 </div>
 

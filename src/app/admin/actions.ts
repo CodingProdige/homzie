@@ -584,6 +584,7 @@ export async function updateAdminReservationSettlement(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/reservations");
+  revalidatePath(`/admin/reservations/${data.reservationId}`);
 }
 
 const demoProfileUsername = "avamorgandemo";

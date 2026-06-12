@@ -34,7 +34,7 @@ import {
   absoluteAppUrl,
   sendTemplatedEmailToUser,
 } from "@/modules/email/server";
-import { getStripe } from "@/modules/billing/stripe";
+import { getStripe, getStripePublishableKey } from "@/modules/billing/stripe";
 import {
   extractHashtags,
   recordHashtagUsage,
@@ -54,6 +54,7 @@ import {
   getDiscoverListings,
   type DiscoverListingFilters,
 } from "@/modules/listings/server/discover-listings";
+import { completeListingReservationPayment } from "@/modules/listings/reservations";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 const maxListingImageBytes = 15 * 1024 * 1024;
@@ -1075,28 +1076,15 @@ export async function startListingReservationCheckout(listingId: string) {
     amountCents: listing.reservationAmountCents,
     settings,
   });
-  const listingDetails =
-    listing.details && typeof listing.details === "object" && !Array.isArray(listing.details)
-      ? (listing.details as Record<string, unknown>)
-      : {};
-  const reservationReturnPath = buildListingPath({
-    bedrooms: listingDetails.bedrooms as number | string | null,
-    city: typeof listingDetails.city === "string" ? listingDetails.city : "",
-    country: typeof listingDetails.country === "string" ? listingDetails.country : "",
-    id: listing.id,
-    listingType: listing.listingType,
-    location: listing.location,
-    propertyType: listing.propertyType,
-    province:
-      (typeof listingDetails.province === "string" ? listingDetails.province : "") ||
-      (typeof listingDetails.state === "string" ? listingDetails.state : "") ||
-      (typeof listingDetails.region === "string" ? listingDetails.region : ""),
-    suburb: typeof listingDetails.suburb === "string" ? listingDetails.suburb : "",
-    title: listing.title,
-  });
 
   try {
     const stripe = await getStripe();
+    const publishableKey = await getStripePublishableKey();
+
+    if (!publishableKey) {
+      return { error: "Stripe publishable key is not configured.", ok: false as const };
+    }
+
     const [reservation] = await db
       .insert(listingReservations)
       .values({
@@ -1112,48 +1100,26 @@ export async function startListingReservationCheckout(listingId: string) {
       })
       .returning({ id: listingReservations.id });
 
-    const checkout = await stripe.checkout.sessions.create({
-      cancel_url: absoluteAppUrl(`${reservationReturnPath}?reservation=cancelled`),
-      customer_email: buyer.email,
-      line_items: [
-        {
-          price_data: {
-            currency: "zar",
-            product_data: {
-              description: [
-                `Reservation amount: R${(listing.reservationAmountCents / 100).toFixed(2)}`,
-                `Homzie fee: R${(fees.platformFeeCents / 100).toFixed(2)}`,
-                `Payment fee estimate: R${(fees.processingFeeCents / 100).toFixed(2)}`,
-              ].join(" | "),
-              name: `Reserve ${listing.title}`,
-            },
-            unit_amount: fees.totalPaidCents,
-          },
-          quantity: 1,
-        },
-      ],
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: fees.totalPaidCents,
+      automatic_payment_methods: {
+        enabled: true,
+      },
+      currency: "zar",
+      description: `Homzie reservation for ${listing.title}`,
       metadata: {
         buyerUserId: buyer.id,
         listingId: listing.id,
         reservationId: reservation.id,
         type: "listing_reservation",
       },
-      mode: "payment",
-      payment_intent_data: {
-        metadata: {
-          buyerUserId: buyer.id,
-          listingId: listing.id,
-          reservationId: reservation.id,
-          type: "listing_reservation",
-        },
-      },
-      success_url: absoluteAppUrl(`${reservationReturnPath}?reservation=success`),
+      receipt_email: buyer.email,
     });
 
     await db
       .update(listingReservations)
       .set({
-        stripeCheckoutSessionId: checkout.id,
+        stripePaymentIntentId: paymentIntent.id,
         updatedAt: new Date(),
       })
       .where(eq(listingReservations.id, reservation.id));
@@ -1166,8 +1132,10 @@ export async function startListingReservationCheckout(listingId: string) {
     });
 
     return {
+      clientSecret: paymentIntent.client_secret || "",
       ok: true as const,
-      checkoutUrl: checkout.url || "",
+      publishableKey,
+      reservationId: reservation.id,
     };
   } catch (error) {
     return {
@@ -1175,6 +1143,75 @@ export async function startListingReservationCheckout(listingId: string) {
         error instanceof Error
           ? error.message
           : "Could not start reservation checkout.",
+      ok: false as const,
+    };
+  }
+}
+
+export async function confirmListingReservationPayment(paymentIntentId: string) {
+  const parsed = z.string().trim().min(4).safeParse(paymentIntentId);
+  const session = await getServerSession(authOptions);
+
+  if (!parsed.success) {
+    return { error: "Payment confirmation is invalid.", ok: false as const };
+  }
+
+  if (!session?.user?.id) {
+    return { error: "Sign in before confirming a reservation.", ok: false as const };
+  }
+
+  try {
+    const stripe = await getStripe();
+    const paymentIntent = await stripe.paymentIntents.retrieve(parsed.data);
+
+    if (paymentIntent.metadata?.type !== "listing_reservation") {
+      return { error: "Payment is not linked to a listing reservation.", ok: false as const };
+    }
+
+    if (paymentIntent.status !== "succeeded") {
+      return { error: "Payment has not succeeded yet.", ok: false as const };
+    }
+
+    const reservationId = paymentIntent.metadata.reservationId;
+    const listingId = paymentIntent.metadata.listingId;
+
+    if (!reservationId || !listingId) {
+      return { error: "Reservation metadata is incomplete.", ok: false as const };
+    }
+
+    const [reservation] = await db
+      .select({
+        buyerUserId: listingReservations.buyerUserId,
+      })
+      .from(listingReservations)
+      .where(eq(listingReservations.id, reservationId))
+      .limit(1);
+
+    if (!reservation || reservation.buyerUserId !== session.user.id) {
+      return { error: "Reservation does not belong to your account.", ok: false as const };
+    }
+
+    const latestCharge =
+      typeof paymentIntent.latest_charge === "string"
+        ? paymentIntent.latest_charge
+        : paymentIntent.latest_charge?.id || null;
+
+    await completeListingReservationPayment({
+      chargeId: latestCharge,
+      listingId,
+      paymentIntentId: paymentIntent.id,
+      reservationId,
+    });
+
+    revalidatePath(`/listings/${listingId}`);
+
+    return { ok: true as const };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not confirm reservation payment.",
       ok: false as const,
     };
   }

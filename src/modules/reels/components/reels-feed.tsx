@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/modules/currency/currency-provider";
+import { buildReelPath } from "@/modules/reels/urls";
 import {
   createReelComment,
   deleteReel,
@@ -2187,8 +2188,8 @@ function ShareSheet({
 }) {
   const reelUrl =
     typeof window === "undefined"
-      ? `/users/${reel.agentUsername}/reels`
-      : `${window.location.origin}/users/${reel.agentUsername}/reels`;
+      ? buildReelPath(reel.id)
+      : `${window.location.origin}${buildReelPath(reel.id)}`;
   const encodedUrl = encodeURIComponent(reelUrl);
   const text = encodeURIComponent(`Watch @${reel.agentUsername}'s Homzie reel`);
   const shareTargets = [
@@ -2336,6 +2337,7 @@ export function ReelsFeed({
   const [activeReelId, setActiveReelId] = useState(orderedReels[0]?.id || "");
   const [isOwnerMenuOpen, setIsOwnerMenuOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const lastSyncedUrlRef = useRef("");
   const feedTitle = useMemo(
     () => (scope === "global" ? "For You" : `@${scope}`),
     [scope],
@@ -2350,6 +2352,19 @@ export function ReelsFeed({
       return reelId;
     });
   };
+
+  useEffect(() => {
+    if (!activeReelId || typeof window === "undefined") return;
+
+    const nextPath = buildReelPath(activeReelId);
+
+    if (window.location.pathname === nextPath) return;
+    if (lastSyncedUrlRef.current === nextPath) return;
+
+    lastSyncedUrlRef.current = nextPath;
+    window.history.replaceState(window.history.state, "", nextPath);
+  }, [activeReelId]);
+
   const hideActiveReel = async () => {
     if (!activeReel) return;
 

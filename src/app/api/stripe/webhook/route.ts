@@ -7,7 +7,13 @@ import {
   sendStripeInvoiceEmail,
   syncStripeSubscription,
 } from "@/modules/billing/subscription-sync";
-import { syncListingReservationCheckoutSession } from "@/modules/listings/reservations";
+import {
+  syncListingReservationCharge,
+  syncListingReservationCheckoutSession,
+  syncListingReservationCheckoutSessionFailure,
+  syncListingReservationDispute,
+  syncListingReservationPaymentIntent,
+} from "@/modules/listings/reservations";
 
 export const runtime = "nodejs";
 
@@ -70,6 +76,62 @@ export async function POST(request: Request) {
       case "checkout.session.completed": {
         const checkoutSession = event.data.object as Stripe.Checkout.Session;
         await syncListingReservationCheckoutSession(checkoutSession);
+        break;
+      }
+      case "checkout.session.async_payment_succeeded": {
+        const checkoutSession = event.data.object as Stripe.Checkout.Session;
+        await syncListingReservationCheckoutSession(checkoutSession);
+        break;
+      }
+      case "checkout.session.async_payment_failed": {
+        const checkoutSession = event.data.object as Stripe.Checkout.Session;
+        await syncListingReservationCheckoutSessionFailure(
+          checkoutSession,
+          "Stripe checkout asynchronous payment failed.",
+        );
+        break;
+      }
+      case "checkout.session.expired": {
+        const checkoutSession = event.data.object as Stripe.Checkout.Session;
+        await syncListingReservationCheckoutSessionFailure(
+          checkoutSession,
+          "Stripe checkout session expired before payment.",
+        );
+        break;
+      }
+      case "payment_intent.succeeded": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await syncListingReservationPaymentIntent(paymentIntent, "succeeded");
+        break;
+      }
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await syncListingReservationPaymentIntent(paymentIntent, "failed");
+        break;
+      }
+      case "charge.succeeded": {
+        const charge = event.data.object as Stripe.Charge;
+        await syncListingReservationCharge(charge, "succeeded");
+        break;
+      }
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        await syncListingReservationCharge(charge, "refunded");
+        break;
+      }
+      case "charge.dispute.created": {
+        const dispute = event.data.object as Stripe.Dispute;
+        await syncListingReservationDispute(dispute, "created");
+        break;
+      }
+      case "charge.dispute.updated": {
+        const dispute = event.data.object as Stripe.Dispute;
+        await syncListingReservationDispute(dispute, "updated");
+        break;
+      }
+      case "charge.dispute.closed": {
+        const dispute = event.data.object as Stripe.Dispute;
+        await syncListingReservationDispute(dispute, "closed");
         break;
       }
       default:

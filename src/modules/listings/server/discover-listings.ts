@@ -56,6 +56,8 @@ type DiscoverListingOptions = {
   viewerUserId?: string | null;
 };
 
+const visibleListingStatuses = ["published", "reserved"] as const;
+
 function cleanParam(value?: string) {
   return typeof value === "string" ? value.trim().slice(0, 80) : "";
 }
@@ -238,7 +240,7 @@ function discoverWhere(filters: ReturnType<typeof normalizeDiscoverListingFilter
   ]);
 
   return [
-    eq(propertyListings.status, "published"),
+    inArray(propertyListings.status, visibleListingStatuses),
     filters.listingTypes.length
       ? inArray(propertyListings.listingType, filters.listingTypes)
       : undefined,
@@ -349,7 +351,7 @@ export async function getDiscoverListingFilterOptions({
   countryName?: string;
 } = {}): Promise<ListingFilterOptions> {
   const filters = [
-    eq(propertyListings.status, "published"),
+    inArray(propertyListings.status, visibleListingStatuses),
     countryName
       ? or(
           ilike(propertyListings.location, `%${countryName}%`),
@@ -442,6 +444,7 @@ export async function getDiscoverListings({
       media: propertyListings.media,
       priceLabel: propertyListings.priceLabel,
       propertyType: propertyListings.propertyType,
+      status: propertyListings.status,
       title: propertyListings.title,
     })
     .from(propertyListings)
@@ -520,6 +523,11 @@ export async function getDiscoverListings({
             .limit(1)
         : [];
 
+      const unavailableLabel =
+        listing.status === "published" || listing.status === "reserved"
+          ? ""
+          : "No longer available";
+
       return {
         bathrooms: numberValue(details.bathrooms),
         bedrooms: numberValue(details.bedrooms),
@@ -577,7 +585,11 @@ export async function getDiscoverListings({
         savedByViewer: Boolean(viewerSave),
         saveCount,
         saveCountLabel: formatCompactCount(saveCount),
+        status: listing.status,
+        statusLabel: listing.status === "reserved" ? "Reserved" : undefined,
         title: listing.title,
+        unavailable: Boolean(unavailableLabel),
+        unavailableLabel,
         videoUrls,
       };
     }),

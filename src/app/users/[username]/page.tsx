@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/db";
@@ -12,6 +12,7 @@ import {
   reelReshares,
   reelSaves,
   reels,
+  userFollows,
   users,
 } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
@@ -103,6 +104,12 @@ function formatCompactCount(value: number) {
   const compactValue = value / 1000;
 
   return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
+}
+
+function countNumber(value: unknown) {
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function reelStatus(value: string): "draft" | "failed" | "processing" | "published" {
@@ -391,14 +398,15 @@ async function getProfileListings({
         ? eq(propertyListings.userId, userId)
         : and(
             eq(propertyListings.userId, userId),
-            eq(propertyListings.status, "published"),
+            inArray(propertyListings.status, ["published", "reserved"]),
           ),
     )
     .orderBy(desc(propertyListings.updatedAt));
 
   return rows.map((listing) => {
     const details = listingDetails(listing.details);
-    const unavailable = listing.status !== "published";
+    const unavailable =
+      listing.status !== "published" && listing.status !== "reserved";
 
     return {
       askingPriceCents: listing.askingPriceCents,
@@ -444,6 +452,7 @@ async function getProfileListings({
       saveCount: listing.saveCount,
       saveCountLabel: formatCompactCount(listing.saveCount),
       status: listing.status,
+      statusLabel: listing.status === "reserved" ? "Reserved" : undefined,
       title: listing.title,
       unavailable,
       unavailableLabel: unavailable ? listingUnavailableLabel(listing.status) : "",
@@ -560,12 +569,56 @@ async function getSavedListings({
       saveCount: listing.saveCount,
       saveCountLabel: formatCompactCount(listing.saveCount),
       status: listing.status,
+      statusLabel: listing.status === "reserved" ? "Reserved" : undefined,
       title: listing.title,
-      unavailable: listing.status !== "published",
-      unavailableLabel: listingUnavailableLabel(listing.status),
+      unavailable: listing.status !== "published" && listing.status !== "reserved",
+      unavailableLabel:
+        listing.status !== "published" && listing.status !== "reserved"
+          ? listingUnavailableLabel(listing.status)
+          : "",
       videoUrls: listingMediaUrls(listing.media, "video"),
     };
   });
+}
+
+async function getProfileSocialStats(userId: string) {
+  const [
+    [{ count: publishedReels }],
+    [{ count: visibleListings }],
+    [{ count: followers }],
+    [{ count: following }],
+  ] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(reels)
+      .where(and(eq(reels.userId, userId), eq(reels.status, "published"))),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(propertyListings)
+      .where(
+        and(
+          eq(propertyListings.userId, userId),
+          inArray(propertyListings.status, ["published", "reserved"]),
+        ),
+      ),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userFollows)
+      .where(eq(userFollows.followingId, userId)),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userFollows)
+      .where(eq(userFollows.followerId, userId)),
+  ]);
+
+  const publishedReelCount = countNumber(publishedReels);
+  const visibleListingCount = countNumber(visibleListings);
+
+  return {
+    followers: countNumber(followers),
+    following: countNumber(following),
+    posts: publishedReelCount + visibleListingCount,
+  };
 }
 
 export async function generateMetadata({
@@ -655,9 +708,11 @@ export default async function UserProfilePage({
   const [
     hasSubscription,
     viewer,
+    viewerFollowingProfile,
     profileReels,
     profileListings,
     agentStats,
+    socialStats,
   ] = await Promise.all([
     hasActiveAgentSubscription(profile.id),
     viewerUserId
@@ -672,6 +727,19 @@ export default async function UserProfilePage({
           .limit(1)
           .then(([user]) => user || null)
       : Promise.resolve(null),
+    viewerUserId && !isOwner
+      ? db
+          .select({ followingId: userFollows.followingId })
+          .from(userFollows)
+          .where(
+            and(
+              eq(userFollows.followerId, viewerUserId),
+              eq(userFollows.followingId, profile.id),
+            ),
+          )
+          .limit(1)
+          .then(([follow]) => Boolean(follow))
+      : Promise.resolve(false),
     getProfileReels({
       isOwner,
       userId: profile.id,
@@ -682,6 +750,7 @@ export default async function UserProfilePage({
       viewerUserId,
     }),
     getAgentPerformanceStats(profile.id),
+    getProfileSocialStats(profile.id),
   ]);
   const canViewSaved = isOwner || hasSubscription;
   const [savedReels, savedListings] = await Promise.all([
@@ -734,6 +803,9 @@ export default async function UserProfilePage({
         avatarUrl: toPublicMediaUrl(profile.avatarUrl) || undefined,
         bio: profile.bio || undefined,
         location: locationLabel || undefined,
+        followerCount: socialStats.followers,
+        followingCount: socialStats.following,
+        postCount: socialStats.posts,
         contactEmail: profile.publicContactVisible
           ? profile.contactEmail || undefined
           : undefined,
@@ -745,6 +817,7 @@ export default async function UserProfilePage({
           : undefined,
         agentStats,
         isOwner,
+        isFollowing: viewerFollowingProfile,
         hasActiveSubscription: hasSubscription,
         initialTab:
           query.tab === "listings" || query.tab === "saved"

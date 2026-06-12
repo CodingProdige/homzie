@@ -10,6 +10,7 @@ const sitemaps = [
   `${siteUrl}/sitemaps/static.xml`,
   `${siteUrl}/sitemaps/listings.xml`,
   `${siteUrl}/sitemaps/profiles.xml`,
+  `${siteUrl}/sitemaps/reels.xml`,
   `${siteUrl}/sitemaps/locations.xml`,
 ];
 

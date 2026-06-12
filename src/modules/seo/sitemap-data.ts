@@ -2,9 +2,10 @@ import type { MetadataRoute } from "next";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { propertyListings, users } from "@/db/schema";
+import { propertyListings, reels, users } from "@/db/schema";
 import { shouldSkipDatabaseDuringBuild } from "@/modules/build-flags";
 import { buildListingPath } from "@/modules/listings/seo";
+import { buildReelPath } from "@/modules/reels/urls";
 import { getStoredSeoSettings } from "@/modules/seo/settings";
 import { absoluteUrl } from "@/modules/site/url";
 
@@ -85,6 +86,45 @@ export async function getListingSitemapEntries(now = new Date()): Promise<Metada
   });
 }
 
+export async function getReelSitemapEntries(now = new Date()): Promise<MetadataRoute.Sitemap> {
+  if (shouldSkipDatabaseDuringBuild()) return [];
+
+  const seoSettings = await getStoredSeoSettings();
+
+  if (!seoSettings.allowIndexing) return [];
+
+  const rows = await db
+    .select({
+      createdAt: reels.createdAt,
+      id: reels.id,
+      isDemo: users.isDemo,
+      updatedAt: reels.updatedAt,
+    })
+    .from(reels)
+    .innerJoin(users, eq(users.id, reels.userId))
+    .where(
+      and(
+        eq(reels.status, "published"),
+        eq(users.status, "active"),
+        eq(users.profileVisible, true),
+        isNotNull(users.username),
+      ),
+    )
+    .orderBy(desc(reels.updatedAt))
+    .limit(seoSettings.sitemapMaxEntries);
+
+  return rows.flatMap((reel) => {
+    if (reel.isDemo && !seoSettings.indexDemoContent) return [];
+
+    return [{
+      url: absoluteUrl(buildReelPath(reel.id)),
+      lastModified: reel.updatedAt || reel.createdAt || now,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+    }];
+  });
+}
+
 export async function getProfileSitemapEntries(now = new Date()): Promise<MetadataRoute.Sitemap> {
   if (shouldSkipDatabaseDuringBuild()) return [];
 
@@ -94,8 +134,6 @@ export async function getProfileSitemapEntries(now = new Date()): Promise<Metada
 
   const rows = await db
     .select({
-      avatarUrl: users.avatarUrl,
-      bio: users.bio,
       createdAt: users.createdAt,
       isDemo: users.isDemo,
       updatedAt: users.updatedAt,
@@ -107,10 +145,7 @@ export async function getProfileSitemapEntries(now = new Date()): Promise<Metada
     .limit(seoSettings.sitemapMaxEntries);
 
   return rows.flatMap((user) => {
-    const hasEnoughProfileContent = Boolean(user.avatarUrl || user.bio);
-
     if (user.isDemo && !seoSettings.indexDemoContent) return [];
-    if (!hasEnoughProfileContent) return [];
 
     return [{
       url: absoluteUrl(`/users/${user.username}`),

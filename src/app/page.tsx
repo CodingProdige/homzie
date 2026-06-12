@@ -216,7 +216,7 @@ function formatCurrencyCompact(cents: number) {
 
 async function getHomeListings(countryName?: string) {
   const filters = [
-    eq(propertyListings.status, "published"),
+    inArray(propertyListings.status, ["published", "reserved"]),
     countryName
       ? or(
           ilike(propertyListings.location, `%${countryName}%`),
@@ -743,6 +743,8 @@ async function PromotedHomeSections({
                     priceCents: listing.priceCents,
                     priceLabel: listing.priceLabel,
                     propertyTypeLabel: listing.propertyTypeLabel,
+                    status: listing.status,
+                    statusLabel: listing.statusLabel,
                     title: listing.title,
                     videoUrls: listing.videoUrls,
                   }}

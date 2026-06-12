@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -29,7 +29,6 @@ import {
   Trophy,
   UsersRound,
   UserRound,
-  UserPlus,
   MessageCircle,
   X,
 } from "lucide-react";
@@ -42,6 +41,8 @@ import { cn } from "@/lib/utils";
 import { toPublicMediaUrl } from "@/media/paths";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
+import { startConversationAction } from "@/modules/messages/actions";
+import { toggleProfileFollow } from "@/modules/reels/actions";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
 
 type UserProfile = {
@@ -51,12 +52,16 @@ type UserProfile = {
   avatarUrl?: string;
   bio?: string;
   location?: string;
+  followerCount: number;
+  followingCount: number;
+  postCount: number;
   contactEmail?: string;
   contactPhone?: string;
   whatsappNumber?: string;
   agentStats: AgentPerformanceStats;
   archiveFeedback?: string;
   isOwner: boolean;
+  isFollowing?: boolean;
   hasActiveSubscription: boolean;
   initialTab?: ProfileTab;
   listings: ProfileListing[];
@@ -132,6 +137,7 @@ type ProfileListing = {
   title: string;
   unavailable?: boolean;
   unavailableLabel?: string;
+  statusLabel?: string;
   videoUrls?: string[];
 };
 
@@ -511,6 +517,10 @@ function ShareProfileDialog({
 }
 
 function ProfileHero({ profile }: { profile: UserProfile }) {
+  const [followerCount, setFollowerCount] = useState(() =>
+    profileCountNumber(profile.followerCount),
+  );
+
   return (
     <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-start gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-x-5 lg:py-16">
       <ProfileAvatar name={profile.name} avatarUrl={profile.avatarUrl} />
@@ -535,9 +545,9 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
 
         <div className="mt-3 grid max-w-sm grid-cols-3 gap-2 sm:mt-5 sm:flex sm:gap-10">
           {[
-            { label: "Posts", value: "0" },
-            { label: "Followers", value: "0" },
-            { label: "Following", value: "0" },
+            { label: "Posts", value: formatProfileCount(profile.postCount) },
+            { label: "Followers", value: formatProfileCount(followerCount) },
+            { label: "Following", value: formatProfileCount(profile.followingCount) },
           ].map((stat) => (
             <div key={stat.label} className="min-w-0">
               <div className="text-lg font-bold leading-none tracking-tight sm:text-2xl">
@@ -599,10 +609,10 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
         </div>
       ) : null}
 
-      <div className="col-span-2 inline-grid max-w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-3 sm:col-span-1 sm:col-start-2 sm:grid-cols-[14rem_auto_2.25rem]">
+      <div className="col-span-2 flex max-w-full flex-wrap gap-3 sm:col-span-1 sm:col-start-2">
         {profile.isOwner ? (
           <>
-            <Button asChild variant="outline" className="min-w-0">
+            <Button asChild variant="outline" className="min-w-0 sm:w-56">
               <Link href="/settings">Profile Settings</Link>
             </Button>
             <CreateNewMenu hasActiveSubscription={profile.hasActiveSubscription} />
@@ -612,13 +622,10 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
             />
           </>
         ) : (
-          <>
-            <Button>Follow</Button>
-            <Button variant="outline">Message</Button>
-            <Button variant="outline" size="icon" aria-label="Add profile">
-              <UserPlus className="size-4" />
-            </Button>
-          </>
+          <ProfileVisitorActions
+            profile={profile}
+            onFollowerCountChange={setFollowerCount}
+          />
         )}
       </div>
 
@@ -626,6 +633,106 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
         <AgentPerformanceCard profile={profile} />
       </div>
     </section>
+  );
+}
+
+function profileCountNumber(value: unknown) {
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatProfileCount(value: unknown) {
+  const safeValue = profileCountNumber(value);
+
+  if (safeValue < 1000) return String(safeValue);
+
+  const compactValue = safeValue / 1000;
+
+  return `${Number.isInteger(compactValue) ? compactValue.toFixed(0) : compactValue.toFixed(1)}K`;
+}
+
+function ProfileVisitorActions({
+  onFollowerCountChange,
+  profile,
+}: {
+  onFollowerCountChange: (updater: (count: number) => number) => void;
+  profile: UserProfile;
+}) {
+  const router = useRouter();
+  const [isFollowing, setIsFollowing] = useState(Boolean(profile.isFollowing));
+  const [notice, setNotice] = useState("");
+  const [isFollowPending, startFollowTransition] = useTransition();
+  const [isMessagePending, startMessageTransition] = useTransition();
+
+  function handleFollow() {
+    const previous = isFollowing;
+    setNotice("");
+    setIsFollowing(!previous);
+    onFollowerCountChange((count) =>
+      Math.max(0, profileCountNumber(count) + (previous ? -1 : 1)),
+    );
+
+    startFollowTransition(async () => {
+      const result = await toggleProfileFollow(profile.username);
+
+      if (!result.ok) {
+        setIsFollowing(previous);
+        onFollowerCountChange((count) =>
+          Math.max(0, profileCountNumber(count) + (previous ? 1 : -1)),
+        );
+        setNotice(result.error || "Could not update follow status.");
+        return;
+      }
+
+      setIsFollowing(result.following);
+    });
+  }
+
+  function handleMessage() {
+    setNotice("");
+
+    startMessageTransition(async () => {
+      try {
+        const result = await startConversationAction({
+          recipientUserId: profile.id,
+        });
+
+        router.push(`/messages?conversation=${result.conversationId}`);
+      } catch (error) {
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "Could not open messages right now.",
+        );
+      }
+    });
+  }
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-3">
+      <Button
+        type="button"
+        className="min-w-0 flex-1 sm:flex-none sm:w-56"
+        disabled={isFollowPending}
+        onClick={handleFollow}
+        variant={isFollowing ? "outline" : "default"}
+      >
+        {isFollowing ? "Following" : "Follow"}
+      </Button>
+      <Button
+        type="button"
+        className="min-w-0 flex-1 sm:flex-none sm:w-56"
+        disabled={isMessagePending}
+        onClick={handleMessage}
+        variant="outline"
+      >
+        {isMessagePending ? "Opening..." : "Message"}
+      </Button>
+      {notice ? (
+        <p className="basis-full text-xs font-bold text-destructive">{notice}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -1110,6 +1217,8 @@ function ProfileListingCard({
     savedByViewer: savedByViewer || listing.savedByViewer,
     saveCount: listing.saveCount,
     saveCountLabel: listing.saveCountLabel,
+    status: listing.status,
+    statusLabel: listing.statusLabel,
     title: listing.title,
     unavailable: listing.unavailable,
     unavailableLabel:

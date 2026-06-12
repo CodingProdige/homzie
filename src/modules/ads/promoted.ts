@@ -14,6 +14,7 @@ import {
   propertyTypeOptions,
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
+import { buildReelPath } from "@/modules/reels/urls";
 
 type TargetArea = { label?: string; placeId?: string };
 
@@ -92,6 +93,8 @@ export type PromotedListing = {
   listingType: string;
   listingTypeLabel: string;
   propertyTypeLabel: string;
+  status: string;
+  statusLabel?: string;
   bedrooms: number;
   bathrooms: number;
   garages: number;
@@ -164,6 +167,7 @@ export async function getPromotedItems({
         priceLabel: propertyListings.priceLabel,
         listingType: propertyListings.listingType,
         propertyType: propertyListings.propertyType,
+        status: propertyListings.status,
         details: propertyListings.details,
         media: propertyListings.media,
         mandateType: propertyListings.mandateType,
@@ -175,7 +179,7 @@ export async function getPromotedItems({
           inArray(adCampaigns.status, ["ready", "live"]),
           eq(adCampaigns.promotedType, "listing"),
           isNotNull(adCampaigns.listingId),
-          eq(propertyListings.status, "published"),
+          inArray(propertyListings.status, ["published", "reserved"]),
         ),
       )
       .orderBy(adCampaigns.createdAt)
@@ -272,6 +276,8 @@ export async function getPromotedItems({
         listingType: r.listingType,
         listingTypeLabel: optionLabel(listingTypeOptions, r.listingType),
         propertyTypeLabel: optionLabel(propertyTypeOptions, r.propertyType),
+        status: r.status,
+        statusLabel: r.status === "reserved" ? "Reserved" : undefined,
         bedrooms: numVal(details.bedrooms),
         bathrooms: numVal(details.bathrooms),
         garages: numVal(details.garages),
@@ -301,7 +307,7 @@ export async function getPromotedItems({
         campaignId: r.campaignId,
         coverUrl,
         durationLabel: formatDuration(metadata.totalDuration),
-        href: `/reels?reel=${encodeURIComponent(r.reelId)}`,
+        href: buildReelPath(r.reelId),
         id: r.reelId,
         title: r.caption ?? "Homzie reel",
         username: r.username ?? "homzie",

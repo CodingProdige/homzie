@@ -20,6 +20,7 @@ import {
 } from "@/modules/location/country-preference";
 import type { ReelPreviewCardData } from "@/modules/reels/components/reel-preview-card";
 import type { ReelFeedItem } from "@/modules/reels/components/reels-feed";
+import { buildReelPath } from "@/modules/reels/urls";
 
 type RecommendedReelsOptions = {
   areas?: string[];
@@ -311,7 +312,7 @@ function mapPreviewItem(row: RecommendedReelRow): ReelPreviewCardData {
   return {
     coverUrl,
     durationLabel: formatDuration(metadata.totalDuration),
-    href: `/reels?reel=${encodeURIComponent(row.id)}`,
+    href: buildReelPath(row.id),
     id: row.id,
     status: "published",
     title: row.caption || "Homzie reel",
@@ -339,9 +340,10 @@ async function getHiddenFeedbackReelIds(viewerUserId?: string | null) {
 
 async function getCandidateRows({
   limit,
+  preferredReelId,
   viewerUserId,
 }: Required<Pick<RecommendedReelsOptions, "limit">> &
-  Pick<RecommendedReelsOptions, "viewerUserId">) {
+  Pick<RecommendedReelsOptions, "preferredReelId" | "viewerUserId">) {
   const hiddenFeedbackReelIds = await getHiddenFeedbackReelIds(viewerUserId);
   const candidateLimit = Math.max(limit * 4, 32);
 
@@ -402,7 +404,12 @@ async function getCandidateRows({
           : undefined,
       ),
     )
-    .orderBy(desc(reels.createdAt))
+    .orderBy(
+      preferredReelId
+        ? sql`case when ${reels.id} = ${preferredReelId} then 0 else 1 end`
+        : desc(reels.createdAt),
+      desc(reels.createdAt),
+    )
     .limit(candidateLimit);
 }
 
@@ -415,6 +422,7 @@ export async function getRecommendedReels({
 }: RecommendedReelsOptions) {
   const rows = (await getCandidateRows({
     limit,
+    preferredReelId,
     viewerUserId,
   })) as RecommendedReelRow[];
   const scoredRows = rows
@@ -456,6 +464,7 @@ export async function getRecommendedReelPreviews({
 }: RecommendedReelsOptions) {
   const rows = (await getCandidateRows({
     limit,
+    preferredReelId,
     viewerUserId,
   })) as RecommendedReelRow[];
 

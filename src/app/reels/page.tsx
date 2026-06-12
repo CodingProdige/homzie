@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { authOptions } from "@/modules/auth/config";
 import {
@@ -8,6 +9,7 @@ import {
 } from "@/modules/location/country-preference";
 import { ReelsFeed } from "@/modules/reels/components/reels-feed";
 import { getRecommendedReels } from "@/modules/reels/server/recommendations";
+import { buildReelPath } from "@/modules/reels/urls";
 
 type ReelsPageProps = {
   searchParams?: Promise<{
@@ -21,6 +23,11 @@ export default async function ReelsPage({ searchParams }: ReelsPageProps) {
   const query = searchParams ? await searchParams : {};
   const preferredReelId =
     typeof query.reel === "string" && query.reel.trim() ? query.reel.trim() : null;
+
+  if (preferredReelId) {
+    redirect(buildReelPath(preferredReelId));
+  }
+
   const cookieStore = await cookies();
   const countryPreference = parseCountryPreference(
     cookieStore.get(countryPreferenceCookie)?.value,
