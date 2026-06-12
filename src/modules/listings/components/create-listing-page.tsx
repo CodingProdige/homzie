@@ -32,6 +32,7 @@ import {
   Grip,
   House,
   ImagePlus,
+  LoaderCircle,
   MapPin,
   Play,
   ShieldCheck,
@@ -789,6 +790,127 @@ function EditSubmitButtons({
         </Button>
       )}
     </div>
+  );
+}
+
+function ListingPublishProgress({
+  imageCount,
+  intent,
+  mediaCount,
+  mode,
+  videoCount,
+}: {
+  imageCount: number;
+  intent: "draft" | "published";
+  mediaCount: number;
+  mode: "create" | "edit";
+  videoCount: number;
+}) {
+  const { pending } = useFormStatus();
+  const [progress, setProgress] = useState(14);
+  const publishing = pending && intent === "published";
+  const steps = [
+    "Checking required listing fields",
+    mediaCount
+      ? `Uploading ${mediaCount} media ${mediaCount === 1 ? "item" : "items"}`
+      : "Preparing listing media",
+    "Saving listing details",
+    mode === "edit" ? "Updating public listing" : "Publishing public listing",
+  ];
+  const activeStepIndex = Math.min(
+    steps.length - 1,
+    Math.floor((progress / 100) * steps.length),
+  );
+
+  useEffect(() => {
+    if (!publishing) return;
+
+    const interval = window.setInterval(() => {
+      setProgress((current) => Math.min(current + (current < 65 ? 8 : 3), 92));
+    }, 850);
+
+    return () => window.clearInterval(interval);
+  }, [publishing]);
+
+  if (!publishing) return null;
+
+  return (
+    <section
+      role="status"
+      aria-live="polite"
+      className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-4 text-foreground shadow-sm"
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+          <LoaderCircle className="size-5 animate-spin" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-black">
+                {mode === "edit" ? "Updating listing" : "Publishing listing"}
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+                Keep this page open while Homzie processes the listing.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-primary">
+                {mediaCount} media
+              </span>
+              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                {imageCount} images
+              </span>
+              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                {videoCount} videos
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-background">
+            <span
+              className="block h-full rounded-full bg-[image:var(--homzie-gradient)] transition-[width] duration-700 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {steps.map((step, index) => {
+              const isDone = index < activeStepIndex;
+              const isActive = index === activeStepIndex;
+
+              return (
+                <div
+                  key={step}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-bold text-muted-foreground",
+                    isActive && "border-primary/35 text-primary",
+                    isDone && "text-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "grid size-5 shrink-0 place-items-center rounded-full border border-border",
+                      isActive && "border-primary bg-primary/10",
+                      isDone && "border-primary bg-primary text-primary-foreground",
+                    )}
+                  >
+                    {isDone ? (
+                      <Check className="size-3" />
+                    ) : isActive ? (
+                      <LoaderCircle className="size-3 animate-spin" />
+                    ) : (
+                      index + 1
+                    )}
+                  </span>
+                  <span>{step}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1844,6 +1966,8 @@ export function CreateListingPage({
   const previewVideoUrls = media
     .filter(isVideoMedia)
     .map((item) => item.previewUrl);
+  const videoCount = previewVideoUrls.length;
+  const imageCount = media.length - videoCount;
   const selectedCoverMedia = media[coverIndex];
   const previewCover =
     selectedCoverMedia && isImageMedia(selectedCoverMedia)
@@ -2104,6 +2228,13 @@ export function CreateListingPage({
             onGoToStep={goToPublishIssueStep}
             onOpenChange={setPublishRequirementsOpen}
             open={publishRequirementsOpen}
+          />
+          <ListingPublishProgress
+            imageCount={imageCount}
+            intent={publishIntent}
+            mediaCount={media.length}
+            mode={mode}
+            videoCount={videoCount}
           />
           {publishMessage ? (
             <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-700 dark:text-amber-300">
