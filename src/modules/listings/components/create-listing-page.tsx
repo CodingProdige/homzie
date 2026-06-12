@@ -221,7 +221,7 @@ const maxImageDimension = 2200;
 const imageQuality = 0.82;
 const maxDescriptionLength = 3000;
 const maxTitleLength = 120;
-const maxListingImages = 30;
+const maxListingMediaItems = 70;
 const maxListingVideoSizeMb = 80;
 const videoCompressionMimeType = "video/webm;codecs=vp9,opus";
 const videoCompressionBitrate = 2_500_000;
@@ -238,6 +238,11 @@ const priceQualifierOptions = [
 const listingAutosavePrefix = "homzie:listings:autosave";
 const listingAutosaveDbName = "homzie-listing-autosave";
 const listingAutosaveStoreName = "listing-form-media";
+
+type PublishIssue = {
+  message: string;
+  step: number;
+};
 
 const initialDraft: ListingDraft = {
   askingPrice: "",
@@ -439,7 +444,7 @@ async function clearAutosavedMedia(key: string) {
 }
 
 function getPublishIssues(draft: ListingDraft, mediaCount: number) {
-  const issues: Array<{ message: string; step: number }> = [];
+  const issues: PublishIssue[] = [];
 
   if (!draft.listingType) {
     issues.push({ message: "Choose whether this listing is for sale or rent.", step: 0 });
@@ -646,13 +651,20 @@ function featureHashtag(value: string) {
 function SubmitButtons({
   intent,
   onReset,
+  onBlockedPublish,
+  publishIssues,
   setIntent,
 }: {
   intent: "draft" | "published";
+  onBlockedPublish: () => void;
   onReset: () => void;
+  publishIssues: PublishIssue[];
   setIntent: (intent: "draft" | "published") => void;
 }) {
   const { pending } = useFormStatus();
+  const publishBlocked = publishIssues.length > 0;
+  const savingDraft = pending && intent === "draft";
+  const publishing = pending && intent === "published";
 
   return (
     <div className="flex min-w-0 flex-wrap justify-end gap-2 sm:gap-3">
@@ -660,7 +672,6 @@ function SubmitButtons({
         className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
         type="button"
         variant="outline"
-        disabled={pending}
         onClick={onReset}
       >
         <span className="sm:hidden">Reset</span>
@@ -672,20 +683,26 @@ function SubmitButtons({
         name="publishIntent"
         value="draft"
         variant="outline"
-        disabled={pending}
+        disabled={savingDraft}
         onClick={() => setIntent("draft")}
       >
-        Save draft
+        {savingDraft ? "Saving" : "Save draft"}
       </Button>
       <Button
         className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
-        type="submit"
+        type={publishBlocked ? "button" : "submit"}
         name="publishIntent"
         value="published"
-        disabled={pending}
-        onClick={() => setIntent("published")}
+        disabled={publishing && !publishBlocked}
+        onClick={() => {
+          setIntent("published");
+
+          if (publishBlocked) {
+            onBlockedPublish();
+          }
+        }}
       >
-        {pending && intent === "published" ? (
+        {publishing && !publishBlocked ? (
           "Publishing"
         ) : (
           <>
@@ -702,19 +719,26 @@ function EditSubmitButtons({
   formId,
   intent,
   listingId,
+  onBlockedPublish,
+  publishIssues,
   setIntent,
 }: {
   formId: string;
   intent: "draft" | "published";
   listingId?: string;
+  onBlockedPublish: () => void;
+  publishIssues: PublishIssue[];
   setIntent: (intent: "draft" | "published") => void;
 }) {
   const { pending } = useFormStatus();
+  const publishBlocked = publishIssues.length > 0;
+  const savingDraft = pending && intent === "draft";
+  const publishing = pending && intent === "published";
 
   return (
     <div className="flex min-w-0 flex-wrap justify-end gap-2 sm:gap-3">
       {listingId ? (
-        <ArchiveListingDialog disabled={pending} formId={formId} />
+        <ArchiveListingDialog disabled={false} formId={formId} />
       ) : null}
       {intent === "draft" ? (
         <>
@@ -724,32 +748,44 @@ function EditSubmitButtons({
             name="publishIntent"
             value="draft"
             variant="outline"
-            disabled={pending}
+            disabled={savingDraft}
             onClick={() => setIntent("draft")}
           >
-            {pending ? "Updating" : "Update draft"}
+            {savingDraft ? "Updating" : "Update draft"}
           </Button>
           <Button
             className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
-            type="submit"
+            type={publishBlocked ? "button" : "submit"}
             name="publishIntent"
             value="published"
-            disabled={pending}
-            onClick={() => setIntent("published")}
+            disabled={publishing && !publishBlocked}
+            onClick={() => {
+              setIntent("published");
+
+              if (publishBlocked) {
+                onBlockedPublish();
+              }
+            }}
           >
-            {pending ? "Publishing" : "Publish listing"}
+            {publishing && !publishBlocked ? "Publishing" : "Publish listing"}
           </Button>
         </>
       ) : (
         <Button
           className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
-          type="submit"
+          type={publishBlocked ? "button" : "submit"}
           name="publishIntent"
           value="published"
-          disabled={pending}
-          onClick={() => setIntent("published")}
+          disabled={publishing && !publishBlocked}
+          onClick={() => {
+            setIntent("published");
+
+            if (publishBlocked) {
+              onBlockedPublish();
+            }
+          }}
         >
-          {pending ? "Updating" : "Update listing"}
+          {publishing && !publishBlocked ? "Updating" : "Update listing"}
         </Button>
       )}
     </div>
@@ -818,6 +854,96 @@ function ArchiveListingDialog({
             >
               Confirm archive
             </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function PublishRequirementsDialog({
+  issues,
+  onGoToStep,
+  onOpenChange,
+  open,
+}: {
+  issues: PublishIssue[];
+  onGoToStep: (step: number) => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) {
+  const groupedIssues = steps
+    .map((step, index) => ({
+      issues: issues.filter((issue) => issue.step === index),
+      label: step.label,
+      step: index,
+    }))
+    .filter((group) => group.issues.length > 0);
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/45" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[91] max-h-[min(40rem,calc(100dvh-2rem))] w-[min(calc(100vw-2rem),34rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-amber-500/10 text-amber-600">
+              <CircleAlert className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <Dialog.Title className="text-lg font-black">
+                Finish these items before publishing
+              </Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                Your draft is saved, but Homzie needs these public-facing basics
+                before the listing can go live.
+              </Dialog.Description>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {groupedIssues.map((group) => (
+              <button
+                key={group.step}
+                type="button"
+                className="w-full rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/35 hover:bg-primary/5"
+                onClick={() => onGoToStep(group.step)}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black">{group.label}</p>
+                  <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                    {group.issues.length} missing
+                  </span>
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {group.issues.map((issue) => (
+                    <li
+                      key={issue.message}
+                      className="flex gap-2 text-xs font-bold leading-5 text-muted-foreground"
+                    >
+                      <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                      <span>{issue.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Dialog.Close asChild>
+              <Button type="button" variant="outline">
+                Keep editing
+              </Button>
+            </Dialog.Close>
+            {groupedIssues[0] ? (
+              <Button
+                type="button"
+                onClick={() => onGoToStep(groupedIssues[0].step)}
+              >
+                Go to first issue
+                <ArrowRight className="size-4" />
+              </Button>
+            ) : null}
           </div>
         </Dialog.Content>
       </Dialog.Portal>
@@ -1339,6 +1465,7 @@ export function CreateListingPage({
     buildInitialDraft(initialDraft),
   );
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [publishRequirementsOpen, setPublishRequirementsOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [publishIntent, setPublishIntent] =
     useState<"draft" | "published">(initialPublishIntent);
@@ -1374,6 +1501,34 @@ export function CreateListingPage({
       ),
     [draft.listingType],
   );
+  const publishIssues = useMemo(
+    () => getPublishIssues(draft, media.length),
+    [draft, media.length],
+  );
+  const publishIssueSteps = useMemo(
+    () => new Set(publishIssues.map((issue) => issue.step)),
+    [publishIssues],
+  );
+
+  function openPublishRequirements() {
+    const firstIssue = publishIssues[0];
+
+    if (firstIssue) {
+      setActiveStep(firstIssue.step);
+      setPublishMessage(
+        `Listing incomplete: ${publishIssues
+          .map((issue) => issue.message)
+          .join(" ")}`,
+      );
+    }
+
+    setPublishRequirementsOpen(true);
+  }
+
+  function goToPublishIssueStep(step: number) {
+    setActiveStep(step);
+    setPublishRequirementsOpen(false);
+  }
 
   useEffect(() => {
     if (!publishedListingId) return;
@@ -1498,7 +1653,7 @@ export function CreateListingPage({
   async function handleMediaChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []).slice(
       0,
-      maxListingImages - media.length,
+      maxListingMediaItems - media.length,
     );
     setMediaStatus("");
 
@@ -1655,12 +1810,14 @@ export function CreateListingPage({
 
     if (!issues.length) {
       setPublishMessage("");
+      setPublishRequirementsOpen(false);
       return;
     }
 
     event.preventDefault();
     setActiveStep(issues[0].step);
     setPublishMessage(`Listing incomplete: ${issues.map((issue) => issue.message).join(" ")}`);
+    setPublishRequirementsOpen(true);
   }
 
   if (duplicateListingId) {
@@ -1827,13 +1984,17 @@ export function CreateListingPage({
                     formId={formId}
                     intent={publishIntent}
                     listingId={listingId}
+                    onBlockedPublish={openPublishRequirements}
+                    publishIssues={publishIssues}
                     setIntent={setPublishIntent}
                   />
                 </>
               ) : (
                 <SubmitButtons
                   intent={publishIntent}
+                  onBlockedPublish={openPublishRequirements}
                   onReset={requestResetForm}
+                  publishIssues={publishIssues}
                   setIntent={setPublishIntent}
                 />
               )
@@ -1852,6 +2013,10 @@ export function CreateListingPage({
                   ) : null}
                   <PageTopBarMenuItem
                     onSelect={() => {
+                      if (publishIntent === "published" && publishIssues.length) {
+                        openPublishRequirements();
+                        return;
+                      }
                       setPublishIntent(publishIntent);
                       document.getElementById(`${formId}-update`)?.click();
                     }}
@@ -1863,6 +2028,10 @@ export function CreateListingPage({
                       className="text-primary"
                       onSelect={() => {
                         setPublishIntent("published");
+                        if (publishIssues.length) {
+                          openPublishRequirements();
+                          return;
+                        }
                         document.getElementById(`${formId}-publish`)?.click();
                       }}
                     >
@@ -1899,6 +2068,10 @@ export function CreateListingPage({
                     className="text-primary"
                     onSelect={() => {
                       setPublishIntent("published");
+                      if (publishIssues.length) {
+                        openPublishRequirements();
+                        return;
+                      }
                       document.getElementById(`${formId}-publish`)?.click();
                     }}
                   >
@@ -1926,6 +2099,12 @@ export function CreateListingPage({
               />
             </span>
           ) : null}
+          <PublishRequirementsDialog
+            issues={publishIssues}
+            onGoToStep={goToPublishIssueStep}
+            onOpenChange={setPublishRequirementsOpen}
+            open={publishRequirementsOpen}
+          />
           {publishMessage ? (
             <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-700 dark:text-amber-300">
               {publishMessage}
@@ -1987,6 +2166,7 @@ export function CreateListingPage({
                   {steps.map((step, index) => {
                     const Icon = step.icon;
                     const isActive = index === activeStep;
+                    const hasPublishIssue = publishIssueSteps.has(index);
                     const isComplete = isListingStepComplete(
                       index,
                       draft,
@@ -2001,6 +2181,9 @@ export function CreateListingPage({
                           "flex h-11 min-w-[9rem] shrink-0 items-center gap-2 rounded-md px-3 text-sm font-black text-muted-foreground transition-colors hover:bg-muted lg:min-w-0 lg:w-full",
                           isActive && "bg-primary/10 text-primary",
                           isComplete && !isActive && "text-foreground",
+                          hasPublishIssue &&
+                            "text-amber-700 hover:bg-amber-500/10 dark:text-amber-300",
+                          hasPublishIssue && isActive && "bg-amber-500/10",
                         )}
                         onClick={() => setActiveStep(index)}
                       >
@@ -2009,9 +2192,13 @@ export function CreateListingPage({
                             "grid size-7 place-items-center rounded-full border border-border bg-background",
                             isActive && "border-primary",
                             isComplete && "border-primary bg-primary text-primary-foreground",
+                            hasPublishIssue &&
+                              "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300",
                           )}
                         >
-                          {isComplete ? (
+                          {hasPublishIssue ? (
+                            <CircleAlert className="size-4" />
+                          ) : isComplete ? (
                             <Check className="size-4" />
                           ) : (
                             <Icon className="size-4" />
@@ -2102,12 +2289,24 @@ export function CreateListingPage({
                   </Button>
                 ) : (
                   <Button
-                    type="submit"
+                    type={
+                      publishIssues.length &&
+                      (mode !== "edit" || publishIntent === "published")
+                        ? "button"
+                        : "submit"
+                    }
                     name="publishIntent"
                     value={mode === "edit" ? publishIntent : "published"}
                     onClick={() => {
                       if (mode !== "edit") {
                         setPublishIntent("published");
+                      }
+
+                      if (
+                        publishIssues.length &&
+                        (mode !== "edit" || publishIntent === "published")
+                      ) {
+                        openPublishRequirements();
                       }
                     }}
                   >
@@ -3322,16 +3521,29 @@ function MediaStep({
   setCoverIndex: (index: number) => void;
 }) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const videoCount = media.filter(isVideoMedia).length;
+  const imageCount = media.length - videoCount;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-black">Media</h2>
         <p className="mt-1 text-sm font-semibold text-muted-foreground">
-          Upload up to {maxListingImages} photos or videos. Photos are optimized
+          Upload up to {maxListingMediaItems} photos or videos. Photos are optimized
           before saving. Videos are limited to 90 seconds and {maxListingVideoSizeMb}MB
           after optimization.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-primary">
+            {media.length}/{maxListingMediaItems} total
+          </span>
+          <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+            {imageCount} {imageCount === 1 ? "image" : "images"}
+          </span>
+          <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+            {videoCount} {videoCount === 1 ? "video" : "videos"}
+          </span>
+        </div>
       </div>
       <button
         type="button"
@@ -3420,8 +3632,8 @@ function MediaStep({
                 type="button"
                 className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background hover:text-destructive"
                 onClick={() => onRemove(index)}
-                aria-label="Remove image"
-                title="Remove image"
+                aria-label="Remove media"
+                title="Remove media"
               >
                 <X className="size-4" />
               </button>
