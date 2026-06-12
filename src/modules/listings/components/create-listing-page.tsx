@@ -815,7 +815,11 @@ function ListingPublishProgress({
       ? `Uploading ${mediaCount} media ${mediaCount === 1 ? "item" : "items"}`
       : "Preparing listing media",
     "Saving listing details",
-    mode === "edit" ? "Updating public listing" : "Publishing public listing",
+    mediaCount > 10
+      ? "Finalizing listing after media upload"
+      : mode === "edit"
+        ? "Updating public listing"
+        : "Publishing public listing",
   ];
   const activeStepIndex = Math.min(
     steps.length - 1,
@@ -873,6 +877,12 @@ function ListingPublishProgress({
               style={{ width: `${progress}%` }}
             />
           </div>
+          {mediaCount > 10 ? (
+            <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
+              Larger media sets can spend extra time on the final save. Homzie
+              will open the success screen as soon as the listing is confirmed.
+            </p>
+          ) : null}
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {steps.map((step, index) => {

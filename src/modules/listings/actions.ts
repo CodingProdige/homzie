@@ -59,7 +59,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 const maxListingImageBytes = 15 * 1024 * 1024;
 const maxListingVideoBytes = 80 * 1024 * 1024;
-const maxListingImages = 30;
+const maxListingMediaItems = 70;
 const maxListingTitleLength = 120;
 const maxListingDescriptionLength = 3000;
 const maxListingFeatures = 10;
@@ -617,9 +617,11 @@ export async function createListing(formData: FormData) {
       tags: extractHashtags(data.title, plainListingDescription(description)),
       userId: session.user.id,
     });
-    await notifyFollowersAboutPublishedListing({
+    void notifyFollowersAboutPublishedListing({
       listingId: listing.id,
       ownerUserId: session.user.id,
+    }).catch((error) => {
+      console.error("[email] listing follower notification failed", error);
     });
   }
 
@@ -687,7 +689,7 @@ export async function updateListing(formData: FormData) {
   const media = [
     ...parseExistingListingMedia(formData.get("existingMedia")),
     ...uploadedMedia,
-  ].slice(0, maxListingImages);
+  ].slice(0, maxListingMediaItems);
   assertListingCanPublish(data, description, media.length);
   const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(
@@ -833,9 +835,11 @@ export async function updateListing(formData: FormData) {
     });
 
     if (existingListing.status !== "published") {
-      await notifyFollowersAboutPublishedListing({
+      void notifyFollowersAboutPublishedListing({
         listingId: listingId.data,
         ownerUserId: session.user.id,
+      }).catch((error) => {
+        console.error("[email] listing follower notification failed", error);
       });
     }
   }
@@ -2150,7 +2154,7 @@ function parseExistingListingMedia(value: FormDataEntryValue | null) {
         };
       })
       .filter((item): item is StoredListingMedia => Boolean(item))
-      .slice(0, maxListingImages);
+      .slice(0, maxListingMediaItems);
   } catch {
     return [];
   }
@@ -2159,7 +2163,7 @@ function parseExistingListingMedia(value: FormDataEntryValue | null) {
 async function storeListingMedia(values: FormDataEntryValue[]) {
   const files = values
     .filter((value): value is File => value instanceof File && value.size > 0)
-    .slice(0, maxListingImages);
+    .slice(0, maxListingMediaItems);
 
   const storedFiles: Array<{
     name: string;
