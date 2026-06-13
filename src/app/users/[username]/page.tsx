@@ -910,6 +910,7 @@ export default async function UserProfilePage({
         savedListings,
         savedReels,
         viewerRole: viewer?.role || undefined,
+        viewerSignedIn: Boolean(viewerUserId),
         viewerUsername: viewer?.username || undefined,
         viewerAvatarUrl:
           toPublicMediaUrl(viewer?.avatarUrl) ||

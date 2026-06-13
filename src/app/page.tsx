@@ -653,8 +653,10 @@ async function LiveStatsSection() {
 
 async function TopAgentsSection({
   countryLabel,
+  viewerSignedIn,
 }: {
   countryLabel?: string;
+  viewerSignedIn: boolean;
 }) {
   const topAgents = await getTopSubscribedAgents(countryLabel);
 
@@ -670,6 +672,7 @@ async function TopAgentsSection({
         <HorizontalScrollRail>
           {topAgents.map((agent) => (
             <UserProfileCard
+              locked={!viewerSignedIn}
               key={agent.username}
               profile={{
                 avatarUrl: agent.avatarUrl,
@@ -698,9 +701,11 @@ async function TopAgentsSection({
 async function PromotedHomeSections({
   areas,
   countryPreference,
+  viewerSignedIn,
 }: {
   areas: string[];
   countryPreference?: CountryPreference | null;
+  viewerSignedIn: boolean;
 }) {
   const promotedItems = await getPromotedItems({ areas });
   const promotedListings = shuffle(promotedItems.listings);
@@ -770,6 +775,7 @@ async function PromotedHomeSections({
                 campaignId={profile.campaignId}
               >
                 <UserProfileCard
+                  locked={!viewerSignedIn}
                   profile={{
                     avatarUrl: profile.avatarUrl,
                     displayName: profile.displayName,
@@ -1127,13 +1133,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </section>
           }
         >
-          <TopAgentsSection countryLabel={countryLabel} />
+          <TopAgentsSection
+            countryLabel={countryLabel}
+            viewerSignedIn={Boolean(viewerUserId)}
+          />
         </Suspense>
 
         <Suspense fallback={null}>
           <PromotedHomeSections
             areas={discoverFilters.areas}
             countryPreference={countryPreference}
+            viewerSignedIn={Boolean(viewerUserId)}
           />
         </Suspense>
 

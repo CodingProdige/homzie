@@ -272,6 +272,7 @@ export default async function PropertyListingPage({
       />
       <ListingDetailPage
         listing={listing}
+        viewerSignedIn={Boolean(session?.user?.id)}
         viewerRole={viewer.role}
         viewerUsername={viewer.username}
       />

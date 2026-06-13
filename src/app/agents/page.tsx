@@ -294,6 +294,7 @@ function hrefForPage({
 export default async function AgentsPage({ searchParams }: AgentsPageProps) {
   const session = await getServerSession(authOptions);
   const viewer = await getViewerChrome(session?.user?.id);
+  const viewerSignedIn = Boolean(session?.user?.id);
   const query = searchParams ? await searchParams : {};
   const q = cleanParam(query.q);
   const location = cleanParam(query.location);
@@ -394,49 +395,69 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
             {pageAgents.map((agent) => (
               <Link
                 key={agent.id}
-                href={`/users/${agent.username}`}
-                className="group grid gap-4 py-5 transition hover:bg-muted/35 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                href={
+                  viewerSignedIn
+                    ? `/users/${agent.username}`
+                    : `/register?callbackUrl=${encodeURIComponent(`/users/${agent.username}`)}`
+                }
+                className="group relative block overflow-hidden py-5 transition hover:bg-muted/35"
               >
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className="rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-0.5">
-                    {agent.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={agent.avatarUrl}
-                        alt={agent.name}
-                        className="size-14 rounded-full border-2 border-background object-cover"
-                      />
-                    ) : (
-                      <span className="grid size-14 place-items-center rounded-full border-2 border-background bg-brand-midnight text-sm font-black text-white">
-                        {initials(agent.name)}
-                      </span>
-                    )}
+                <div
+                  className={
+                    viewerSignedIn
+                      ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                      : "grid select-none gap-4 blur-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  }
+                  aria-hidden={viewerSignedIn ? undefined : true}
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-0.5">
+                      {agent.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={agent.avatarUrl}
+                          alt={agent.name}
+                          className="size-14 rounded-full border-2 border-background object-cover"
+                        />
+                      ) : (
+                        <span className="grid size-14 place-items-center rounded-full border-2 border-background bg-brand-midnight text-sm font-black text-white">
+                          {initials(agent.name)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-black group-hover:text-primary">
+                        {agent.name}
+                      </h2>
+                      <p className="mt-1 truncate text-sm font-semibold text-muted-foreground">
+                        {agent.headline}
+                      </p>
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-muted-foreground">
+                        <MapPin className="size-3.5" />
+                        {agent.location}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h2 className="truncate text-base font-black group-hover:text-primary">
-                      {agent.name}
-                    </h2>
-                    <p className="mt-1 truncate text-sm font-semibold text-muted-foreground">
-                      {agent.headline}
-                    </p>
-                    <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-muted-foreground">
-                      <MapPin className="size-3.5" />
-                      {agent.location}
-                    </p>
+                  <div className="grid grid-cols-2 gap-3 text-sm font-black sm:w-72">
+                    <span className="inline-flex items-center gap-2 rounded-md bg-muted px-3 py-2">
+                      <Building2 className="size-4 text-primary" />
+                      {agent.activeListingCount} active
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-md bg-muted px-3 py-2">
+                      <Award className="size-4 text-primary" />
+                      {agent.soldCount
+                        ? formatCurrencyCompact(agent.totalSoldValueCents)
+                        : "No sales"}
+                    </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm font-black sm:w-72">
-                  <span className="inline-flex items-center gap-2 rounded-md bg-muted px-3 py-2">
-                    <Building2 className="size-4 text-primary" />
-                    {agent.activeListingCount} active
+                {!viewerSignedIn ? (
+                  <span className="absolute inset-0 grid place-items-center bg-background/55 p-4 text-center backdrop-blur-[1px]">
+                    <span className="rounded-full bg-primary px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-lg">
+                      Create account to reveal
+                    </span>
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-md bg-muted px-3 py-2">
-                    <Award className="size-4 text-primary" />
-                    {agent.soldCount
-                      ? formatCurrencyCompact(agent.totalSoldValueCents)
-                      : "No sales"}
-                  </span>
-                </div>
+                ) : null}
               </Link>
             ))}
           </div>

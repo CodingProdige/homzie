@@ -74,6 +74,7 @@ type UserProfile = {
   savedListings: ProfileListing[];
   savedReels: ProfileReel[];
   viewerRole?: "user" | "admin";
+  viewerSignedIn?: boolean;
   viewerUsername?: string;
   viewerAvatarUrl?: string;
 };
@@ -631,35 +632,53 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
       ) : null}
 
       {profile.contactEmail || profile.contactPhone || profile.whatsappNumber ? (
-        <div className="col-span-2 w-full sm:col-span-1 sm:col-start-2 sm:max-w-full lg:max-w-[calc(100%-9rem)]">
-          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-            Contact agent
-          </p>
-          <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
-            {profile.contactEmail ? (
-              <a
-                href={`mailto:${profile.contactEmail}`}
-                className="max-w-full break-all hover:underline"
-              >
-                {profile.contactEmail}
-              </a>
-            ) : null}
-            {profile.contactPhone ? (
-              <a href={`tel:${profile.contactPhone}`} className="hover:underline">
-                {profile.contactPhone}
-              </a>
-            ) : null}
-            {profile.whatsappNumber ? (
-              <a
-                href={`https://wa.me/${profile.whatsappNumber.replace(/\D/g, "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="hover:underline"
-              >
-                WhatsApp {profile.whatsappNumber}
-              </a>
-            ) : null}
+        <div className="relative col-span-2 w-full overflow-hidden rounded-lg sm:col-span-1 sm:col-start-2 sm:max-w-full lg:max-w-[calc(100%-9rem)]">
+          <div
+            className={cn(
+              "transition",
+              !profile.viewerSignedIn && "pointer-events-none select-none blur-sm",
+            )}
+            aria-hidden={profile.viewerSignedIn ? undefined : true}
+          >
+            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Contact agent
+            </p>
+            <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
+              {profile.contactEmail ? (
+                <a
+                  href={`mailto:${profile.contactEmail}`}
+                  className="max-w-full break-all hover:underline"
+                >
+                  {profile.contactEmail}
+                </a>
+              ) : null}
+              {profile.contactPhone ? (
+                <a href={`tel:${profile.contactPhone}`} className="hover:underline">
+                  {profile.contactPhone}
+                </a>
+              ) : null}
+              {profile.whatsappNumber ? (
+                <a
+                  href={`https://wa.me/${profile.whatsappNumber.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                >
+                  WhatsApp {profile.whatsappNumber}
+                </a>
+              ) : null}
+            </div>
           </div>
+          {!profile.viewerSignedIn ? (
+            <div className="absolute inset-0 grid place-items-center bg-background/55 p-2 text-center backdrop-blur-[1px]">
+              <Button asChild size="sm" className="h-9">
+                <Link href={`/register?callbackUrl=${encodeURIComponent(`/users/${profile.username}`)}`}>
+                  <LockKeyhole className="size-3.5" />
+                  Reveal contact
+                </Link>
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -29,6 +29,7 @@ import {
   MapPin,
   ParkingCircle,
   Percent,
+  Play,
   Ruler,
   Send,
   Sparkles,
@@ -1122,172 +1123,217 @@ function ListingDescription({ value }: { value: string | null }) {
 function AgentProfileCard({
   agentHref,
   listing,
+  locked,
   onAction,
 }: {
   agentHref: string;
   listing: ListingDetailData;
+  locked?: boolean;
   onAction?: (
     actionType: "call_agent" | "contact_agent" | "email_agent" | "whatsapp_agent",
   ) => void;
 }) {
   const actionsDisabled = listing.isUnavailableForViewer;
+  const signupHref = `/register?callbackUrl=${encodeURIComponent(listing.href)}`;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">
-      <div className="flex items-start gap-4">
-        <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-sm font-black text-primary ring-4 ring-primary/10">
-          {listing.agent.avatarUrl ? (
-            <Image
-              src={listing.agent.avatarUrl}
-              alt=""
-              width={64}
-              height={64}
-              className="size-full object-cover"
-            />
-          ) : (
-            listing.agent.name.slice(0, 2).toUpperCase()
-          )}
-        </div>
-        <div className="min-w-0 flex-1 pt-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <p className="truncate text-lg font-black">{listing.agent.name}</p>
-            <span
-              className="inline-flex size-5 shrink-0 items-center justify-center rounded-full [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 ring-2 ring-background"
-              title="Verified Homzie agent"
-            >
-              <BadgeCheck className="size-3.5" />
-            </span>
+    <div className="relative overflow-hidden rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">
+      <div
+        className={cn(
+          "transition",
+          locked && "pointer-events-none select-none blur-sm",
+        )}
+        aria-hidden={locked ? true : undefined}
+      >
+        <div className="flex items-start gap-4">
+          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-sm font-black text-primary ring-4 ring-primary/10">
+            {listing.agent.avatarUrl ? (
+              <Image
+                src={listing.agent.avatarUrl}
+                alt=""
+                width={64}
+                height={64}
+                className="size-full object-cover"
+              />
+            ) : (
+              listing.agent.name.slice(0, 2).toUpperCase()
+            )}
           </div>
-          <p className="truncate text-xs font-bold text-muted-foreground">
-            {listing.agent.username
-              ? `@${listing.agent.username}`
-              : "Homzie agent"}
-          </p>
-          {listing.agent.location ? (
-            <p className="mt-2 truncate text-xs font-bold text-muted-foreground">
-              {listing.agent.location}
+          <div className="min-w-0 flex-1 pt-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-lg font-black">{listing.agent.name}</p>
+              <span
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 ring-2 ring-background"
+                title="Verified Homzie agent"
+              >
+                <BadgeCheck className="size-3.5" />
+              </span>
+            </div>
+            <p className="truncate text-xs font-bold text-muted-foreground">
+              {listing.agent.username
+                ? `@${listing.agent.username}`
+                : "Homzie agent"}
             </p>
-          ) : null}
-        </div>
-      </div>
-      {listing.agent.bio ? (
-        <p className="mt-4 whitespace-pre-line text-sm font-medium leading-6 text-foreground/80">
-          {listing.agent.bio}
-        </p>
-      ) : null}
-      {listing.agent.contactEmail ||
-      listing.agent.contactPhone ||
-      listing.agent.whatsappNumber ? (
-        <div className="mt-4">
-          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-            Contact agent
-          </p>
-          <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
-          {listing.agent.contactEmail ? (
-            actionsDisabled ? (
-              <span className="max-w-full break-all text-muted-foreground">
-                {listing.agent.contactEmail}
-              </span>
-            ) : (
-              <a
-                href={`mailto:${listing.agent.contactEmail}`}
-                className="max-w-full break-all hover:underline"
-                onClick={() => onAction?.("email_agent")}
-              >
-                {listing.agent.contactEmail}
-              </a>
-            )
-          ) : null}
-          {listing.agent.contactPhone ? (
-            actionsDisabled ? (
-              <span className="text-muted-foreground">
-                {listing.agent.contactPhone}
-              </span>
-            ) : (
-              <a
-                href={`tel:${listing.agent.contactPhone}`}
-                className="hover:underline"
-                onClick={() => onAction?.("call_agent")}
-              >
-                {listing.agent.contactPhone}
-              </a>
-            )
-          ) : null}
-          {listing.agent.whatsappNumber ? (
-            actionsDisabled ? (
-              <span className="text-muted-foreground">
-                WhatsApp {listing.agent.whatsappNumber}
-              </span>
-            ) : (
-              <a
-                href={`https://wa.me/${listing.agent.whatsappNumber.replace(/\D/g, "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="hover:underline"
-                onClick={() => onAction?.("whatsapp_agent")}
-              >
-                WhatsApp {listing.agent.whatsappNumber}
-              </a>
-            )
-          ) : null}
+            {listing.agent.location ? (
+              <p className="mt-2 truncate text-xs font-bold text-muted-foreground">
+                {listing.agent.location}
+              </p>
+            ) : null}
           </div>
         </div>
-      ) : null}
-      {actionsDisabled ? (
-        <div className="mt-4 grid gap-2">
-          <Button className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-black text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]" disabled>
-            <Send className="size-4" />
-            Send message
-          </Button>
-          <Button variant="outline" className="h-12 w-full rounded-md" disabled>
-            <Eye className="size-4" />
-            View agent profile
-          </Button>
-        </div>
-      ) : (
-        <div className="grid gap-2">
-          <SendListingMessageButton
-            listing={listing}
-            onSent={() => onAction?.("contact_agent")}
-          />
-          <Button asChild variant="outline" className="h-12 w-full rounded-md">
-            <Link href={agentHref}>
+        {listing.agent.bio ? (
+          <p className="mt-4 whitespace-pre-line text-sm font-medium leading-6 text-foreground/80">
+            {listing.agent.bio}
+          </p>
+        ) : null}
+        {listing.agent.contactEmail ||
+        listing.agent.contactPhone ||
+        listing.agent.whatsappNumber ? (
+          <div className="mt-4">
+            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Contact agent
+            </p>
+            <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
+            {listing.agent.contactEmail ? (
+              actionsDisabled ? (
+                <span className="max-w-full break-all text-muted-foreground">
+                  {listing.agent.contactEmail}
+                </span>
+              ) : (
+                <a
+                  href={`mailto:${listing.agent.contactEmail}`}
+                  className="max-w-full break-all hover:underline"
+                  onClick={() => onAction?.("email_agent")}
+                >
+                  {listing.agent.contactEmail}
+                </a>
+              )
+            ) : null}
+            {listing.agent.contactPhone ? (
+              actionsDisabled ? (
+                <span className="text-muted-foreground">
+                  {listing.agent.contactPhone}
+                </span>
+              ) : (
+                <a
+                  href={`tel:${listing.agent.contactPhone}`}
+                  className="hover:underline"
+                  onClick={() => onAction?.("call_agent")}
+                >
+                  {listing.agent.contactPhone}
+                </a>
+              )
+            ) : null}
+            {listing.agent.whatsappNumber ? (
+              actionsDisabled ? (
+                <span className="text-muted-foreground">
+                  WhatsApp {listing.agent.whatsappNumber}
+                </span>
+              ) : (
+                <a
+                  href={`https://wa.me/${listing.agent.whatsappNumber.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                  onClick={() => onAction?.("whatsapp_agent")}
+                >
+                  WhatsApp {listing.agent.whatsappNumber}
+                </a>
+              )
+            ) : null}
+            </div>
+          </div>
+        ) : null}
+        {actionsDisabled ? (
+          <div className="mt-4 grid gap-2">
+            <Button className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-black text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]" disabled>
+              <Send className="size-4" />
+              Send message
+            </Button>
+            <Button variant="outline" className="h-12 w-full rounded-md" disabled>
               <Eye className="size-4" />
               View agent profile
-            </Link>
-          </Button>
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            <SendListingMessageButton
+              listing={listing}
+              onSent={() => onAction?.("contact_agent")}
+            />
+            <Button asChild variant="outline" className="h-12 w-full rounded-md">
+              <Link href={agentHref}>
+                <Eye className="size-4" />
+                View agent profile
+              </Link>
+            </Button>
+          </div>
+        )}
+      </div>
+      {locked ? (
+        <div className="absolute inset-0 z-10 grid place-items-center bg-background/55 p-5 text-center backdrop-blur-[1px]">
+          <div className="max-w-64">
+            <span className="mx-auto grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
+              <Eye className="size-5" />
+            </span>
+            <p className="mt-3 text-sm font-black">Create an account to reveal</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+              Sign up to view agent details and contact this listing owner.
+            </p>
+            <Button asChild className="mt-4 h-10 w-full">
+              <Link href={signupHref}>Reveal agent</Link>
+            </Button>
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
 export function ListingDetailPage({
   listing,
+  viewerSignedIn = false,
   viewerRole,
   viewerUsername,
 }: {
   listing: ListingDetailData;
+  viewerSignedIn?: boolean;
   viewerRole?: "user" | "admin";
   viewerUsername?: string;
 }) {
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const hasTrackedViewRef = useRef(false);
   const { formatPriceCents, formatPriceLabel } = useCurrency();
-  const imageUrls = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...(listing.coverImageUrl ? [listing.coverImageUrl] : []),
-          ...listing.media
-            .filter((item) => !item.type.startsWith("video/"))
-            .map((item) => item.previewUrl),
-        ]),
-      ).filter(Boolean),
+  const mediaItems = useMemo(
+    () => {
+      const seen = new Set<string>();
+      const items: Array<{ type: string; url: string }> = [];
+
+      if (listing.coverImageUrl) {
+        seen.add(listing.coverImageUrl);
+        items.push({ type: "image/webp", url: listing.coverImageUrl });
+      }
+
+      listing.media.forEach((item) => {
+        if (!item.previewUrl || seen.has(item.previewUrl)) return;
+
+        seen.add(item.previewUrl);
+        items.push({
+          type: item.type || "image/webp",
+          url: item.previewUrl,
+        });
+      });
+
+      return items;
+    },
     [listing.coverImageUrl, listing.media],
   );
-  const activeImageUrl = imageUrls[activeImageIndex] || listing.coverImageUrl;
-  const showGalleryControls = imageUrls.length > 1;
+  const safeActiveMediaIndex = mediaItems.length
+    ? Math.min(activeMediaIndex, mediaItems.length - 1)
+    : 0;
+  const activeMedia = mediaItems[safeActiveMediaIndex] || null;
+  const activeMediaIsVideo = Boolean(activeMedia?.type.startsWith("video/"));
+  const showGalleryControls = mediaItems.length > 1;
   const formattedPrice =
     listing.askingPriceCents && listing.askingPriceCents > 0
       ? formatPriceCents(listing.askingPriceCents)
@@ -1404,14 +1450,14 @@ export function ListingDetailPage({
       viewerSessionId: getListingViewerSessionId(),
     });
   }, [listing.id]);
-  const showPreviousImage = () => {
-    setActiveImageIndex((index) =>
-      imageUrls.length ? (index - 1 + imageUrls.length) % imageUrls.length : 0,
+  const showPreviousMedia = () => {
+    setActiveMediaIndex((index) =>
+      mediaItems.length ? (index - 1 + mediaItems.length) % mediaItems.length : 0,
     );
   };
-  const showNextImage = () => {
-    setActiveImageIndex((index) =>
-      imageUrls.length ? (index + 1) % imageUrls.length : 0,
+  const showNextMedia = () => {
+    setActiveMediaIndex((index) =>
+      mediaItems.length ? (index + 1) % mediaItems.length : 0,
     );
   };
   const editListingAction = listing.isOwner ? (
@@ -1487,9 +1533,21 @@ export function ListingDetailPage({
           <div className="min-w-0">
             <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
               <div className="relative aspect-[4/3] bg-muted sm:aspect-[16/10]">
-                {activeImageUrl ? (
+                {activeMediaIsVideo && activeMedia ? (
+                  <video
+                    key={activeMedia.url}
+                    src={activeMedia.url}
+                    className={cn(
+                      "size-full object-cover",
+                      listing.isUnavailableForViewer && "grayscale",
+                    )}
+                    controls
+                    playsInline
+                    preload="metadata"
+                  />
+                ) : activeMedia?.url ? (
                   <Image
-                    src={activeImageUrl}
+                    src={activeMedia.url}
                     alt={listing.title}
                     fill
                     priority
@@ -1513,21 +1571,27 @@ export function ListingDetailPage({
                     {listing.buyerIncentive}
                   </span>
                 ) : null}
+                {activeMediaIsVideo ? (
+                  <span className="absolute right-4 bottom-4 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
+                    <Play className="size-3 fill-current" />
+                    Video
+                  </span>
+                ) : null}
                 {showGalleryControls ? (
                   <>
                     <button
                       type="button"
-                      aria-label="Previous listing image"
+                      aria-label="Previous listing media"
                       className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-brand-black shadow-lg transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      onClick={showPreviousImage}
+                      onClick={showPreviousMedia}
                     >
                       <ChevronLeft className="size-5" />
                     </button>
                     <button
                       type="button"
-                      aria-label="Next listing image"
+                      aria-label="Next listing media"
                       className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-brand-black shadow-lg transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      onClick={showNextImage}
+                      onClick={showNextMedia}
                     >
                       <ChevronRight className="size-5" />
                     </button>
@@ -1536,30 +1600,52 @@ export function ListingDetailPage({
               </div>
               {showGalleryControls ? (
                 <div className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain p-3 [scrollbar-width:thin]">
-                  {imageUrls.map((imageUrl, index) => (
-                    <button
-                      key={`${imageUrl}-${index}`}
-                      type="button"
-                      aria-label={`Show listing image ${index + 1}`}
-                      className={cn(
-                        "relative h-16 w-24 shrink-0 snap-start overflow-hidden rounded-md border bg-muted",
-                        index === activeImageIndex
-                          ? "border-primary ring-2 ring-primary/25"
-                          : "border-border",
-                      )}
-                      onClick={() => setActiveImageIndex(index)}
-                    >
-                      <Image
-                        src={imageUrl}
-                        alt=""
-                        fill
+                  {mediaItems.map((item, index) => {
+                    const isVideo = item.type.startsWith("video/");
+
+                    return (
+                      <button
+                        key={`${item.url}-${index}`}
+                        type="button"
+                        aria-label={`Show listing ${isVideo ? "video" : "image"} ${index + 1}`}
                         className={cn(
-                          "object-cover",
-                          listing.isUnavailableForViewer && "grayscale",
+                          "relative h-16 w-24 shrink-0 snap-start overflow-hidden rounded-md border bg-muted",
+                          index === safeActiveMediaIndex
+                            ? "border-primary ring-2 ring-primary/25"
+                            : "border-border",
                         )}
-                      />
-                    </button>
-                  ))}
+                        onClick={() => setActiveMediaIndex(index)}
+                      >
+                        {isVideo ? (
+                          <>
+                            <video
+                              src={item.url}
+                              className={cn(
+                                "size-full object-cover",
+                                listing.isUnavailableForViewer && "grayscale",
+                              )}
+                              muted
+                              playsInline
+                              preload="metadata"
+                            />
+                            <span className="absolute inset-0 grid place-items-center bg-black/20 text-white">
+                              <Play className="size-5 fill-current drop-shadow" />
+                            </span>
+                          </>
+                        ) : (
+                          <Image
+                            src={item.url}
+                            alt=""
+                            fill
+                            className={cn(
+                              "object-cover",
+                              listing.isUnavailableForViewer && "grayscale",
+                            )}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
@@ -1746,6 +1832,7 @@ export function ListingDetailPage({
             <AgentProfileCard
               agentHref={agentHref}
               listing={listing}
+              locked={!viewerSignedIn}
               onAction={recordListingAction}
             />
 
