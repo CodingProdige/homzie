@@ -39,33 +39,27 @@ const profileSettingsSchema = z.object({
   location: z
     .string()
     .trim()
-    .min(1, "Operating city is required.")
     .max(120, "Operating city must be 120 characters or less."),
   locationCity: z
     .string()
     .trim()
-    .min(1, "Operating city is required.")
     .max(120, "Operating city must be 120 characters or less."),
   locationCountry: z
     .string()
     .trim()
-    .min(1, "Choose a city with country data.")
     .max(120, "Country must be 120 characters or less."),
   locationGoogleSelected: z.boolean(),
   locationPlaceData: z
     .string()
     .trim()
-    .min(1, "Choose your operating city from the Google suggestions.")
     .max(10_000),
   locationPlaceId: z
     .string()
     .trim()
-    .min(1, "Choose your operating city from the Google suggestions.")
     .max(160),
   locationProvince: z
     .string()
     .trim()
-    .min(1, "Choose a city with province data.")
     .max(120, "Province must be 120 characters or less."),
   locationSuburb: z.string().trim().max(120, "Area must be 120 characters or less.").optional(),
   contactEmail: z
@@ -253,7 +247,16 @@ export async function updateProfileSettings(
     };
   }
 
-  if (!parsed.data.locationGoogleSelected) {
+  const hasLocationInput = Boolean(
+    parsed.data.location.trim() ||
+      parsed.data.locationCity.trim() ||
+      parsed.data.locationCountry.trim() ||
+      parsed.data.locationPlaceData.trim() ||
+      parsed.data.locationPlaceId.trim() ||
+      parsed.data.locationProvince.trim(),
+  );
+
+  if (hasLocationInput && !parsed.data.locationGoogleSelected) {
     return {
       ok: false,
       message: "Choose your operating city from the Google suggestions.",
@@ -264,7 +267,7 @@ export async function updateProfileSettings(
     parsed.data.locationPlaceData,
   );
 
-  if (!parsedLocationPlaceData) {
+  if (hasLocationInput && !parsedLocationPlaceData) {
     return {
       ok: false,
       message: "Choose your operating city again so Homzie can save its Google data.",
@@ -316,21 +319,23 @@ export async function updateProfileSettings(
     };
   }
 
-  const operatingCity = cleanSingleLine(
-    parsed.data.locationCity || parsed.data.location,
-  );
+  const operatingCity = hasLocationInput
+    ? cleanSingleLine(parsed.data.locationCity || parsed.data.location)
+    : "";
 
   const locationFields = {
-    location: operatingCity,
-    locationCity: operatingCity,
-    locationCountry: optionalValue(
-      cleanSingleLine(parsed.data.locationCountry || ""),
-    ),
+    location: optionalValue(operatingCity),
+    locationCity: optionalValue(operatingCity),
+    locationCountry: hasLocationInput
+      ? optionalValue(cleanSingleLine(parsed.data.locationCountry || ""))
+      : null,
     locationPlaceData: parsedLocationPlaceData,
-    locationPlaceId: optionalValue(parsed.data.locationPlaceId || ""),
-    locationProvince: optionalValue(
-      cleanSingleLine(parsed.data.locationProvince || ""),
-    ),
+    locationPlaceId: hasLocationInput
+      ? optionalValue(parsed.data.locationPlaceId || "")
+      : null,
+    locationProvince: hasLocationInput
+      ? optionalValue(cleanSingleLine(parsed.data.locationProvince || ""))
+      : null,
     locationSuburb: null,
   };
 

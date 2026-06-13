@@ -43,6 +43,7 @@ import {
   listingTypeOptions,
   mandateTypeOptions,
   propertyTypeOptions,
+  type PropertyType,
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
 import {
@@ -79,6 +80,23 @@ const listingVideoTypes: Record<string, string> = {
   "video/quicktime": "mov",
   "video/webm": "webm",
 };
+const residentialPropertyTypes = new Set<PropertyType | string>([
+  "apartment",
+  "development_unit",
+  "estate_home",
+  "free_standing_house",
+  "townhouse",
+]);
+const landOnlyPropertyTypes = new Set<PropertyType | string>([
+  "development_project",
+  "vacant_land",
+]);
+const commercialPropertyTypes = new Set<PropertyType | string>([
+  "industrial",
+  "office",
+  "retail",
+  "warehouse",
+]);
 
 const listingTypeValues = listingTypeOptions.map((option) => option.value) as [
   string,
@@ -362,8 +380,32 @@ function assertListingCanPublish(
     issues.push("Add a fuller property description.");
   }
 
-  if (!data.bedrooms || !data.bathrooms || !data.floorSize) {
+  const hasBedroomCount =
+    typeof data.bedrooms === "number" && Number.isFinite(data.bedrooms);
+  const hasBathroomCount =
+    typeof data.bathrooms === "number" && Number.isFinite(data.bathrooms);
+  const hasFloorSize =
+    typeof data.floorSize === "number" &&
+    Number.isFinite(data.floorSize) &&
+    data.floorSize > 0;
+  const hasErfSize =
+    typeof data.erfSize === "number" &&
+    Number.isFinite(data.erfSize) &&
+    data.erfSize > 0;
+
+  if (
+    residentialPropertyTypes.has(data.propertyType) &&
+    (!hasBedroomCount || !hasBathroomCount || !hasFloorSize)
+  ) {
     issues.push("Add bedrooms, bathrooms, and floor size.");
+  }
+
+  if (commercialPropertyTypes.has(data.propertyType) && !hasFloorSize) {
+    issues.push("Add the floor size.");
+  }
+
+  if (landOnlyPropertyTypes.has(data.propertyType) && !hasErfSize) {
+    issues.push("Add the erf size.");
   }
 
   if (

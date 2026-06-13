@@ -208,6 +208,24 @@ export type ListingFormInitialMedia = {
   type?: string;
 };
 
+const residentialPropertyTypes = new Set<PropertyType | string>([
+  "apartment",
+  "development_unit",
+  "estate_home",
+  "free_standing_house",
+  "townhouse",
+]);
+const landOnlyPropertyTypes = new Set<PropertyType | string>([
+  "development_project",
+  "vacant_land",
+]);
+const commercialPropertyTypes = new Set<PropertyType | string>([
+  "industrial",
+  "office",
+  "retail",
+  "warehouse",
+]);
+
 const steps = [
   { icon: Sparkles, label: "Type" },
   { icon: MapPin, label: "Location" },
@@ -472,8 +490,24 @@ function getPublishIssues(draft: ListingDraft, mediaCount: number) {
     issues.push({ message: "Add a fuller property description.", step: 2 });
   }
 
-  if (!draft.bedrooms || !draft.bathrooms || !draft.floorSize) {
+  const hasBedroomCount = draft.bedrooms.trim() !== "";
+  const hasBathroomCount = draft.bathrooms.trim() !== "";
+  const hasFloorSize = Number(draft.floorSize) > 0;
+  const hasErfSize = Number(draft.erfSize) > 0;
+
+  if (
+    residentialPropertyTypes.has(draft.propertyType) &&
+    (!hasBedroomCount || !hasBathroomCount || !hasFloorSize)
+  ) {
     issues.push({ message: "Add bedrooms, bathrooms, and floor size.", step: 2 });
+  }
+
+  if (commercialPropertyTypes.has(draft.propertyType) && !hasFloorSize) {
+    issues.push({ message: "Add the floor size.", step: 2 });
+  }
+
+  if (landOnlyPropertyTypes.has(draft.propertyType) && !hasErfSize) {
+    issues.push({ message: "Add the erf size.", step: 2 });
   }
 
   const askingPrice = Number(draft.askingPrice);
@@ -504,14 +538,28 @@ function isListingStepComplete(
           draft.province.trim() &&
           draft.country.trim(),
       );
-    case 2:
+    case 2: {
+      const hasBedroomCount = draft.bedrooms.trim() !== "";
+      const hasBathroomCount = draft.bathrooms.trim() !== "";
+      const hasFloorSize = Number(draft.floorSize) > 0;
+      const hasErfSize = Number(draft.erfSize) > 0;
+      const hasRequiredDetails =
+        (residentialPropertyTypes.has(draft.propertyType) &&
+          hasBedroomCount &&
+          hasBathroomCount &&
+          hasFloorSize) ||
+        (commercialPropertyTypes.has(draft.propertyType) && hasFloorSize) ||
+        (landOnlyPropertyTypes.has(draft.propertyType) && hasErfSize) ||
+        (!residentialPropertyTypes.has(draft.propertyType) &&
+          !commercialPropertyTypes.has(draft.propertyType) &&
+          !landOnlyPropertyTypes.has(draft.propertyType));
+
       return Boolean(
         draft.title.trim().length >= 4 &&
           richTextToPlainText(draft.description).length >= 40 &&
-          draft.bedrooms &&
-          draft.bathrooms &&
-          draft.floorSize,
+          hasRequiredDetails,
       );
+    }
     case 3:
       return Boolean(draft.askingPrice && Number(draft.askingPrice) > 0);
     case 4:

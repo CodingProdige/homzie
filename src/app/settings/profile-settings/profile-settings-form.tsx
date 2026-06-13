@@ -635,7 +635,7 @@ function LocationField({
 
   return (
     <div className="grid gap-2">
-      <span className="text-sm font-bold">Operating city required</span>
+      <span className="text-sm font-bold">Operating city</span>
       <div className="relative">
         <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -656,7 +656,6 @@ function LocationField({
           maxLength={120}
           placeholder="Start typing your operating city"
           autoComplete="address-level2"
-          required
           className="pl-10"
         />
       </div>
@@ -948,14 +947,24 @@ export function ProfileSettingsForm({
   const usernameReady =
     username === initialProfile.username ||
     (availability.status === "available" && !pendingUsername);
-  const locationReady = Boolean(
-    location.trim() &&
-      locationCity.trim() &&
-      locationCountry.trim() &&
-      locationPlaceData.trim() &&
-      locationPlaceId.trim() &&
+  const hasLocationInput = Boolean(
+    location.trim() ||
+      locationCity.trim() ||
+      locationCountry.trim() ||
+      locationPlaceData.trim() ||
+      locationPlaceId.trim() ||
       locationProvince.trim(),
   );
+  const locationReady =
+    !hasLocationInput ||
+    Boolean(
+      location.trim() &&
+        locationCity.trim() &&
+        locationCountry.trim() &&
+        locationPlaceData.trim() &&
+        locationPlaceId.trim() &&
+        locationProvince.trim(),
+    );
 
   return (
     <form
