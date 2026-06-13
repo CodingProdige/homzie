@@ -60,6 +60,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 const maxListingImageBytes = 15 * 1024 * 1024;
 const maxListingVideoBytes = 80 * 1024 * 1024;
 const maxListingMediaItems = 70;
+const maxListingPublishPayloadBytes = 90 * 1024 * 1024;
 const maxListingTitleLength = 120;
 const maxListingDescriptionLength = 3000;
 const maxListingFeatures = 10;
@@ -491,7 +492,35 @@ export async function createListing(formData: FormData) {
     redirect(`/listings/new?duplicateListing=${duplicateListing.id}`);
   }
 
-  const media = await storeListingMedia(formData.getAll("mediaFiles"));
+  const mediaFiles = formData.getAll("mediaFiles");
+  const mediaPayloadBytes = mediaFiles.reduce(
+    (total, value) => total + (value instanceof File ? value.size : 0),
+    0,
+  );
+
+  if (mediaPayloadBytes > maxListingPublishPayloadBytes) {
+    console.warn("[listings] createListing media payload too large", {
+      mediaCount: mediaFiles.filter((value) => value instanceof File && value.size > 0).length,
+      mediaPayloadBytes,
+      userId: session.user.id,
+    });
+    redirect("/listings/new?listingError=media-upload");
+  }
+
+  let media: Awaited<ReturnType<typeof storeListingMedia>>;
+
+  try {
+    media = await storeListingMedia(mediaFiles);
+  } catch (error) {
+    console.error("[listings] createListing media upload failed", {
+      error,
+      mediaCount: mediaFiles.filter((value) => value instanceof File && value.size > 0).length,
+      mediaPayloadBytes,
+      storageRoot: getMediaStorageRoot(),
+      userId: session.user.id,
+    });
+    redirect("/listings/new?listingError=media-upload");
+  }
   assertListingCanPublish(data, description, media.length);
   const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(

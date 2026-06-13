@@ -223,6 +223,7 @@ const imageQuality = 0.82;
 const maxDescriptionLength = 3000;
 const maxTitleLength = 120;
 const maxListingMediaItems = 70;
+const maxListingPublishPayloadBytes = 90 * 1024 * 1024;
 const maxListingVideoSizeMb = 80;
 const videoCompressionMimeType = "video/webm;codecs=vp9,opus";
 const videoCompressionBitrate = 2_500_000;
@@ -1576,6 +1577,7 @@ export function CreateListingPage({
   initialPublishIntent = "published",
   duplicateListingId,
   listingId,
+  listingError,
   listingUpdateFeedback,
   mode = "create",
   profilePath,
@@ -1587,6 +1589,7 @@ export function CreateListingPage({
   initialPublishIntent?: "draft" | "published";
   duplicateListingId?: string;
   listingId?: string;
+  listingError?: string;
   listingUpdateFeedback?: "draft" | "published" | "updated";
   mode?: "create" | "edit";
   profilePath: string;
@@ -1636,6 +1639,10 @@ export function CreateListingPage({
   const publishIssues = useMemo(
     () => getPublishIssues(draft, media.length),
     [draft, media.length],
+  );
+  const mediaPayloadBytes = media.reduce(
+    (total, item) => total + (item.file?.size || item.size || 0),
+    0,
   );
   const publishIssueSteps = useMemo(
     () => new Set(publishIssues.map((issue) => issue.step)),
@@ -1939,16 +1946,21 @@ export function CreateListingPage({
     }
 
     const issues = getPublishIssues(draft, media.length);
+    const mediaPayloadTooLarge = mediaPayloadBytes > maxListingPublishPayloadBytes;
 
-    if (!issues.length) {
+    if (!issues.length && !mediaPayloadTooLarge) {
       setPublishMessage("");
       setPublishRequirementsOpen(false);
       return;
     }
 
     event.preventDefault();
-    setActiveStep(issues[0].step);
-    setPublishMessage(`Listing incomplete: ${issues.map((issue) => issue.message).join(" ")}`);
+    setActiveStep(mediaPayloadTooLarge ? 4 : issues[0].step);
+    setPublishMessage(
+      mediaPayloadTooLarge
+        ? `Listing media is ${formatFileSize(mediaPayloadBytes)} total. Keep each publish batch under ${formatFileSize(maxListingPublishPayloadBytes)} so it can pass through production upload limits.`
+        : `Listing incomplete: ${issues.map((issue) => issue.message).join(" ")}`,
+    );
     setPublishRequirementsOpen(true);
   }
 
@@ -2008,6 +2020,15 @@ export function CreateListingPage({
               })),
           )}
         />
+        {listingError ? (
+          <div className="mx-auto mt-24 w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
+              {listingError === "media-upload"
+                ? "Homzie could not save the listing media on the production server. Try again with fewer media items; if it repeats, the server media volume or upload limit needs attention."
+                : "Homzie could not publish that listing. Please try again."}
+            </div>
+          </div>
+        ) : null}
         <input type="hidden" name="coverIndex" value={coverIndex} />
         <input type="hidden" name="askingPrice" value={draft.askingPrice} />
         <input type="hidden" name="availableFrom" value={draft.availableFrom} />
