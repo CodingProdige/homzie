@@ -2108,6 +2108,75 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS moderation_cases (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      case_type text NOT NULL DEFAULT 'report',
+      target_type text NOT NULL,
+      reporter_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      target_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
+      reel_id uuid REFERENCES reels(id) ON DELETE SET NULL,
+      message_report_id uuid REFERENCES message_reports(id) ON DELETE SET NULL,
+      sale_claim_id uuid REFERENCES property_sale_claims(id) ON DELETE SET NULL,
+      sale_dispute_id uuid REFERENCES property_sale_disputes(id) ON DELETE SET NULL,
+      status text NOT NULL DEFAULT 'open',
+      priority text NOT NULL DEFAULT 'normal',
+      reason text NOT NULL,
+      details text,
+      admin_notes text,
+      assigned_admin_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      resolved_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_case_type_idx
+    ON moderation_cases (case_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_target_type_idx
+    ON moderation_cases (target_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_status_idx
+    ON moderation_cases (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_priority_idx
+    ON moderation_cases (priority)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_reporter_user_id_idx
+    ON moderation_cases (reporter_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_target_user_id_idx
+    ON moderation_cases (target_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_listing_id_idx
+    ON moderation_cases (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_reel_id_idx
+    ON moderation_cases (reel_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS moderation_cases_created_at_idx
+    ON moderation_cases (created_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS music_tracks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       title text NOT NULL,

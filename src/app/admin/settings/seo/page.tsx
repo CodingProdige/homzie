@@ -123,7 +123,7 @@ async function getSeoPageData() {
         status,
         title
       FROM property_listings
-      WHERE status IN ('published', 'reserved')
+      WHERE status = 'published'
       ORDER BY updated_at DESC
     `,
     sql<ProfileSeoRow[]>`

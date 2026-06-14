@@ -43,6 +43,7 @@ import { toPublicMediaUrl } from "@/media/paths";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
 import { startConversationAction } from "@/modules/messages/actions";
+import { ReportContentButton } from "@/modules/moderation/report-content-button";
 import { toggleProfileFollow } from "@/modules/reels/actions";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
 
@@ -1024,6 +1025,13 @@ function ProfileVisitorActions({
       >
         {isMessagePending ? "Opening..." : "Message"}
       </Button>
+      <ReportContentButton
+        compact
+        label="Report profile"
+        targetId={profile.username}
+        targetLabel="profile"
+        targetType="profile"
+      />
       {notice ? (
         <p className="basis-full text-xs font-bold text-destructive">{notice}</p>
       ) : null}

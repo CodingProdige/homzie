@@ -84,6 +84,11 @@ export type AdminSeoSettingsState = {
   ok: boolean;
 };
 
+export type AdminModerationUpdateState = {
+  message: string;
+  ok: boolean;
+};
+
 const initialModeSettings: StripeModeSettings = {
   publishableKey: "",
   secretKey: "",
@@ -585,6 +590,77 @@ export async function updateAdminReservationSettlement(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/reservations");
   revalidatePath(`/admin/reservations/${data.reservationId}`);
+}
+
+export async function updateAdminModerationItem(
+  _previousState: AdminModerationUpdateState,
+  formData: FormData,
+): Promise<AdminModerationUpdateState> {
+  try {
+    const adminUserId = await assertActiveAdmin();
+    const id = formString(formData, "id");
+    const source = formString(formData, "source");
+    const status = formString(formData, "status");
+    const priority = formString(formData, "priority") || "normal";
+    const adminNotes = formString(formData, "adminNotes");
+    const resolvedStatuses = ["approved", "dismissed", "rejected", "resolved"];
+    const resolvedAt = resolvedStatuses.includes(status) ? new Date() : null;
+
+    if (!id || !status) {
+      return { ok: false, message: "Choose a moderation status." };
+    }
+
+    if (source === "case") {
+      await sql`
+        UPDATE moderation_cases
+        SET
+          status = ${status},
+          priority = ${priority},
+          admin_notes = ${adminNotes || null},
+          assigned_admin_user_id = ${adminUserId},
+          resolved_at = ${resolvedAt},
+          updated_at = now()
+        WHERE id = ${id}::uuid
+      `;
+    } else if (source === "message_report") {
+      await sql`
+        UPDATE message_reports
+        SET status = ${status}, updated_at = now()
+        WHERE id = ${id}::uuid
+      `;
+    } else if (source === "sale_claim") {
+      await sql`
+        UPDATE property_sale_claims
+        SET claim_status = ${status}, updated_at = now()
+        WHERE id = ${id}::uuid
+      `;
+    } else if (source === "sale_dispute") {
+      await sql`
+        UPDATE property_sale_disputes
+        SET
+          status = ${status},
+          resolved_at = ${resolvedAt},
+          updated_at = now()
+        WHERE id = ${id}::uuid
+      `;
+    } else {
+      return { ok: false, message: "Unknown moderation source." };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/moderation");
+    revalidatePath(`/admin/moderation/${source}/${id}`);
+
+    return { ok: true, message: "Moderation item updated." };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not update moderation item.",
+    };
+  }
 }
 
 const demoProfileUsername = "avamorgandemo";

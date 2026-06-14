@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
+  AlertTriangle,
   BarChart3,
   Home,
-  HandCoins,
   Mail,
   Menu,
   Music,
@@ -36,7 +36,7 @@ const adminNavItems: Array<{
 }> = [
   { href: "/admin", icon: BarChart3, label: "Dashboard" },
   { href: "/admin/users", icon: UsersRound, label: "Users" },
-  { href: "/admin/reservations", icon: HandCoins, label: "Reservations" },
+  { href: "/admin/moderation", icon: AlertTriangle, label: "Moderation" },
   { href: "/admin/music", icon: Music, label: "Music Library" },
   { href: "/admin/email-templates", icon: Mail, label: "Email Templates" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },

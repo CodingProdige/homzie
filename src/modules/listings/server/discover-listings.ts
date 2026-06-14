@@ -56,7 +56,7 @@ type DiscoverListingOptions = {
   viewerUserId?: string | null;
 };
 
-const visibleListingStatuses = ["published", "reserved"] as const;
+const visibleListingStatuses = ["published"] as const;
 
 function cleanParam(value?: string) {
   return typeof value === "string" ? value.trim().slice(0, 80) : "";
@@ -524,9 +524,7 @@ export async function getDiscoverListings({
         : [];
 
       const unavailableLabel =
-        listing.status === "published" || listing.status === "reserved"
-          ? ""
-          : "No longer available";
+        listing.status === "published" ? "" : "No longer available";
 
       return {
         bathrooms: numberValue(details.bathrooms),
@@ -586,7 +584,7 @@ export async function getDiscoverListings({
         saveCount,
         saveCountLabel: formatCompactCount(saveCount),
         status: listing.status,
-        statusLabel: listing.status === "reserved" ? "Reserved" : undefined,
+        statusLabel: undefined,
         title: listing.title,
         unavailable: Boolean(unavailableLabel),
         unavailableLabel,

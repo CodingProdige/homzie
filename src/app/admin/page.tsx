@@ -136,9 +136,12 @@ async function getDashboardData() {
       (SELECT count(*) FROM property_listings WHERE listing_type = 'rental') AS rental_listings,
       (SELECT count(*) FROM reels WHERE status = 'published') AS published_reels,
       (SELECT count(*) FROM property_offers WHERE status = 'pending') AS pending_offers,
-      (SELECT count(*) FROM message_reports WHERE status = 'open') AS open_reports,
-      (SELECT count(*) FROM property_sale_claims WHERE claim_status = 'pending') AS pending_sale_claims,
-      (SELECT count(*) FROM property_sale_disputes WHERE status = 'pending') AS pending_disputes,
+      (
+        (SELECT count(*) FROM message_reports WHERE status IN ('open', 'in_review', 'waiting_on_user', 'escalated')) +
+        (SELECT count(*) FROM moderation_cases WHERE case_type = 'report' AND status IN ('open', 'in_review', 'waiting_on_user', 'escalated'))
+      ) AS open_reports,
+      (SELECT count(*) FROM property_sale_claims WHERE claim_status IN ('pending', 'in_review', 'waiting_on_user')) AS pending_sale_claims,
+      (SELECT count(*) FROM property_sale_disputes WHERE status IN ('pending', 'in_review', 'waiting_on_user', 'escalated')) AS pending_disputes,
       (SELECT count(*) FROM conversations) AS conversations,
       (SELECT count(*) FROM messages WHERE deleted_at IS NULL) AS messages,
       (
@@ -246,18 +249,20 @@ async function getDashboardData() {
 
 function MetricCard({
   detail,
+  href,
   icon: Icon,
   label,
   tone = "default",
   value,
 }: {
   detail: string;
+  href?: string;
   icon: typeof BarChart3;
   label: string;
   tone?: "default" | "warning";
   value: React.ReactNode;
 }) {
-  return (
+  const content = (
     <article className="rounded-lg border border-border bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -280,6 +285,14 @@ function MetricCard({
         {detail}
       </p>
     </article>
+  );
+
+  if (!href) return content;
+
+  return (
+    <Link href={href} className="block transition hover:-translate-y-0.5 hover:shadow-md">
+      {content}
+    </Link>
   );
 }
 
@@ -366,6 +379,7 @@ export default async function AdminPage() {
           />
           <MetricCard
             detail={`${formatNumber(metrics?.open_reports)} reports, ${formatNumber(metrics?.pending_sale_claims)} sale claims, ${formatNumber(metrics?.pending_disputes)} disputes.`}
+            href="/admin/moderation"
             icon={AlertTriangle}
             label="Moderation"
             tone={moderationQueue > 0 ? "warning" : "default"}

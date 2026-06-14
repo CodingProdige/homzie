@@ -1005,6 +1005,61 @@ export const messageReports = pgTable(
   ],
 );
 
+export const moderationCases = pgTable(
+  "moderation_cases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    caseType: text("case_type").notNull().default("report"),
+    targetType: text("target_type").notNull(),
+    reporterUserId: uuid("reporter_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    targetUserId: uuid("target_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    listingId: uuid("listing_id").references(() => propertyListings.id, {
+      onDelete: "set null",
+    }),
+    reelId: uuid("reel_id").references(() => reels.id, {
+      onDelete: "set null",
+    }),
+    messageReportId: uuid("message_report_id").references(() => messageReports.id, {
+      onDelete: "set null",
+    }),
+    saleClaimId: uuid("sale_claim_id").references(() => propertySaleClaims.id, {
+      onDelete: "set null",
+    }),
+    saleDisputeId: uuid("sale_dispute_id").references(
+      () => propertySaleDisputes.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    status: text("status").notNull().default("open"),
+    priority: text("priority").notNull().default("normal"),
+    reason: text("reason").notNull(),
+    details: text("details"),
+    adminNotes: text("admin_notes"),
+    assignedAdminUserId: uuid("assigned_admin_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("moderation_cases_case_type_idx").on(table.caseType),
+    index("moderation_cases_target_type_idx").on(table.targetType),
+    index("moderation_cases_status_idx").on(table.status),
+    index("moderation_cases_priority_idx").on(table.priority),
+    index("moderation_cases_reporter_user_id_idx").on(table.reporterUserId),
+    index("moderation_cases_target_user_id_idx").on(table.targetUserId),
+    index("moderation_cases_listing_id_idx").on(table.listingId),
+    index("moderation_cases_reel_id_idx").on(table.reelId),
+    index("moderation_cases_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const callSessions = pgTable(
   "call_sessions",
   {

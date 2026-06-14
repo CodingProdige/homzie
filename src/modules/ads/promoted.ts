@@ -179,7 +179,7 @@ export async function getPromotedItems({
           inArray(adCampaigns.status, ["ready", "live"]),
           eq(adCampaigns.promotedType, "listing"),
           isNotNull(adCampaigns.listingId),
-          inArray(propertyListings.status, ["published", "reserved"]),
+          eq(propertyListings.status, "published"),
         ),
       )
       .orderBy(adCampaigns.createdAt)
@@ -277,7 +277,7 @@ export async function getPromotedItems({
         listingTypeLabel: optionLabel(listingTypeOptions, r.listingType),
         propertyTypeLabel: optionLabel(propertyTypeOptions, r.propertyType),
         status: r.status,
-        statusLabel: r.status === "reserved" ? "Reserved" : undefined,
+        statusLabel: undefined,
         bedrooms: numVal(details.bedrooms),
         bathrooms: numVal(details.bathrooms),
         garages: numVal(details.garages),

@@ -1,17 +1,10 @@
 "use client";
 
-import {
-  Elements,
-  PaymentElement,
-  useElements,
-  useStripe,
-} from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
 import * as Dialog from "@radix-ui/react-dialog";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Bath,
   BedDouble,
@@ -23,7 +16,6 @@ import {
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
   HandCoins,
   Home,
   MapPin,
@@ -32,7 +24,6 @@ import {
   Play,
   Ruler,
   Send,
-  Sparkles,
   ShieldCheck,
   Trees,
   Upload,
@@ -46,9 +37,6 @@ import { cn } from "@/lib/utils";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
   getListingOfferStatsAction,
-  confirmListingReservationPayment,
-  reopenReservedListing,
-  startListingReservationCheckout,
   trackListingAction,
   trackListingView,
 } from "@/modules/listings/actions";
@@ -62,6 +50,7 @@ import {
   createOfferMessageAction,
   startListingInquiryAction,
 } from "@/modules/messages/actions";
+import { ReportContentButton } from "@/modules/moderation/report-content-button";
 
 function featureHashtag(value: string) {
   return `#${value.replace(/\s+/g, "")}`;
@@ -643,409 +632,6 @@ function MakeOfferDialog({
   );
 }
 
-type ReservationCheckout = {
-  clientSecret: string;
-  publishableKey: string;
-  reservationId: string;
-};
-
-function ReservationPaymentForm({
-  amountLabel,
-  listingId,
-  onError,
-  onSuccess,
-}: {
-  amountLabel: string;
-  listingId: string;
-  onError: (message: string) => void;
-  onSuccess: () => void;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [pending, startTransition] = useTransition();
-
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onError("");
-
-    if (!stripe || !elements) {
-      onError("Secure payment form is still loading. Try again in a moment.");
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: `${window.location.origin}${window.location.pathname}?reservation=success`,
-        },
-        redirect: "if_required",
-      });
-
-      if (result.error) {
-        onError(result.error.message || "Your payment could not be confirmed.");
-        return;
-      }
-
-      if (!result.paymentIntent?.id) {
-        onError("Payment confirmation was incomplete.");
-        return;
-      }
-
-      const confirmed = await confirmListingReservationPayment(result.paymentIntent.id);
-
-      if (!confirmed.ok) {
-        onError(confirmed.error || "Payment succeeded, but reservation confirmation failed.");
-        return;
-      }
-
-      await trackListingAction({
-        actionType: "reserve_now",
-        listingId,
-        source: "listing_detail_payment_confirmed",
-        viewerSessionId: `payment-${result.paymentIntent.id}`,
-      });
-
-      onSuccess();
-    });
-  }
-
-  return (
-    <form className="mt-5 space-y-4" onSubmit={onSubmit}>
-      <div className="rounded-lg border border-border bg-background p-3">
-        <PaymentElement
-          options={{
-            business: {
-              name: "Homzie",
-            },
-            layout: "tabs",
-          }}
-        />
-      </div>
-      <Button
-        type="submit"
-        disabled={!stripe || !elements || pending}
-        className="h-12 w-full"
-      >
-        {pending ? "Securing reservation..." : `Reserve now - ${amountLabel}`}
-      </Button>
-      <p className="text-center text-[11px] font-bold leading-4 text-muted-foreground">
-        Card details are encrypted and processed by Stripe inside this Homzie flow.
-        Homzie never stores your card details.
-      </p>
-    </form>
-  );
-}
-
-function ReserveListingDialog({
-  formatPriceCents,
-  listing,
-  onReserveStarted,
-}: {
-  formatPriceCents: (value: number) => string;
-  listing: ListingDetailData;
-  onReserveStarted?: () => void;
-}) {
-  const router = useRouter();
-  const [error, setError] = useState("");
-  const [open, setOpen] = useState(false);
-  const [checkout, setCheckout] = useState<ReservationCheckout | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [intentPending, startIntentTransition] = useTransition();
-
-  if (
-    !listing.reservationEnabled ||
-    !listing.reservationAmountCents ||
-    !listing.reservationTotalCents
-  ) {
-    return null;
-  }
-
-  const rows = [
-    ["Reservation amount", listing.reservationAmountCents],
-    ["Homzie fee", listing.reservationPlatformFeeCents],
-    ["Payment fee estimate", listing.reservationProcessingFeeCents],
-    ["Total today", listing.reservationTotalCents],
-  ] as const;
-  const totalLabel = formatPriceCents(listing.reservationTotalCents);
-  const stripePromise = checkout?.publishableKey
-    ? loadStripe(checkout.publishableKey)
-    : null;
-
-  function prepareReservationIntent() {
-    if (checkout || intentPending || success) return;
-
-    setError("");
-    startIntentTransition(async () => {
-      const result = await startListingReservationCheckout(listing.id);
-
-      if (!result.ok || !result.clientSecret || !result.publishableKey) {
-        setError(result.error || "Could not prepare the secure payment form.");
-        return;
-      }
-
-      setCheckout({
-        clientSecret: result.clientSecret,
-        publishableKey: result.publishableKey,
-        reservationId: result.reservationId,
-      });
-    });
-  }
-  const closeDisabled = intentPending;
-
-  return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen && closeDisabled) return;
-
-        setOpen(nextOpen);
-
-        if (nextOpen) {
-          onReserveStarted?.();
-          prepareReservationIntent();
-        }
-
-        if (!nextOpen) {
-          setError("");
-        }
-      }}
-    >
-      <Dialog.Trigger asChild>
-        <Button>
-          Reserve now - {formatPriceCents(listing.reservationAmountCents)}
-        </Button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-x-3 top-1/2 z-[91] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background text-foreground shadow-2xl focus-visible:outline-none sm:mx-auto sm:max-w-xl">
-          <div className="border-b border-border bg-muted/25 px-4 py-4 sm:px-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-3">
-                  <span className="grid size-11 shrink-0 place-items-center rounded-lg border border-border bg-background shadow-sm">
-                    <Image
-                      src="/logo/homzie-logo-dark-tight.png"
-                      alt="Homzie"
-                      width={30}
-                      height={30}
-                      className="size-8 object-contain"
-                    />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-                      Homzie secure reservation
-                    </p>
-                    <Dialog.Title className="mt-1 text-xl font-black leading-tight sm:text-2xl">
-                      Reserve this listing
-                    </Dialog.Title>
-                  </div>
-                </div>
-                <Dialog.Description className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
-                  Complete the secure card form inside Homzie. The listing is marked
-                  reserved only after payment succeeds.
-                </Dialog.Description>
-              </div>
-              <Dialog.Close asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Close reservation"
-                  disabled={closeDisabled}
-                >
-                  <X className="size-5" />
-                </Button>
-              </Dialog.Close>
-            </div>
-          </div>
-
-          <div className="px-4 py-5 sm:px-6">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-card p-3">
-                <ShieldCheck className="size-5 text-primary" />
-                <p className="mt-2 text-xs font-black">Secure payment</p>
-                <p className="mt-1 text-[11px] font-semibold leading-4 text-muted-foreground">
-                  Encrypted card capture inside Homzie.
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-card p-3">
-                <HandCoins className="size-5 text-primary" />
-                <p className="mt-2 text-xs font-black">Funds controlled</p>
-                <p className="mt-1 text-[11px] font-semibold leading-4 text-muted-foreground">
-                  Release requires agency documentation.
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-card p-3">
-                <BadgeCheck className="size-5 text-primary" />
-                <p className="mt-2 text-xs font-black">Listing held</p>
-                <p className="mt-1 text-[11px] font-semibold leading-4 text-muted-foreground">
-                  The listing is marked reserved after payment.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 overflow-hidden rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
-                    Reservation checkout
-                  </p>
-                  <p className="mt-1 text-sm font-black">{listing.title}</p>
-                </div>
-                <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-primary">
-                  In-app payment
-                </span>
-              </div>
-              {rows.map(([label, amount], index) => (
-                <div
-                  key={label}
-                  className={cn(
-                    "flex items-center justify-between gap-4 px-4 py-3 text-sm font-bold",
-                    index < rows.length - 1 && "border-b border-border",
-                    label === "Total today" && "bg-primary/10 text-primary",
-                  )}
-                >
-                  <span>{label}</span>
-                  <span>{formatPriceCents(amount)}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
-                What happens next
-              </p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
-                {listing.reservationTermsText}
-              </p>
-            </div>
-
-            {error ? (
-              <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
-                {error}
-              </p>
-            ) : null}
-
-            {success ? (
-              <div className="mt-5 overflow-hidden rounded-lg border border-primary/25 bg-primary/10">
-                <div className="px-5 py-6 text-center">
-                  <span className="mx-auto grid size-16 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-                    <CheckCircle2 className="size-9" />
-                  </span>
-                  <p className="mt-4 flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-primary">
-                    <Sparkles className="size-4" />
-                    Reservation confirmed
-                  </p>
-                  <h3 className="mt-2 text-2xl font-black tracking-tight">
-                    Well done, this property is reserved for you.
-                  </h3>
-                  <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
-                    Your payment was successful and Homzie has marked the listing
-                    as reserved while the agency confirms the next steps.
-                  </p>
-                </div>
-                <div className="grid gap-px bg-border sm:grid-cols-3">
-                  <div className="bg-background p-4">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
-                      Paid today
-                    </p>
-                    <p className="mt-1 text-lg font-black text-primary">
-                      {totalLabel}
-                    </p>
-                  </div>
-                  <div className="bg-background p-4">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
-                      Status
-                    </p>
-                    <p className="mt-1 text-lg font-black">Reserved</p>
-                  </div>
-                  <div className="bg-background p-4">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
-                      Next step
-                    </p>
-                    <p className="mt-1 text-lg font-black">Agency review</p>
-                  </div>
-                </div>
-                <div className="space-y-3 px-5 py-5">
-                  <div className="rounded-lg border border-border bg-background p-4">
-                    <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
-                      What happens now
-                    </p>
-                    <ul className="mt-3 grid gap-2 text-xs font-semibold leading-5 text-muted-foreground">
-                      <li>Homzie has notified the agent about your reservation.</li>
-                      <li>The agency must provide the required documentation.</li>
-                      <li>Funds are only released after Homzie reviews and approves the payout.</li>
-                    </ul>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Dialog.Close asChild>
-                      <Button type="button" className="h-11">
-                        Done
-                      </Button>
-                    </Dialog.Close>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11"
-                      onClick={() => {
-                        router.refresh();
-                      }}
-                    >
-                      View reserved listing
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : intentPending ? (
-              <div className="mt-5 rounded-lg border border-border bg-card p-4 text-center text-sm font-bold text-muted-foreground">
-                Preparing secure payment form...
-              </div>
-            ) : checkout && stripePromise ? (
-              <Elements
-                stripe={stripePromise}
-                options={{
-                  clientSecret: checkout.clientSecret,
-                  appearance: {
-                    theme: "stripe",
-                    variables: {
-                      borderRadius: "8px",
-                      colorPrimary: "#7b5cff",
-                      fontFamily: "Poppins, system-ui, sans-serif",
-                    },
-                  },
-                }}
-              >
-                <ReservationPaymentForm
-                  amountLabel={totalLabel}
-                  listingId={listing.id}
-                  onError={setError}
-                  onSuccess={() => {
-                    setSuccess(true);
-                    router.refresh();
-                    window.history.replaceState(
-                      null,
-                      "",
-                      `${window.location.pathname}?reservation=success`,
-                    );
-                  }}
-                />
-              </Elements>
-            ) : (
-              <Button
-                type="button"
-                className="mt-5 h-12 w-full"
-                onClick={prepareReservationIntent}
-              >
-                Load secure payment form
-              </Button>
-            )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
 function SendListingMessageButton({
   listing,
   onSent,
@@ -1468,23 +1054,6 @@ export function ListingDetailPage({
       </Link>
     </Button>
   ) : null;
-  const reopenReservationAction =
-    listing.isOwner && listing.status === "reserved" ? (
-      <form action={reopenReservedListing}>
-        <input type="hidden" name="listingId" value={listing.id} />
-        <Button type="submit" variant="outline">
-          Reopen reservations
-        </Button>
-      </form>
-    ) : null;
-  const reserveNowAction =
-    canUseListingActions && listing.listingType !== "rental" ? (
-      <ReserveListingDialog
-        formatPriceCents={formatPriceCents}
-        listing={listing}
-        onReserveStarted={() => recordListingAction("reserve_now")}
-      />
-    ) : null;
   const placeOfferAction = canUseListingActions && listing.listingType !== "rental" ? (
     <MakeOfferDialog
       currencyPrefix={currencyPrefix}
@@ -1494,7 +1063,6 @@ export function ListingDetailPage({
   ) : null;
   const purchaseActions = (
     <>
-      {reserveNowAction}
       {placeOfferAction}
     </>
   );
@@ -1512,6 +1080,14 @@ export function ListingDetailPage({
         onSave={() => recordListingAction("save")}
       />
       <ListingOfferCountPill countLabel={listing.offerCountLabel} />
+      {!listing.isOwner ? (
+        <ReportContentButton
+          label="Report listing"
+          targetId={listing.id}
+          targetLabel="listing"
+          targetType="listing"
+        />
+      ) : null}
     </div>
   ) : listing.savedByViewer ? (
     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1697,11 +1273,6 @@ export function ListingDetailPage({
                     ? "A buyer has paid the reservation amount. Buyer actions are disabled while the agent and agency confirm the deal."
                     : "The agent has removed, archived, or completed this listing. Listing actions are disabled. If it is saved, you can still remove it using the bookmark action above."}
                 </p>
-                {reopenReservationAction ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {reopenReservationAction}
-                  </div>
-                ) : null}
               </section>
             ) : null}
 
@@ -1817,16 +1388,6 @@ export function ListingDetailPage({
               <div className="mt-5 grid gap-2">
                 {canUseListingActions ? purchaseActions : null}
               </div>
-            </div>
-
-            <div className="hidden rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm lg:block">
-              <Image
-                src="/badges/Stripe%20Secure%20Checkout%20Badge.png"
-                alt="Secure checkout powered by Stripe"
-                width={502}
-                height={131}
-                className="h-auto w-full"
-              />
             </div>
 
             <AgentProfileCard

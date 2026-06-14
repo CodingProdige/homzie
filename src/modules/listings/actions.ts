@@ -118,6 +118,10 @@ const completedListingStatuses = new Set([
   "disputed",
   "archived",
 ]);
+
+function areListingReservationsPaused() {
+  return true;
+}
 const activeDuplicateListingStatuses = ["draft", "published", "reserved"];
 
 type StoredListingMedia = {
@@ -1052,11 +1056,19 @@ export async function archiveListing(formData: FormData) {
 
 export async function startListingReservationCheckout(listingId: string) {
   const parsed = listingIdSchema.safeParse(listingId);
-  const session = await getServerSession(authOptions);
 
   if (!parsed.success) {
     return { error: "Listing ID is invalid.", ok: false as const };
   }
+
+  if (areListingReservationsPaused()) {
+    return {
+      error: "Reservations are temporarily unavailable.",
+      ok: false as const,
+    };
+  }
+
+  const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
     return { error: "Sign in before reserving a listing.", ok: false as const };

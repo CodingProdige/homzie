@@ -216,7 +216,7 @@ function formatCurrencyCompact(cents: number) {
 
 async function getHomeListings(countryName?: string) {
   const filters = [
-    inArray(propertyListings.status, ["published", "reserved"]),
+    eq(propertyListings.status, "published"),
     countryName
       ? or(
           ilike(propertyListings.location, `%${countryName}%`),

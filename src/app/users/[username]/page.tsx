@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db, sql as rawSql } from "@/db";
@@ -408,15 +408,14 @@ async function getProfileListings({
         ? eq(propertyListings.userId, userId)
         : and(
             eq(propertyListings.userId, userId),
-            inArray(propertyListings.status, ["published", "reserved"]),
+            eq(propertyListings.status, "published"),
           ),
     )
     .orderBy(desc(propertyListings.updatedAt));
 
   return rows.map((listing) => {
     const details = listingDetails(listing.details);
-    const unavailable =
-      listing.status !== "published" && listing.status !== "reserved";
+    const unavailable = listing.status !== "published";
 
     return {
       askingPriceCents: listing.askingPriceCents,
@@ -462,7 +461,7 @@ async function getProfileListings({
       saveCount: listing.saveCount,
       saveCountLabel: formatCompactCount(listing.saveCount),
       status: listing.status,
-      statusLabel: listing.status === "reserved" ? "Reserved" : undefined,
+      statusLabel: undefined,
       title: listing.title,
       unavailable,
       unavailableLabel: unavailable ? listingUnavailableLabel(listing.status) : "",
@@ -534,6 +533,7 @@ async function getSavedListings({
 
   return rows.map((listing) => {
     const details = listingDetails(listing.details);
+    const unavailable = listing.status !== "published";
 
     return {
       askingPriceCents: listing.askingPriceCents,
@@ -579,11 +579,11 @@ async function getSavedListings({
       saveCount: listing.saveCount,
       saveCountLabel: formatCompactCount(listing.saveCount),
       status: listing.status,
-      statusLabel: listing.status === "reserved" ? "Reserved" : undefined,
+      statusLabel: undefined,
       title: listing.title,
-      unavailable: listing.status !== "published" && listing.status !== "reserved",
+      unavailable,
       unavailableLabel:
-        listing.status !== "published" && listing.status !== "reserved"
+        unavailable
           ? listingUnavailableLabel(listing.status)
           : "",
       videoUrls: listingMediaUrls(listing.media, "video"),
@@ -608,7 +608,7 @@ async function getProfileSocialStats(userId: string) {
       .where(
         and(
           eq(propertyListings.userId, userId),
-          inArray(propertyListings.status, ["published", "reserved"]),
+          eq(propertyListings.status, "published"),
         ),
       ),
     db

@@ -3,7 +3,6 @@ import Link from "next/link";
 import {
   ChevronRight,
   CreditCard,
-  HandCoins,
   Mail,
   Megaphone,
   Music,
@@ -44,13 +43,6 @@ const settingsItems = [
     label: "SEO",
     description:
       "Control search indexing, verification tags, metadata defaults, social previews, and public page health.",
-  },
-  {
-    href: "/admin/settings/reservations",
-    icon: HandCoins,
-    label: "Reservations",
-    description:
-      "Configure listing reservation availability, Homzie fees, payment fee estimates, and buyer terms.",
   },
   {
     href: "/admin/settings/music",

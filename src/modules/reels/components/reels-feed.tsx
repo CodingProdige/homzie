@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/modules/currency/currency-provider";
+import { ReportContentButton } from "@/modules/moderation/report-content-button";
 import { buildReelPath } from "@/modules/reels/urls";
 import {
   createReelComment,
@@ -1041,8 +1042,10 @@ function OwnerReelMenu({
 
 function ViewerReelMenu({
   onNotInterested,
+  reel,
 }: {
   onNotInterested: () => void | Promise<void>;
+  reel: ReelFeedItem;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -1069,6 +1072,15 @@ function ViewerReelMenu({
             <ThumbsDown className="size-4" />
             Not interested
           </button>
+          <ReportContentButton
+            label="Report reel"
+            onTrigger={() => setOpen(false)}
+            targetId={reel.id}
+            targetLabel="reel"
+            targetType="reel"
+            triggerClassName="flex h-auto w-full justify-start rounded-none px-4 py-3 text-left text-sm font-black text-red-500 shadow-none hover:bg-red-50 hover:text-red-600"
+            triggerVariant="ghost"
+          />
         </div>
       ) : null}
     </div>
@@ -2519,7 +2531,7 @@ export function ReelsFeed({
               onOpenChange={setIsOwnerMenuOpen}
             />
           ) : activeReel ? (
-            <ViewerReelMenu onNotInterested={hideActiveReel} />
+            <ViewerReelMenu reel={activeReel} onNotInterested={hideActiveReel} />
           ) : null}
           <button
             type="button"
