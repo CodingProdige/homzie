@@ -13,19 +13,25 @@ import {
   Calculator,
   Edit3,
   Eye,
+  ArrowRight,
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
+  Clock3,
+  Flame,
   HandCoins,
   Home,
+  Lock,
   MapPin,
   ParkingCircle,
   Percent,
   Play,
+  RefreshCcw,
   Ruler,
   Send,
   ShieldCheck,
   Trees,
+  TrendingUp,
   Upload,
   X,
 } from "lucide-react";
@@ -36,7 +42,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
+  getListingLiveIntentAction,
   getListingOfferStatsAction,
+  trackListingPresence,
   trackListingAction,
   trackListingView,
 } from "@/modules/listings/actions";
@@ -50,6 +58,7 @@ import {
   createOfferMessageAction,
   startListingInquiryAction,
 } from "@/modules/messages/actions";
+import { ChatNowButton } from "@/modules/messages/components/chat-now-button";
 import { ReportContentButton } from "@/modules/moderation/report-content-button";
 
 function featureHashtag(value: string) {
@@ -227,6 +236,14 @@ function getListingViewerSessionId() {
   return nextId;
 }
 
+function createListingViewInstanceId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function DetailStat({
   icon: Icon,
   value,
@@ -251,6 +268,561 @@ function ListingOfferCountPill({ countLabel }: { countLabel: string }) {
       <HandCoins className="size-4" />
       <span>{countLabel}</span>
     </span>
+  );
+}
+
+type LiveIntentBuyer = {
+  avatarUrl: string | null;
+  durationSeconds?: number;
+  id: string;
+  lastSeenAt: string;
+  name: string;
+  profileHref: string | null;
+  username: string | null;
+  viewCount: number;
+};
+
+type LiveIntentActivity = {
+  actionType: string | null;
+  activityType: "action" | "view";
+  buyer: LiveIntentBuyer;
+  createdAt: string;
+};
+
+type LiveIntentState = {
+  activeBuyerCount: number;
+  activeViewerCount: number;
+  averageSeconds?: number;
+  buyers: LiveIntentBuyer[];
+  ok: boolean;
+  previousViews24h?: number;
+  recentActivities?: LiveIntentActivity[];
+  returningViewerCount?: number;
+  totalViews24h?: number;
+};
+
+function initialsForName(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "B";
+}
+
+function relativeLiveTime(value: string) {
+  const date = new Date(value);
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+
+  if (!Number.isFinite(seconds) || seconds < 15) return "active now";
+  if (seconds < 60) return `${seconds}s ago`;
+
+  const minutes = Math.round(seconds / 60);
+
+  return `${minutes}m ago`;
+}
+
+function formatDuration(seconds: number | null | undefined) {
+  const safeSeconds = Math.max(0, Math.round(seconds || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+
+  if (minutes <= 0) return `${remainder}s`;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const extraMinutes = minutes % 60;
+
+    return extraMinutes ? `${hours}h ${extraMinutes}m` : `${hours}h`;
+  }
+
+  return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
+}
+
+function trendLabel(current: number, previous: number) {
+  if (current === 0 && previous === 0) return "No change vs yesterday";
+  if (previous === 0) return current > 0 ? "Up 100% vs yesterday" : "No change vs yesterday";
+
+  const percent = Math.round(((current - previous) / previous) * 100);
+
+  if (percent === 0) return "No change vs yesterday";
+
+  return `${percent > 0 ? "Up" : "Down"} ${Math.abs(percent)}% vs yesterday`;
+}
+
+function liveActivityLabel(activity: LiveIntentActivity) {
+  if (activity.activityType === "view") return "viewing the listing";
+
+  switch (activity.actionType) {
+    case "bond_calculator":
+      return "opened bond calculator";
+    case "gallery_next":
+    case "gallery_previous":
+      return "browsed photos";
+    case "like":
+      return "liked the listing";
+    case "media_thumbnail":
+      return "opened listing media";
+    case "media_video_play":
+      return "played listing video";
+    case "place_offer":
+      return "started an offer";
+    case "save":
+      return "saved the listing";
+    case "share":
+      return "shared the listing";
+    default:
+      return "interacted with the listing";
+  }
+}
+
+function liveActivityBadge(activity: LiveIntentActivity) {
+  if (activity.activityType === "view") {
+    return {
+      className: "bg-primary/10 text-primary",
+      label: "View",
+    };
+  }
+
+  switch (activity.actionType) {
+    case "bond_calculator":
+      return {
+        className: "bg-emerald-50 text-emerald-700",
+        label: "Calculator",
+      };
+    case "call_agent":
+    case "contact_agent":
+    case "email_agent":
+    case "whatsapp_agent":
+      return {
+        className: "bg-blue-50 text-blue-700",
+        label: "Contact",
+      };
+    case "like":
+      return {
+        className: "bg-rose-50 text-rose-600",
+        label: "Like",
+      };
+    case "place_offer":
+    case "reserve_now":
+      return {
+        className: "bg-rose-50 text-rose-600",
+        label: "Offer",
+      };
+    case "save":
+      return {
+        className: "bg-amber-50 text-amber-700",
+        label: "Saved",
+      };
+    case "share":
+      return {
+        className: "bg-violet-50 text-violet-700",
+        label: "Shared",
+      };
+    default:
+      return {
+        className: "bg-muted text-muted-foreground",
+        label: "Action",
+      };
+  }
+}
+
+function BuyerAvatar({
+  buyer,
+  className = "",
+  size = "md",
+}: {
+  buyer: Pick<LiveIntentBuyer, "avatarUrl" | "name">;
+  className?: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  const sizeClass =
+    size === "lg"
+      ? "size-12 sm:size-14"
+      : size === "sm"
+        ? "size-8 sm:size-10"
+        : "size-9 sm:size-11";
+  const textClass = size === "lg" ? "text-sm sm:text-base" : size === "sm" ? "text-[11px] sm:text-xs" : "text-xs sm:text-sm";
+
+  if (buyer.avatarUrl) {
+    return (
+      <Image
+        src={buyer.avatarUrl}
+        alt=""
+        width={size === "lg" ? 56 : size === "sm" ? 32 : 44}
+        height={size === "lg" ? 56 : size === "sm" ? 32 : 44}
+        className={cn(sizeClass, "rounded-full object-cover", className)}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        sizeClass,
+        textClass,
+        "grid shrink-0 place-items-center rounded-full bg-primary font-black text-primary-foreground",
+        className,
+      )}
+    >
+      {initialsForName(buyer.name)}
+    </span>
+  );
+}
+
+function IntentViewerRow({
+  buyer,
+  listingId,
+  tone,
+}: {
+  buyer: LiveIntentBuyer;
+  listingId: string;
+  tone: "high" | "low";
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2.5 border-b border-border/70 px-2.5 py-2 last:border-b-0 sm:gap-3 sm:px-3 sm:py-3">
+      <span className="relative shrink-0">
+        <BuyerAvatar buyer={buyer} size="sm" />
+        {tone === "high" ? (
+          <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card bg-emerald-500 sm:size-3.5" />
+        ) : null}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-black sm:text-sm">{buyer.name}</p>
+        <p className="mt-0.5 truncate text-[11px] font-semibold text-muted-foreground sm:text-xs">
+          Viewed {buyer.viewCount} {buyer.viewCount === 1 ? "time" : "times"}
+          <span className="px-1.5">•</span>
+          Last seen {relativeLiveTime(buyer.lastSeenAt)}
+        </p>
+      </div>
+      <div className="grid shrink-0 justify-items-end gap-1">
+        <ChatNowButton
+          listingId={listingId}
+          recipientUserId={buyer.id}
+          surface={tone === "high" ? "intent-high" : "intent-low"}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BuyerActivityStat({
+  icon: Icon,
+  label,
+  tone,
+  value,
+}: {
+  icon: typeof RefreshCcw;
+  label: string;
+  tone: "green" | "purple";
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 sm:gap-3 sm:px-4 sm:py-2.5 md:border-b-0 md:border-r md:last:border-r-0">
+      <span
+        className={cn(
+          "grid size-7 shrink-0 place-items-center rounded-full sm:size-9",
+          tone === "green" ? "bg-emerald-100 text-emerald-600" : "bg-primary/10 text-primary",
+        )}
+      >
+        <Icon className="size-3.5 sm:size-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs font-black sm:text-sm">{value}</span>
+        <span className="mt-0.5 block truncate text-[11px] font-semibold text-muted-foreground sm:text-xs">
+          {label}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function ActivityFeedRow({ activity }: { activity: LiveIntentActivity }) {
+  const buyer = activity.buyer;
+  const badge = liveActivityBadge(activity);
+
+  return (
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr),auto] gap-x-2 gap-y-1 border-t border-border py-1.5 text-xs first:border-t-0 sm:flex sm:items-center sm:gap-3">
+      <p className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap leading-none sm:shrink-0">
+        <span className="min-w-0 truncate font-black">{buyer.name}</span>
+        <span
+          className={cn(
+            "inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase leading-none",
+            badge.className,
+          )}
+        >
+          {badge.label}
+        </span>
+      </p>
+      <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-semibold leading-none text-muted-foreground sm:order-3">
+        {relativeLiveTime(activity.createdAt)}
+      </span>
+      <p className="col-span-2 min-w-0 truncate whitespace-nowrap font-semibold leading-none text-muted-foreground sm:col-span-1 sm:flex sm:flex-1">
+        <span className="min-w-0 truncate text-muted-foreground">
+          {liveActivityLabel(activity)}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function OwnerLiveIntentPanel({
+  intent,
+  listingId,
+}: {
+  intent: LiveIntentState | null;
+  listingId: string;
+}) {
+  if (!intent?.ok) return null;
+
+  const buyers = intent.buyers;
+  const highIntentBuyers = buyers.filter((buyer) => buyer.viewCount > 1);
+  const lowIntentBuyers = buyers.filter((buyer) => buyer.viewCount <= 1);
+  const visibleHighIntentBuyers = highIntentBuyers.slice(0, 8);
+  const visibleLowIntentBuyers = lowIntentBuyers.slice(0, 8);
+  const recentActivity: LiveIntentActivity[] = (
+    intent.recentActivities?.length
+      ? intent.recentActivities
+      : buyers.map((buyer) => ({
+          actionType: null,
+          activityType: "view" as const,
+          buyer,
+          createdAt: buyer.lastSeenAt,
+        }))
+  )
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    )
+    .slice(0, 8);
+  const avatarBuyers = buyers.slice(0, 5);
+  const extraBuyerCount = Math.max(0, buyers.length - avatarBuyers.length);
+  const totalViews24h = intent.totalViews24h || 0;
+  const previousViews24h = intent.previousViews24h || 0;
+
+  return (
+    <section className="mt-5 w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-black/5 sm:mt-6">
+      <div className="min-w-0 p-3 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
+                <span className="size-2.5 rounded-full bg-primary shadow-[0_0_12px_rgba(123,92,255,0.7)] sm:size-3" />
+                Buyer activity
+              </span>
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
+                Live
+              </span>
+            </div>
+            <h2 className="mt-2 text-lg font-black tracking-tight sm:mt-3 sm:text-3xl">
+              {intent.activeViewerCount} active{" "}
+              {intent.activeViewerCount === 1 ? "viewer" : "viewers"}
+            </h2>
+            <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-black sm:mt-2 sm:gap-2 sm:text-sm">
+              <TrendingUp className="size-3.5 text-emerald-500 sm:size-4" />
+              <span className="min-w-0 truncate">{trendLabel(totalViews24h, previousViews24h)}</span>
+            </p>
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-3 sm:gap-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Eye className="size-4 text-muted-foreground sm:size-5" />
+              <div>
+                <p className="text-[11px] font-black sm:text-sm">{totalViews24h} total views</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                  Last 24 hours
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/listings/${listingId}/activity`}
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-border bg-card px-3 text-[11px] font-black text-primary transition-colors hover:bg-primary/10 sm:h-9 sm:text-xs"
+            >
+              View all
+              <ArrowRight className="size-3 sm:size-3.5" />
+            </Link>
+            {avatarBuyers.length ? (
+              <div className="hidden items-center border-l border-border pl-5 sm:flex">
+                {avatarBuyers.map((buyer, index) => (
+                  <BuyerAvatar
+                    key={buyer.id}
+                    buyer={buyer}
+                    className={cn(index > 0 && "-ml-3", "border-2 border-card")}
+                    size="sm"
+                  />
+                ))}
+                {extraBuyerCount ? (
+                  <span className="-ml-3 grid size-10 place-items-center rounded-full border-2 border-card bg-primary/10 text-xs font-black text-primary">
+                    +{extraBuyerCount}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-5 grid min-w-0 gap-4 sm:mt-8 sm:gap-5 lg:grid-cols-2">
+          <div className="min-w-0 rounded-lg border border-rose-200 bg-rose-50/20 p-3 sm:p-4">
+            <div className="mb-3 flex items-start justify-between gap-2.5 sm:mb-4 sm:gap-3">
+              <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+                <span className="grid h-7 w-7 min-w-7 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 sm:h-9 sm:w-9 sm:min-w-9">
+                  <Flame className="size-3.5 shrink-0 sm:size-5" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-black uppercase tracking-wide text-rose-600 sm:text-sm">
+                    High intent
+                  </h3>
+                  <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                    Serious buyers showing strong interest
+                  </p>
+                </div>
+              </div>
+              <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-rose-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+                {highIntentBuyers.length}
+              </span>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-rose-100 bg-card">
+              {visibleHighIntentBuyers.length ? (
+                visibleHighIntentBuyers.map((buyer) => (
+                  <div
+                    key={buyer.id}
+                    className="transition hover:bg-rose-50/45"
+                  >
+                    <IntentViewerRow
+                      buyer={buyer}
+                      listingId={listingId}
+                      tone="high"
+                    />
+                  </div>
+                ))
+              ) : (
+                <p className="p-3 text-xs font-semibold text-muted-foreground sm:p-4 sm:text-sm">
+                  Repeat active buyers will appear here.
+                </p>
+              )}
+              {highIntentBuyers.length > visibleHighIntentBuyers.length ? (
+                <Link
+                  href={`/listings/${listingId}/activity`}
+                  className="flex items-center justify-center gap-1 border-t border-rose-100 px-3 py-2 text-xs font-black text-rose-600 transition hover:bg-rose-50"
+                >
+                  View all {highIntentBuyers.length}
+                  <ArrowRight className="size-3" />
+                </Link>
+              ) : null}
+            </div>
+
+          </div>
+
+          <div className="min-w-0 rounded-lg border border-blue-200 bg-blue-50/10 p-3 sm:p-4">
+            <div className="mb-3 flex items-start justify-between gap-2.5 sm:mb-4 sm:gap-3">
+              <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+                <span className="grid h-7 w-7 min-w-7 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-600 sm:h-9 sm:w-9 sm:min-w-9">
+                  <Eye className="size-3.5 shrink-0 sm:size-5" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-black uppercase tracking-wide text-blue-600 sm:text-sm">
+                    Low intent
+                  </h3>
+                  <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                    Browsing and exploring
+                  </p>
+                </div>
+              </div>
+              <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-blue-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+                {lowIntentBuyers.length}
+              </span>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-blue-100 bg-card">
+              {visibleLowIntentBuyers.length ? (
+                visibleLowIntentBuyers.map((buyer) => (
+                  <div
+                    key={buyer.id}
+                    className="transition hover:bg-blue-50/45"
+                  >
+                    <IntentViewerRow
+                      buyer={buyer}
+                      listingId={listingId}
+                      tone="low"
+                    />
+                  </div>
+                ))
+              ) : (
+                <p className="p-3 text-xs font-semibold leading-5 text-muted-foreground sm:p-4 sm:text-sm">
+                  First-time active buyers will appear here.
+                </p>
+              )}
+              {lowIntentBuyers.length > visibleLowIntentBuyers.length ? (
+                <Link
+                  href={`/listings/${listingId}/activity`}
+                  className="flex items-center justify-center gap-1 border-t border-blue-100 px-3 py-2 text-xs font-black text-blue-600 transition hover:bg-blue-50"
+                >
+                  View all {lowIntentBuyers.length}
+                  <ArrowRight className="size-3" />
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid overflow-hidden rounded-lg border border-border sm:mt-4 md:grid-cols-3">
+          <BuyerActivityStat
+            icon={RefreshCcw}
+            label="People who came back to view again"
+            tone="purple"
+            value={`${intent.returningViewerCount || 0} returning viewers`}
+          />
+          <BuyerActivityStat
+            icon={Clock3}
+            label="Average time on listing"
+            tone="purple"
+            value={formatDuration(intent.averageSeconds)}
+          />
+          <BuyerActivityStat
+            icon={TrendingUp}
+            label="More activity than similar listings"
+            tone="green"
+            value={highIntentBuyers.length ? "High interest" : "Building interest"}
+          />
+        </div>
+
+        <div className="mt-3 min-w-0 rounded-lg border border-border p-2.5 sm:mt-4 sm:p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[10px] font-black uppercase tracking-wide text-primary sm:text-xs">
+              Recent activity feed
+            </h3>
+            <Link
+              href={`/listings/${listingId}/activity`}
+              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-primary hover:underline sm:text-xs"
+            >
+              View all
+              <ArrowRight className="size-3 sm:size-3.5" />
+            </Link>
+          </div>
+          {recentActivity.length ? (
+            recentActivity.map((activity) => (
+              <ActivityFeedRow
+                key={`${activity.activityType}:${activity.actionType || "view"}:${activity.buyer.id}:${activity.createdAt}`}
+                activity={activity}
+              />
+            ))
+          ) : (
+            <p className="border-t border-border py-2 text-xs font-semibold text-muted-foreground">
+              Active buyer activity will appear here.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border bg-muted/15 px-4 py-3 text-xs font-semibold text-muted-foreground sm:px-6">
+        <span className="inline-flex min-w-0 items-start gap-2">
+          <Lock className="mt-0.5 size-4 shrink-0" />
+          <span className="min-w-0">
+            Buyer activity is private and you control who you message.
+          </span>
+        </span>
+      </div>
+    </section>
   );
 }
 
@@ -888,7 +1460,10 @@ export function ListingDetailPage({
   viewerUsername?: string;
 }) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  const hasTrackedViewRef = useRef(false);
+  const [liveIntent, setLiveIntent] = useState<LiveIntentState | null>(null);
+  const [, startLiveIntentTransition] = useTransition();
+  const trackedListingViewRef = useRef<string | null>(null);
+  const router = useRouter();
   const { formatPriceCents, formatPriceLabel } = useCurrency();
   const mediaItems = useMemo(
     () => {
@@ -1012,7 +1587,11 @@ export function ListingDetailPage({
       | "call_agent"
       | "contact_agent"
       | "email_agent"
+      | "gallery_next"
+      | "gallery_previous"
       | "like"
+      | "media_thumbnail"
+      | "media_video_play"
       | "place_offer"
       | "reserve_now"
       | "save"
@@ -1027,21 +1606,86 @@ export function ListingDetailPage({
     });
   };
   useEffect(() => {
-    if (hasTrackedViewRef.current) return;
+    if (trackedListingViewRef.current === listing.id) return;
 
-    hasTrackedViewRef.current = true;
+    trackedListingViewRef.current = listing.id;
+    const viewerSessionId = getListingViewerSessionId();
+
     void trackListingView({
       listingId: listing.id,
       source: "listing_detail",
-      viewerSessionId: getListingViewerSessionId(),
-    });
+      viewInstanceId: createListingViewInstanceId(),
+      viewerSessionId,
+    }).catch((error) => console.error("[listing-intent] view tracking failed", error));
+    void trackListingPresence({
+      listingId: listing.id,
+      source: "listing_detail",
+      viewerSessionId,
+    }).catch((error) =>
+      console.error("[listing-intent] initial presence failed", error),
+    );
   }, [listing.id]);
+  useEffect(() => {
+    const viewerSessionId = getListingViewerSessionId();
+
+    const refreshPresence = () => {
+      if (document.visibilityState !== "visible") return;
+
+      void trackListingPresence({
+        listingId: listing.id,
+        source: "listing_detail",
+        viewerSessionId,
+      }).catch((error) =>
+        console.error("[listing-intent] presence refresh failed", error),
+      );
+    };
+
+    refreshPresence();
+
+    const interval = window.setInterval(refreshPresence, 8000);
+
+    document.addEventListener("visibilitychange", refreshPresence);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshPresence);
+    };
+  }, [listing.id]);
+  useEffect(() => {
+    if (!listing.isOwner) return;
+
+    const refreshLiveIntent = () => {
+      startLiveIntentTransition(async () => {
+        try {
+          const result = await getListingLiveIntentAction({ listingId: listing.id });
+
+          setLiveIntent(result);
+        } catch (error) {
+          console.error("[listing-intent] live intent refresh failed", error);
+          setLiveIntent({
+            activeBuyerCount: 0,
+            activeViewerCount: 0,
+            buyers: [],
+            ok: false,
+          });
+        }
+      });
+    };
+
+    refreshLiveIntent();
+
+    const interval = window.setInterval(refreshLiveIntent, 8000);
+
+    return () => window.clearInterval(interval);
+  }, [listing.id, listing.isOwner]);
   const showPreviousMedia = () => {
+    recordListingAction("gallery_previous");
     setActiveMediaIndex((index) =>
       mediaItems.length ? (index - 1 + mediaItems.length) % mediaItems.length : 0,
     );
   };
   const showNextMedia = () => {
+    recordListingAction("gallery_next");
     setActiveMediaIndex((index) =>
       mediaItems.length ? (index + 1) % mediaItems.length : 0,
     );
@@ -1119,8 +1763,9 @@ export function ListingDetailPage({
                     )}
                     controls
                     playsInline
-                    preload="metadata"
-                  />
+	                    preload="metadata"
+	                    onPlay={() => recordListingAction("media_video_play")}
+	                  />
                 ) : activeMedia?.url ? (
                   <Image
                     src={activeMedia.url}
@@ -1190,7 +1835,10 @@ export function ListingDetailPage({
                             ? "border-primary ring-2 ring-primary/25"
                             : "border-border",
                         )}
-                        onClick={() => setActiveMediaIndex(index)}
+	                        onClick={() => {
+	                          recordListingAction("media_thumbnail");
+	                          setActiveMediaIndex(index);
+	                        }}
                       >
                         {isVideo ? (
                           <>
@@ -1228,7 +1876,7 @@ export function ListingDetailPage({
 
             <section className="mt-8">
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-black uppercase tracking-wide text-primary">
                     {listing.isUnavailableForViewer
                       ? listing.statusLabel
@@ -1295,6 +1943,13 @@ export function ListingDetailPage({
             <section className="mt-8 lg:hidden">
               <ListingMetaPanel listing={listing} />
             </section>
+
+            {listing.isOwner ? (
+              <OwnerLiveIntentPanel
+                intent={liveIntent}
+                listingId={listing.id}
+              />
+            ) : null}
 
             <section className="mt-8">
               <h2 className="text-xl font-black">Description</h2>

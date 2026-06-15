@@ -17,7 +17,6 @@ import {
   ChevronDown,
   CreditCard,
   Globe2,
-  ImageIcon,
   Loader2,
   MapPin,
   Megaphone,
@@ -42,6 +41,7 @@ import {
   type AdPromotedType,
   type AdsSettings,
 } from "@/modules/ads/shared";
+import { ListingPreviewCard } from "@/modules/listings/components/listing-preview-card";
 import { SettingsPageHeader } from "../settings-page-header";
 import { createAdCampaign } from "./actions";
 import { emptyCreateAdCampaignState } from "./action-state";
@@ -301,52 +301,6 @@ function DropdownSelect({
   );
 }
 
-function ListingPreviewCard({
-  asset,
-  compact = false,
-}: {
-  asset: AssetOption;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background p-3 text-left",
-        compact && "rounded-md p-2.5",
-      )}
-    >
-      <div className="size-14 shrink-0 overflow-hidden rounded-xl bg-muted/70">
-        {asset.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- Local listing preview image.
-          <img src={asset.coverImageUrl} alt="" className="size-full object-cover" />
-        ) : (
-          <div className="grid size-full place-items-center bg-primary/10 text-primary">
-            <ImageIcon className="size-5" />
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-sm font-black text-foreground">
-          {asset.title || asset.label}
-        </p>
-        {asset.location ? (
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
-            {asset.location}
-          </p>
-        ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-muted-foreground">
-          {asset.priceLabel ? <span>{asset.priceLabel}</span> : null}
-          {asset.status ? (
-            <span className="rounded-full bg-muted px-2 py-1 capitalize text-foreground/75">
-              {asset.status}
-            </span>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ListingSelect({
   assets,
   label,
@@ -372,7 +326,7 @@ function ListingSelect({
             className="w-full rounded-md border border-input bg-background p-2 text-left outline-none transition hover:bg-muted/45 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
             {activeAsset ? (
-              <ListingPreviewCard asset={activeAsset} compact />
+              <ListingPreviewCard listing={activeAsset} compact />
             ) : (
               <div className="flex min-h-10 items-center justify-between gap-3 px-2 py-1 text-sm font-semibold text-muted-foreground">
                 <span>{placeholder}</span>
@@ -401,7 +355,7 @@ function ListingSelect({
                     )}
                   />
                   <div className="min-w-0 flex-1">
-                    <ListingPreviewCard asset={asset} />
+                    <ListingPreviewCard listing={asset} />
                   </div>
                 </div>
               </DropdownMenu.Item>
@@ -1379,7 +1333,7 @@ export function AdsCenterClient({
                 <p className="text-sm font-black text-foreground">Selected asset</p>
                 <div className="mt-3">
                   {promotedType === "listing" && selectedListing ? (
-                    <ListingPreviewCard asset={selectedListing} compact />
+                    <ListingPreviewCard listing={selectedListing} compact />
                   ) : (
                     <p className="text-sm font-semibold leading-6 text-muted-foreground break-words">
                       {selectedAssetLabel}

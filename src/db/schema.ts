@@ -544,6 +544,7 @@ export const listingViewEvents = pgTable(
       onDelete: "set null",
     }),
     viewerSessionId: text("viewer_session_id").notNull(),
+    viewInstanceId: text("view_instance_id"),
     source: text("source").notNull().default("listing_detail"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -551,7 +552,41 @@ export const listingViewEvents = pgTable(
     index("listing_view_events_listing_id_idx").on(table.listingId),
     index("listing_view_events_viewer_user_id_idx").on(table.viewerUserId),
     index("listing_view_events_viewer_session_id_idx").on(table.viewerSessionId),
+    index("listing_view_events_view_instance_id_idx").on(table.viewInstanceId),
     index("listing_view_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const listingPresenceSessions = pgTable(
+  "listing_presence_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    viewerUserId: uuid("viewer_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    viewerSessionId: text("viewer_session_id").notNull(),
+    source: text("source").notNull().default("listing_detail"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("listing_presence_sessions_listing_session_unique").on(
+      table.listingId,
+      table.viewerSessionId,
+    ),
+    index("listing_presence_sessions_listing_id_idx").on(table.listingId),
+    index("listing_presence_sessions_viewer_user_id_idx").on(table.viewerUserId),
+    index("listing_presence_sessions_viewer_session_id_idx").on(
+      table.viewerSessionId,
+    ),
+    index("listing_presence_sessions_last_seen_at_idx").on(table.lastSeenAt),
+    index("listing_presence_sessions_expires_at_idx").on(table.expiresAt),
   ],
 );
 
@@ -576,6 +611,88 @@ export const listingActionEvents = pgTable(
     index("listing_action_events_viewer_session_id_idx").on(table.viewerSessionId),
     index("listing_action_events_action_type_idx").on(table.actionType),
     index("listing_action_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const buyerIntentInsightCache = pgTable(
+  "buyer_intent_insight_cache",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    viewerKey: text("viewer_key").notNull(),
+    activityFingerprint: text("activity_fingerprint").notNull(),
+    model: text("model").notNull(),
+    narrative: text("narrative").notNull(),
+    facts: jsonb("facts"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("buyer_intent_insight_cache_unique").on(
+      table.listingId,
+      table.viewerKey,
+      table.activityFingerprint,
+    ),
+    index("buyer_intent_insight_cache_listing_viewer_idx").on(
+      table.listingId,
+      table.viewerKey,
+    ),
+    index("buyer_intent_insight_cache_updated_at_idx").on(table.updatedAt),
+  ],
+);
+
+export const listingPortfolioInsightCache = pgTable(
+  "listing_portfolio_insight_cache",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    activityFingerprint: text("activity_fingerprint").notNull(),
+    model: text("model").notNull(),
+    narrative: text("narrative").notNull(),
+    facts: jsonb("facts"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("listing_portfolio_insight_cache_unique").on(
+      table.ownerUserId,
+      table.activityFingerprint,
+    ),
+    index("listing_portfolio_insight_cache_owner_idx").on(table.ownerUserId),
+    index("listing_portfolio_insight_cache_updated_at_idx").on(table.updatedAt),
+  ],
+);
+
+export const listingActivityReads = pgTable(
+  "listing_activity_reads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewerKey: text("viewer_key").notNull(),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("listing_activity_reads_unique").on(
+      table.listingId,
+      table.ownerUserId,
+      table.viewerKey,
+    ),
+    index("listing_activity_reads_listing_owner_idx").on(
+      table.listingId,
+      table.ownerUserId,
+    ),
+    index("listing_activity_reads_last_read_at_idx").on(table.lastReadAt),
   ],
 );
 
@@ -1628,6 +1745,7 @@ export const propertyListingsRelations = relations(propertyListings, ({ one, man
   saves: many(listingSaves),
   likes: many(listingLikes),
   actionEvents: many(listingActionEvents),
+  presenceSessions: many(listingPresenceSessions),
   viewEvents: many(listingViewEvents),
   reels: many(reels),
 }));
@@ -1751,6 +1869,20 @@ export const listingViewEventsRelations = relations(
     }),
     viewer: one(users, {
       fields: [listingViewEvents.viewerUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const listingPresenceSessionsRelations = relations(
+  listingPresenceSessions,
+  ({ one }) => ({
+    listing: one(propertyListings, {
+      fields: [listingPresenceSessions.listingId],
+      references: [propertyListings.id],
+    }),
+    viewer: one(users, {
+      fields: [listingPresenceSessions.viewerUserId],
       references: [users.id],
     }),
   }),

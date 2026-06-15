@@ -11,6 +11,7 @@ import {
   Heart,
   Home,
   Menu,
+  Radar,
   Send,
   ShieldCheck,
   UserRound,
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { EventCountBadge } from "@/modules/events/components/event-count-badge";
+import { ListingBuyerActivityCountBadge } from "@/modules/listings/components/listing-buyer-activity-count-badge";
 import { MessageCountBadge } from "@/modules/messages/components/message-count-badge";
 
 const navItems: Array<{
@@ -54,8 +56,17 @@ export function GlobalHeader({
   const [hasScrolled, setHasScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const scrolled = !transparentUntilScroll || hasScrolled;
-  const isActiveHref = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const isActiveHref = (href: string) => {
+    if (href === "/") return pathname === "/";
+    if (
+      href === "/listings" &&
+      (pathname === "/listings/activity" || pathname.startsWith("/listings/activity/"))
+    ) {
+      return false;
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
   const profileHref = viewerUsername ? `/users/${viewerUsername}` : "/sign-in";
   const messagesHref = "/messages";
   const eventsHref = viewerUsername ? "/events" : "/sign-in";
@@ -80,6 +91,15 @@ export function GlobalHeader({
       href: eventsHref,
       icon: Heart,
     },
+    ...(viewerUsername
+      ? [
+          {
+            label: "Listing buyers",
+            href: "/listings/activity",
+            icon: Radar,
+          },
+        ]
+      : []),
     ...navItems,
     ...(isAdmin
       ? [
@@ -168,6 +188,28 @@ export function GlobalHeader({
           <CountryPreferenceSelector compact className="shrink-0" />
           <CurrencySelector compact className="shrink-0" />
           <GlobalUserSearchTrigger className="hidden lg:inline-flex" />
+          {viewerUsername ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className={cn(
+                "hidden lg:inline-flex",
+                isActiveHref("/listings/activity") && "bg-primary/10 text-primary",
+              )}
+              aria-label="Listing buyer activity"
+            >
+              <Link
+                href="/listings/activity"
+                aria-current={isActiveHref("/listings/activity") ? "page" : undefined}
+                className="relative"
+                title="Listing buyer activity"
+              >
+                <Radar className="size-5" />
+                <ListingBuyerActivityCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-primary-foreground" />
+              </Link>
+            </Button>
+          ) : null}
           {isAdmin ? (
             <Button
               variant="ghost"
@@ -357,6 +399,9 @@ export function GlobalHeader({
                             </span>
                             {item.label === "Events" && viewerUsername ? (
                               <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                            ) : null}
+                            {item.label === "Listing buyers" && viewerUsername ? (
+                              <ListingBuyerActivityCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
                             ) : null}
                             {item.label === "Messages" && viewerUsername ? (
                               <MessageCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />

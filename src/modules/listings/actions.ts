@@ -12,6 +12,7 @@ import { z } from "zod";
 import { db, sql as rawSql } from "@/db";
 import {
   listingActionEvents,
+  listingPresenceSessions,
   listingReservations,
   listingLikes,
   listingSaves,
@@ -22,7 +23,7 @@ import {
   propertyOffers,
   users,
 } from "@/db/schema";
-import { isSafeMediaPath } from "@/media/paths";
+import { isSafeMediaPath, toPublicMediaUrl } from "@/media/paths";
 import { getMediaStorageRoot } from "@/media/storage";
 import { getAgentProfileForUser } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
@@ -217,7 +218,11 @@ const listingActionTypeSchema = z.enum([
   "card_click",
   "contact_agent",
   "email_agent",
+  "gallery_next",
+  "gallery_previous",
   "hover",
+  "media_thumbnail",
+  "media_video_play",
   "like",
   "place_offer",
   "reserve_now",
@@ -228,11 +233,16 @@ const listingActionTypeSchema = z.enum([
 const listingViewEventSchema = z.object({
   listingId: listingIdSchema,
   source: listingAnalyticsSourceSchema,
+  viewInstanceId: z.string().trim().min(4).max(160).optional(),
   viewerSessionId: listingViewerSessionSchema,
 });
 const listingActionEventSchema = listingViewEventSchema.extend({
   actionType: listingActionTypeSchema,
 });
+const listingLiveIntentSchema = z.object({
+  listingId: listingIdSchema,
+});
+const listingPresenceWindowSeconds = 5 * 60;
 
 const titleImprovementSchema = z.object({
   description: z.string().trim().max(10_000).optional(),
@@ -1587,9 +1597,31 @@ export async function trackListingView(input: unknown) {
     return { ok: false as const };
   }
 
+  if (viewerUserId && listing.userId === viewerUserId) {
+    return { ok: true as const, skippedOwner: true as const };
+  }
+
+  if (parsed.data.viewInstanceId) {
+    const [recordedInstance] = await db
+      .select({ id: listingViewEvents.id })
+      .from(listingViewEvents)
+      .where(
+        and(
+          eq(listingViewEvents.listingId, parsed.data.listingId),
+          eq(listingViewEvents.viewInstanceId, parsed.data.viewInstanceId),
+        ),
+      )
+      .limit(1);
+
+    if (recordedInstance) {
+      return { ok: true as const, deduped: true as const };
+    }
+  }
+
   await db.insert(listingViewEvents).values({
     listingId: parsed.data.listingId,
     source: parsed.data.source || "listing_detail",
+    viewInstanceId: parsed.data.viewInstanceId,
     viewerSessionId: parsed.data.viewerSessionId,
     viewerUserId,
   });
@@ -1615,6 +1647,328 @@ export async function trackListingView(input: unknown) {
   return { ok: true as const };
 }
 
+export async function trackListingPresence(input: unknown) {
+  try {
+    const parsed = listingViewEventSchema.safeParse(input);
+
+    if (!parsed.success) {
+      return { ok: false as const };
+    }
+
+    const session = await getServerSession(authOptions);
+    const viewerUserId = session?.user?.id || null;
+    const listing = await getTrackableListing(parsed.data.listingId, viewerUserId);
+
+    if (!listing) {
+      return { ok: false as const };
+    }
+
+    if (viewerUserId && listing.userId === viewerUserId) {
+      return { ok: true as const, skippedOwner: true as const };
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + listingPresenceWindowSeconds * 1000);
+
+    await db
+      .insert(listingPresenceSessions)
+      .values({
+        expiresAt,
+        lastSeenAt: now,
+        listingId: parsed.data.listingId,
+        source: parsed.data.source || "listing_detail",
+        updatedAt: now,
+        viewerSessionId: parsed.data.viewerSessionId,
+        viewerUserId,
+      })
+      .onConflictDoUpdate({
+        target: [
+          listingPresenceSessions.listingId,
+          listingPresenceSessions.viewerSessionId,
+        ],
+        set: {
+          expiresAt,
+          lastSeenAt: now,
+          source: parsed.data.source || "listing_detail",
+          updatedAt: now,
+          viewerUserId,
+        },
+      });
+
+    if (viewerUserId && listing.userId !== viewerUserId) {
+      const [{ count: buyerViewCount }] = await db
+        .select({
+          count: sql<number>`count(distinct coalesce(${listingViewEvents.viewInstanceId}, ${listingViewEvents.viewerSessionId}))::int`,
+        })
+        .from(listingViewEvents)
+        .where(
+          and(
+            eq(listingViewEvents.listingId, listing.id),
+            eq(listingViewEvents.viewerUserId, viewerUserId),
+            eq(listingViewEvents.source, "listing_detail"),
+          ),
+        );
+
+      if ([3, 5, 10].includes(buyerViewCount)) {
+        await createUserEventOnce({
+          actorUserId: viewerUserId,
+          dedupeKey: `listing:${listing.id}:buyer:${viewerUserId}:repeat-views:${buyerViewCount}`,
+          entityId: listing.id,
+          entityType: "listing",
+          eventType: "listing.buyer_intent.repeat_view",
+          listingId: listing.id,
+          metadata: {
+            listingTitle: listing.title,
+            viewCount: buyerViewCount,
+          },
+          userId: listing.userId,
+        });
+      }
+    }
+
+    const [{ activeViewerCount }] = await db
+      .select({
+        activeViewerCount: sql<number>`count(distinct ${listingPresenceSessions.viewerSessionId})::int`,
+      })
+      .from(listingPresenceSessions)
+      .where(
+        and(
+          eq(listingPresenceSessions.listingId, listing.id),
+          sql`${listingPresenceSessions.expiresAt} > now()`,
+          sql`(${listingPresenceSessions.viewerUserId} IS NULL OR ${listingPresenceSessions.viewerUserId} <> ${listing.userId})`,
+        ),
+      );
+
+    if (activeViewerCount >= 3) {
+      await createUserEventOnce({
+        dedupeKey: `listing:${listing.id}:active-viewers:${activeViewerCount}`,
+        entityId: listing.id,
+        entityType: "listing",
+        eventType: "listing.buyer_intent.active_viewers",
+        listingId: listing.id,
+        metadata: {
+          activeViewerCount,
+          listingTitle: listing.title,
+        },
+        userId: listing.userId,
+      });
+    }
+
+    return { ok: true as const, activeViewerCount };
+  } catch (error) {
+    console.error("[listing-intent] presence heartbeat failed", error);
+    return { ok: false as const };
+  }
+}
+
+export async function getListingLiveIntentAction(input: unknown) {
+  try {
+    const parsed = listingLiveIntentSchema.safeParse(input);
+
+    if (!parsed.success) {
+      return { ok: false as const, activeBuyerCount: 0, activeViewerCount: 0, buyers: [] };
+    }
+
+    const session = await getServerSession(authOptions);
+    const ownerUserId = session?.user?.id;
+
+    if (!ownerUserId) {
+      return { ok: false as const, activeBuyerCount: 0, activeViewerCount: 0, buyers: [] };
+    }
+
+    const [listing] = await db
+      .select({
+        id: propertyListings.id,
+        userId: propertyListings.userId,
+      })
+      .from(propertyListings)
+      .where(eq(propertyListings.id, parsed.data.listingId))
+      .limit(1);
+
+    if (!listing || listing.userId !== ownerUserId) {
+      return { ok: false as const, activeBuyerCount: 0, activeViewerCount: 0, buyers: [] };
+    }
+
+    const [activeViewerRow] = await rawSql<{ active_viewer_count: number }[]>`
+      SELECT count(DISTINCT viewer_session_id)::int AS active_viewer_count
+      FROM listing_presence_sessions
+      WHERE listing_id = ${parsed.data.listingId}
+        AND expires_at > now()
+        AND (viewer_user_id IS NULL OR viewer_user_id <> ${ownerUserId})
+    `;
+    const [viewStatsRow] = await rawSql<{
+      previous_views: number;
+      total_views: number;
+    }[]>`
+      SELECT
+        count(DISTINCT coalesce(view_instance_id, viewer_session_id)) FILTER (
+          WHERE source = 'listing_detail'
+            AND created_at >= now() - interval '24 hours'
+        )::int AS total_views,
+        count(DISTINCT coalesce(view_instance_id, viewer_session_id)) FILTER (
+          WHERE source = 'listing_detail'
+            AND created_at >= now() - interval '48 hours'
+            AND created_at < now() - interval '24 hours'
+        )::int AS previous_views
+      FROM listing_view_events
+      WHERE listing_id = ${parsed.data.listingId}
+        AND (viewer_user_id IS NULL OR viewer_user_id <> ${ownerUserId})
+    `;
+    const [durationRow] = await rawSql<{ average_seconds: number | null }[]>`
+      SELECT avg(greatest(0, extract(epoch from (last_seen_at - started_at))))::int AS average_seconds
+      FROM listing_presence_sessions
+      WHERE listing_id = ${parsed.data.listingId}
+        AND expires_at > now()
+        AND (viewer_user_id IS NULL OR viewer_user_id <> ${ownerUserId})
+    `;
+
+    const buyerRows = await rawSql<{
+      avatar_url: string | null;
+      buyer_id: string;
+      duration_seconds: number;
+      last_seen_at: Date;
+      name: string;
+      username: string | null;
+      view_count: number;
+    }[]>`
+      SELECT
+        u.id AS buyer_id,
+        u.name,
+        u.username,
+        u.avatar_url,
+        max(lps.last_seen_at) AS last_seen_at,
+        max(greatest(0, extract(epoch from (lps.last_seen_at - lps.started_at))))::int AS duration_seconds,
+        count(DISTINCT coalesce(lve.view_instance_id, lve.viewer_session_id))::int AS view_count
+      FROM listing_presence_sessions lps
+      JOIN users u ON u.id = lps.viewer_user_id
+      LEFT JOIN listing_view_events lve
+        ON lve.listing_id = lps.listing_id
+        AND lve.viewer_user_id = lps.viewer_user_id
+        AND lve.source = 'listing_detail'
+      WHERE lps.listing_id = ${parsed.data.listingId}
+        AND lps.expires_at > now()
+        AND lps.viewer_user_id IS NOT NULL
+        AND lps.viewer_user_id <> ${ownerUserId}
+        AND u.role = 'user'
+        AND u.status = 'active'
+        AND u.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM agent_profiles ap
+          WHERE ap.user_id = u.id
+            AND ap.status = 'active'
+        )
+      GROUP BY u.id, u.name, u.username, u.avatar_url
+      ORDER BY max(lps.last_seen_at) DESC
+      LIMIT 12
+    `;
+    const recentActivityRows = await rawSql<{
+      action_type: string | null;
+      activity_type: "action" | "view";
+      avatar_url: string | null;
+      buyer_id: string;
+      created_at: Date;
+      name: string;
+      username: string | null;
+      view_count: number;
+    }[]>`
+      WITH buyer_counts AS (
+        SELECT
+          viewer_user_id,
+          count(DISTINCT coalesce(view_instance_id, viewer_session_id))::int AS view_count
+        FROM listing_view_events
+        WHERE listing_id = ${parsed.data.listingId}
+          AND source = 'listing_detail'
+          AND viewer_user_id IS NOT NULL
+          AND viewer_user_id <> ${ownerUserId}
+        GROUP BY viewer_user_id
+      ),
+      activity_rows AS (
+        SELECT
+          'view'::text AS activity_type,
+          NULL::text AS action_type,
+          created_at,
+          viewer_user_id
+        FROM listing_view_events
+        WHERE listing_id = ${parsed.data.listingId}
+          AND source = 'listing_detail'
+          AND viewer_user_id IS NOT NULL
+          AND viewer_user_id <> ${ownerUserId}
+        UNION ALL
+        SELECT
+          'action'::text AS activity_type,
+          action_type,
+          created_at,
+          viewer_user_id
+        FROM listing_action_events
+        WHERE listing_id = ${parsed.data.listingId}
+          AND viewer_user_id IS NOT NULL
+          AND viewer_user_id <> ${ownerUserId}
+      )
+      SELECT
+        ar.activity_type,
+        ar.action_type,
+        ar.created_at,
+        u.id AS buyer_id,
+        u.name,
+        u.username,
+        u.avatar_url,
+        coalesce(bc.view_count, 1)::int AS view_count
+      FROM activity_rows ar
+      JOIN users u ON u.id = ar.viewer_user_id
+      LEFT JOIN buyer_counts bc ON bc.viewer_user_id = ar.viewer_user_id
+      WHERE u.role = 'user'
+        AND u.status = 'active'
+        AND u.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM agent_profiles ap
+          WHERE ap.user_id = u.id
+            AND ap.status = 'active'
+        )
+      ORDER BY ar.created_at DESC
+      LIMIT 8
+    `;
+
+    return {
+      ok: true as const,
+      activeBuyerCount: buyerRows.length,
+      activeViewerCount: activeViewerRow?.active_viewer_count || 0,
+      averageSeconds: durationRow?.average_seconds || 0,
+      previousViews24h: viewStatsRow?.previous_views || 0,
+      recentActivities: recentActivityRows.map((activity) => ({
+        actionType: activity.action_type,
+        activityType: activity.activity_type,
+        buyer: {
+          avatarUrl: toPublicMediaUrl(activity.avatar_url),
+          id: activity.buyer_id,
+          lastSeenAt: new Date(activity.created_at).toISOString(),
+          name: activity.name,
+          profileHref: activity.username ? `/users/${activity.username}` : null,
+          username: activity.username,
+          viewCount: activity.view_count,
+        },
+        createdAt: new Date(activity.created_at).toISOString(),
+      })),
+      returningViewerCount: buyerRows.filter((buyer) => buyer.view_count > 1).length,
+      totalViews24h: viewStatsRow?.total_views || 0,
+      buyers: buyerRows.map((buyer) => ({
+        avatarUrl: toPublicMediaUrl(buyer.avatar_url),
+        durationSeconds: buyer.duration_seconds,
+        id: buyer.buyer_id,
+        lastSeenAt: new Date(buyer.last_seen_at).toISOString(),
+        name: buyer.name,
+        profileHref: buyer.username ? `/users/${buyer.username}` : null,
+        username: buyer.username,
+        viewCount: buyer.view_count,
+      })),
+    };
+  } catch (error) {
+    console.error("[listing-intent] live intent load failed", error);
+    return { ok: false as const, activeBuyerCount: 0, activeViewerCount: 0, buyers: [] };
+  }
+}
+
 export async function trackListingAction(input: unknown) {
   const parsed = listingActionEventSchema.safeParse(input);
 
@@ -1629,6 +1983,10 @@ export async function trackListingAction(input: unknown) {
 
   if (!listing) {
     return { ok: false as const };
+  }
+
+  if (viewerUserId && listing.userId === viewerUserId) {
+    return { ok: true as const, skippedOwner: true as const };
   }
 
   await db.insert(listingActionEvents).values({

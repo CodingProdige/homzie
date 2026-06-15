@@ -86,8 +86,8 @@ export default async function EventsPage() {
                   {group.map((event) => {
                     const href = event.conversationId
                       ? `/messages?conversation=${event.conversationId}`
-                      : event.listingId
-                        ? `/listings/${event.listingId}`
+                      : event.listingHref
+                        ? event.listingHref
                         : event.reelId
                           ? `/reels/${event.reelId}`
                           : null;
@@ -102,12 +102,13 @@ export default async function EventsPage() {
                             : event.eventType.endsWith(".saved")
                               ? Bookmark
                               : event.eventType.endsWith(".contacted")
-                                ? Send
-                                : event.eventType.endsWith(".views.milestone")
-                                  ? Eye
-                                  : event.eventType.startsWith("reel.")
-                                    ? Video
-                                    : Heart;
+                              ? Send
+                              : event.eventType.endsWith(".views.milestone") ||
+                                  event.eventType.startsWith("listing.buyer_intent.")
+                                ? Eye
+                                : event.eventType.startsWith("reel.")
+                                  ? Video
+                                  : Heart;
 
                     const content = (
                       <div className="flex items-center gap-4 p-4 text-left transition-colors hover:bg-muted/60">

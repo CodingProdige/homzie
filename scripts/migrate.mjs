@@ -1081,8 +1081,63 @@ try {
   `;
 
   await sql`
+    ALTER TABLE listing_view_events
+    ADD COLUMN IF NOT EXISTS view_instance_id text
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_view_events_view_instance_id_idx
+    ON listing_view_events (view_instance_id)
+  `;
+
+  await sql`
     CREATE INDEX IF NOT EXISTS listing_view_events_created_at_idx
     ON listing_view_events (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_presence_sessions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      viewer_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      viewer_session_id text NOT NULL,
+      source text NOT NULL DEFAULT 'listing_detail',
+      started_at timestamptz NOT NULL DEFAULT now(),
+      last_seen_at timestamptz NOT NULL DEFAULT now(),
+      expires_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS listing_presence_sessions_listing_session_unique
+    ON listing_presence_sessions (listing_id, viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_presence_sessions_listing_id_idx
+    ON listing_presence_sessions (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_presence_sessions_viewer_user_id_idx
+    ON listing_presence_sessions (viewer_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_presence_sessions_viewer_session_id_idx
+    ON listing_presence_sessions (viewer_session_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_presence_sessions_last_seen_at_idx
+    ON listing_presence_sessions (last_seen_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_presence_sessions_expires_at_idx
+    ON listing_presence_sessions (expires_at)
   `;
 
   await sql`
@@ -1120,6 +1175,90 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS listing_action_events_created_at_idx
     ON listing_action_events (created_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS buyer_intent_insight_cache (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      viewer_key text NOT NULL,
+      activity_fingerprint text NOT NULL,
+      model text NOT NULL,
+      narrative text NOT NULL,
+      facts jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS buyer_intent_insight_cache_unique
+    ON buyer_intent_insight_cache (listing_id, viewer_key, activity_fingerprint)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS buyer_intent_insight_cache_listing_viewer_idx
+    ON buyer_intent_insight_cache (listing_id, viewer_key)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS buyer_intent_insight_cache_updated_at_idx
+    ON buyer_intent_insight_cache (updated_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_portfolio_insight_cache (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      owner_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_fingerprint text NOT NULL,
+      model text NOT NULL,
+      narrative text NOT NULL,
+      facts jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS listing_portfolio_insight_cache_unique
+    ON listing_portfolio_insight_cache (owner_user_id, activity_fingerprint)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_portfolio_insight_cache_owner_idx
+    ON listing_portfolio_insight_cache (owner_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_portfolio_insight_cache_updated_at_idx
+    ON listing_portfolio_insight_cache (updated_at)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS listing_activity_reads (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      owner_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      viewer_key text NOT NULL,
+      last_read_at timestamptz NOT NULL DEFAULT now(),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS listing_activity_reads_unique
+    ON listing_activity_reads (listing_id, owner_user_id, viewer_key)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_activity_reads_listing_owner_idx
+    ON listing_activity_reads (listing_id, owner_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS listing_activity_reads_last_read_at_idx
+    ON listing_activity_reads (last_read_at)
   `;
 
   await sql`

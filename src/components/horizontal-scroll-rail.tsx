@@ -8,11 +8,15 @@ import { Button } from "@/components/ui/button";
 type HorizontalScrollRailProps = {
   children: ReactNode;
   className?: string;
+  contentClassName?: string;
+  railClassName?: string;
 };
 
 export function HorizontalScrollRail({
   children,
   className = "",
+  contentClassName = "flex w-max gap-3",
+  railClassName = "-mx-4 -mt-2 cursor-grab select-none overflow-x-auto overscroll-x-contain px-4 pb-2 pt-2 active:cursor-grabbing [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 [&_*]:select-none [&_a]:[-webkit-user-drag:none] [&_img]:[-webkit-user-drag:none] [&::-webkit-scrollbar]:hidden",
 }: HorizontalScrollRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const dragStartXRef = useRef(0);
@@ -77,7 +81,7 @@ export function HorizontalScrollRail({
     <div className={`relative ${className}`}>
       <div
         ref={railRef}
-        className="-mx-4 -mt-2 cursor-grab select-none overflow-x-auto overscroll-x-contain px-4 pb-2 pt-2 active:cursor-grabbing [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 [&_*]:select-none [&_a]:[-webkit-user-drag:none] [&_img]:[-webkit-user-drag:none] [&::-webkit-scrollbar]:hidden"
+        className={railClassName}
         onDragStart={(event) => event.preventDefault()}
         onClickCapture={(event) => {
           if (!draggedRef.current) return;
@@ -130,7 +134,7 @@ export function HorizontalScrollRail({
           releasePointerCapture(event.pointerId);
         }}
       >
-        <div className="flex w-max gap-3">{children}</div>
+        <div className={contentClassName}>{children}</div>
       </div>
 
       {canScrollLeft ? (

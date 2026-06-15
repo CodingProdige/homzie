@@ -1,5 +1,6 @@
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
+import { buildListingPath } from "@/modules/listings/seo";
 
 export type UserEventItem = {
   actor: {
@@ -12,6 +13,7 @@ export type UserEventItem = {
   createdAt: string;
   eventType: string;
   id: string;
+  listingHref: string | null;
   listingId: string | null;
   message: string;
   reelId: string | null;
@@ -27,6 +29,11 @@ type EventRow = {
   created_at: Date | string;
   event_type: string;
   id: string;
+  listing_details: Record<string, unknown> | null;
+  listing_location: string | null;
+  listing_property_type: string | null;
+  listing_title: string | null;
+  listing_type: string | null;
   listing_id: string | null;
   metadata: Record<string, unknown> | null;
   reel_id: string | null;
@@ -35,6 +42,51 @@ type EventRow = {
 
 function dateString(value: Date | string) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function objectValue(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function listingHref(row: EventRow) {
+  if (
+    !row.listing_id ||
+    !row.listing_title ||
+    !row.listing_type ||
+    !row.listing_property_type
+  ) {
+    return null;
+  }
+
+  const details = objectValue(row.listing_details);
+
+  return buildListingPath({
+    bedrooms: numberValue(details.bedrooms),
+    city: stringValue(details.city),
+    country: stringValue(details.country),
+    id: row.listing_id,
+    listingType: row.listing_type,
+    location: row.listing_location,
+    propertyType: row.listing_property_type,
+    province:
+      stringValue(details.province) ||
+      stringValue(details.state) ||
+      stringValue(details.region),
+    suburb: stringValue(details.suburb),
+    title: row.listing_title,
+  });
 }
 
 function eventMessage(row: EventRow) {
@@ -50,6 +102,12 @@ function eventMessage(row: EventRow) {
       ? row.metadata.count
       : typeof row.metadata?.count === "string"
         ? Number(row.metadata.count)
+        : null;
+  const activeViewerCount =
+    typeof row.metadata?.activeViewerCount === "number"
+      ? row.metadata.activeViewerCount
+      : typeof row.metadata?.activeViewerCount === "string"
+        ? Number(row.metadata.activeViewerCount)
         : null;
 
   if (row.event_type === "offer.created") {
@@ -92,6 +150,16 @@ function eventMessage(row: EventRow) {
 
   if (row.event_type === "listing.views.milestone") {
     return `${title || "Your listing"} reached ${count?.toLocaleString() || "a new"} views.`;
+  }
+
+  if (row.event_type === "listing.buyer_intent.repeat_view") {
+    return `${actor} is viewing ${title || "your listing"}. Open the listing to start a chat while they are active.`;
+  }
+
+  if (row.event_type === "listing.buyer_intent.active_viewers") {
+    return `${title || "Your listing"} has ${
+      activeViewerCount?.toLocaleString() || "multiple"
+    } active viewers right now. Open the listing to see buyer intent.`;
   }
 
   if (row.event_type === "reel.liked") {
@@ -234,12 +302,18 @@ export async function getUserEvents(userId: string) {
       ue.metadata,
       ue.seen_at,
       ue.created_at,
+      listing.title AS listing_title,
+      listing.listing_type AS listing_type,
+      listing.property_type AS listing_property_type,
+      listing.location AS listing_location,
+      listing.details AS listing_details,
       actor.id AS actor_id,
       actor.name AS actor_name,
       actor.username AS actor_username,
       actor.avatar_url AS actor_avatar_url
     FROM user_events ue
     LEFT JOIN users actor ON actor.id = ue.actor_user_id
+    LEFT JOIN property_listings listing ON listing.id = ue.listing_id
     WHERE ue.user_id = ${userId}
     ORDER BY ue.created_at DESC
     LIMIT 200
@@ -256,6 +330,7 @@ export async function getUserEvents(userId: string) {
     createdAt: dateString(row.created_at),
     eventType: row.event_type,
     id: row.id,
+    listingHref: listingHref(row),
     listingId: row.listing_id,
     message: eventMessage(row),
     reelId: row.reel_id,

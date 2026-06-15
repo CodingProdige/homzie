@@ -9,17 +9,21 @@ export type CanonicalTableColumn<T> = {
   header: ReactNode;
   key: string;
   render: (row: T) => ReactNode;
+  useRowHref?: boolean;
 };
 
 export function CanonicalTable<T>({
   columns,
+  className,
   emptyState = "No records found.",
   getRowHref,
   getRowKey,
   minWidth = "760px",
   pagination,
   rows,
+  tableClassName,
 }: {
+  className?: string;
   columns: Array<CanonicalTableColumn<T>>;
   emptyState?: ReactNode;
   getRowHref?: (row: T) => string;
@@ -28,10 +32,12 @@ export function CanonicalTable<T>({
   pagination?: {
     currentPage: number;
     hrefForPage: (page: number) => string;
+    manual?: boolean;
     pageSize: number;
     totalItems?: number;
   };
   rows: T[];
+  tableClassName?: string;
 }) {
   const totalItems = pagination?.totalItems ?? rows.length;
   const totalPages = pagination
@@ -40,7 +46,7 @@ export function CanonicalTable<T>({
   const currentPage = pagination
     ? Math.min(Math.max(pagination.currentPage, 1), totalPages)
     : 1;
-  const visibleRows = pagination
+  const visibleRows = pagination && !pagination.manual
     ? rows.slice((currentPage - 1) * pagination.pageSize, currentPage * pagination.pageSize)
     : rows;
 
@@ -54,10 +60,10 @@ export function CanonicalTable<T>({
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className={cn("overflow-hidden rounded-lg border border-border bg-card shadow-sm", className)}>
         <div className="overflow-x-auto">
           <table
-            className="w-full border-separate border-spacing-0 text-left text-sm"
+            className={cn("w-full border-separate border-spacing-0 text-left text-sm", tableClassName)}
             style={{ minWidth }}
           >
             <thead className="bg-muted/50 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
@@ -89,7 +95,7 @@ export function CanonicalTable<T>({
                           column.className,
                         )}
                       >
-                        {href ? (
+                        {href && column.useRowHref !== false ? (
                           <Link
                             href={href}
                             className="block min-h-8 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-primary/25"

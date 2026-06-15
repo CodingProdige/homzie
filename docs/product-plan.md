@@ -166,3 +166,146 @@ The next engineering slice should implement:
 - Responsive desktop/mobile profile layout.
 
 After that, implement auth, subscription access, and agent dashboard upload flows.
+
+## Strategic Differentiator: Buyer Intent Intelligence
+
+Homzie should become more than a place where agents publish listings and wait.
+The core wedge against Property24 is that Homzie can show agents live buyer
+intent: who is looking, what they are looking for, how serious they seem, and
+which conversations should be started now.
+
+The agent-facing promise:
+
+```text
+Stop waiting for buyer enquiries. See active buyer intent as it happens.
+```
+
+This is the strongest near-term differentiator because buyers and sellers are
+both searching for each other, but existing portals mostly hide buyer demand
+behind form submissions and agency-owned lead channels.
+
+### Initial Product Slice
+
+Start with listing-level live intent for subscribed agents.
+
+Scope:
+
+- Track real-time active viewers on each agent-owned listing.
+- Show current active viewer count on listing detail and agent dashboard
+  surfaces.
+- Show a horizontal carousel of active buyer profile cards for viewers who are
+  signed in as regular buyer users, excluding agents, admins, the listing owner,
+  and anonymous sessions.
+- Keep a buyer visible in the active carousel for at least five minutes after
+  their last listing heartbeat so agents have time to act.
+- Show how many times each buyer has viewed that listing.
+- Add a clear message action from the buyer card.
+- Send agent events and notifications for high-intent moments, such as a buyer
+  viewing the same listing repeatedly or a listing crossing an active-viewer
+  threshold.
+- Add an agent-only modal for a buyer's intent profile on that listing.
+
+The first buyer intent modal should include:
+
+- Buyer profile summary and message action.
+- Number of views on this listing.
+- Last active time and total recent Homzie activity.
+- Most-viewed areas based on listing browsing history.
+- Estimated price range based on viewed listings.
+- Recently viewed listings.
+- Offers submitted, limited to data the agent is allowed to see.
+- Saved or liked listings where visibility is allowed.
+
+Privacy and trust constraints:
+
+- Do not expose anonymous users as identifiable buyers.
+- Do not expose buyer identity to agents unless the buyer is signed in and
+  platform terms make this clear.
+- Add buyer-side controls later for "contact me", "private browsing", and
+  investor visibility preferences before making this a larger marketplace.
+- Avoid creepy language in the UI. Use "active buyer", "viewed this listing",
+  "recent interest", and "likely price range" instead of surveillance-heavy
+  wording.
+
+### Data Model and Infrastructure Direction
+
+The codebase already has a good base for this:
+
+- `listing_view_events` records listing views by listing, user/session, and time.
+- `listing_action_events` records listing-level actions.
+- `property_offers` can support buyer offer history.
+- `conversations`, `messages`, and attachments support agent outreach.
+- `user_events`, email, and push modules can deliver notifications.
+- `browser-session` already gives anonymous and signed-in browsing sessions a
+  consistent tracking handle.
+
+Add one lightweight live-presence layer rather than treating every page view as
+live forever.
+
+Suggested additions:
+
+- `listing_presence_sessions`: listing id, viewer session id, viewer user id,
+  started at, last seen at, expires at, user agent/device hints, referrer, and
+  optional current page context.
+- A direct Server Action heartbeat called from listing pages while the tab is
+  visible. Because Homzie owns the server infrastructure, the first cadence can
+  be closer to every 8-10 seconds for sharper live feedback.
+- Server queries that treat viewers as active when `lastSeenAt` is within the
+  last five minutes.
+- Aggregation helpers for buyer intent: listing view count by buyer, buyer
+  preferred areas, inferred price range, recent viewed listings, recent actions,
+  and offer counts.
+- Optional later: a websocket/SSE channel for live dashboard updates. Direct
+  Server Action polling every 8-10 seconds is acceptable for the first
+  production slice.
+
+### Agent Dashboard Surface
+
+Create a dedicated intent dashboard once the listing-level carousel is working.
+
+Route idea:
+
+```text
+/dashboard/intent
+```
+
+Initial dashboard:
+
+- Table of the agent's active listings ranked by current active viewers.
+- Columns for active buyers, total active viewers, repeat viewers, saves/likes,
+  recent messages started, and last activity.
+- Click a listing row to open a modal showing active buyer cards.
+- Click a buyer to open the buyer intent profile modal.
+- Provide immediate "Message buyer" actions.
+- Keep this surface quiet and operational, closer to a sales cockpit than a
+  marketing page.
+
+### Notification Strategy
+
+Notifications should feel valuable, not noisy.
+
+Start with event types:
+
+- A signed-in buyer viewed one listing multiple times in a short period.
+- A listing has multiple active buyers right now.
+- A buyer who previously saved or liked the listing is active again.
+- A buyer who made an offer or started a conversation is viewing again.
+
+Throttle notifications per agent/listing/buyer so agents do not get spammed.
+Use in-app events first, then push if enabled, and email only for high-intent
+summaries or configurable digest alerts.
+
+### Future Expansion
+
+Later ideas to keep on the roadmap:
+
+- Buyer subscription package that gives subscribed buyers access to new listings
+  30-60 minutes before regular buyers.
+- Investor and seller intent clubs where buyers, sellers, and agents can opt in
+  to being contacted.
+- Global active threads or groups for investor-level buyers and sellers looking
+  for agents.
+- Additional subscription tiers for agents and buyers based on intent access,
+  early access, investor groups, and premium notification tools.
+- Buyer-side visibility controls that let serious buyers explicitly signal that
+  they want agents to contact them.

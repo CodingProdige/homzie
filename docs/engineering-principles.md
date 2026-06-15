@@ -159,6 +159,14 @@ Do not create custom Route Handlers or API endpoints for ordinary app queries or
 
 API routes are not the default backend abstraction in Homzie. Unless something absolutely requires an HTTP API, do not create one. Simple backend calls, product mutations, analytics writes, settings updates, profile edits, dashboard actions, and internal app workflows should use Server Components, Server Actions, or server-side module functions with direct database access. If an API route is introduced, the implementer must be able to point to the protocol or integration requirement that makes it necessary.
 
+Homzie owns its physical server and infrastructure, so favor direct database
+queries through the app's server-side code over unnecessary API layers. Real-time
+feedback features such as listing presence heartbeats should use direct
+server-side database reads/writes through Server Actions or server modules, with
+short enough intervals to make the product feel live. Create a new endpoint only
+when there is no viable Server Component, Server Action, or server-module
+alternative.
+
 Use Route Handlers for:
 
 - Auth.js internals and provider callbacks
