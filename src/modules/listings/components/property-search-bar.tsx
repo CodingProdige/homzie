@@ -80,7 +80,7 @@ type GoogleWindow = Window & {
 };
 
 const googleMapsScriptId = "homzie-google-maps-places";
-const propertySearchSessionKey = "homzie.propertySearch.filters";
+const propertySearchSessionKey = "homzie.propertySearch.filters.v2";
 
 const bedroomOptions = ["1", "2", "3", "4", "5"].map((value) => ({
   label: `${value}+`,
@@ -444,7 +444,7 @@ export function PropertySearchBar({
   const [listingTypes, setListingTypes] = useState(() => {
     const selected = selectedOptionValues(listingTypeOptions, filters.listingType);
 
-    return selected.length ? selected : ["sale"];
+    return selected;
   });
   const [propertyTypes, setPropertyTypes] = useState(() =>
     selectedOptionValues(propertyTypeOptions, filters.propertyType),
@@ -570,8 +570,7 @@ export function PropertySearchBar({
       minErfSize ||
       buyerIncentive ||
       features.size ||
-      listingTypes.length !== 1 ||
-      listingTypes[0] !== "sale",
+      listingTypes.length,
   );
   const countLabel = hasActiveCriteria ? "match your filters" : "available";
   const countMessage =
@@ -600,7 +599,7 @@ export function PropertySearchBar({
       setBuyerIncentive(sessionState.buyerIncentive);
       setFeatures(new Set(sessionState.features));
       setGarages(sessionState.garages);
-      setListingTypes(sessionState.listingTypes.length ? sessionState.listingTypes : ["sale"]);
+      setListingTypes(sessionState.listingTypes);
       setMaxPrice(sessionState.maxPrice);
       setMinErfSize(sessionState.minErfSize);
       setMinFloorSize(sessionState.minFloorSize);
@@ -1252,7 +1251,7 @@ export function PropertySearchBar({
             isHero &&
               "h-12 border-transparent bg-[var(--homzie-gradient)] px-5 text-white shadow-lg shadow-primary/25 hover:brightness-105",
           )}
-          label="For sale"
+          label="Listing type"
           onChange={setListingTypes}
           options={listingTypeSelectOptions}
           values={listingTypes}
