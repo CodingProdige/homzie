@@ -13,7 +13,7 @@ import {
   moderationStatusOptions,
   saleClaimStatusOptions,
   type ModerationRow,
-} from "./moderation-data";
+} from "./moderation-shared";
 
 const initialState: AdminModerationUpdateState = {
   message: "",
