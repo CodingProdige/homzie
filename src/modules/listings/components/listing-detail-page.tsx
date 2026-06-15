@@ -23,6 +23,7 @@ import {
   Home,
   Lock,
   MapPin,
+  Minus,
   ParkingCircle,
   Percent,
   Play,
@@ -31,6 +32,7 @@ import {
   Send,
   ShieldCheck,
   Trees,
+  TrendingDown,
   TrendingUp,
   Upload,
   X,
@@ -349,6 +351,56 @@ function trendLabel(current: number, previous: number) {
   return `${percent > 0 ? "Up" : "Down"} ${Math.abs(percent)}% vs yesterday`;
 }
 
+function trendMeta(current: number, previous: number) {
+  const label = trendLabel(current, previous);
+
+  if (current === 0 && previous === 0) {
+    return {
+      icon: Minus,
+      label,
+      toneClass: "text-muted-foreground",
+    };
+  }
+
+  if (previous === 0) {
+    return current > 0
+      ? {
+          icon: TrendingUp,
+          label,
+          toneClass: "text-emerald-500",
+        }
+      : {
+          icon: Minus,
+          label,
+          toneClass: "text-muted-foreground",
+        };
+  }
+
+  const percent = Math.round(((current - previous) / previous) * 100);
+
+  if (percent > 0) {
+    return {
+      icon: TrendingUp,
+      label,
+      toneClass: "text-emerald-500",
+    };
+  }
+
+  if (percent < 0) {
+    return {
+      icon: TrendingDown,
+      label,
+      toneClass: "text-rose-500",
+    };
+  }
+
+  return {
+    icon: Minus,
+    label,
+    toneClass: "text-muted-foreground",
+  };
+}
+
 function liveActivityLabel(activity: LiveIntentActivity) {
   if (activity.activityType === "view") return "viewing the listing";
 
@@ -598,6 +650,8 @@ function OwnerLiveIntentPanel({
   const extraBuyerCount = Math.max(0, buyers.length - avatarBuyers.length);
   const totalViews24h = intent.totalViews24h || 0;
   const previousViews24h = intent.previousViews24h || 0;
+  const trend = trendMeta(totalViews24h, previousViews24h);
+  const TrendIcon = trend.icon;
 
   return (
     <section className="mt-5 w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-black/5 sm:mt-6">
@@ -617,9 +671,14 @@ function OwnerLiveIntentPanel({
               {intent.activeViewerCount} active{" "}
               {intent.activeViewerCount === 1 ? "viewer" : "viewers"}
             </h2>
-            <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-black sm:mt-2 sm:gap-2 sm:text-sm">
-              <TrendingUp className="size-3.5 text-emerald-500 sm:size-4" />
-              <span className="min-w-0 truncate">{trendLabel(totalViews24h, previousViews24h)}</span>
+            <p
+              className={cn(
+                "mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-black sm:mt-2 sm:gap-2 sm:text-sm",
+                trend.toneClass,
+              )}
+            >
+              <TrendIcon className="size-3.5 sm:size-4" />
+              <span className="min-w-0 truncate">{trend.label}</span>
             </p>
           </div>
 
@@ -1403,7 +1462,7 @@ function AgentProfileCard({
           </div>
         ) : null}
         {actionsDisabled ? (
-          <div className="mt-4 grid gap-2">
+          <div className="mt-5 grid gap-2">
             <Button className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-black text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]" disabled>
               <Send className="size-4" />
               Send message
@@ -1414,7 +1473,7 @@ function AgentProfileCard({
             </Button>
           </div>
         ) : (
-          <div className="grid gap-2">
+          <div className="mt-5 grid gap-2">
             <SendListingMessageButton
               listing={listing}
               onSent={() => onAction?.("contact_agent")}
