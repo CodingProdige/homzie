@@ -163,14 +163,20 @@ function TextAreaField({
 
 export function EmailTemplateManager({
   deliveryLogs,
+  initialTemplateKey,
+  singleTemplate = false,
   templates,
   versions,
 }: {
   deliveryLogs: DeliveryLog[];
+  initialTemplateKey?: string;
+  singleTemplate?: boolean;
   templates: AdminEmailTemplate[];
   versions: TemplateVersion[];
 }) {
-  const [selectedKey, setSelectedKey] = useState(templates[0]?.key || "");
+  const [selectedKey, setSelectedKey] = useState(
+    initialTemplateKey || templates[0]?.key || "",
+  );
   const selectedTemplate =
     templates.find((template) => template.key === selectedKey) || templates[0];
   const [fieldsByKey, setFieldsByKey] = useState(() =>
@@ -276,31 +282,45 @@ export function EmailTemplateManager({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-      <aside className="space-y-2">
-        {templates.map((template) => (
-          <button
-            key={template.key}
-            className={`w-full rounded-lg border px-3 py-3 text-left transition ${
-              template.key === selectedTemplate.key
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border bg-card hover:border-primary/35"
-            }`}
-            onClick={() => setSelectedKey(template.key)}
-            type="button"
-          >
-            <span className="block text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
-              {template.category}
-            </span>
-            <span className="mt-1 block text-sm font-black">{template.name}</span>
-            <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
-              {template.key}
-            </span>
-          </button>
-        ))}
-      </aside>
+    <div
+      className={
+        singleTemplate
+          ? "space-y-6"
+          : "grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]"
+      }
+    >
+      {singleTemplate ? null : (
+        <aside className="space-y-2">
+          {templates.map((template) => (
+            <button
+              key={template.key}
+              className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+                template.key === selectedTemplate.key
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card hover:border-primary/35"
+              }`}
+              onClick={() => setSelectedKey(template.key)}
+              type="button"
+            >
+              <span className="block text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+                {template.category}
+              </span>
+              <span className="mt-1 block text-sm font-black">{template.name}</span>
+              <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
+                {template.key}
+              </span>
+            </button>
+          ))}
+        </aside>
+      )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.75fr)]">
+      <div
+        className={
+          singleTemplate
+            ? "grid gap-6"
+            : "grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.75fr)]"
+        }
+      >
         <section className="space-y-5 rounded-lg border border-border bg-card p-4 shadow-sm">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">

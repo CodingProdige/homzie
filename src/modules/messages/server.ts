@@ -1,12 +1,7 @@
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
 import { createUserEvent } from "@/modules/events/server";
-import {
-  absoluteAppUrl,
-  sendTemplatedEmailToUser,
-} from "@/modules/email/server";
 import { publishMessageEvent } from "@/modules/messages/realtime";
-import { sendPushToUser } from "@/modules/push/server";
 
 export type MessageUser = {
   avatarUrl: string | null;
@@ -827,87 +822,6 @@ export async function reportConversation({
   });
 }
 
-export async function startCallSession({
-  conversationId,
-  startedByUserId,
-  type,
-}: {
-  conversationId: string;
-  startedByUserId: string;
-  type: "audio" | "video";
-}) {
-  await assertConversationMember(conversationId, startedByUserId);
-
-  const [call] = await sql<{ id: string }[]>`
-    INSERT INTO call_sessions (conversation_id, started_by_user_id, type)
-    VALUES (${conversationId}, ${startedByUserId}, ${type})
-    RETURNING id
-  `;
-
-  const participantUserIds = await getParticipantUserIds(conversationId);
-  const [caller] = await sql<{ name: string | null; username: string | null }[]>`
-    SELECT name, username
-    FROM users
-    WHERE id = ${startedByUserId}
-    LIMIT 1
-  `;
-  const callerName = caller?.name || caller?.username || "Someone";
-
-  await Promise.all(
-    participantUserIds
-      .filter((participantUserId) => participantUserId !== startedByUserId)
-      .map(async (participantUserId) => {
-        await createUserEvent({
-          actorUserId: startedByUserId,
-          conversationId,
-          entityId: call.id,
-          entityType: "call",
-          eventType: "call.started",
-          metadata: { callType: type },
-          userId: participantUserId,
-        });
-        await sendPushToUser(participantUserId, {
-          body: `${callerName} is calling you on Homzie.`,
-          data: {
-            callId: call.id,
-            conversationId,
-            url: `/messages?conversation=${conversationId}&call=${call.id}`,
-          },
-          tag: "incoming-call",
-          title: type === "video" ? "Incoming video call" : "Incoming call",
-        });
-      }),
-  );
-
-  return call.id;
-}
-
-export async function updateCallSession({
-  callId,
-  conversationId,
-  status,
-  userId,
-}: {
-  callId: string;
-  conversationId: string;
-  status: "answered" | "declined" | "ended" | "missed";
-  userId: string;
-}) {
-  await assertConversationMember(conversationId, userId);
-
-  await sql`
-    UPDATE call_sessions
-    SET
-      status = ${status},
-      answered_at = CASE WHEN ${status} = 'answered' THEN COALESCE(answered_at, now()) ELSE answered_at END,
-      ended_at = CASE WHEN ${status} IN ('declined', 'ended', 'missed') THEN COALESCE(ended_at, now()) ELSE ended_at END,
-      ended_by_user_id = CASE WHEN ${status} IN ('declined', 'ended', 'missed') THEN ${userId} ELSE ended_by_user_id END,
-      updated_at = now()
-    WHERE id = ${callId}
-      AND conversation_id = ${conversationId}
-  `;
-}
-
 export async function respondToPropertyOffer({
   offerId,
   responderUserId,
@@ -1169,47 +1083,6 @@ async function afterMessageCreated(
             listingTitle: message?.metadata?.listingTitle,
           },
           userId,
-        }),
-      ),
-  );
-
-  const senderName = message?.sender_name || "Someone";
-  const messagePreview =
-    message?.type === "offer"
-      ? "Sent you an offer."
-      : message?.type === "system"
-        ? message.body || "Updated the conversation."
-        : message?.body || "Sent you a message.";
-
-  await Promise.allSettled(
-    users
-      .filter((userId) => userId !== senderUserId)
-      .map((userId) =>
-        sendTemplatedEmailToUser({
-          eventKey: eventType,
-          preferenceCategory: "messages",
-          templateKey: "message.new",
-          userId,
-          variables: {
-            app: {
-              name: "Homzie",
-              url: absoluteAppUrl("/"),
-            },
-            conversation: {
-              url: absoluteAppUrl(`/messages?conversation=${conversationId}`),
-            },
-            message: {
-              preview: messagePreview.slice(0, 220),
-            },
-            sender: {
-              name: senderName,
-              username: message?.sender_username || "",
-            },
-            user: {
-              firstName: "",
-              name: "",
-            },
-          },
         }),
       ),
   );

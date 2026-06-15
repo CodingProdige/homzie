@@ -1,6 +1,6 @@
 "use server";
 
-import { createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -27,8 +27,6 @@ import {
   sendAttachmentMessage,
   sendMessage,
   setConversationMuted,
-  startCallSession,
-  updateCallSession,
 } from "@/modules/messages/server";
 
 async function requireUserId() {
@@ -372,85 +370,6 @@ export async function reportConversationAction(input: z.input<typeof reportSchem
   });
 
   return { ok: true as const };
-}
-
-const startCallSchema = z.object({
-  conversationId: uuidSchema,
-  type: z.enum(["audio", "video"]),
-});
-
-export async function startCallSessionAction(input: z.input<typeof startCallSchema>) {
-  const userId = await requireUserId();
-  const parsed = startCallSchema.parse(input);
-
-  const callId = await startCallSession({
-    conversationId: parsed.conversationId,
-    startedByUserId: userId,
-    type: parsed.type,
-  });
-
-  return { callId };
-}
-
-const updateCallSchema = z.object({
-  callId: uuidSchema,
-  conversationId: uuidSchema,
-  status: z.enum(["answered", "declined", "ended", "missed"]),
-});
-
-export async function updateCallSessionAction(input: z.input<typeof updateCallSchema>) {
-  const userId = await requireUserId();
-  const parsed = updateCallSchema.parse(input);
-
-  await updateCallSession({
-    callId: parsed.callId,
-    conversationId: parsed.conversationId,
-    status: parsed.status,
-    userId,
-  });
-
-  return { ok: true as const };
-}
-
-export async function getCallIceServersAction() {
-  const turnUrls = (process.env.TURN_URLS || "")
-    .split(",")
-    .map((url) => url.trim())
-    .filter(Boolean);
-
-  if (!turnUrls.length) return [];
-
-  const staticUsername = process.env.TURN_USERNAME;
-  const staticCredential = process.env.TURN_PASSWORD;
-  const sharedSecret = process.env.TURN_SHARED_SECRET;
-
-  if (sharedSecret) {
-    const expiresAt = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
-    const username = `${expiresAt}:${randomUUID()}`;
-    const credential = createHmac("sha1", sharedSecret)
-      .update(username)
-      .digest("base64");
-
-    return [
-      {
-        credential,
-        urls: turnUrls,
-        username,
-      },
-    ];
-  }
-
-  if (staticUsername && staticCredential) {
-    return [
-      {
-        credential: staticCredential,
-        urls: turnUrls,
-        username: staticUsername,
-      },
-    ];
-  }
-
-  return [];
 }
 
 const offerSchema = z.object({

@@ -10,7 +10,6 @@ import {
   Mail,
   Megaphone,
   MessageCircle,
-  PhoneCall,
   Save,
   UserRound,
   Video,
@@ -65,12 +64,6 @@ const groups: Array<{
         label: "New messages",
         description: "Direct messages and conversation updates.",
         icon: MessageCircle,
-      },
-      {
-        key: "callsEnabled",
-        label: "Calls",
-        description: "Incoming call alerts and missed call activity.",
-        icon: PhoneCall,
       },
     ],
   },
@@ -207,7 +200,10 @@ function EmailEventPreferencesCard({
                   </span>
                   <input
                     className="peer sr-only"
-                    defaultChecked={preferences.emailEventPreferences[event.key] !== false}
+                    defaultChecked={
+                      preferences.emailEventPreferences[event.key] ??
+                      event.defaultEnabled
+                    }
                     name={`emailEvent:${event.key}`}
                     type="checkbox"
                   />
@@ -280,6 +276,7 @@ export function NotificationsForm({
 
   return (
     <form action={formAction}>
+      <input type="hidden" name="callsEnabled" value="on" />
       <SettingsPageHeader
         title="Notifications"
         message={state.message}

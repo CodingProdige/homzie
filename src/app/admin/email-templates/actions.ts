@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -10,6 +10,8 @@ import {
   emailDeliveryLogs,
   emailTemplates,
   emailTemplateVersions,
+  notificationSurfaceTemplateVersions,
+  notificationSurfaceTemplates,
   users,
 } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
@@ -42,6 +44,13 @@ const saveSchema = z.object({
 const testSchema = saveSchema.extend({
   recipientEmail: z.string().trim().toLowerCase().email("Enter a test recipient."),
   sampleVariables: z.string().trim().optional(),
+});
+const surfaceSaveSchema = z.object({
+  body: z.string().trim().min(1, "Body copy is required."),
+  enabled: z.boolean(),
+  eventKey: z.string().trim().min(1, "Event key is required."),
+  surface: z.enum(["in_app", "push"]),
+  title: z.string().trim().max(120).optional(),
 });
 
 async function requireAdminUser() {
@@ -337,6 +346,80 @@ export async function resendEmailDeliveryAction(
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : "Could not resend email.",
+      ok: false,
+    };
+  }
+}
+
+export async function saveNotificationSurfaceTemplateAction(
+  _prevState: EmailTemplateActionState = emptyState,
+  formData: FormData,
+): Promise<EmailTemplateActionState> {
+  void _prevState;
+
+  try {
+    const admin = await requireAdminUser();
+    const parsed = surfaceSaveSchema.safeParse({
+      body: formValue(formData, "body"),
+      enabled: formData.get("enabled") === "on",
+      eventKey: formValue(formData, "eventKey"),
+      surface: formValue(formData, "surface"),
+      title: formValue(formData, "title"),
+    });
+
+    if (!parsed.success) {
+      return {
+        message: parsed.error.issues[0]?.message || "Check the template fields.",
+        ok: false,
+      };
+    }
+
+    const [template] = await db
+      .select()
+      .from(notificationSurfaceTemplates)
+      .where(
+        and(
+          eq(notificationSurfaceTemplates.eventKey, parsed.data.eventKey),
+          eq(notificationSurfaceTemplates.surface, parsed.data.surface),
+        ),
+      )
+      .limit(1);
+    const surfaceTemplate = template || null;
+
+    if (!surfaceTemplate) {
+      return { message: "Notification surface template not found.", ok: false };
+    }
+
+    await db
+      .update(notificationSurfaceTemplates)
+      .set({
+        body: parsed.data.body,
+        enabled: parsed.data.enabled,
+        title: parsed.data.title || null,
+        updatedAt: new Date(),
+        updatedByUserId: admin.id,
+      })
+      .where(eq(notificationSurfaceTemplates.id, surfaceTemplate.id));
+
+    await db.insert(notificationSurfaceTemplateVersions).values({
+      body: parsed.data.body,
+      createdByUserId: admin.id,
+      sampleVariables: surfaceTemplate.sampleVariables,
+      templateId: surfaceTemplate.id,
+      title: parsed.data.title || null,
+      variables: surfaceTemplate.variables,
+    });
+
+    revalidatePath("/admin/email-templates");
+    revalidatePath(`/admin/email-templates/${parsed.data.eventKey}`);
+    revalidatePath(
+      `/admin/email-templates/${parsed.data.eventKey}/${parsed.data.surface}`,
+    );
+
+    return { message: "Template saved.", ok: true };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Could not save template.",
       ok: false,
     };
   }

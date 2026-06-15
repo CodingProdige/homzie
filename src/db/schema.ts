@@ -1344,6 +1344,59 @@ export const emailTemplateVersions = pgTable(
   ],
 );
 
+export const notificationSurfaceTemplates = pgTable(
+  "notification_surface_templates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    eventKey: text("event_key").notNull(),
+    surface: text("surface").notNull(),
+    name: text("name").notNull(),
+    category: text("category").notNull().default("general"),
+    description: text("description"),
+    title: text("title"),
+    body: text("body").notNull(),
+    variables: jsonb("variables").notNull().default([]),
+    sampleVariables: jsonb("sample_variables").notNull().default({}),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    uniqueIndex("notification_surface_templates_event_surface_idx").on(
+      table.eventKey,
+      table.surface,
+    ),
+    index("notification_surface_templates_surface_idx").on(table.surface),
+    index("notification_surface_templates_category_idx").on(table.category),
+    index("notification_surface_templates_enabled_idx").on(table.enabled),
+  ],
+);
+
+export const notificationSurfaceTemplateVersions = pgTable(
+  "notification_surface_template_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => notificationSurfaceTemplates.id, { onDelete: "cascade" }),
+    title: text("title"),
+    body: text("body").notNull(),
+    variables: jsonb("variables").notNull().default([]),
+    sampleVariables: jsonb("sample_variables").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("notification_surface_versions_template_id_idx").on(table.templateId),
+    index("notification_surface_versions_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const emailDeliveryLogs = pgTable(
   "email_delivery_logs",
   {
@@ -2039,6 +2092,10 @@ export type NewUserNotificationPreferences =
   typeof userNotificationPreferences.$inferInsert;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type NewEmailTemplate = typeof emailTemplates.$inferInsert;
+export type NotificationSurfaceTemplate =
+  typeof notificationSurfaceTemplates.$inferSelect;
+export type NewNotificationSurfaceTemplate =
+  typeof notificationSurfaceTemplates.$inferInsert;
 export type EmailDeliveryLog = typeof emailDeliveryLogs.$inferSelect;
 export type NewEmailDeliveryLog = typeof emailDeliveryLogs.$inferInsert;
 export type AdCampaign = typeof adCampaigns.$inferSelect;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { HomzieLogo } from "@/components/homzie-logo";
 
@@ -46,11 +46,18 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
       <AuthMediaPanel />
 
       <section className="relative flex min-h-screen items-center justify-center overflow-y-auto bg-background px-7 py-12 sm:px-10 lg:h-screen lg:items-start">
+        <Link
+          href="/"
+          className="absolute left-5 top-5 inline-flex h-10 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm font-bold text-muted-foreground shadow-sm transition hover:border-primary/40 hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Back
+        </Link>
         <div className="absolute right-5 top-5 hidden lg:block">
           <ThemeToggle />
         </div>
 
-        <div className="w-full max-w-[430px]">
+        <div className="w-full max-w-[430px] pt-14 lg:pt-0">
           <div className="mb-10 text-center">
             <HomzieLogo
               variant="tight"

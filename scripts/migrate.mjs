@@ -1874,6 +1874,68 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS notification_surface_templates (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_key text NOT NULL,
+      surface text NOT NULL,
+      name text NOT NULL,
+      category text NOT NULL DEFAULT 'general',
+      description text,
+      title text,
+      body text NOT NULL,
+      variables jsonb NOT NULL DEFAULT '[]'::jsonb,
+      sample_variables jsonb NOT NULL DEFAULT '{}'::jsonb,
+      enabled boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS notification_surface_templates_event_surface_idx
+    ON notification_surface_templates (event_key, surface)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS notification_surface_templates_surface_idx
+    ON notification_surface_templates (surface)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS notification_surface_templates_category_idx
+    ON notification_surface_templates (category)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS notification_surface_templates_enabled_idx
+    ON notification_surface_templates (enabled)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS notification_surface_template_versions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      template_id uuid NOT NULL REFERENCES notification_surface_templates(id) ON DELETE CASCADE,
+      title text,
+      body text NOT NULL,
+      variables jsonb NOT NULL DEFAULT '[]'::jsonb,
+      sample_variables jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS notification_surface_versions_template_id_idx
+    ON notification_surface_template_versions (template_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS notification_surface_versions_created_at_idx
+    ON notification_surface_template_versions (created_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS email_delivery_logs (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       template_key text NOT NULL,

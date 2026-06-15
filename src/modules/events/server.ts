@@ -1,6 +1,20 @@
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
+import {
+  absoluteAppUrl,
+  sendTemplatedEmailToUser,
+} from "@/modules/email/server";
 import { buildListingPath } from "@/modules/listings/seo";
+import {
+  getNotificationDefinition,
+  renderNotificationTemplate,
+  type NotificationTemplateContext,
+} from "@/modules/notifications/registry";
+import {
+  fallbackNotificationSurfaceTemplate,
+  getNotificationSurfaceTemplate,
+} from "@/modules/notifications/server";
+import { sendPushToUser } from "@/modules/push/server";
 
 export type UserEventItem = {
   actor: {
@@ -29,6 +43,8 @@ type EventRow = {
   created_at: Date | string;
   event_type: string;
   id: string;
+  in_app_body: string | null;
+  in_app_enabled: boolean | null;
   listing_details: Record<string, unknown> | null;
   listing_location: string | null;
   listing_property_type: string | null;
@@ -58,6 +74,10 @@ function numberValue(value: unknown) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : "";
+}
+
+function optionalString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function listingHref(row: EventRow) {
@@ -91,6 +111,7 @@ function listingHref(row: EventRow) {
 
 function eventMessage(row: EventRow) {
   const actor = row.actor_name || "Someone";
+  const definition = getNotificationDefinition(row.event_type);
   const title =
     typeof row.metadata?.listingTitle === "string" ? row.metadata.listingTitle : null;
   const reelTitle =
@@ -109,6 +130,49 @@ function eventMessage(row: EventRow) {
       : typeof row.metadata?.activeViewerCount === "string"
         ? Number(row.metadata.activeViewerCount)
         : null;
+
+  if (definition) {
+    const inAppTemplate =
+      row.in_app_enabled === false ? null : row.in_app_body || definition.template;
+
+    if (!inAppTemplate) {
+      return "";
+    }
+
+    return renderNotificationTemplate(inAppTemplate, {
+      actor: {
+        name: actor,
+        username: row.actor_username,
+      },
+      app: {
+        name: "Homzie",
+        url: absoluteAppUrl("/"),
+      },
+      conversation: row.conversation_id
+        ? { url: absoluteAppUrl(`/messages?conversation=${row.conversation_id}`) }
+        : undefined,
+      event: {
+        activeViewerCount,
+        count,
+        reason: optionalString(row.metadata?.reason),
+        type: row.event_type,
+      },
+      listing: {
+        title: title || "your listing",
+        url: row.listing_id ? absoluteAppUrl(`/listings/${row.listing_id}`) : null,
+      },
+      message: {
+        preview: optionalString(row.metadata?.body) || "Open Homzie to reply.",
+      },
+      offer: {
+        amount: amount ? `of ${amount}` : null,
+      },
+      reel: {
+        title: reelTitle || "your reel",
+        url: row.reel_id ? absoluteAppUrl(`/reels/${row.reel_id}`) : null,
+      },
+    });
+  }
 
   if (row.event_type === "offer.created") {
     return `${actor} made an offer${amount ? ` of ${amount}` : ""}${
@@ -178,23 +242,152 @@ function eventMessage(row: EventRow) {
     return `${reelTitle || "Your reel"} reached ${count?.toLocaleString() || "a new"} views.`;
   }
 
-  if (row.event_type === "message.requested") {
-    return `${actor} wants to start a chat.`;
-  }
-
-  if (row.event_type === "call.started") {
-    return `${actor} started a call.`;
-  }
-
-  if (row.event_type === "call.missed") {
-    return `You missed a call from ${actor}.`;
-  }
-
   if (row.event_type === "report.created") {
     return "Your report was received.";
   }
 
   return `${actor} has a new update for you.`;
+}
+
+function notificationUrl({
+  conversationId,
+  listingId,
+  reelId,
+}: {
+  conversationId?: string | null;
+  listingId?: string | null;
+  reelId?: string | null;
+}) {
+  if (conversationId) {
+    return absoluteAppUrl(`/messages?conversation=${conversationId}`);
+  }
+
+  if (listingId) {
+    return absoluteAppUrl(`/listings/${listingId}`);
+  }
+
+  if (reelId) {
+    return absoluteAppUrl(`/reels/${reelId}`);
+  }
+
+  return absoluteAppUrl("/events");
+}
+
+async function dispatchUserEventNotifications({
+  actorUserId,
+  conversationId,
+  eventType,
+  listingId,
+  metadata,
+  reelId,
+  userId,
+}: {
+  actorUserId?: string | null;
+  conversationId?: string | null;
+  eventType: string;
+  listingId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  reelId?: string | null;
+  userId: string;
+}) {
+  const definition = getNotificationDefinition(eventType);
+
+  if (!definition) return;
+
+  const [actor] = actorUserId
+    ? await sql<
+        {
+          name: string | null;
+          username: string | null;
+        }[]
+      >`
+        SELECT name, username
+        FROM users
+        WHERE id = ${actorUserId}
+        LIMIT 1
+      `
+    : [];
+  const actorName = actor?.name || actor?.username || "Homzie";
+  const count =
+    typeof metadata?.count === "number"
+      ? metadata.count
+      : typeof metadata?.count === "string"
+        ? Number(metadata.count)
+        : null;
+  const activeViewerCount =
+    typeof metadata?.activeViewerCount === "number"
+      ? metadata.activeViewerCount
+      : typeof metadata?.activeViewerCount === "string"
+        ? Number(metadata.activeViewerCount)
+        : null;
+  const url = notificationUrl({ conversationId, listingId, reelId });
+  const context: NotificationTemplateContext & {
+    notification: { url: string };
+    user: { firstName: string; name: string };
+  } = {
+    actor: {
+      name: actorName,
+      username: actor?.username,
+    },
+    app: {
+      name: "Homzie",
+      url: absoluteAppUrl("/"),
+    },
+    conversation: conversationId ? { url } : undefined,
+    event: {
+      activeViewerCount,
+      count,
+      reason: optionalString(metadata?.reason),
+      type: eventType,
+    },
+    listing: {
+      title: optionalString(metadata?.listingTitle) || "your listing",
+      url: listingId ? url : null,
+    },
+    message: {
+      preview: optionalString(metadata?.body) || "Open Homzie to reply.",
+    },
+    notification: { url },
+    offer: {
+      amount: optionalString(metadata?.offerAmount)
+        ? `of ${optionalString(metadata?.offerAmount)}`
+        : null,
+    },
+    reel: {
+      title: optionalString(metadata?.reelTitle) || "your reel",
+      url: reelId ? url : null,
+    },
+    user: {
+      firstName: "",
+      name: "",
+    },
+  };
+
+  const pushTemplate =
+    (await getNotificationSurfaceTemplate({
+      eventKey: eventType,
+      surface: "push",
+    })) || fallbackNotificationSurfaceTemplate({ event: definition, surface: "push" });
+  const pushTitle = renderNotificationTemplate(pushTemplate.title || "", context);
+  const pushBody = renderNotificationTemplate(pushTemplate.body, context);
+
+  await Promise.allSettled([
+    sendTemplatedEmailToUser({
+      eventKey: eventType,
+      preferenceCategory: definition.preferenceCategory,
+      templateKey: definition.emailTemplateKey,
+      userId,
+      variables: context,
+    }),
+    pushTemplate.enabled
+      ? sendPushToUser(userId, {
+          body: pushBody,
+          data: { eventType, url },
+          tag: eventType,
+          title: pushTitle,
+        })
+      : Promise.resolve(),
+  ]);
 }
 
 export async function createUserEvent({
@@ -223,33 +416,53 @@ export async function createUserEvent({
   if (actorUserId && actorUserId === userId) return;
 
   const eventMetadata = metadata ? JSON.stringify(metadata) : null;
+  const definition = getNotificationDefinition(eventType);
+  const inAppTemplate = definition
+    ? await getNotificationSurfaceTemplate({
+        eventKey: eventType,
+        surface: "in_app",
+      })
+    : null;
+  const shouldCreateInAppEvent = !definition || inAppTemplate?.enabled !== false;
 
-  await sql`
-    INSERT INTO user_events (
-      user_id,
-      actor_user_id,
-      event_type,
-      entity_type,
-      entity_id,
-      conversation_id,
-      message_id,
-      listing_id,
-      reel_id,
-      metadata
-    )
-    VALUES (
-      ${userId},
-      ${actorUserId || null},
-      ${eventType},
-      ${entityType || null},
-      ${entityId || null},
-      ${conversationId || null},
-      ${messageId || null},
-      ${listingId || null},
-      ${reelId || null},
-      ${eventMetadata}::jsonb
-    )
-  `;
+  if (shouldCreateInAppEvent) {
+    await sql`
+      INSERT INTO user_events (
+        user_id,
+        actor_user_id,
+        event_type,
+        entity_type,
+        entity_id,
+        conversation_id,
+        message_id,
+        listing_id,
+        reel_id,
+        metadata
+      )
+      VALUES (
+        ${userId},
+        ${actorUserId || null},
+        ${eventType},
+        ${entityType || null},
+        ${entityId || null},
+        ${conversationId || null},
+        ${messageId || null},
+        ${listingId || null},
+        ${reelId || null},
+        ${eventMetadata}::jsonb
+      )
+    `;
+  }
+
+  await dispatchUserEventNotifications({
+    actorUserId,
+    conversationId,
+    eventType,
+    listingId,
+    metadata,
+    reelId,
+    userId,
+  });
 }
 
 export async function createUserEventOnce({
@@ -302,6 +515,8 @@ export async function getUserEvents(userId: string) {
       ue.metadata,
       ue.seen_at,
       ue.created_at,
+      in_app_template.body AS in_app_body,
+      in_app_template.enabled AS in_app_enabled,
       listing.title AS listing_title,
       listing.listing_type AS listing_type,
       listing.property_type AS listing_property_type,
@@ -312,6 +527,9 @@ export async function getUserEvents(userId: string) {
       actor.username AS actor_username,
       actor.avatar_url AS actor_avatar_url
     FROM user_events ue
+    LEFT JOIN notification_surface_templates in_app_template
+      ON in_app_template.event_key = ue.event_type
+      AND in_app_template.surface = 'in_app'
     LEFT JOIN users actor ON actor.id = ue.actor_user_id
     LEFT JOIN property_listings listing ON listing.id = ue.listing_id
     WHERE ue.user_id = ${userId}

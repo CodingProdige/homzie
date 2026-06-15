@@ -1,105 +1,65 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { desc } from "drizzle-orm";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail, MonitorDot, Smartphone } from "lucide-react";
 
 import { db } from "@/db";
-import {
-  emailDeliveryLogs,
-  emailTemplates,
-  emailTemplateVersions,
-} from "@/db/schema";
+import { emailTemplates } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { ensureDefaultEmailTemplates } from "@/modules/email/server";
+import { notificationRegistry } from "@/modules/notifications/registry";
 
-import {
-  EmailTemplateManager,
-  type AdminEmailTemplate,
-} from "./email-template-manager";
+type TemplatePickerItem = {
+  category: string;
+  description: string | null;
+  enabled: boolean;
+  key: string;
+  name: string;
+  surfaces: string[];
+};
 
 export const metadata: Metadata = {
   title: "Email Templates | Homzie Admin",
   description: "Manage Homzie transactional email templates.",
 };
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+function templateSurfaces(key: string) {
+  const notification = notificationRegistry.find(
+    (item) => item.emailTemplateKey === key,
+  );
+
+  if (!notification) return ["Email"];
+
+  return ["In-app", "Push", "Email"];
 }
 
-function asVariables(value: unknown): AdminEmailTemplate["variables"] {
-  return Array.isArray(value)
-    ? value
-        .filter(
-          (item): item is AdminEmailTemplate["variables"][number] =>
-            Boolean(
-              item &&
-                typeof item === "object" &&
-                "key" in item &&
-                typeof item.key === "string" &&
-                "label" in item &&
-                typeof item.label === "string",
-            ),
-        )
-        .map((item) => ({
-          fallback: typeof item.fallback === "string" ? item.fallback : undefined,
-          key: item.key,
-          label: item.label,
-        }))
-    : [];
+function surfaceIcon(surface: string) {
+  if (surface === "Push") return Smartphone;
+  if (surface === "In-app") return MonitorDot;
+
+  return Mail;
 }
 
 export default async function AdminEmailTemplatesPage() {
   await ensureDefaultEmailTemplates();
 
-  const [templateRows, logs, versionRows] = await Promise.all([
-    db
-      .select()
-      .from(emailTemplates)
-      .orderBy(emailTemplates.category, emailTemplates.name),
-    db
-      .select({
-        id: emailDeliveryLogs.id,
-        createdAt: emailDeliveryLogs.createdAt,
-        error: emailDeliveryLogs.error,
-        recipientEmail: emailDeliveryLogs.recipientEmail,
-        status: emailDeliveryLogs.status,
-        subject: emailDeliveryLogs.subject,
-        templateKey: emailDeliveryLogs.templateKey,
-      })
-      .from(emailDeliveryLogs)
-      .orderBy(desc(emailDeliveryLogs.createdAt))
-      .limit(20),
-    db
-      .select({
-        createdAt: emailTemplateVersions.createdAt,
-        id: emailTemplateVersions.id,
-        subject: emailTemplateVersions.subject,
-        templateId: emailTemplateVersions.templateId,
-      })
-      .from(emailTemplateVersions)
-      .orderBy(desc(emailTemplateVersions.createdAt))
-      .limit(60),
-  ]);
-
-  const templates: AdminEmailTemplate[] = templateRows.map((template) => ({
+  const templateRows = await db
+    .select({
+      category: emailTemplates.category,
+      description: emailTemplates.description,
+      enabled: emailTemplates.enabled,
+      key: emailTemplates.key,
+      name: emailTemplates.name,
+    })
+    .from(emailTemplates)
+    .orderBy(emailTemplates.category, emailTemplates.name);
+  const templates: TemplatePickerItem[] = templateRows.map((template) => ({
     category: template.category,
     description: template.description,
     enabled: template.enabled,
-    html: template.html,
     key: template.key,
     name: template.name,
-    preheader: template.preheader,
-    sampleVariables: asRecord(template.sampleVariables),
-    subject: template.subject,
-    text: template.text,
-    updatedAt: template.updatedAt.toISOString(),
-    variables: asVariables(template.variables),
+    surfaces: templateSurfaces(template.key),
   }));
-  const templateKeyById = new Map(
-    templateRows.map((template) => [template.id, template.key]),
-  );
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
@@ -115,32 +75,60 @@ export default async function AdminEmailTemplatesPage() {
           Admin
         </p>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
-          Email templates
+          Notification templates
         </h1>
         <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-muted-foreground">
-          Edit transactional templates, insert backend variables, preview the
-          rendered HTML, and send test emails before publishing changes.
+          Choose a template surface first, then open a focused editor with the
+          variables, saved versions, rendered preview, and test delivery tools.
         </p>
       </div>
 
-      <EmailTemplateManager
-        deliveryLogs={logs.map((log) => ({
-          createdAt: log.createdAt.toISOString(),
-          error: log.error,
-          id: log.id,
-          recipientEmail: log.recipientEmail,
-          status: log.status,
-          subject: log.subject,
-          templateKey: log.templateKey,
-        }))}
-        templates={templates}
-        versions={versionRows.map((version) => ({
-          createdAt: version.createdAt.toISOString(),
-          id: version.id,
-          subject: version.subject,
-          templateKey: templateKeyById.get(version.templateId) || "",
-        }))}
-      />
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {templates.map((template) => (
+          <Link
+            className="group rounded-lg border border-border bg-card p-4 shadow-sm transition hover:border-primary/45 hover:bg-primary/5"
+            href={`/admin/email-templates/${encodeURIComponent(template.key)}`}
+            key={template.key}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block text-xs font-black uppercase tracking-[0.14em] text-primary">
+                  {template.category}
+                </span>
+                <span className="mt-2 block truncate text-base font-black text-foreground">
+                  {template.name}
+                </span>
+                <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
+                  {template.key}
+                </span>
+              </span>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-black uppercase text-muted-foreground">
+                {template.enabled ? "On" : "Off"}
+              </span>
+            </div>
+            {template.description ? (
+              <p className="mt-3 line-clamp-2 text-sm font-semibold leading-6 text-muted-foreground">
+                {template.description}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {template.surfaces.map((item) => {
+                const Icon = surfaceIcon(item);
+
+                return (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-[10px] font-black uppercase text-muted-foreground ring-1 ring-border"
+                    key={item}
+                  >
+                    <Icon className="size-3" />
+                    {item}
+                  </span>
+                );
+              })}
+            </div>
+          </Link>
+        ))}
+      </div>
     </main>
   );
 }

@@ -8,12 +8,10 @@ import EmojiPicker, {
   Theme,
   type EmojiClickData,
 } from "emoji-picker-react";
-import { useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
   useMemo,
-  type RefObject,
   useRef,
   useState,
   useTransition,
@@ -32,14 +30,11 @@ import {
   MessageCircle,
   Mic,
   Pause,
-  Phone,
-  PhoneOff,
   Play,
   Search,
   Send,
   Smile,
   Trash2,
-  Video,
   X,
 } from "lucide-react";
 import { io, type Socket } from "socket.io-client";
@@ -50,7 +45,6 @@ import {
   acceptConversationRequestAction,
   blockUserAction,
   deleteConversationAction,
-  getCallIceServersAction,
   loadConversationAction,
   markConversationReadAction,
   markMessageDeliveredAction,
@@ -60,8 +54,6 @@ import {
   sendMessageAction,
   setConversationMutedAction,
   startConversationAction,
-  startCallSessionAction,
-  updateCallSessionAction,
 } from "@/modules/messages/actions";
 import type {
   ConversationSummary,
@@ -81,15 +73,6 @@ type MessagesPageProps = {
   initialConversationId: string | null;
   messages: MessageThreadItem[];
   viewer: MessageUser;
-};
-
-type CallState = {
-  callId: string;
-  conversationId: string;
-  peerUserId: string;
-  remoteOffer?: RTCSessionDescriptionInit;
-  status: "incoming" | "calling" | "connected";
-  type: "audio" | "video";
 };
 
 type VoicePreview = {
@@ -205,7 +188,6 @@ export function MessagesPage({
   messages: initialMessages,
   viewer,
 }: MessagesPageProps) {
-  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState(initialConversations);
   const [activeConversationId, setActiveConversationId] = useState(
     initialConversationId,
@@ -228,7 +210,6 @@ export function MessagesPage({
   const [voiceWaveform, setVoiceWaveform] = useState<number[]>(
     Array.from({ length: 24 }, () => 0.22),
   );
-  const [callState, setCallState] = useState<CallState | null>(null);
   const [isPending, startTransition] = useTransition();
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
@@ -249,12 +230,6 @@ export function MessagesPage({
   const discardRecordingRef = useRef(false);
   const voiceWaveformRef = useRef<number[]>(voiceWaveform);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const callStateRef = useRef<CallState | null>(null);
-  const pendingCallId = searchParams.get("call");
 
   const activeConversation = useMemo(
     () =>
@@ -285,26 +260,6 @@ export function MessagesPage({
   const requestCount = conversations.filter(
     (conversation) => conversation.inbox === "requests",
   ).length;
-
-  const endLocalCall = useCallback(() => {
-    peerConnectionRef.current?.close();
-    peerConnectionRef.current = null;
-    localStreamRef.current?.getTracks().forEach((track) => track.stop());
-    localStreamRef.current = null;
-
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-
-    setCallState(null);
-  }, []);
-
-  useEffect(() => {
-    callStateRef.current = callState;
-
-    if (localVideoRef.current && localStreamRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
-    }
-  }, [callState]);
 
   const refreshConversation = useCallback(
     (conversationId = activeConversationId) => {
@@ -399,13 +354,6 @@ export function MessagesPage({
 
       if (conversationId) {
         socket.emit("conversation:join", conversationId);
-
-        if (pendingCallId) {
-          socket.emit("call:callee-ready", {
-            callId: pendingCallId,
-            conversationId,
-          });
-        }
       }
     });
 
@@ -486,72 +434,10 @@ export function MessagesPage({
       });
     });
 
-    socket.on("call:offer", (event) => {
-      setCallState({
-        callId: event.callId,
-        conversationId: event.conversationId,
-        peerUserId: event.callerUserId,
-        remoteOffer: event.offer,
-        status: "incoming",
-        type: event.type === "video" ? "video" : "audio",
-      });
-    });
-
-    socket.on("call:answer", async (event) => {
-      if (!peerConnectionRef.current || !event.answer) return;
-
-      await peerConnectionRef.current.setRemoteDescription(event.answer);
-      setCallState((current) =>
-        current && current.callId === event.callId
-          ? { ...current, status: "connected" }
-          : current,
-      );
-    });
-
-    socket.on("call:ice-candidate", async (event) => {
-      if (!peerConnectionRef.current || !event.candidate) return;
-
-      await peerConnectionRef.current.addIceCandidate(event.candidate);
-    });
-
-    socket.on("call:callee-ready", (event) => {
-      const currentCall = callStateRef.current;
-      const localDescription = peerConnectionRef.current?.localDescription;
-
-      if (
-        !currentCall ||
-        currentCall.callId !== event.callId ||
-        currentCall.status !== "calling" ||
-        !localDescription
-      ) {
-        return;
-      }
-
-      socket.emit("call:offer", {
-        callId: currentCall.callId,
-        conversationId: currentCall.conversationId,
-        offer: localDescription,
-        recipientUserId: event.userId,
-        type: currentCall.type,
-      });
-    });
-
-    socket.on("call:decline", (event) => {
-      if (callStateRef.current?.callId === event.callId) {
-        endLocalCall();
-      }
-    });
-
-    socket.on("call:end", (event) => {
-      if (callStateRef.current?.callId === event.callId) {
-        endLocalCall();
-      }
-    });
-
     return () => {
       socket.disconnect();
     };
-  }, [endLocalCall, pendingCallId, refreshConversation, viewer.id]);
+  }, [refreshConversation, viewer.id]);
 
   useEffect(() => {
     function refreshActiveConversation() {
@@ -587,17 +473,6 @@ export function MessagesPage({
       socket.emit("conversation:leave", activeConversationId);
     };
   }, [activeConversationId]);
-
-  useEffect(() => {
-    const socket = socketRef.current;
-
-    if (!socket || !pendingCallId || !activeConversationId) return;
-
-    socket.emit("call:callee-ready", {
-      callId: pendingCallId,
-      conversationId: activeConversationId,
-    });
-  }, [activeConversationId, pendingCallId]);
 
   function selectConversation(conversationId: string) {
     setActiveConversationId(conversationId);
@@ -883,165 +758,6 @@ export function MessagesPage({
     setRecording(true);
   }
 
-  async function createPeerConnection(
-    peerUserId: string,
-    callId: string,
-    conversationId: string,
-  ) {
-    peerConnectionRef.current?.close();
-
-    const iceServers = await getCallIceServersAction();
-    const peerConnection = new RTCPeerConnection({ iceServers });
-
-    peerConnection.onicecandidate = (event) => {
-      if (!event.candidate) return;
-
-      socketRef.current?.emit("call:ice-candidate", {
-        callId,
-        candidate: event.candidate,
-        conversationId,
-        recipientUserId: peerUserId,
-      });
-    };
-
-    peerConnection.ontrack = (event) => {
-      const [stream] = event.streams;
-
-      if (remoteVideoRef.current && stream) {
-        remoteVideoRef.current.srcObject = stream;
-      }
-    };
-
-    peerConnectionRef.current = peerConnection;
-
-    return peerConnection;
-  }
-
-  async function startPeerCall(type: "audio" | "video") {
-    const conversation = activeConversation;
-    const participant = activeParticipant;
-
-    if (!conversation || !participant) return;
-
-    const { callId } = await startCallSessionAction({
-      conversationId: conversation.id,
-      type,
-    });
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: type === "video",
-    });
-    localStreamRef.current = stream;
-
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-    }
-
-    const peerConnection = await createPeerConnection(
-      participant.id,
-      callId,
-      conversation.id,
-    );
-    stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
-
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-
-    setCallState({
-      callId,
-      conversationId: conversation.id,
-      peerUserId: participant.id,
-      status: "calling",
-      type,
-    });
-
-    socketRef.current?.emit("call:offer", {
-      callId,
-      conversationId: conversation.id,
-      offer,
-      recipientUserId: participant.id,
-      type,
-    });
-  }
-
-  async function answerPeerCall() {
-    const call = callState;
-
-    if (!call?.remoteOffer) return;
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: call.type === "video",
-    });
-    localStreamRef.current = stream;
-
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-    }
-
-    const peerConnection = await createPeerConnection(
-      call.peerUserId,
-      call.callId,
-      call.conversationId,
-    );
-    stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
-    await peerConnection.setRemoteDescription(call.remoteOffer);
-
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-
-    await updateCallSessionAction({
-      callId: call.callId,
-      conversationId: call.conversationId,
-      status: "answered",
-    });
-
-    setCallState({ ...call, status: "connected" });
-    socketRef.current?.emit("call:answer", {
-      answer,
-      callId: call.callId,
-      conversationId: call.conversationId,
-      recipientUserId: call.peerUserId,
-    });
-  }
-
-  async function declinePeerCall() {
-    const call = callState;
-
-    if (!call) return;
-
-    await updateCallSessionAction({
-      callId: call.callId,
-      conversationId: call.conversationId,
-      status: "declined",
-    });
-    socketRef.current?.emit("call:decline", {
-      callId: call.callId,
-      conversationId: call.conversationId,
-      recipientUserId: call.peerUserId,
-    });
-    endLocalCall();
-  }
-
-  async function endPeerCall() {
-    const call = callState;
-
-    if (call) {
-      await updateCallSessionAction({
-        callId: call.callId,
-        conversationId: call.conversationId,
-        status: "ended",
-      });
-      socketRef.current?.emit("call:end", {
-        callId: call.callId,
-        conversationId: call.conversationId,
-        recipientUserId: call.peerUserId,
-      });
-    }
-
-    endLocalCall();
-  }
-
   return (
     <div className="flex h-full min-h-0 bg-background text-foreground">
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[1800px] border-t border-border">
@@ -1227,22 +943,6 @@ export function MessagesPage({
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Call"
-                      onClick={() => startPeerCall("audio")}
-                    >
-                      <Phone className="size-5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Video call"
-                      onClick={() => startPeerCall("video")}
-                    >
-                      <Video className="size-5" />
-                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1584,17 +1284,6 @@ export function MessagesPage({
               setReportOpen(false);
             });
           }}
-        />
-      ) : null}
-      {callState ? (
-        <CallDialog
-          call={callState}
-          localVideoRef={localVideoRef}
-          onAnswer={answerPeerCall}
-          onDecline={declinePeerCall}
-          onEnd={endPeerCall}
-          peer={activeParticipant}
-          remoteVideoRef={remoteVideoRef}
         />
       ) : null}
     </div>
@@ -2028,90 +1717,6 @@ function ReportDialog({
         >
           Submit report
         </Button>
-      </div>
-    </div>
-  );
-}
-
-function CallDialog({
-  call,
-  localVideoRef,
-  onAnswer,
-  onDecline,
-  onEnd,
-  peer,
-  remoteVideoRef,
-}: {
-  call: CallState;
-  localVideoRef: RefObject<HTMLVideoElement | null>;
-  onAnswer: () => void;
-  onDecline: () => void;
-  onEnd: () => void;
-  peer: MessageUser | null;
-  remoteVideoRef: RefObject<HTMLVideoElement | null>;
-}) {
-  const videoCall = call.type === "video";
-
-  return (
-    <div className="fixed inset-0 z-[150] grid place-items-center bg-black/70 p-4 text-white backdrop-blur-sm">
-      <div className="w-full max-w-2xl overflow-hidden rounded-lg border border-white/15 bg-brand-midnight shadow-2xl">
-        <div className="relative aspect-video bg-black">
-          {videoCall ? (
-            <>
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="size-full object-cover"
-              />
-              <video
-                ref={localVideoRef}
-                autoPlay
-                muted
-                playsInline
-                className="absolute bottom-4 right-4 h-28 w-20 rounded-md border border-white/20 object-cover"
-              />
-            </>
-          ) : (
-            <div className="grid size-full place-items-center text-center">
-              <div>
-                <UserAvatar className="mx-auto size-20" user={peer} />
-                <h2 className="mt-4 text-2xl font-black">
-                  {peer?.name || "Homzie call"}
-                </h2>
-                <p className="mt-1 text-sm font-bold text-white/65">
-                  {call.status === "incoming"
-                    ? "Incoming audio call"
-                    : call.status === "calling"
-                      ? "Calling..."
-                      : "Connected"}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center justify-center gap-3 p-5">
-          {call.status === "incoming" ? (
-            <>
-              <Button type="button" variant="secondary" onClick={onAnswer}>
-                Answer
-              </Button>
-              <Button type="button" variant="destructive" onClick={onDecline}>
-                Decline
-              </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              aria-label="End call"
-              onClick={onEnd}
-            >
-              <PhoneOff className="size-5" />
-            </Button>
-          )}
-        </div>
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { notificationRegistry } from "@/modules/notifications/registry";
+
 export type EmailTemplateVariable = {
   key: string;
   label: string;
@@ -24,6 +26,69 @@ const commonVariables: EmailTemplateVariable[] = [
   { key: "app.name", label: "App name", fallback: "Homzie" },
   { key: "app.url", label: "App URL", fallback: "https://homzie.co.za" },
 ];
+
+const notificationVariables: EmailTemplateVariable[] = [
+  ...commonVariables,
+  { key: "actor.name", label: "Actor name", fallback: "Someone" },
+  { key: "actor.username", label: "Actor username" },
+  { key: "conversation.url", label: "Conversation URL" },
+  { key: "event.activeViewerCount", label: "Active viewer count" },
+  { key: "event.count", label: "Event count" },
+  { key: "event.reason", label: "Event reason" },
+  { key: "event.type", label: "Event type" },
+  { key: "listing.title", label: "Listing title" },
+  { key: "listing.url", label: "Listing URL" },
+  { key: "message.preview", label: "Message preview" },
+  { key: "notification.url", label: "Notification URL" },
+  { key: "offer.amount", label: "Offer amount" },
+  { key: "reel.title", label: "Reel title" },
+  { key: "reel.url", label: "Reel URL" },
+  { key: "user.firstName", label: "Recipient first name" },
+  { key: "user.name", label: "Recipient full name" },
+];
+
+const notificationEventEmailTemplates = notificationRegistry.map((event) => ({
+  category: event.category,
+  description: `${event.label} notification email.`,
+  enabled: event.defaultEmailEnabled,
+  html: `
+      <h1>${event.pushTitle}</h1>
+      <p>${event.template}</p>
+      <p><a class="button" href="{{notification.url}}">Open Homzie</a></p>
+      <p class="muted">You can update notification preferences from your Homzie settings.</p>
+    `,
+  key: event.emailTemplateKey,
+  name: event.label,
+  preheader: event.pushBody,
+  sampleVariables: {
+    actor: { name: "Sarah Parker", username: "sarahparker" },
+    app: { name: "Homzie", url: "https://homzie.co.za" },
+    conversation: {
+      url: "https://homzie.co.za/messages?conversation=00000000-0000-0000-0000-000000000000",
+    },
+    event: {
+      activeViewerCount: 3,
+      count: 25,
+      reason: "Conversation reported",
+      type: event.eventType,
+    },
+    listing: {
+      title: "Spacious 3-bedroom home",
+      url: "https://homzie.co.za/property/for-sale/western-cape/paarl/spacious-home-00000000",
+    },
+    message: { preview: "Hi, is this property still available?" },
+    notification: { url: "https://homzie.co.za/events" },
+    offer: { amount: "of R 3,500,000" },
+    reel: {
+      title: "a property reel",
+      url: "https://homzie.co.za/reels/00000000-0000-0000-0000-000000000000",
+    },
+    user: { firstName: "Dillon", name: "Dillon Jurgens" },
+  },
+  subject: event.pushTitle,
+  text: `${event.template}\n\nOpen Homzie: {{notification.url}}`,
+  variables: notificationVariables,
+}));
 
 export const defaultEmailTemplates = [
   {
@@ -502,6 +567,7 @@ export const defaultEmailTemplates = [
       { key: "user.name", label: "Recipient full name" },
     ],
   },
+  ...notificationEventEmailTemplates,
 ] satisfies DefaultEmailTemplate[];
 
 export function getDefaultTemplate(key: string) {
