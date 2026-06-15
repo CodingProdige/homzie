@@ -26,13 +26,21 @@ export function AiInsightRefreshButton({
   const [appliedRefreshRequest, setAppliedRefreshRequest] = useState(false);
 
   useEffect(() => {
-    setCooldown(Math.max(0, Math.ceil(cooldownSeconds)));
+    const timeout = window.setTimeout(() => {
+      setCooldown(Math.max(0, Math.ceil(cooldownSeconds)));
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [cooldownSeconds]);
 
   useEffect(() => {
     if (refreshRequested && !appliedRefreshRequest && cooldown <= 0) {
-      setCooldown(30);
-      setAppliedRefreshRequest(true);
+      const timeout = window.setTimeout(() => {
+        setCooldown(30);
+        setAppliedRefreshRequest(true);
+      }, 0);
+
+      return () => window.clearTimeout(timeout);
     }
   }, [appliedRefreshRequest, cooldown, refreshRequested]);
 

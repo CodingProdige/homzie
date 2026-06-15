@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,15 +24,17 @@ export function ActivityRealtimeRefresh({
   const [isPending, startTransition] = useTransition();
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
-  function refresh() {
+  const refresh = useCallback(() => {
     startTransition(() => {
       router.refresh();
       setLastUpdatedAt(new Date());
     });
-  }
+  }, [router]);
 
   useEffect(() => {
-    setLastUpdatedAt(new Date());
+    const initialUpdate = window.setTimeout(() => {
+      setLastUpdatedAt(new Date());
+    }, 0);
 
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -42,10 +44,11 @@ export function ActivityRealtimeRefresh({
     document.addEventListener("visibilitychange", refreshIfVisible);
 
     return () => {
+      window.clearTimeout(initialUpdate);
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [intervalMs]);
+  }, [intervalMs, refresh]);
 
   useEffect(() => {
     if (!clearSearchParams.length) return;

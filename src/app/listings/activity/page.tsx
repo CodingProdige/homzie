@@ -1222,7 +1222,7 @@ export default async function ListingActivityOverviewPage({
   const insightRefreshParams = new URLSearchParams();
 
   if (safeCurrentPage > 1) insightRefreshParams.set("page", String(safeCurrentPage));
-  insightRefreshParams.set("refreshInsight", String(Date.now()));
+  insightRefreshParams.set("refreshInsight", "1");
 
   const insightRefreshHref = `/listings/activity?${insightRefreshParams.toString()}`;
   const trend = formatTrend(analytics.total_views_24h, analytics.previous_views_24h);

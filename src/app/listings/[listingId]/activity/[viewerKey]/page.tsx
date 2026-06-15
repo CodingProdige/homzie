@@ -870,7 +870,7 @@ export default async function ListingViewerActivityPage({
   if (fromOverview) insightRefreshParams.set("from", "overview");
   if (safeCurrentPage > 1) insightRefreshParams.set("page", String(safeCurrentPage));
 
-  insightRefreshParams.set("refreshInsight", String(Date.now()));
+  insightRefreshParams.set("refreshInsight", "1");
 
   const insightRefreshHref = `/listings/${listing.id}/activity/${encodeURIComponent(viewerKey)}?${insightRefreshParams.toString()}`;
   const listingActivityBackHref = fromOverview

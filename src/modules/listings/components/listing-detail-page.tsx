@@ -1463,7 +1463,6 @@ export function ListingDetailPage({
   const [liveIntent, setLiveIntent] = useState<LiveIntentState | null>(null);
   const [, startLiveIntentTransition] = useTransition();
   const trackedListingViewRef = useRef<string | null>(null);
-  const router = useRouter();
   const { formatPriceCents, formatPriceLabel } = useCurrency();
   const mediaItems = useMemo(
     () => {
