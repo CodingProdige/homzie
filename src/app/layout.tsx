@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Poppins } from "next/font/google";
 import Script from "next/script";
+import { Suspense } from "react";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
+import { GoogleAnalyticsPageView } from "@/components/google-analytics-page-view";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
 import { PushNotificationBootstrap } from "@/modules/push/components/push-notification-bootstrap";
 import { PwaInstallBootstrap } from "@/modules/pwa/components/pwa-install";
@@ -68,7 +70,8 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const googleAnalyticsId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
+const googleAnalyticsId =
+  process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || "G-R76VMT2VVG";
 
 export default function RootLayout({
   children,
@@ -95,9 +98,12 @@ export default function RootLayout({
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
                 gtag('js', new Date());
-                gtag('config', '${googleAnalyticsId}');
+                gtag('config', '${googleAnalyticsId}', { send_page_view: false });
               `}
             </Script>
+            <Suspense fallback={null}>
+              <GoogleAnalyticsPageView measurementId={googleAnalyticsId} />
+            </Suspense>
           </>
         ) : null}
         <CurrencyProvider>
