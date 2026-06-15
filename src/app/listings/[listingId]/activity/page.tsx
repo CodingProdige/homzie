@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
+import { Button } from "@/components/ui/button";
 import {
   CanonicalTable,
   type CanonicalTableColumn,
@@ -14,6 +15,7 @@ import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
+import { clearListingBuyerActivityAction } from "@/modules/listings/activity-count-actions";
 import {
   activityBadge,
   activityLabel,
@@ -108,7 +110,7 @@ export default async function ListingActivityPage({
     notFound();
   }
 
-  const [countRows, activityGroups] = await Promise.all([
+  const [countRows, activityGroups, unreadRows] = await Promise.all([
     sql<{ total_rows: number }[]>`
       WITH activity_rows AS (
         SELECT coalesce(viewer_user_id::text, viewer_session_id) AS viewer_key
@@ -209,6 +211,37 @@ export default async function ListingActivityPage({
       LIMIT ${pageSize}
       OFFSET ${offset}
     `,
+    sql<{ unread_viewer_count: number }[]>`
+      WITH activity_rows AS (
+        SELECT
+          coalesce(viewer_user_id::text, viewer_session_id) AS viewer_key,
+          created_at
+        FROM listing_view_events
+        WHERE listing_id = ${listingId}
+          AND (viewer_user_id IS NULL OR viewer_user_id <> ${userId})
+        UNION ALL
+        SELECT
+          coalesce(viewer_user_id::text, viewer_session_id) AS viewer_key,
+          created_at
+        FROM listing_action_events
+        WHERE listing_id = ${listingId}
+          AND (viewer_user_id IS NULL OR viewer_user_id <> ${userId})
+      ),
+      viewer_latest AS (
+        SELECT viewer_key, max(created_at) AS latest_seen_at
+        FROM activity_rows
+        WHERE viewer_key IS NOT NULL
+        GROUP BY viewer_key
+      )
+      SELECT count(*) FILTER (
+        WHERE lar.last_read_at IS NULL OR vl.latest_seen_at > lar.last_read_at
+      )::int AS unread_viewer_count
+      FROM viewer_latest vl
+      LEFT JOIN listing_activity_reads lar
+        ON lar.listing_id = ${listingId}
+        AND lar.owner_user_id = ${userId}
+        AND lar.viewer_key = vl.viewer_key
+    `,
   ]);
 
   const totalRows = countRows[0]?.total_rows || 0;
@@ -216,6 +249,7 @@ export default async function ListingActivityPage({
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const firstRow = totalRows ? offset + 1 : 0;
   const lastRow = Math.min(offset + activityGroups.length, totalRows);
+  const unreadViewerCount = unreadRows[0]?.unread_viewer_count || 0;
   const activityHref = (path: string, page?: number) => {
     const params = new URLSearchParams();
 
@@ -372,9 +406,23 @@ export default async function ListingActivityPage({
             <p className="text-xs text-muted-foreground">
               Showing {firstRow}-{lastRow} of {totalRows} viewers
             </p>
-            <p className="text-xs font-semibold text-muted-foreground">
-              Page {safeCurrentPage} of {totalPages}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={clearListingBuyerActivityAction}>
+                <input type="hidden" name="listingId" value={listing.id} />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  disabled={unreadViewerCount <= 0}
+                  className="h-8 rounded-full px-3 text-xs"
+                >
+                  Clear all
+                </Button>
+              </form>
+              <p className="text-xs font-semibold text-muted-foreground">
+                Page {safeCurrentPage} of {totalPages}
+              </p>
+            </div>
           </div>
 
           <CanonicalTable

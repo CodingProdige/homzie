@@ -18,6 +18,7 @@ import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import { ActivityRealtimeRefresh } from "@/modules/listings/components/activity-realtime-refresh";
+import { clearAllListingBuyerActivityAction } from "@/modules/listings/activity-count-actions";
 import { AiInsightRefreshButton } from "@/modules/listings/components/ai-insight-refresh-button";
 import {
   activityBadge,
@@ -1375,9 +1376,22 @@ export default async function ListingActivityOverviewPage({
             <p className="text-xs text-muted-foreground">
               Showing {firstRow}-{lastRow} of {totalRows} listings
             </p>
-            <p className="text-xs font-semibold text-muted-foreground">
-              Page {safeCurrentPage} of {totalPages}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={clearAllListingBuyerActivityAction}>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  disabled={analytics.unread_viewer_count <= 0}
+                  className="h-8 rounded-full px-3 text-xs"
+                >
+                  Clear all
+                </Button>
+              </form>
+              <p className="text-xs font-semibold text-muted-foreground">
+                Page {safeCurrentPage} of {totalPages}
+              </p>
+            </div>
           </div>
 
           <CanonicalTable
