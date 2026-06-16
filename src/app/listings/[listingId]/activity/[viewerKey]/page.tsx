@@ -710,13 +710,16 @@ export default async function ListingViewerActivityPage({
     sql<BuyerInsightRow[]>`
       WITH viewer_identity AS (
         SELECT
-          ${viewerKey}::text AS viewer_key,
-          CASE
-            WHEN ${viewerKey}::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-              THEN ${viewerKey}::uuid
-            ELSE NULL::uuid
-          END AS viewer_user_id,
-          ${viewerKey}::text AS viewer_session_id
+          raw.viewer_key,
+          (
+            CASE
+              WHEN raw.viewer_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                THEN raw.viewer_key
+              ELSE NULL
+            END
+          )::uuid AS viewer_user_id,
+          raw.viewer_key AS viewer_session_id
+        FROM (SELECT ${viewerKey}::text AS viewer_key) raw
       ),
       scoped_views AS (
         SELECT
