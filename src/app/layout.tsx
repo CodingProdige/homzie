@@ -72,6 +72,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const googleAnalyticsId =
   process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || "G-R76VMT2VVG";
+const googleAdsId =
+  process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-18217057293";
+const googleTagId = googleAnalyticsId || googleAdsId;
 
 export default function RootLayout({
   children,
@@ -87,23 +90,30 @@ export default function RootLayout({
       className={`${poppins.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        {googleAnalyticsId ? (
+        {googleTagId ? (
           <>
             <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
+              src={`https://www.googletagmanager.com/gtag/js?id=${googleTagId}`}
               strategy="afterInteractive"
             />
-            <Script id="google-analytics" strategy="afterInteractive">
+            <Script id="google-tag" strategy="afterInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
                 gtag('js', new Date());
-                gtag('config', '${googleAnalyticsId}', { send_page_view: false });
+                ${
+                  googleAnalyticsId
+                    ? `gtag('config', '${googleAnalyticsId}', { send_page_view: false });`
+                    : ""
+                }
+                ${googleAdsId ? `gtag('config', '${googleAdsId}');` : ""}
               `}
             </Script>
-            <Suspense fallback={null}>
-              <GoogleAnalyticsPageView measurementId={googleAnalyticsId} />
-            </Suspense>
+            {googleAnalyticsId ? (
+              <Suspense fallback={null}>
+                <GoogleAnalyticsPageView measurementId={googleAnalyticsId} />
+              </Suspense>
+            ) : null}
           </>
         ) : null}
         <CurrencyProvider>
