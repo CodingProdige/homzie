@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getServerSession } from "next-auth";
 import {
   ArrowRight,
@@ -20,6 +19,11 @@ import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
+import {
+  AgentPricingViewedTracker,
+  AgentTrialLink,
+  AgentWalkthroughVideo,
+} from "./agent-landing-tracking";
 
 export const metadata: Metadata = {
   title: "Win More Mandates With Homzie | Agent Trial",
@@ -111,18 +115,20 @@ const trialBullets = [
 function TrialButton({
   className,
   href,
+  location,
   variant = "default",
 }: {
   className?: string;
   href: string;
+  location: string;
   variant?: "default" | "outline";
 }) {
   return (
     <Button asChild className={className} size="lg" variant={variant}>
-      <Link href={href}>
+      <AgentTrialLink href={href} location={location}>
         Start 7-day free trial
         <ArrowRight className="size-4" />
-      </Link>
+      </AgentTrialLink>
     </Button>
   );
 }
@@ -165,7 +171,11 @@ export default async function ForAgentsPage() {
               serious buyers while interest is hot.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <TrialButton className="h-12 px-6 text-sm font-black sm:h-14 sm:px-8" href={href} />
+              <TrialButton
+                className="h-12 px-6 text-sm font-black sm:h-14 sm:px-8"
+                href={href}
+                location="hero"
+              />
               <p className="text-sm font-semibold text-white/72">
                 Set up your profile, add your first listing, and activate your trial.
               </p>
@@ -211,16 +221,16 @@ export default async function ForAgentsPage() {
                 monitor live buyer activity, and use buyer intent to follow up smarter.
               </p>
             </div>
-            <TrialButton className="w-full sm:w-fit" href={href} />
+            <TrialButton
+              className="w-full sm:w-fit"
+              href={href}
+              location="demo_header"
+            />
           </div>
 
           <div className="mt-8 overflow-hidden rounded-lg border border-border bg-brand-black shadow-2xl shadow-primary/10">
-            <video
+            <AgentWalkthroughVideo
               className="aspect-video w-full bg-brand-black object-contain"
-              src="/video/homzie-walkthrough.mp4"
-              controls
-              playsInline
-              preload="metadata"
             />
           </div>
         </section>
@@ -256,7 +266,7 @@ export default async function ForAgentsPage() {
             </div>
 
             <div className="mt-8">
-              <TrialButton href={href} />
+              <TrialButton href={href} location="features" />
             </div>
           </div>
         </section>
@@ -276,7 +286,7 @@ export default async function ForAgentsPage() {
               and can act on interest faster.
             </p>
             <div className="mt-8">
-              <TrialButton href={href} />
+              <TrialButton href={href} location="mandate_proof" />
             </div>
           </div>
 
@@ -335,12 +345,13 @@ export default async function ForAgentsPage() {
             </div>
 
             <div className="mt-8">
-              <TrialButton href={href} />
+              <TrialButton href={href} location="comparison" />
             </div>
           </div>
         </section>
 
         <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <AgentPricingViewedTracker />
           <div className="overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-primary/5">
             <div className="grid gap-0 lg:grid-cols-[1fr_0.85fr]">
               <div className="p-6 sm:p-8 lg:p-10">
@@ -355,7 +366,7 @@ export default async function ForAgentsPage() {
                   see how Homzie helps you prove your value to sellers.
                 </p>
                 <div className="mt-8">
-                  <TrialButton href={href} />
+                  <TrialButton href={href} location="trial_section" />
                 </div>
               </div>
 
@@ -414,7 +425,11 @@ export default async function ForAgentsPage() {
           </div>
 
           <div className="mt-8 text-center">
-            <TrialButton className="mx-auto" href={href} />
+            <TrialButton
+              className="mx-auto"
+              href={href}
+              location="faq_final"
+            />
           </div>
         </section>
       </main>
