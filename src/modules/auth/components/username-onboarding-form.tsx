@@ -14,9 +14,13 @@ import {
 import { normalizeUsername } from "../username";
 
 export function UsernameOnboardingForm({
+  callbackUrl,
   suggestedUsername,
+  usernameLabel = "Username",
 }: {
+  callbackUrl?: string;
   suggestedUsername: string;
+  usernameLabel?: string;
 }) {
   const [username, setUsername] = useState(suggestedUsername);
   const [pendingUsername, setPendingUsername] = useState<string | null>(
@@ -81,7 +85,7 @@ export function UsernameOnboardingForm({
         return;
       }
 
-      window.location.assign(`/users/${result.username}`);
+      window.location.assign(callbackUrl || `/users/${result.username}`);
     });
   };
 
@@ -90,7 +94,7 @@ export function UsernameOnboardingForm({
   return (
     <form className="mt-8 space-y-6" onSubmit={onSubmit}>
       <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
+        <Label htmlFor="username">{usernameLabel}</Label>
         <div className="relative">
           <AtSign className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input

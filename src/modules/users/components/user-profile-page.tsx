@@ -41,6 +41,7 @@ import { GlobalFooter } from "@/components/global-footer";
 import { cn } from "@/lib/utils";
 import { toPublicMediaUrl } from "@/media/paths";
 import { useCurrency } from "@/modules/currency/currency-provider";
+import type { EffectiveAgencyBrand } from "@/modules/agencies/server";
 import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
 import { startConversationAction } from "@/modules/messages/actions";
 import { ReportContentButton } from "@/modules/moderation/report-content-button";
@@ -48,6 +49,7 @@ import { toggleProfileFollow } from "@/modules/reels/actions";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
 
 type UserProfile = {
+  agencyBrand?: EffectiveAgencyBrand;
   id: string;
   name: string;
   username: string;
@@ -565,6 +567,24 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
         <p className="mt-0.5 text-xs font-medium text-muted-foreground sm:mt-1 sm:text-sm">
           @{profile.username}
         </p>
+        {profile.agencyBrand ? (
+          <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-foreground shadow-sm">
+            <span className="grid size-6 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-[10px] text-primary">
+              {profile.agencyBrand.logoUrl ? (
+                <Image
+                  src={profile.agencyBrand.logoUrl}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="size-full object-cover"
+                />
+              ) : (
+                profile.agencyBrand.name.slice(0, 2).toUpperCase()
+              )}
+            </span>
+            <span className="truncate">{profile.agencyBrand.badgeLabel}</span>
+          </div>
+        ) : null}
 
         <div className="mt-3 grid max-w-sm grid-cols-3 gap-2 sm:mt-5 sm:flex sm:gap-10">
           <div className="min-w-0">

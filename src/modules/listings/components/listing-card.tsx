@@ -35,8 +35,10 @@ import { useCurrency } from "@/modules/currency/currency-provider";
 import { mandateTypeOptions, type ListingType } from "@/modules/listings/options";
 import { countryFlagFromLocation } from "@/modules/location/country-preference";
 import { getAnalyticsViewerSessionId } from "@/modules/analytics/browser-session";
+import type { EffectiveAgencyBrand } from "@/modules/agencies/server";
 
 export type ListingCardData = {
+  agencyBrand?: EffectiveAgencyBrand | null;
   bathrooms?: number | string | null;
   bedrooms?: number | string | null;
   buyerIncentive?: string | null;
@@ -503,6 +505,24 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         {listing.buyerIncentive ? (
           <span className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-primary px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-lg">
             {listing.buyerIncentive}
+          </span>
+        ) : null}
+        {listing.agencyBrand ? (
+          <span className="absolute bottom-3 right-3 z-10 inline-flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[10px] font-black text-foreground shadow-sm backdrop-blur">
+            <span className="grid size-4 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-[8px] text-primary">
+              {listing.agencyBrand.logoUrl ? (
+                <Image
+                  src={listing.agencyBrand.logoUrl}
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="size-full object-cover"
+                />
+              ) : (
+                listing.agencyBrand.name.slice(0, 2).toUpperCase()
+              )}
+            </span>
+            <span className="max-w-32 truncate">{listing.agencyBrand.badgeLabel}</span>
           </span>
         ) : null}
         {listing.id ? (

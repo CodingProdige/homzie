@@ -6,6 +6,7 @@ import { HomzieLogo } from "@/components/homzie-logo";
 import { AuthForm } from "./auth-form";
 import { GoogleAuthButton } from "./google-auth-button";
 import { ThemeToggle } from "./theme-toggle";
+import type { AgencyNetworkOption } from "@/modules/agencies/server";
 
 type AuthMode = "sign-in" | "register";
 
@@ -29,13 +30,21 @@ function AuthMediaPanel() {
   );
 }
 
-export function AuthShell({ mode }: { mode: AuthMode }) {
+export function AuthShell({
+  callbackUrl,
+  mode,
+  networkOptions = [],
+}: {
+  callbackUrl?: string;
+  mode: AuthMode;
+  networkOptions?: AgencyNetworkOption[];
+}) {
   const isRegister = mode === "register";
   const title = isRegister
     ? "Create your Homzie account"
     : "Sign in to your Homzie account";
   const description = isRegister
-    ? "Create an account to save homes, follow profiles, and manage your property journey."
+    ? "Create a personal account or set up an agency workspace for your team."
     : "Enter your credentials to access your Homzie account";
   const googleLabel = isRegister
     ? "Register with Google"
@@ -75,7 +84,11 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
             </p>
           </div>
 
-          <AuthForm mode={mode} />
+          <AuthForm
+            callbackUrl={callbackUrl}
+            mode={mode}
+            networkOptions={networkOptions}
+          />
 
           <div className="my-8 grid grid-cols-[1fr_auto_1fr] items-center gap-5">
             <div className="h-px bg-border" />
@@ -83,7 +96,7 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
             <div className="h-px bg-border" />
           </div>
 
-          <GoogleAuthButton label={googleLabel} />
+          <GoogleAuthButton callbackUrl={callbackUrl} label={googleLabel} />
 
           <p className="mt-7 text-center text-sm text-muted-foreground">
             {isRegister ? "Already have an account?" : "New to Homzie?"}{" "}

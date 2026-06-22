@@ -7,6 +7,7 @@ import {
   propertyListings,
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
+import { getEffectiveAgencyBrandsForUsers } from "@/modules/agencies/server";
 import type { ListingCardData } from "@/modules/listings/components/listing-card";
 import {
   featureOptions,
@@ -446,6 +447,7 @@ export async function getDiscoverListings({
       propertyType: propertyListings.propertyType,
       status: propertyListings.status,
       title: propertyListings.title,
+      userId: propertyListings.userId,
     })
     .from(propertyListings)
     .where(and(...where))
@@ -454,6 +456,9 @@ export async function getDiscoverListings({
     .offset(safeOffset);
 
   const visibleRows = rows.slice(0, safeLimit);
+  const agencyBrands = await getEffectiveAgencyBrandsForUsers(
+    visibleRows.map((listing) => listing.userId),
+  );
   const listings: ListingCardData[] = await Promise.all(
     visibleRows.map(async (listing) => {
       const details = metadataObject(listing.details);
@@ -527,6 +532,7 @@ export async function getDiscoverListings({
         listing.status === "published" ? "" : "No longer available";
 
       return {
+        agencyBrand: agencyBrands.get(listing.userId) || null,
         bathrooms: numberValue(details.bathrooms),
         bedrooms: numberValue(details.bedrooms),
         buyerIncentive:

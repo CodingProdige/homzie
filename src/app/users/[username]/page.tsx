@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
+import { getEffectiveAgencyBrandsForUsers } from "@/modules/agencies/server";
 import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { getAgentPerformanceStats } from "@/modules/agents/performance";
 import { UserProfilePage as UserProfile } from "@/modules/users/components/user-profile-page";
@@ -401,6 +402,7 @@ async function getProfileListings({
       status: propertyListings.status,
       title: propertyListings.title,
       updatedAt: propertyListings.updatedAt,
+      userId: propertyListings.userId,
     })
     .from(propertyListings)
     .where(
@@ -413,12 +415,15 @@ async function getProfileListings({
     )
     .orderBy(desc(propertyListings.updatedAt));
 
+  const agencyBrands = await getEffectiveAgencyBrandsForUsers([userId]);
+
   return rows.map((listing) => {
     const details = listingDetails(listing.details);
     const unavailable = listing.status !== "published";
 
     return {
       askingPriceCents: listing.askingPriceCents,
+      agencyBrand: agencyBrands.get(listing.userId) || null,
       bathrooms: listingNumber(details.bathrooms),
       bedrooms: listingNumber(details.bedrooms),
       buyerIncentive:
@@ -525,11 +530,16 @@ async function getSavedListings({
       status: propertyListings.status,
       title: propertyListings.title,
       updatedAt: propertyListings.updatedAt,
+      userId: propertyListings.userId,
     })
     .from(listingSaves)
     .innerJoin(propertyListings, eq(propertyListings.id, listingSaves.listingId))
     .where(eq(listingSaves.userId, userId))
     .orderBy(desc(listingSaves.createdAt));
+
+  const agencyBrands = await getEffectiveAgencyBrandsForUsers(
+    rows.map((listing) => listing.userId),
+  );
 
   return rows.map((listing) => {
     const details = listingDetails(listing.details);
@@ -537,6 +547,7 @@ async function getSavedListings({
 
     return {
       askingPriceCents: listing.askingPriceCents,
+      agencyBrand: agencyBrands.get(listing.userId) || null,
       bathrooms: listingNumber(details.bathrooms),
       bedrooms: listingNumber(details.bedrooms),
       buyerIncentive:
@@ -783,6 +794,7 @@ export default async function UserProfilePage({
   const viewerUserId = session?.user?.id || null;
   const [
     hasSubscription,
+    profileAgencyBrands,
     viewer,
     viewerFollowingProfile,
     profileReels,
@@ -792,6 +804,7 @@ export default async function UserProfilePage({
     connections,
   ] = await Promise.all([
     hasActiveAgentSubscription(profile.id),
+    getEffectiveAgencyBrandsForUsers([profile.id]),
     viewerUserId
       ? db
           .select({
@@ -876,6 +889,7 @@ export default async function UserProfilePage({
       <UserProfile
       profile={{
         id: profile.id,
+        agencyBrand: profileAgencyBrands.get(profile.id) || undefined,
         name: profile.name,
         username: profile.username,
         avatarUrl: toPublicMediaUrl(profile.avatarUrl) || undefined,

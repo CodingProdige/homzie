@@ -14,6 +14,7 @@ import {
   Radar,
   Send,
   ShieldCheck,
+  TowerControl,
   UserRound,
   UsersRound,
   X,
@@ -73,6 +74,7 @@ export function GlobalHeader({
   const isProfileActive = isActiveHref(profileHref);
   const isMessagesActive = isActiveHref(messagesHref);
   const isEventsActive = isActiveHref("/events");
+  const isAgencyActive = isActiveHref("/controlroom") || isActiveHref("/agency");
   const isAdmin = viewerRole === "admin";
   const isAdminActive = isActiveHref("/admin");
   const mobileItems = [
@@ -97,6 +99,11 @@ export function GlobalHeader({
             label: "Listing buyers",
             href: "/listings/activity",
             icon: Radar,
+          },
+          {
+            label: "Agency HQ",
+            href: "/controlroom",
+            icon: TowerControl,
           },
         ]
       : []),
@@ -207,6 +214,26 @@ export function GlobalHeader({
               >
                 <Radar className="size-5" />
                 <ListingBuyerActivityCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-primary-foreground" />
+              </Link>
+            </Button>
+          ) : null}
+          {viewerUsername ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className={cn(
+                "hidden lg:inline-flex",
+                isAgencyActive && "bg-primary/10 text-primary",
+              )}
+              aria-label="Agency HQ"
+            >
+              <Link
+                href="/controlroom"
+                aria-current={isAgencyActive ? "page" : undefined}
+                title="Agency HQ"
+              >
+                <TowerControl className="size-5" />
               </Link>
             </Button>
           ) : null}

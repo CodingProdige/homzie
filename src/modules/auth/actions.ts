@@ -8,11 +8,15 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { passwordResetTokens, users } from "@/db/schema";
+import { agencies, passwordResetTokens, users } from "@/db/schema";
 import {
   absoluteAppUrl,
   sendTemplatedEmailToUser,
 } from "@/modules/email/server";
+import {
+  createAgencyWithOwner,
+  getAgencyNameAvailability,
+} from "@/modules/agencies/server";
 import { authOptions } from "./config";
 import { hashPassword } from "./password";
 import { authCookieOptions, authSessionCookieName } from "./session-cookie";
@@ -33,9 +37,37 @@ export type UsernameActionResult =
   | { ok: false; error: string };
 
 const registerSchema = z.object({
+  accountType: z.enum(["personal", "agency"]).optional().default("personal"),
+  agencyName: z.string().trim().optional(),
+  agencyType: z.enum(["independent", "network", "branch"]).optional().default("independent"),
+  branchCode: z.string().trim().optional(),
+  parentAgencyId: z.string().trim().optional(),
+  region: z.string().trim().optional(),
+  regionPlaceData: z.unknown().optional(),
+  regionPlaceId: z.string().trim().optional(),
   name: z.string().trim().min(2, "Enter your full name."),
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
+}).superRefine((value, context) => {
+  if (value.accountType === "agency" && !value.agencyName?.trim()) {
+    context.addIssue({
+      code: "custom",
+      message: "Enter your agency name.",
+      path: ["agencyName"],
+    });
+  }
+
+  if (
+    value.accountType === "agency" &&
+    value.agencyType === "branch" &&
+    !value.parentAgencyId?.trim()
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Select the existing Network HQ this branch belongs to.",
+      path: ["parentAgencyId"],
+    });
+  }
 });
 
 const usernameSchema = z.object({
@@ -65,6 +97,10 @@ function hashResetToken(token: string) {
 
 function getFirstName(name: string) {
   return name.split(/\s+/)[0] || name;
+}
+
+function cleanOptionalText(value: string | undefined, maxLength: number) {
+  return (value || "").replace(/\s+/g, " ").trim().slice(0, maxLength) || null;
 }
 
 export async function checkUsernameAvailability(
@@ -108,6 +144,14 @@ export async function checkUsernameAvailability(
 }
 
 export async function registerWithEmail(input: {
+  accountType?: "personal" | "agency";
+  agencyName?: string;
+  agencyType?: "independent" | "network" | "branch";
+  branchCode?: string;
+  parentAgencyId?: string;
+  region?: string;
+  regionPlaceData?: unknown;
+  regionPlaceId?: string;
   name: string;
   email: string;
   password: string;
@@ -134,10 +178,61 @@ export async function registerWithEmail(input: {
     };
   }
 
+  if (parsed.data.accountType === "agency") {
+    const availability = await getAgencyNameAvailability(
+      parsed.data.agencyName || parsed.data.name,
+    );
+
+    if (!availability.available) {
+      return {
+        ok: false,
+        error: availability.message,
+      };
+    }
+  }
+
   const passwordHash = await hashPassword(parsed.data.password);
+  let resolvedParentAgency:
+    | {
+        id: string;
+        name: string;
+      }
+    | null = null;
+
+  if (
+    parsed.data.accountType === "agency" &&
+    parsed.data.agencyType === "branch"
+  ) {
+    const [parentAgency] = await db
+      .select({ id: agencies.id, name: agencies.name })
+      .from(agencies)
+      .where(
+        and(
+          eq(agencies.id, parsed.data.parentAgencyId || ""),
+          eq(agencies.agencyType, "network"),
+        ),
+      )
+      .limit(1);
+
+    if (!parentAgency) {
+      return {
+        ok: false,
+        error: "Select a valid existing Network HQ.",
+      };
+    }
+
+    resolvedParentAgency = parentAgency;
+  }
+
+  let createdUser:
+    | {
+        id: string;
+        name: string;
+      }
+    | undefined;
 
   try {
-    const [createdUser] = await db
+    [createdUser] = await db
       .insert(users)
       .values({
         name: parsed.data.name,
@@ -148,6 +243,38 @@ export async function registerWithEmail(input: {
       .returning({ id: users.id, name: users.name });
 
     if (createdUser) {
+      if (parsed.data.accountType === "agency") {
+        const isBranchAgency = parsed.data.agencyType === "branch";
+        const storesRegion = parsed.data.agencyType !== "network";
+        const agency = await createAgencyWithOwner({
+          agencyType: parsed.data.agencyType,
+          billingOwnerUserId: createdUser.id,
+          billingMode: "self",
+          branchCode: isBranchAgency
+            ? cleanOptionalText(parsed.data.branchCode, 32)
+            : null,
+          contactEmail: parsed.data.email,
+          createdByUserId: createdUser.id,
+          name: parsed.data.agencyName || parsed.data.name,
+          parentAgencyId: resolvedParentAgency?.id || null,
+          parentLinkStatus: resolvedParentAgency ? "pending" : "none",
+          region: storesRegion ? cleanOptionalText(parsed.data.region, 160) : null,
+          regionPlaceData: storesRegion ? parsed.data.regionPlaceData : null,
+          regionPlaceId: storesRegion
+            ? cleanOptionalText(parsed.data.regionPlaceId, 256)
+            : null,
+          requestedParentAgencyName: resolvedParentAgency?.name || null,
+        });
+
+        if (!agency) {
+          return {
+            ok: false,
+            error:
+              "Account created, but that agency name is no longer available. Sign in and choose a more specific agency name.",
+          };
+        }
+      }
+
       await sendTemplatedEmailToUser({
         bypassPreferences: true,
         eventKey: "auth.welcome",

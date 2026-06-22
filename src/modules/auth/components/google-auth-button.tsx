@@ -27,13 +27,23 @@ function GoogleIcon() {
   );
 }
 
-export function GoogleAuthButton({ label }: { label: string }) {
+export function GoogleAuthButton({
+  callbackUrl,
+  label,
+}: {
+  callbackUrl?: string;
+  label: string;
+}) {
+  const onboardingUrl = callbackUrl
+    ? `/onboarding/username?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : "/onboarding/username";
+
   return (
     <Button
       type="button"
       variant="outline"
       className="h-12 w-full text-base"
-      onClick={() => signIn("google", { callbackUrl: "/onboarding/username" })}
+      onClick={() => signIn("google", { callbackUrl: onboardingUrl })}
     >
       <GoogleIcon />
       {label}

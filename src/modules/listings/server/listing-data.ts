@@ -18,6 +18,10 @@ import {
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
 import {
+  getEffectiveAgencyBrandsForUsers,
+  type EffectiveAgencyBrand,
+} from "@/modules/agencies/server";
+import {
   calculateReservationFees,
   getStoredReservationSettings,
 } from "@/modules/platform-settings/reservation-settings";
@@ -32,6 +36,7 @@ export type ListingMediaItem = {
 
 export type ListingDetailData = {
   agent: {
+    agencyBrand: EffectiveAgencyBrand | null;
     avatarUrl: string | null;
     bio: string | null;
     contactEmail: string | null;
@@ -321,6 +326,7 @@ export async function getListingDetail({
     .where(eq(propertyOffers.listingId, listingId));
 
   return await mapListingRow(row, {
+    agencyBrand: (await getEffectiveAgencyBrandsForUsers([row.userId])).get(row.userId) || null,
     isOwner,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: Boolean(like),
@@ -392,6 +398,7 @@ export async function getOwnedListingDetail({
     .where(eq(propertyOffers.listingId, listingId));
 
   return await mapListingRow(row, {
+    agencyBrand: (await getEffectiveAgencyBrandsForUsers([row.userId])).get(row.userId) || null,
     isOwner: true,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: false,
@@ -405,6 +412,7 @@ export async function getOwnedListingDetail({
 async function mapListingRow(
   row: NonNullable<ListingRow>,
   viewerState: {
+    agencyBrand: EffectiveAgencyBrand | null;
     isOwner: boolean;
     isUnavailableForViewer: boolean;
     likedByViewer: boolean;
@@ -445,6 +453,7 @@ async function mapListingRow(
 
   return {
     agent: {
+      agencyBrand: viewerState.agencyBrand,
       avatarUrl: toPublicMediaUrl(row.agentAvatarUrl),
       bio: row.agentBio,
       contactEmail: row.agentPublicContactVisible ? row.agentContactEmail : null,

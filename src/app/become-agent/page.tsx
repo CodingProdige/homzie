@@ -55,7 +55,7 @@ export default async function BecomeAgentPage() {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
-    redirect("/sign-in");
+    redirect("/sign-in?callbackUrl=/become-agent");
   }
 
   const [user] = await db
@@ -68,7 +68,7 @@ export default async function BecomeAgentPage() {
     .limit(1);
 
   if (!user?.username) {
-    redirect("/onboarding/username");
+    redirect("/onboarding/username?callbackUrl=/become-agent");
   }
 
   const hasSubscription = await hasActiveAgentSubscription(session.user.id);

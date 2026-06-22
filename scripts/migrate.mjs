@@ -35,6 +35,86 @@ try {
   await sql`
     DO $$
     BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_status') THEN
+        CREATE TYPE agency_status AS ENUM ('pending', 'active', 'suspended');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_type') THEN
+        CREATE TYPE agency_type AS ENUM ('independent', 'network', 'branch');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_billing_mode') THEN
+        CREATE TYPE agency_billing_mode AS ENUM ('self', 'parent');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_parent_link_status') THEN
+        CREATE TYPE agency_parent_link_status AS ENUM ('none', 'pending', 'linked', 'declined');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_branding_policy') THEN
+        CREATE TYPE agency_branding_policy AS ENUM ('branch_branding_allowed', 'network_branding_enforced');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_member_role') THEN
+        CREATE TYPE agency_member_role AS ENUM ('owner', 'admin', 'listing_manager', 'agent');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_member_status') THEN
+        CREATE TYPE agency_member_status AS ENUM ('invited', 'active', 'suspended', 'removed');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_ownership_transfer_status') THEN
+        CREATE TYPE agency_ownership_transfer_status AS ENUM ('pending', 'accepted', 'declined', 'cancelled', 'expired');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscription_status') THEN
         CREATE TYPE subscription_status AS ENUM ('pending', 'active', 'past_due', 'cancelled', 'expired');
       END IF;
@@ -351,6 +431,241 @@ try {
 
   await sql`
     CREATE INDEX IF NOT EXISTS subscriptions_status_idx ON subscriptions (status)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agencies (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      name text NOT NULL,
+      slug text NOT NULL UNIQUE,
+      agency_type agency_type NOT NULL DEFAULT 'independent',
+      parent_agency_id uuid REFERENCES agencies(id) ON DELETE SET NULL,
+      requested_parent_agency_name text,
+      parent_link_status agency_parent_link_status NOT NULL DEFAULT 'none',
+      branch_code text,
+      region text,
+      region_place_id text,
+      region_place_data jsonb,
+      billing_mode agency_billing_mode NOT NULL DEFAULT 'self',
+      network_visibility_enabled boolean NOT NULL DEFAULT true,
+      branding_policy agency_branding_policy NOT NULL DEFAULT 'branch_branding_allowed',
+      logo_url text,
+      badge_label text,
+      website_url text,
+      contact_email text,
+      contact_phone text,
+      location text,
+      status agency_status NOT NULL DEFAULT 'pending',
+      created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      billing_owner_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      settings jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS agency_type agency_type NOT NULL DEFAULT 'independent'
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS parent_agency_id uuid REFERENCES agencies(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS requested_parent_agency_name text
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS parent_link_status agency_parent_link_status NOT NULL DEFAULT 'none'
+  `;
+
+  await sql`
+    UPDATE agencies
+    SET parent_link_status = CASE
+      WHEN parent_agency_id IS NOT NULL THEN 'linked'::agency_parent_link_status
+      WHEN agency_type = 'branch'
+        AND requested_parent_agency_name IS NOT NULL
+        AND trim(requested_parent_agency_name) <> ''
+        THEN 'pending'::agency_parent_link_status
+      ELSE parent_link_status
+    END
+    WHERE parent_link_status = 'none'
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS branch_code text
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS region text
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS region_place_id text
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS region_place_data jsonb
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS billing_mode agency_billing_mode NOT NULL DEFAULT 'self'
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS network_visibility_enabled boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS branding_policy agency_branding_policy NOT NULL DEFAULT 'branch_branding_allowed'
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS agencies_slug_idx ON agencies (slug)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_agency_type_idx ON agencies (agency_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_parent_agency_id_idx ON agencies (parent_agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_parent_link_status_idx ON agencies (parent_link_status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_region_idx ON agencies (region)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_region_place_id_idx ON agencies (region_place_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_branding_policy_idx ON agencies (branding_policy)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_billing_mode_idx ON agencies (billing_mode)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_status_idx ON agencies (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_created_by_user_id_idx ON agencies (created_by_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_billing_owner_user_id_idx ON agencies (billing_owner_user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_members (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+      invited_email text,
+      role agency_member_role NOT NULL DEFAULT 'agent',
+      status agency_member_status NOT NULL DEFAULT 'invited',
+      agency_funded boolean NOT NULL DEFAULT true,
+      can_create_listings boolean NOT NULL DEFAULT false,
+      can_submit_listing_requests boolean NOT NULL DEFAULT true,
+      can_publish_listings boolean NOT NULL DEFAULT false,
+      can_edit_agency_listings boolean NOT NULL DEFAULT false,
+      can_view_buyer_activity boolean NOT NULL DEFAULT true,
+      can_manage_members boolean NOT NULL DEFAULT false,
+      can_manage_billing boolean NOT NULL DEFAULT false,
+      invited_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      accepted_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS agency_members_agency_user_idx
+    ON agency_members (agency_id, user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_members_agency_id_idx ON agency_members (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_members_user_id_idx ON agency_members (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_members_invited_email_idx ON agency_members (invited_email)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_members_status_idx ON agency_members (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_members_role_idx ON agency_members (role)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_ownership_transfers (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      requested_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      previous_owner_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      recipient_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      recipient_email text NOT NULL,
+      status agency_ownership_transfer_status NOT NULL DEFAULT 'pending',
+      message text,
+      accepted_at timestamptz,
+      declined_at timestamptz,
+      cancelled_at timestamptz,
+      expires_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_ownership_transfers_agency_id_idx
+    ON agency_ownership_transfers (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_ownership_transfers_recipient_user_id_idx
+    ON agency_ownership_transfers (recipient_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_ownership_transfers_recipient_email_idx
+    ON agency_ownership_transfers (recipient_email)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_ownership_transfers_status_idx
+    ON agency_ownership_transfers (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_ownership_transfers_expires_at_idx
+    ON agency_ownership_transfers (expires_at)
   `;
 
   await sql`

@@ -1396,6 +1396,26 @@ function AgentProfileCard({
                 {listing.agent.location}
               </p>
             ) : null}
+            {listing.agent.agencyBrand ? (
+              <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-black text-foreground shadow-sm">
+                <span className="grid size-5 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-[9px] text-primary">
+                  {listing.agent.agencyBrand.logoUrl ? (
+                    <Image
+                      src={listing.agent.agencyBrand.logoUrl}
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    listing.agent.agencyBrand.name.slice(0, 2).toUpperCase()
+                  )}
+                </span>
+                <span className="truncate">
+                  {listing.agent.agencyBrand.badgeLabel}
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
         {listing.agent.bio ? (

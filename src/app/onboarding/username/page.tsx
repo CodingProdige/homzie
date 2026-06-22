@@ -10,30 +10,60 @@ import { authOptions } from "@/modules/auth/config";
 import { UsernameOnboardingForm } from "@/modules/auth/components/username-onboarding-form";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 import { usernameFromName } from "@/modules/auth/username";
+import {
+  agencyTypeLabel,
+  getPrimaryAgencyWorkspace,
+} from "@/modules/agencies/server";
 
-export default async function UsernameOnboardingPage() {
+export default async function UsernameOnboardingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ callbackUrl?: string }>;
+}) {
   const session = await getServerSession(authOptions);
+  const query = searchParams ? await searchParams : {};
+  const callbackUrl =
+    query.callbackUrl?.startsWith("/") && !query.callbackUrl.startsWith("//")
+      ? query.callbackUrl
+      : null;
 
   if (!session?.user?.id) {
     redirect("/sign-in");
   }
 
-  const [user] = await db
-    .select({
-      name: users.name,
-      username: users.username,
-    })
-    .from(users)
-    .where(eq(users.id, session.user.id))
-    .limit(1);
+  const [user, agencyWorkspace] = await Promise.all([
+    db
+      .select({
+        name: users.name,
+        username: users.username,
+      })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1)
+      .then(([row]) => row || null),
+    getPrimaryAgencyWorkspace(session.user.id),
+  ]);
 
   if (!user) {
     redirect("/sign-in");
   }
 
   if (user.username) {
-    redirect(`/users/${user.username}`);
+    redirect(callbackUrl || `/users/${user.username}`);
   }
+
+  const agencyAccountLabel = agencyWorkspace
+    ? agencyTypeLabel(agencyWorkspace.agency.agencyType)
+    : "";
+  const suggestedUsername = usernameFromName(
+    agencyWorkspace?.agency.name || user.name || "",
+  );
+  const title = agencyWorkspace
+    ? `Choose your ${agencyAccountLabel} username`
+    : "Choose your username";
+  const description = agencyWorkspace
+    ? `This public handle represents ${agencyWorkspace.agency.name} on Homzie. You can still use your personal profile details later.`
+    : "This is how people will find and recognize your profile on Homzie.";
 
   return (
     <main className="min-h-screen bg-background px-6 py-8 text-foreground">
@@ -47,15 +77,17 @@ export default async function UsernameOnboardingPage() {
             <div className="text-center">
               <HomzieLogo className="mx-auto h-9" priority />
               <h1 className="mt-10 text-2xl font-bold tracking-tight sm:text-3xl">
-                Choose your username
+                {title}
               </h1>
               <p className="mx-auto mt-4 max-w-sm text-base leading-7 text-muted-foreground">
-                This is how people will find and recognize your profile on Homzie.
+                {description}
               </p>
             </div>
 
             <UsernameOnboardingForm
-              suggestedUsername={usernameFromName(user.name || "")}
+              callbackUrl={callbackUrl || undefined}
+              suggestedUsername={suggestedUsername}
+              usernameLabel={agencyWorkspace ? `${agencyAccountLabel} username` : "Username"}
             />
           </CardContent>
         </Card>
