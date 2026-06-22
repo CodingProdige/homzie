@@ -11,6 +11,7 @@ const footerSections = [
     links: [
       { href: "/about", label: "About us" },
       { href: "/contact", label: "Contact us" },
+      { href: "/for-agents", label: "For agents" },
       { href: "/become-agent", label: "Become an agent" },
     ],
   },
