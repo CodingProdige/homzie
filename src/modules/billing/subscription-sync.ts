@@ -19,11 +19,20 @@ function getSubscriptionPeriod(subscription: Stripe.Subscription) {
     current_period_end?: number;
     trial_end?: number | null;
   };
+  const firstItem = subscription.items.data[0] as
+    | (Stripe.SubscriptionItem & {
+        current_period_start?: number;
+        current_period_end?: number;
+      })
+    | undefined;
 
   return {
-    currentPeriodStart: toDate(typedSubscription.current_period_start),
+    currentPeriodStart:
+      toDate(typedSubscription.current_period_start) ||
+      toDate(firstItem?.current_period_start),
     currentPeriodEnd:
       toDate(typedSubscription.current_period_end) ||
+      toDate(firstItem?.current_period_end) ||
       toDate(typedSubscription.trial_end),
   };
 }
@@ -58,6 +67,25 @@ async function getSubscriptionUser(userId: string) {
     .limit(1);
 
   return user || null;
+}
+
+export function getInvoiceSubscriptionId(invoice: Stripe.Invoice) {
+  const typedInvoice = invoice as Stripe.Invoice & {
+    parent?: {
+      subscription_details?: {
+        subscription?: string | { id: string } | null;
+      } | null;
+    } | null;
+    subscription?: string | { id: string } | null;
+  };
+  const invoiceSubscription =
+    typedInvoice.subscription ||
+    typedInvoice.parent?.subscription_details?.subscription ||
+    null;
+
+  return typeof invoiceSubscription === "string"
+    ? invoiceSubscription
+    : invoiceSubscription?.id ?? null;
 }
 
 export async function sendSubscriptionTrialStartedEmail({
@@ -138,15 +166,7 @@ export async function sendStripeInvoiceEmail({
   invoice: Stripe.Invoice;
   type: "paid" | "failed";
 }) {
-  const invoiceSubscription = (
-    invoice as Stripe.Invoice & {
-      subscription?: string | { id: string } | null;
-    }
-  ).subscription;
-  const subscriptionId =
-    typeof invoiceSubscription === "string"
-      ? invoiceSubscription
-      : invoiceSubscription?.id ?? null;
+  const subscriptionId = getInvoiceSubscriptionId(invoice);
 
   if (!subscriptionId) return;
 

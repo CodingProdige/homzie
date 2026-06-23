@@ -25,6 +25,7 @@ import {
   getAgentSubscriptionOfferLabel,
 } from "@/modules/billing/plans";
 import { getStripe, getStripeRuntimeConfig } from "@/modules/billing/stripe";
+import { syncStripeSubscription } from "@/modules/billing/subscription-sync";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
 import { SettingsPageHeader } from "../settings-page-header";
 import {
@@ -145,10 +146,16 @@ function getSubscriptionPeriod(subscription: Stripe.Subscription | null) {
         current_period_end?: number;
       })
     | null;
+  const firstItem = subscription?.items.data[0] as
+    | (Stripe.SubscriptionItem & {
+        current_period_start?: number;
+        current_period_end?: number;
+      })
+    | undefined;
 
   return {
-    start: typedSubscription?.current_period_start,
-    end: typedSubscription?.current_period_end,
+    start: typedSubscription?.current_period_start || firstItem?.current_period_start,
+    end: typedSubscription?.current_period_end || firstItem?.current_period_end,
   };
 }
 
@@ -272,6 +279,7 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
   const stripeConfig = await getStripeRuntimeConfig();
   const stripe = await getStripe();
   let stripeSubscription: Stripe.Subscription;
+  let syncedSubscription: Awaited<ReturnType<typeof syncStripeSubscription>> | null = null;
 
   try {
     stripeSubscription = await stripe.subscriptions.retrieve(
@@ -280,6 +288,7 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
         expand: ["default_payment_method"],
       },
     );
+    syncedSubscription = await syncStripeSubscription(stripeSubscription);
   } catch (error) {
     return getLocalBillingData(
       localSubscription,
@@ -295,12 +304,15 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
   const typedSubscription = stripeSubscription as Stripe.Subscription & {
     trial_end?: number | null;
   };
-  const trialDaysRemaining = getTrialDaysRemaining(typedSubscription.trial_end);
-  const trialEndsOn = typedSubscription.trial_end
+  const isStripeTrialing = stripeSubscription.status === "trialing";
+  const trialDaysRemaining = isStripeTrialing
+    ? getTrialDaysRemaining(typedSubscription.trial_end)
+    : null;
+  const trialEndsOn = isStripeTrialing && typedSubscription.trial_end
     ? formatDate(typedSubscription.trial_end)
     : null;
   const isTrialing =
-    stripeSubscription.status === "trialing" &&
+    isStripeTrialing &&
     trialDaysRemaining !== null &&
     trialDaysRemaining >= 0;
   const defaultPaymentMethod = stripeSubscription.default_payment_method;
@@ -419,7 +431,7 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
 
   return {
     issue: null,
-    status: isTrialing ? "trialing" : localSubscription.status,
+    status: isTrialing ? "trialing" : syncedSubscription?.status || localSubscription.status,
     planName: "Homzie Agent Pro",
     cycle: recurringInterval === "year" ? "Yearly" : "Monthly",
     price: `${formatMoney(amountCents, currency)} / ${
@@ -429,7 +441,11 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
     nextChargeLabel,
     nextBillingDate: isTrialing
       ? trialEndsOn || "Not available"
-      : formatDate(period.end || localSubscription.currentPeriodEnd),
+      : formatDate(
+          period.end ||
+            syncedSubscription?.currentPeriodEnd ||
+            localSubscription.currentPeriodEnd,
+        ),
     startedOn: formatDate(period.start || localSubscription.currentPeriodStart),
     card,
     paymentMethods,

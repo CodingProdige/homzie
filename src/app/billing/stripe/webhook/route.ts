@@ -2,6 +2,7 @@ import Stripe from "stripe";
 
 import { getStripe, getStripeWebhookSecret } from "@/modules/billing/stripe";
 import {
+  getInvoiceSubscriptionId,
   sendStripeInvoiceEmail,
   syncStripeSubscription,
 } from "@/modules/billing/subscription-sync";
@@ -55,6 +56,13 @@ export async function POST(request: Request) {
     event.type === "invoice.payment_failed"
   ) {
     const invoice = event.data.object as Stripe.Invoice;
+    const subscriptionId = getInvoiceSubscriptionId(invoice);
+
+    if (subscriptionId) {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      await syncStripeSubscription(subscription);
+    }
+
     await sendStripeInvoiceEmail({
       invoice,
       type: event.type === "invoice.payment_failed" ? "failed" : "paid",
