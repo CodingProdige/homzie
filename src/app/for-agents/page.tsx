@@ -141,6 +141,7 @@ export default async function ForAgentsPage() {
   return (
     <>
       <GlobalHeader
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
         viewerRole={viewer.role}
         viewerUsername={viewer.username}
       />

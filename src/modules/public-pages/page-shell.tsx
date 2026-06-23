@@ -26,7 +26,7 @@ export async function PublicPageShell({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="pt-20 lg:pt-24">{children}</main>
       <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>

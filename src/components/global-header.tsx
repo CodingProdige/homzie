@@ -46,10 +46,12 @@ const navItems: Array<{
 
 export function GlobalHeader({
   transparentUntilScroll = false,
+  viewerHasAgencyWorkspace = false,
   viewerRole,
   viewerUsername,
 }: {
   transparentUntilScroll?: boolean;
+  viewerHasAgencyWorkspace?: boolean;
   viewerRole?: "user" | "admin";
   viewerUsername?: string;
 }) {
@@ -100,6 +102,10 @@ export function GlobalHeader({
             href: "/listings/activity",
             icon: Radar,
           },
+        ]
+      : []),
+    ...(viewerHasAgencyWorkspace
+      ? [
           {
             label: "Agency HQ",
             href: "/controlroom",
@@ -217,7 +223,7 @@ export function GlobalHeader({
               </Link>
             </Button>
           ) : null}
-          {viewerUsername ? (
+          {viewerHasAgencyWorkspace ? (
             <Button
               variant="ghost"
               size="icon"

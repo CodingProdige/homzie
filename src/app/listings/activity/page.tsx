@@ -693,15 +693,21 @@ function ListingActivityCell({ row }: { row: ListingActivityOverviewRow }) {
 }
 
 function LockedListingActivityState({
+  viewerHasAgencyWorkspace,
   viewerRole,
   viewerUsername,
 }: {
+  viewerHasAgencyWorkspace?: boolean;
   viewerRole?: "user" | "admin";
   viewerUsername?: string;
 }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerRole={viewerRole} viewerUsername={viewerUsername} />
+      <GlobalHeader
+        viewerHasAgencyWorkspace={viewerHasAgencyWorkspace}
+        viewerRole={viewerRole}
+        viewerUsername={viewerUsername}
+      />
       <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-20 sm:px-6 lg:px-8 lg:pt-28">
         <Link
           href="/listings"
@@ -778,6 +784,7 @@ export default async function ListingActivityOverviewPage({
   if (!hasAccess) {
     return (
       <LockedListingActivityState
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
         viewerRole={viewer.role}
         viewerUsername={viewer.username}
       />
@@ -1312,7 +1319,7 @@ export default async function ListingActivityOverviewPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-20 sm:px-6 lg:px-8 lg:pt-28">
         <section className="border-b border-border pb-5">
           <div className="flex flex-wrap items-start justify-between gap-4">

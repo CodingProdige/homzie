@@ -1074,6 +1074,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     <div className="min-h-screen bg-background text-foreground">
       <GlobalHeader
         transparentUntilScroll
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
         viewerRole={viewer.role}
         viewerUsername={viewer.username}
       />

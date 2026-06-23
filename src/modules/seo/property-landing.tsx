@@ -174,7 +174,7 @@ export async function PropertyLandingPage(input: PropertyLandingInput) {
           __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
         }}
       />
-      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="page-body pb-16 pt-28">
         <section className="border-b border-border pb-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">

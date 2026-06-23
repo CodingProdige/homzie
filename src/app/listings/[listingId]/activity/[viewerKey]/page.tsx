@@ -926,7 +926,7 @@ export default async function ListingViewerActivityPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-20 sm:px-6 lg:px-8 lg:pt-28">
         <Link
           href={listingActivityBackHref}

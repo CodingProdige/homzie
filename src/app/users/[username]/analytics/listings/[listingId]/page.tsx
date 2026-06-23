@@ -91,7 +91,7 @@ export default async function ListingAnalyticsDetailPage({
   if (!listing) {
     return (
       <>
-        <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
+        <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
         <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-24 lg:pt-28">
           <Button asChild variant="ghost" className="mb-6 px-0">
             <Link href={`/users/${profile.username}/analytics`}>
@@ -113,7 +113,7 @@ export default async function ListingAnalyticsDetailPage({
 
   return (
     <>
-      <GlobalHeader viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
       <main className="mx-auto w-full max-w-6xl px-4 pb-14 pt-24 sm:px-6 lg:px-8 lg:pb-10 lg:pt-28">
         <section>
           <div className="min-w-0 flex-1">
