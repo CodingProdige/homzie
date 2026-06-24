@@ -3,9 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   deploymentId: process.env.NEXT_DEPLOYMENT_ID,
   experimental: {
-    proxyClientMaxBodySize: "45mb",
+    proxyClientMaxBodySize: "95mb",
     serverActions: {
-      bodySizeLimit: "45mb",
+      bodySizeLimit: "95mb",
     },
   },
   images: {

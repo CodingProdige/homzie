@@ -62,8 +62,6 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 const maxListingImageBytes = 15 * 1024 * 1024;
 const maxListingVideoBytes = 80 * 1024 * 1024;
 const maxListingMediaItems = 70;
-const maxListingUploadBatchItems = 20;
-const maxListingUploadPayloadBytes = 45 * 1024 * 1024;
 const maxListingTitleLength = 120;
 const maxListingDescriptionLength = 3000;
 const maxListingFeatures = 10;
@@ -594,18 +592,6 @@ export async function createListing(formData: FormData) {
     0,
   );
 
-  if (
-    mediaUploadCount > maxListingUploadBatchItems ||
-    mediaPayloadBytes > maxListingUploadPayloadBytes
-  ) {
-    console.warn("[listings] createListing media payload too large", {
-      mediaCount: mediaUploadCount,
-      mediaPayloadBytes,
-      userId: session.user.id,
-    });
-    redirect("/listings/new?listingError=media-upload");
-  }
-
   let media: Awaited<ReturnType<typeof storeListingMedia>>;
 
   try {
@@ -822,19 +808,6 @@ export async function updateListing(formData: FormData) {
     (total, value) => total + (value instanceof File ? value.size : 0),
     0,
   );
-
-  if (
-    mediaUploadCount > maxListingUploadBatchItems ||
-    mediaPayloadBytes > maxListingUploadPayloadBytes
-  ) {
-    console.warn("[listings] updateListing media payload too large", {
-      listingId: listingId.data,
-      mediaCount: mediaUploadCount,
-      mediaPayloadBytes,
-      userId: session.user.id,
-    });
-    redirect(`/listings/${listingId.data}/edit?listingError=media-upload`);
-  }
 
   let uploadedMedia: Awaited<ReturnType<typeof storeListingMedia>>;
 

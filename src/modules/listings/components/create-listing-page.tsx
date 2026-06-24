@@ -241,8 +241,6 @@ const imageQuality = 0.82;
 const maxDescriptionLength = 3000;
 const maxTitleLength = 120;
 const maxListingMediaItems = 70;
-const maxListingUploadBatchItems = 20;
-const maxListingUploadPayloadBytes = 45 * 1024 * 1024;
 const maxListingVideoSizeMb = 80;
 const videoCompressionMimeType = "video/webm;codecs=vp9,opus";
 const videoCompressionBitrate = 2_500_000;
@@ -263,6 +261,12 @@ const listingAutosaveStoreName = "listing-form-media";
 type PublishIssue = {
   message: string;
   step: number;
+};
+
+type MediaUploadState = {
+  active: boolean;
+  completed: number;
+  total: number;
 };
 
 const initialDraft: ListingDraft = {
@@ -706,12 +710,14 @@ function featureHashtag(value: string) {
 
 function SubmitButtons({
   intent,
+  isUploadingMedia,
   onReset,
   onBlockedPublish,
   publishIssues,
   setIntent,
 }: {
   intent: "draft" | "published";
+  isUploadingMedia?: boolean;
   onBlockedPublish: () => void;
   onReset: () => void;
   publishIssues: PublishIssue[];
@@ -739,17 +745,17 @@ function SubmitButtons({
         name="publishIntent"
         value="draft"
         variant="outline"
-        disabled={savingDraft}
+        disabled={savingDraft || isUploadingMedia}
         onClick={() => setIntent("draft")}
       >
-        {savingDraft ? "Saving" : "Save draft"}
+        {isUploadingMedia ? "Uploading" : savingDraft ? "Saving" : "Save draft"}
       </Button>
       <Button
         className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
         type={publishBlocked ? "button" : "submit"}
         name="publishIntent"
         value="published"
-        disabled={publishing && !publishBlocked}
+        disabled={isUploadingMedia || (publishing && !publishBlocked)}
         onClick={() => {
           setIntent("published");
 
@@ -758,7 +764,9 @@ function SubmitButtons({
           }
         }}
       >
-        {publishing && !publishBlocked ? (
+        {isUploadingMedia ? (
+          "Uploading"
+        ) : publishing && !publishBlocked ? (
           "Publishing"
         ) : (
           <>
@@ -774,6 +782,7 @@ function SubmitButtons({
 function EditSubmitButtons({
   formId,
   intent,
+  isUploadingMedia,
   listingId,
   onBlockedPublish,
   publishIssues,
@@ -781,6 +790,7 @@ function EditSubmitButtons({
 }: {
   formId: string;
   intent: "draft" | "published";
+  isUploadingMedia?: boolean;
   listingId?: string;
   onBlockedPublish: () => void;
   publishIssues: PublishIssue[];
@@ -804,17 +814,17 @@ function EditSubmitButtons({
             name="publishIntent"
             value="draft"
             variant="outline"
-            disabled={savingDraft}
+            disabled={savingDraft || isUploadingMedia}
             onClick={() => setIntent("draft")}
           >
-            {savingDraft ? "Updating" : "Update draft"}
+            {isUploadingMedia ? "Uploading" : savingDraft ? "Updating" : "Update draft"}
           </Button>
           <Button
             className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
             type={publishBlocked ? "button" : "submit"}
             name="publishIntent"
             value="published"
-            disabled={publishing && !publishBlocked}
+            disabled={isUploadingMedia || (publishing && !publishBlocked)}
             onClick={() => {
               setIntent("published");
 
@@ -823,7 +833,11 @@ function EditSubmitButtons({
               }
             }}
           >
-            {publishing && !publishBlocked ? "Publishing" : "Publish listing"}
+            {isUploadingMedia
+              ? "Uploading"
+              : publishing && !publishBlocked
+                ? "Publishing"
+                : "Publish listing"}
           </Button>
         </>
       ) : (
@@ -832,7 +846,7 @@ function EditSubmitButtons({
           type={publishBlocked ? "button" : "submit"}
           name="publishIntent"
           value="published"
-          disabled={publishing && !publishBlocked}
+          disabled={isUploadingMedia || (publishing && !publishBlocked)}
           onClick={() => {
             setIntent("published");
 
@@ -841,7 +855,11 @@ function EditSubmitButtons({
             }
           }}
         >
-          {publishing && !publishBlocked ? "Updating" : "Update listing"}
+          {isUploadingMedia
+            ? "Uploading"
+            : publishing && !publishBlocked
+              ? "Updating"
+              : "Update listing"}
         </Button>
       )}
     </div>
@@ -851,28 +869,39 @@ function EditSubmitButtons({
 function ListingPublishProgress({
   imageCount,
   intent,
+  isUploadingMedia,
   mediaCount,
   mode,
+  uploadedCount,
   uploadCount,
   videoCount,
 }: {
   imageCount: number;
   intent: "draft" | "published";
+  isUploadingMedia?: boolean;
   mediaCount: number;
   mode: "create" | "edit";
+  uploadedCount?: number;
   uploadCount: number;
   videoCount: number;
 }) {
   const { pending } = useFormStatus();
   const [progress, setProgress] = useState(14);
   const publishing = pending && intent === "published";
+  const processing = isUploadingMedia || publishing;
+  const uploadProgress =
+    isUploadingMedia && uploadCount
+      ? Math.min(88, 12 + ((uploadedCount || 0) / uploadCount) * 76)
+      : progress;
   const steps = [
     "Checking required listing fields",
     uploadCount
-      ? `Uploading ${uploadCount} new media ${uploadCount === 1 ? "item" : "items"}`
+      ? isUploadingMedia
+        ? `Uploading media ${Math.min(uploadedCount || 0, uploadCount)} of ${uploadCount}`
+        : "Listing media uploaded"
       : "Keeping saved media",
     "Saving listing details",
-    uploadCount > 10
+    uploadCount > 10 && !isUploadingMedia
       ? "Finalizing listing after media upload"
       : mode === "edit"
         ? "Updating public listing"
@@ -880,7 +909,7 @@ function ListingPublishProgress({
   ];
   const activeStepIndex = Math.min(
     steps.length - 1,
-    Math.floor((progress / 100) * steps.length),
+    isUploadingMedia ? 1 : Math.floor((uploadProgress / 100) * steps.length),
   );
 
   useEffect(() => {
@@ -893,7 +922,7 @@ function ListingPublishProgress({
     return () => window.clearInterval(interval);
   }, [publishing]);
 
-  if (!publishing) return null;
+  if (!processing) return null;
 
   return (
     <section
@@ -909,7 +938,11 @@ function ListingPublishProgress({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-black">
-                {mode === "edit" ? "Updating listing" : "Publishing listing"}
+                {isUploadingMedia
+                  ? "Uploading listing media"
+                  : mode === "edit"
+                    ? "Updating listing"
+                    : "Publishing listing"}
               </p>
               <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
                 Keep this page open while Homzie processes the listing.
@@ -931,14 +964,13 @@ function ListingPublishProgress({
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-background">
             <span
               className="block h-full rounded-full bg-[image:var(--homzie-gradient)] transition-[width] duration-700 ease-out"
-              style={{ width: `${progress}%` }}
+              style={{ width: `${uploadProgress}%` }}
             />
           </div>
           {uploadCount > 10 ? (
             <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
-              Larger upload batches can spend extra time on the final save.
-              Homzie will open the success screen as soon as the listing is
-              confirmed.
+              Larger media sets are uploaded before the listing is saved, so
+              this still completes from one button press.
             </p>
           ) : null}
 
@@ -1666,6 +1698,11 @@ export function CreateListingPage({
   );
   const [publishMessage, setPublishMessage] = useState("");
   const [coverIndex, setCoverIndex] = useState(initialCoverIndex);
+  const [mediaUploadState, setMediaUploadState] = useState<MediaUploadState>({
+    active: false,
+    completed: 0,
+    total: 0,
+  });
   const [, setMediaStatus] = useState("");
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const autosaveHydratedRef = useRef(false);
@@ -1702,10 +1739,7 @@ export function CreateListingPage({
   );
   const uploadMedia = media.filter((item) => item.file);
   const uploadMediaCount = uploadMedia.length;
-  const uploadPayloadBytes = uploadMedia.reduce(
-    (total, item) => total + (item.file?.size || 0),
-    0,
-  );
+  const isUploadingMedia = mediaUploadState.active;
   const publishIssueSteps = useMemo(
     () => new Set(publishIssues.map((issue) => issue.step)),
     [publishIssues],
@@ -1967,6 +2001,7 @@ export function CreateListingPage({
     setDraft(buildInitialDraft(initialDraft));
     setMedia(buildInitialMedia(initialMedia));
     setCoverIndex(initialCoverIndex);
+    setMediaUploadState({ active: false, completed: 0, total: 0 });
     setMediaStatus("");
     setPublishMessage("");
 
@@ -1980,6 +2015,113 @@ export function CreateListingPage({
 
   function requestResetForm() {
     setResetDialogOpen(true);
+  }
+
+  function submitAfterMediaUpload(intent: "draft" | "published") {
+    const triggerId =
+      intent === "draft" ? `${formId}-save-draft` : `${formId}-publish`;
+
+    window.setTimeout(() => {
+      document.getElementById(triggerId)?.click();
+    }, 0);
+  }
+
+  async function uploadListingMediaFile(file: File) {
+    const formData = new FormData();
+
+    formData.append("file", file, file.name);
+
+    const response = await fetch("/api/listings/media", {
+      body: formData,
+      method: "POST",
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          error?: string;
+          media?: {
+            name?: string;
+            path?: string;
+            size?: number;
+            type?: string;
+          };
+        }
+      | null;
+
+    if (!response.ok || !payload?.media?.path) {
+      throw new Error(payload?.error || "Homzie could not upload that media.");
+    }
+
+    return payload.media;
+  }
+
+  async function uploadPendingMediaAndSubmit(intent: "draft" | "published") {
+    const pendingMedia = mediaRef.current.filter((item) => item.file);
+
+    if (!pendingMedia.length) {
+      submitAfterMediaUpload(intent);
+      return;
+    }
+
+    setActiveStep(4);
+    setPublishMessage("");
+    setMediaUploadState({
+      active: true,
+      completed: 0,
+      total: pendingMedia.length,
+    });
+
+    try {
+      const uploadedMedia = [...mediaRef.current];
+      let completed = 0;
+
+      for (const item of uploadedMedia) {
+        if (!item.file) continue;
+
+        const storedMedia = await uploadListingMediaFile(item.file);
+
+        if (item.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+
+        item.file = undefined;
+        item.name = storedMedia.name || item.name;
+        item.path = storedMedia.path;
+        item.previewUrl = toPublicMediaUrl(storedMedia.path) || item.previewUrl;
+        item.size = storedMedia.size || item.size;
+        item.sizeLabel = storedMedia.size ? formatFileSize(storedMedia.size) : "Saved";
+        item.type = storedMedia.type || item.type;
+        completed += 1;
+        setMediaUploadState({
+          active: true,
+          completed,
+          total: pendingMedia.length,
+        });
+      }
+
+      setMedia(uploadedMedia);
+      syncMediaInputFiles(mediaInputRef.current, uploadedMedia);
+      if (mediaInputRef.current) {
+        mediaInputRef.current.value = "";
+      }
+      setMediaUploadState({
+        active: false,
+        completed: pendingMedia.length,
+        total: pendingMedia.length,
+      });
+      submitAfterMediaUpload(intent);
+    } catch (error) {
+      setMediaUploadState({
+        active: false,
+        completed: 0,
+        total: pendingMedia.length,
+      });
+      setPublishMessage(
+        error instanceof Error
+          ? error.message
+          : "Homzie could not upload that listing media. Please try again.",
+      );
+      setPublishRequirementsOpen(true);
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2002,22 +2144,17 @@ export function CreateListingPage({
 
     setPublishIntent(intent);
 
-    const mediaUploadTooLarge =
-      uploadPayloadBytes > maxListingUploadPayloadBytes ||
-      uploadMediaCount > maxListingUploadBatchItems;
-
-    if (mediaUploadTooLarge) {
+    if (isUploadingMedia) {
       event.preventDefault();
-      setActiveStep(4);
-      setPublishMessage(
-        `This save has ${uploadMediaCount} new media uploads totaling ${formatFileSize(uploadPayloadBytes)}. Upload at most ${maxListingUploadBatchItems} new items or ${formatFileSize(maxListingUploadPayloadBytes)} per save so Cloudflare does not block the request. Saved media can stay on the listing.`,
-      );
-      setPublishRequirementsOpen(true);
       return;
     }
 
     if (intent !== "published") {
       setPublishMessage("");
+      if (uploadMediaCount) {
+        event.preventDefault();
+        void uploadPendingMediaAndSubmit(intent);
+      }
       return;
     }
 
@@ -2026,6 +2163,10 @@ export function CreateListingPage({
     if (!issues.length) {
       setPublishMessage("");
       setPublishRequirementsOpen(false);
+      if (uploadMediaCount) {
+        event.preventDefault();
+        void uploadPendingMediaAndSubmit(intent);
+      }
       return;
     }
 
@@ -2097,7 +2238,7 @@ export function CreateListingPage({
           <div className="mx-auto mt-24 w-full max-w-6xl px-4 sm:px-6 lg:px-8">
             <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
               {listingError === "media-upload"
-                ? `Homzie could not save that media batch. Upload at most ${maxListingUploadBatchItems} new media items or ${formatFileSize(maxListingUploadPayloadBytes)} per save, then save again. Existing saved media can stay on the listing.`
+                ? "Homzie could not save that listing media. Please try again."
                 : "Homzie could not publish that listing. Please try again."}
             </div>
           </div>
@@ -2180,7 +2321,6 @@ export function CreateListingPage({
         <input
           ref={mediaInputRef}
           type="file"
-          name="mediaFiles"
           accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
           multiple
           className="sr-only"
@@ -2207,6 +2347,7 @@ export function CreateListingPage({
                     listingId={listingId}
                     onBlockedPublish={openPublishRequirements}
                     publishIssues={publishIssues}
+                    isUploadingMedia={isUploadingMedia}
                     setIntent={setPublishIntent}
                   />
                 </>
@@ -2216,6 +2357,7 @@ export function CreateListingPage({
                   onBlockedPublish={openPublishRequirements}
                   onReset={requestResetForm}
                   publishIssues={publishIssues}
+                  isUploadingMedia={isUploadingMedia}
                   setIntent={setPublishIntent}
                 />
               )
@@ -2226,6 +2368,7 @@ export function CreateListingPage({
                   {listingHref ? (
                     <PageTopBarMenuItem
                       onSelect={() => {
+                        if (isUploadingMedia) return;
                         window.location.replace(listingHref);
                       }}
                     >
@@ -2234,6 +2377,7 @@ export function CreateListingPage({
                   ) : null}
                   <PageTopBarMenuItem
                     onSelect={() => {
+                      if (isUploadingMedia) return;
                       if (publishIntent === "published" && publishIssues.length) {
                         openPublishRequirements();
                         return;
@@ -2248,6 +2392,7 @@ export function CreateListingPage({
                     <PageTopBarMenuItem
                       className="text-primary"
                       onSelect={() => {
+                        if (isUploadingMedia) return;
                         setPublishIntent("published");
                         if (publishIssues.length) {
                           openPublishRequirements();
@@ -2262,6 +2407,7 @@ export function CreateListingPage({
                   <PageTopBarMenuItem
                     className="text-destructive"
                     onSelect={() => {
+                      if (isUploadingMedia) return;
                       window.setTimeout(() => {
                         document
                           .getElementById(`${formId}-archive-trigger`)
@@ -2274,11 +2420,17 @@ export function CreateListingPage({
                 </>
               ) : (
                 <>
-                  <PageTopBarMenuItem onSelect={requestResetForm}>
+                  <PageTopBarMenuItem
+                    onSelect={() => {
+                      if (isUploadingMedia) return;
+                      requestResetForm();
+                    }}
+                  >
                     Reset form
                   </PageTopBarMenuItem>
                   <PageTopBarMenuItem
                     onSelect={() => {
+                      if (isUploadingMedia) return;
                       setPublishIntent("draft");
                       document.getElementById(`${formId}-save-draft`)?.click();
                     }}
@@ -2288,6 +2440,7 @@ export function CreateListingPage({
                   <PageTopBarMenuItem
                     className="text-primary"
                     onSelect={() => {
+                      if (isUploadingMedia) return;
                       setPublishIntent("published");
                       if (publishIssues.length) {
                         openPublishRequirements();
@@ -2329,8 +2482,10 @@ export function CreateListingPage({
           <ListingPublishProgress
             imageCount={imageCount}
             intent={publishIntent}
+            isUploadingMedia={isUploadingMedia}
             mediaCount={media.length}
             mode={mode}
+            uploadedCount={mediaUploadState.completed}
             uploadCount={uploadMediaCount}
             videoCount={videoCount}
           />
