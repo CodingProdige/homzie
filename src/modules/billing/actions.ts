@@ -8,10 +8,7 @@ import { db } from "@/db";
 import { agentProfiles, subscriptions, users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { getAgentProfileForUser } from "@/modules/agents/queries";
-import {
-  type AgentPlanInterval,
-  agentSubscriptionPlans,
-} from "./plans";
+import { type AgentPlanInterval } from "./plans";
 import {
   hasSubscriptionPaymentMethod,
   syncStripeSubscription,
@@ -29,9 +26,7 @@ type StartAgentCheckoutResult =
   | {
       ok: true;
       clientSecret: string;
-      intentType: "payment" | "setup";
       publishableKey: string;
-      subscriptionId: string;
       profilePath: string;
       trialApplied: boolean;
     }
@@ -45,24 +40,14 @@ type SyncAgentSubscriptionResult =
     }
   | { ok: false; error: string };
 
-function toStripeDate(seconds: number | null | undefined) {
-  return seconds ? new Date(seconds * 1000) : null;
-}
-
-function getSubscriptionPeriod(subscription: Stripe.Subscription) {
-  const typedSubscription = subscription as typeof subscription & {
-    current_period_start?: number;
-    current_period_end?: number;
-    trial_end?: number | null;
-  };
-
-  return {
-    currentPeriodStart: toStripeDate(typedSubscription.current_period_start),
-  currentPeriodEnd:
-      toStripeDate(typedSubscription.current_period_end) ||
-      toStripeDate(typedSubscription.trial_end),
-  };
-}
+type FinalizeAgentSubscriptionResult =
+  | {
+      ok: true;
+      profilePath: string;
+      status: string;
+      subscriptionId: string;
+    }
+  | { ok: false; error: string };
 
 async function getReusableStripeCustomerId({
   stripe,
@@ -219,7 +204,6 @@ export async function startAgentSubscriptionCheckout(
   const agentProfile = await ensureAgentProfile(user);
   const stripe = await getStripe();
   const publishableKey = await getStripePublishableKey();
-  const plan = agentSubscriptionPlans[interval];
   const [previousSubscription] = await db
     .select({
       id: subscriptions.id,
@@ -271,65 +255,28 @@ export async function startAgentSubscriptionCheckout(
       user,
     });
 
-    const stripeSubscription = await stripe.subscriptions.create({
+    const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
-      items: [{ price: priceId }],
+      payment_method_types: ["card"],
+      usage: "off_session",
       metadata: {
+        checkoutMode: "agent_subscription_setup",
         userId: user.id,
         agentProfileId: agentProfile.id,
         interval,
       },
-      payment_behavior: "default_incomplete",
-      payment_settings: {
-        save_default_payment_method: "on_subscription",
-      },
-      ...(trialApplied ? { trial_period_days: 7 } : {}),
-      expand: ["latest_invoice.confirmation_secret", "pending_setup_intent"],
     });
 
-    const latestInvoice = stripeSubscription.latest_invoice;
-    const invoiceClientSecret =
-      latestInvoice && typeof latestInvoice !== "string"
-        ? latestInvoice.confirmation_secret?.client_secret
-        : null;
-    const pendingSetupIntent = stripeSubscription.pending_setup_intent;
-    const setupClientSecret =
-      pendingSetupIntent && typeof pendingSetupIntent !== "string"
-        ? pendingSetupIntent.client_secret
-        : null;
-    const clientSecret = setupClientSecret || invoiceClientSecret;
-
-    if (!clientSecret) {
+    if (!setupIntent.client_secret) {
       throw new Error("Stripe did not return a payment form secret.");
     }
 
-    const { currentPeriodStart, currentPeriodEnd } =
-      getSubscriptionPeriod(stripeSubscription);
-
-    await db.insert(subscriptions).values({
-      userId: user.id,
-      agentProfileId: agentProfile.id,
-      provider: "stripe",
-      status: "pending",
-      amountCents: plan.amountCents,
-      currency: plan.currency,
-      interval,
-      providerCustomerId: customerId,
-      providerTransactionId:
-        latestInvoice && typeof latestInvoice !== "string" ? latestInvoice.id : null,
-      providerReference: stripeSubscription.id,
-      currentPeriodStart,
-      currentPeriodEnd,
-    });
-
-    return {
-      ok: true,
-      clientSecret,
-      intentType: setupClientSecret ? "setup" : "payment",
-      publishableKey,
-      subscriptionId: stripeSubscription.id,
-      profilePath: `/users/${user.username}`,
-      trialApplied,
+      return {
+        ok: true,
+        clientSecret: setupIntent.client_secret,
+        publishableKey,
+        profilePath: `/users/${user.username}`,
+        trialApplied,
     };
   } catch (error) {
     return {
@@ -338,6 +285,204 @@ export async function startAgentSubscriptionCheckout(
         error instanceof Error
           ? error.message
           : "Could not start Stripe checkout.",
+    };
+  }
+}
+
+export async function finalizeAgentSubscriptionCheckout(
+  interval: AgentPlanInterval = "month",
+  paymentMethodId?: string | null,
+): Promise<FinalizeAgentSubscriptionResult> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return {
+      ok: false,
+      error: "Sign in to start your subscription.",
+    };
+  }
+
+  if (!paymentMethodId) {
+    return {
+      ok: false,
+      error: "Confirm your card before starting your subscription.",
+    };
+  }
+
+  if (!isAgentPlanInterval(interval)) {
+    return {
+      ok: false,
+      error: "Choose a valid agent plan.",
+    };
+  }
+
+  const [user] = await db
+    .select({
+      agentTrialUsedAt: users.agentTrialUsedAt,
+      id: users.id,
+      location: users.location,
+      locationCity: users.locationCity,
+      locationCountry: users.locationCountry,
+      locationPlaceData: users.locationPlaceData,
+      locationPlaceId: users.locationPlaceId,
+      locationProvince: users.locationProvince,
+      locationSuburb: users.locationSuburb,
+      name: users.name,
+      username: users.username,
+      email: users.email,
+    })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+
+  if (!user?.username) {
+    return {
+      ok: false,
+      error: "Could not find your profile.",
+    };
+  }
+
+  const missingEnv = await getMissingStripeConfigKeys();
+
+  if (missingEnv.length > 0) {
+    return {
+      ok: false,
+      error: `Stripe is not configured yet. Missing: ${missingEnv.join(", ")}.`,
+    };
+  }
+
+  const invalidPriceEnv = await getInvalidStripePriceConfigKeys();
+
+  if (invalidPriceEnv.length > 0) {
+    return {
+      ok: false,
+      error: `Stripe price IDs must start with price_, not prod_. Missing: ${invalidPriceEnv.join(", ")}.`,
+    };
+  }
+
+  const priceId = await getStripePriceId(interval);
+
+  if (!priceId) {
+    return {
+      ok: false,
+      error: `Stripe price is missing for the ${interval} plan.`,
+    };
+  }
+
+  const stripe = await getStripe();
+  const agentProfile = await ensureAgentProfile(user);
+  const trialApplied = !user.agentTrialUsedAt;
+
+  try {
+    const [previousSubscription] = await db
+      .select({
+        providerCustomerId: subscriptions.providerCustomerId,
+        providerReference: subscriptions.providerReference,
+      })
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, user.id))
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+
+    if (previousSubscription?.providerReference) {
+      const existingStripeSubscription = await stripe.subscriptions
+        .retrieve(previousSubscription.providerReference)
+        .catch(() => null);
+
+      if (existingStripeSubscription) {
+        const existingSync = await syncStripeSubscription(existingStripeSubscription);
+
+        if (
+          existingSync.status === "active" &&
+          (existingStripeSubscription.status !== "trialing" ||
+            hasSubscriptionPaymentMethod(existingStripeSubscription))
+        ) {
+          return {
+            ok: false,
+            error:
+              existingStripeSubscription.status === "trialing"
+                ? "Your agent trial is already active. Open billing to review it."
+                : "Your agent subscription is already active. Open billing to review it.",
+          };
+        }
+
+        if (
+          existingStripeSubscription.status === "trialing" &&
+          !hasSubscriptionPaymentMethod(existingStripeSubscription)
+        ) {
+          await stripe.subscriptions.cancel(existingStripeSubscription.id).catch(() => null);
+        }
+      }
+    }
+
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    let customerId =
+      typeof paymentMethod.customer === "string"
+        ? paymentMethod.customer
+        : paymentMethod.customer?.id || null;
+
+    if (customerId) {
+      const customer = await stripe.customers.retrieve(customerId);
+
+      if (customer.deleted) {
+        return {
+          ok: false,
+          error: "Your Stripe customer was removed. Restart checkout and try again.",
+        };
+      }
+
+      if (customer.metadata.userId && customer.metadata.userId !== user.id) {
+        return {
+          ok: false,
+          error: "This payment method does not belong to your Homzie account.",
+        };
+      }
+    } else {
+      customerId = await getReusableStripeCustomerId({
+        previousCustomerId: previousSubscription?.providerCustomerId,
+        stripe,
+        user,
+      });
+      await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: customerId,
+      });
+    }
+
+    await stripe.customers.update(customerId, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
+    });
+
+    const stripeSubscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: priceId }],
+      default_payment_method: paymentMethodId,
+      metadata: {
+        userId: user.id,
+        agentProfileId: agentProfile.id,
+        interval,
+      },
+      payment_settings: {
+        save_default_payment_method: "on_subscription",
+      },
+      ...(trialApplied ? { trial_period_days: 7 } : {}),
+    });
+    const synced = await syncStripeSubscription(stripeSubscription);
+
+    return {
+      ok: true,
+      profilePath: `/users/${user.username}`,
+      status: synced.status,
+      subscriptionId: stripeSubscription.id,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not start your agent subscription.",
     };
   }
 }

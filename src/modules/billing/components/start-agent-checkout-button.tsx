@@ -1,6 +1,12 @@
 "use client";
 
-import { type FormEvent, useMemo, useState, useTransition } from "react";
+import {
+  type FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import {
   Elements,
   PaymentElement,
@@ -15,8 +21,8 @@ import { cn } from "@/lib/utils";
 import { trackGoogleEvent } from "@/modules/analytics/gtag";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
+  finalizeAgentSubscriptionCheckout,
   startAgentSubscriptionCheckout,
-  syncAgentSubscriptionStatus,
 } from "../actions";
 import {
   getAgentSubscriptionOfferLabel,
@@ -26,9 +32,13 @@ import {
 
 type StripeCheckout = {
   clientSecret: string;
-  intentType: "payment" | "setup";
   profilePath: string;
   publishableKey: string;
+  trialApplied: boolean;
+};
+
+type CheckoutSuccess = {
+  profilePath: string;
   subscriptionId: string;
   trialApplied: boolean;
 };
@@ -70,15 +80,13 @@ function getPlanCards(trialEligible: boolean): Record<
 
 function StripePaymentForm({
   profilePath,
-  intentType,
+  onSuccess,
   selectedPlan,
-  subscriptionId,
   trialApplied,
 }: {
   profilePath: string;
-  intentType: "payment" | "setup";
+  onSuccess: (success: CheckoutSuccess) => void;
   selectedPlan: AgentPlanInterval;
-  subscriptionId: string;
   trialApplied: boolean;
 }) {
   const stripe = useStripe();
@@ -97,40 +105,28 @@ function StripePaymentForm({
     }
 
     startSubmitting(async () => {
-      const result =
-        intentType === "setup"
-          ? await stripe.confirmSetup({
-              elements,
-              confirmParams: {
-                return_url: `${window.location.origin}${profilePath}`,
-              },
-              redirect: "if_required",
-            })
-          : await stripe.confirmPayment({
-              elements,
-              confirmParams: {
-                return_url: `${window.location.origin}${profilePath}`,
-              },
-              redirect: "if_required",
-            });
+      const result = await stripe.confirmSetup({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}${profilePath}`,
+        },
+        redirect: "if_required",
+      });
 
       if (result.error) {
         setError(result.error.message || "Your card could not be confirmed.");
         return;
       }
 
-      const paymentMethodId =
-        "setupIntent" in result
-          ? getStripePaymentMethodId(result.setupIntent?.payment_method)
-          : "paymentIntent" in result
-            ? getStripePaymentMethodId(result.paymentIntent?.payment_method)
-            : null;
-      const synced = await syncAgentSubscriptionStatus(
-        subscriptionId,
+      const paymentMethodId = getStripePaymentMethodId(
+        result.setupIntent?.payment_method,
+      );
+      const finalized = await finalizeAgentSubscriptionCheckout(
+        selectedPlan,
         paymentMethodId,
       );
 
-      if (synced.ok && synced.status === "active") {
+      if (finalized.ok && finalized.status === "active") {
         trackGoogleEvent(trialApplied ? "trial_started" : "subscription_started", {
           event_category: "agent_subscription",
           event_label: selectedPlan,
@@ -140,18 +136,22 @@ function StripePaymentForm({
         window.sessionStorage.setItem(
           "homzie-agent-payment-success",
           JSON.stringify({
-            subscriptionId,
+            subscriptionId: finalized.subscriptionId,
             trialApplied,
           }),
         );
-        window.location.assign(synced.profilePath);
+        onSuccess({
+          profilePath: finalized.profilePath,
+          subscriptionId: finalized.subscriptionId,
+          trialApplied,
+        });
         return;
       }
 
       setError(
-        synced.ok
-          ? "Your payment method was not saved yet. Please confirm your card before starting the trial."
-          : synced.error,
+        finalized.ok
+          ? "Your payment method was saved, but your subscription is not active yet. Please contact support."
+          : finalized.error,
       );
     });
   };
@@ -189,6 +189,46 @@ function StripePaymentForm({
   );
 }
 
+function CheckoutSuccessPanel({ success }: { success: CheckoutSuccess }) {
+  const [secondsRemaining, setSecondsRemaining] = useState(5);
+
+  useEffect(() => {
+    const redirectTimer = window.setTimeout(() => {
+      window.location.assign(success.profilePath);
+    }, 5000);
+    const countdownTimer = window.setInterval(() => {
+      setSecondsRemaining((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(redirectTimer);
+      window.clearInterval(countdownTimer);
+    };
+  }, [success.profilePath]);
+
+  return (
+    <div className="rounded-lg border bg-card p-6 text-center">
+      <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+        <Check className="size-7" />
+      </div>
+      <h3 className="mt-4 text-2xl font-bold">
+        {success.trialApplied ? "Your agent trial is active" : "Your subscription is active"}
+      </h3>
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+        Homzie has confirmed your card and activated your agent tools. You will be
+        redirected to your profile in {secondsRemaining} seconds.
+      </p>
+      <Button
+        type="button"
+        className="mt-5 h-11"
+        onClick={() => window.location.assign(success.profilePath)}
+      >
+        Open profile now
+      </Button>
+    </div>
+  );
+}
+
 export function StartAgentCheckoutButton({
   trialEligible,
 }: {
@@ -197,6 +237,7 @@ export function StartAgentCheckoutButton({
   const [selectedPlan, setSelectedPlan] = useState<AgentPlanInterval>("month");
   const [error, setError] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<StripeCheckout | null>(null);
+  const [success, setSuccess] = useState<CheckoutSuccess | null>(null);
   const [isPending, startTransition] = useTransition();
   const publishableKey = checkout?.publishableKey || "";
   const { formatPriceCents } = useCurrency();
@@ -212,6 +253,7 @@ export function StartAgentCheckoutButton({
 
   const onStartCheckout = () => {
     setError(null);
+    setSuccess(null);
 
     startTransition(async () => {
       const result = await startAgentSubscriptionCheckout(selectedPlan);
@@ -227,10 +269,8 @@ export function StartAgentCheckoutButton({
 
       setCheckout({
         clientSecret: result.clientSecret,
-        intentType: result.intentType,
         profilePath: result.profilePath,
         publishableKey: result.publishableKey,
-        subscriptionId: result.subscriptionId,
         trialApplied: result.trialApplied,
       });
     });
@@ -339,28 +379,31 @@ export function StartAgentCheckoutButton({
               </p>
             </div>
             <div className="mt-6">
-              <Elements
-                stripe={stripePromise}
-                options={{
-                  clientSecret: checkout.clientSecret,
-                  appearance: {
-                    theme: "stripe",
-                    variables: {
-                      colorPrimary: "#7b5cff",
-                      borderRadius: "8px",
-                      fontFamily: "Poppins, system-ui, sans-serif",
+              {success ? (
+                <CheckoutSuccessPanel success={success} />
+              ) : (
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret: checkout.clientSecret,
+                    appearance: {
+                      theme: "stripe",
+                      variables: {
+                        colorPrimary: "#7b5cff",
+                        borderRadius: "8px",
+                        fontFamily: "Poppins, system-ui, sans-serif",
+                      },
                     },
-                  },
-                }}
-              >
-                <StripePaymentForm
-                  intentType={checkout.intentType}
-                  profilePath={checkout.profilePath}
-                  selectedPlan={selectedPlan}
-                  subscriptionId={checkout.subscriptionId}
-                  trialApplied={checkout.trialApplied}
-                />
-              </Elements>
+                  }}
+                >
+                  <StripePaymentForm
+                    onSuccess={setSuccess}
+                    profilePath={checkout.profilePath}
+                    selectedPlan={selectedPlan}
+                    trialApplied={checkout.trialApplied}
+                  />
+                </Elements>
+              )}
             </div>
           </div>
         </div>

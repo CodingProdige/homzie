@@ -22,7 +22,10 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { cancelAgentSubscription } from "@/modules/billing/portal-actions";
+import {
+  cancelAgentSubscription,
+  reactivateAgentSubscription,
+} from "@/modules/billing/portal-actions";
 import {
   applyRetentionDiscount,
   createPaymentMethodSetupIntent,
@@ -542,6 +545,20 @@ export function CancelSubscriptionButton({
         </ModalShell>
       ) : null}
     </>
+  );
+}
+
+export function ReactivateSubscriptionButton({
+  disabled,
+}: {
+  disabled?: boolean;
+}) {
+  return (
+    <form action={reactivateAgentSubscription}>
+      <Button type="submit" disabled={disabled} className="w-full">
+        Reactivate subscription
+      </Button>
+    </form>
   );
 }
 

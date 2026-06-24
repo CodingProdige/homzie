@@ -211,6 +211,11 @@ export async function sendStripeInvoiceEmail({
     type === "failed"
       ? invoice.amount_due || invoice.amount_remaining || invoice.amount_paid || 0
       : invoice.amount_paid || invoice.amount_due || 0;
+
+  if (type === "paid" && amountCents <= 0) {
+    return;
+  }
+
   const currency = (invoice.currency || "zar").toUpperCase();
 
   await notifyUser({
@@ -244,6 +249,10 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
   const agentProfileId = subscription.metadata.agentProfileId || null;
   const interval = subscription.metadata.interval || "month";
   const status = toSyncedSubscriptionStatus(subscription);
+  const typedSubscription = subscription as Stripe.Subscription & {
+    cancel_at?: number | null;
+    trial_end?: number | null;
+  };
   const { currentPeriodStart, currentPeriodEnd } =
     getSubscriptionPeriod(subscription);
 
@@ -257,6 +266,39 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
 
   if (!userId) {
     return { status, currentPeriodEnd };
+  }
+
+  const [subscriptionUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!subscriptionUser) {
+    console.warn("[stripe] skipped subscription sync for unknown user", {
+      subscriptionId: subscription.id,
+      userId,
+    });
+
+    return { status, currentPeriodEnd };
+  }
+
+  let syncedAgentProfileId = agentProfileId;
+
+  if (syncedAgentProfileId) {
+    const [agentProfile] = await db
+      .select({ id: agentProfiles.id })
+      .from(agentProfiles)
+      .where(eq(agentProfiles.id, syncedAgentProfileId))
+      .limit(1);
+
+    if (!agentProfile) {
+      console.warn("[stripe] skipped missing agent profile while syncing subscription", {
+        subscriptionId: subscription.id,
+        agentProfileId: syncedAgentProfileId,
+      });
+      syncedAgentProfileId = null;
+    }
   }
 
   const [existing] = await db
@@ -276,8 +318,8 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
         providerCustomerId: customer,
         currentPeriodStart,
         currentPeriodEnd,
-        cancelledAt: subscription.canceled_at
-          ? new Date(subscription.canceled_at * 1000)
+        cancelledAt: typedSubscription.cancel_at || subscription.canceled_at
+          ? new Date((typedSubscription.cancel_at || subscription.canceled_at || 0) * 1000)
           : null,
         updatedAt: new Date(),
       })
@@ -285,7 +327,7 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
   } else {
     await db.insert(subscriptions).values({
       userId,
-      agentProfileId,
+      agentProfileId: syncedAgentProfileId,
       provider: "stripe",
       status,
       amountCents,
@@ -295,25 +337,21 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
       providerReference: subscription.id,
       currentPeriodStart,
       currentPeriodEnd,
-      cancelledAt: subscription.canceled_at
-        ? new Date(subscription.canceled_at * 1000)
+      cancelledAt: typedSubscription.cancel_at || subscription.canceled_at
+        ? new Date((typedSubscription.cancel_at || subscription.canceled_at || 0) * 1000)
         : null,
     });
   }
 
-  if (agentProfileId) {
+  if (syncedAgentProfileId) {
     await db
       .update(agentProfiles)
       .set({
         status: status === "active" ? "active" : "draft",
         updatedAt: new Date(),
       })
-      .where(eq(agentProfiles.id, agentProfileId));
+      .where(eq(agentProfiles.id, syncedAgentProfileId));
   }
-
-  const typedSubscription = subscription as Stripe.Subscription & {
-    trial_end?: number | null;
-  };
 
   if (typedSubscription.trial_end && status === "active") {
     await db

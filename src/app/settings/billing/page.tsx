@@ -33,6 +33,7 @@ import {
   CancelSubscriptionButton,
   InvoiceHistoryTable,
   PaymentMethodList,
+  ReactivateSubscriptionButton,
 } from "./billing-client-controls";
 
 type BillingInvoice = {
@@ -71,6 +72,7 @@ type BillingData = {
   nextCharge: string;
   nextChargeLabel: string;
   nextBillingDate: string;
+  cancellationEndsOn: string | null;
   startedOn: string;
   card: BillingCard;
   paymentMethods: BillingPaymentMethod[];
@@ -217,19 +219,24 @@ function getLocalBillingData(
 
   return {
     issue,
-    status: localSubscription.status,
+    status: localSubscription.cancelledAt ? "cancelling" : localSubscription.status,
     planName: "Homzie Agent Pro",
     cycle: recurringInterval === "year" ? "Yearly" : "Monthly",
     price: `${formatMoney(
       localSubscription.amountCents,
       localSubscription.currency,
     )} / ${recurringInterval === "year" ? "year" : "month"}`,
-    nextCharge: `${formatMoney(
-      localSubscription.amountCents,
-      localSubscription.currency,
-    )} / ${recurringInterval === "year" ? "year" : "month"}`,
-    nextChargeLabel: "Next charge",
+    nextCharge: localSubscription.cancelledAt
+      ? "No further charges"
+      : `${formatMoney(
+          localSubscription.amountCents,
+          localSubscription.currency,
+        )} / ${recurringInterval === "year" ? "year" : "month"}`,
+    nextChargeLabel: localSubscription.cancelledAt ? "Billing status" : "Next charge",
     nextBillingDate: formatDate(localSubscription.currentPeriodEnd),
+    cancellationEndsOn: localSubscription.cancelledAt
+      ? formatDate(localSubscription.cancelledAt)
+      : null,
     startedOn: formatDate(localSubscription.currentPeriodStart || localSubscription.createdAt),
     card: null,
     paymentMethods: [],
@@ -302,8 +309,16 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
   const amountCents = firstItem?.price.unit_amount || localSubscription.amountCents;
   const currency = (firstItem?.price.currency || localSubscription.currency).toUpperCase();
   const typedSubscription = stripeSubscription as Stripe.Subscription & {
+    cancel_at?: number | null;
+    cancel_at_period_end?: boolean;
     trial_end?: number | null;
   };
+  const cancellationEndsOn =
+    typedSubscription.cancel_at || localSubscription.cancelledAt
+      ? formatDate(typedSubscription.cancel_at || localSubscription.cancelledAt)
+      : null;
+  const isCancellationScheduled =
+    Boolean(typedSubscription.cancel_at_period_end || cancellationEndsOn);
   const isStripeTrialing = stripeSubscription.status === "trialing";
   const trialDaysRemaining = isStripeTrialing
     ? getTrialDaysRemaining(typedSubscription.trial_end)
@@ -375,12 +390,22 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
   let nextChargeLabel = isTrialing ? "First charge after trial" : "Next charge";
 
   try {
+    const seenInvoiceIds = new Set<string>();
     invoices = (
       await stripe.invoices.list({
         customer: localSubscription.providerCustomerId,
-        limit: 5,
+        limit: 20,
       })
-    ).data;
+    ).data.filter((invoice) => {
+      if (seenInvoiceIds.has(invoice.id)) return false;
+      seenInvoiceIds.add(invoice.id);
+
+      if (invoice.status === "paid" && (invoice.amount_paid || invoice.total || 0) <= 0) {
+        return false;
+      }
+
+      return true;
+    }).slice(0, 5);
   } catch {
     invoices = [];
   }
@@ -431,15 +456,21 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
 
   return {
     issue: null,
-    status: isTrialing ? "trialing" : syncedSubscription?.status || localSubscription.status,
+    status: isCancellationScheduled
+      ? "cancelling"
+      : isTrialing
+        ? "trialing"
+        : syncedSubscription?.status || localSubscription.status,
     planName: "Homzie Agent Pro",
     cycle: recurringInterval === "year" ? "Yearly" : "Monthly",
     price: `${formatMoney(amountCents, currency)} / ${
       recurringInterval === "year" ? "year" : "month"
     }`,
-    nextCharge,
-    nextChargeLabel,
-    nextBillingDate: isTrialing
+    nextCharge: isCancellationScheduled ? "No further charges" : nextCharge,
+    nextChargeLabel: isCancellationScheduled ? "Billing status" : nextChargeLabel,
+    nextBillingDate: isCancellationScheduled && cancellationEndsOn
+      ? cancellationEndsOn
+      : isTrialing
       ? trialEndsOn || "Not available"
       : formatDate(
           period.end ||
@@ -447,6 +478,7 @@ async function getBillingData(userId: string): Promise<BillingData | null> {
             localSubscription.currentPeriodEnd,
         ),
     startedOn: formatDate(period.start || localSubscription.currentPeriodStart),
+    cancellationEndsOn,
     card,
     paymentMethods,
     invoices: invoices.map((invoice) => ({
@@ -505,12 +537,16 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
               <CalendarDays className="size-7" />
             </div>
             <div>
-              <p className="text-sm font-bold text-primary">Next billing date</p>
+              <p className="text-sm font-bold text-primary">
+                {billing?.cancellationEndsOn ? "Access ends" : "Next billing date"}
+              </p>
               <p className="mt-1 text-xl font-bold">
                 {billing?.nextBillingDate || "Not available"}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {billing?.trialEndsOn
+                {billing?.cancellationEndsOn
+                  ? `Your subscription is scheduled to end on ${billing.cancellationEndsOn}.`
+                  : billing?.trialEndsOn
                   ? `Your ${agentSubscriptionTrialLabel.toLowerCase()} ends on ${billing.trialEndsOn}.`
                   : billing
                     ? `You will be charged ${billing.nextCharge}.`
@@ -518,9 +554,13 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
               </p>
               {billing?.trialEndsOn && billing.trialDaysRemaining !== null ? (
                 <p className="mt-2 inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                  {billing.trialDaysRemaining === 0
-                    ? "Trial ends today"
-                    : `${billing.trialDaysRemaining} day${billing.trialDaysRemaining === 1 ? "" : "s"} remaining`}
+                  {billing.cancellationEndsOn
+                    ? billing.trialDaysRemaining === 0
+                      ? "Access ends today"
+                      : `${billing.trialDaysRemaining} day${billing.trialDaysRemaining === 1 ? "" : "s"} access remaining`
+                    : billing.trialDaysRemaining === 0
+                      ? "Trial ends today"
+                      : `${billing.trialDaysRemaining} day${billing.trialDaysRemaining === 1 ? "" : "s"} remaining`}
                 </p>
               ) : null}
             </div>
@@ -748,7 +788,10 @@ function SubscriptionDetails({ billing }: { billing: BillingData | null }) {
       label: billing?.nextChargeLabel || "Next charge",
       value: billing?.nextCharge || "Not available",
     },
-    { label: "Next billing date", value: billing?.nextBillingDate || "Not available" },
+    {
+      label: billing?.cancellationEndsOn ? "Access ends" : "Next billing date",
+      value: billing?.nextBillingDate || "Not available",
+    },
     {
       label: "Payment method",
       value: billing?.card
@@ -772,11 +815,19 @@ function SubscriptionDetails({ billing }: { billing: BillingData | null }) {
         ))}
       </div>
       {billing ? (
-        <div className="mt-8">
+        <div className="mt-8 space-y-3">
+          {billing.cancellationEndsOn ? (
+            <ReactivateSubscriptionButton disabled={!billing.stripeAvailable} />
+          ) : null}
           <CancelSubscriptionButton
-            disabled={!billing.stripeAvailable}
+            disabled={!billing.stripeAvailable || Boolean(billing.cancellationEndsOn)}
             retentionOffer={billing.retentionOffer}
           />
+          {billing.cancellationEndsOn ? (
+            <p className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+              This subscription is already scheduled to end on {billing.cancellationEndsOn}.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </section>
