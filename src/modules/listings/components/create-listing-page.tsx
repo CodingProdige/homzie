@@ -241,7 +241,8 @@ const imageQuality = 0.82;
 const maxDescriptionLength = 3000;
 const maxTitleLength = 120;
 const maxListingMediaItems = 70;
-const maxListingPublishPayloadBytes = 90 * 1024 * 1024;
+const maxListingUploadBatchItems = 20;
+const maxListingUploadPayloadBytes = 45 * 1024 * 1024;
 const maxListingVideoSizeMb = 80;
 const videoCompressionMimeType = "video/webm;codecs=vp9,opus";
 const videoCompressionBitrate = 2_500_000;
@@ -852,12 +853,14 @@ function ListingPublishProgress({
   intent,
   mediaCount,
   mode,
+  uploadCount,
   videoCount,
 }: {
   imageCount: number;
   intent: "draft" | "published";
   mediaCount: number;
   mode: "create" | "edit";
+  uploadCount: number;
   videoCount: number;
 }) {
   const { pending } = useFormStatus();
@@ -865,11 +868,11 @@ function ListingPublishProgress({
   const publishing = pending && intent === "published";
   const steps = [
     "Checking required listing fields",
-    mediaCount
-      ? `Uploading ${mediaCount} media ${mediaCount === 1 ? "item" : "items"}`
-      : "Preparing listing media",
+    uploadCount
+      ? `Uploading ${uploadCount} new media ${uploadCount === 1 ? "item" : "items"}`
+      : "Keeping saved media",
     "Saving listing details",
-    mediaCount > 10
+    uploadCount > 10
       ? "Finalizing listing after media upload"
       : mode === "edit"
         ? "Updating public listing"
@@ -931,10 +934,11 @@ function ListingPublishProgress({
               style={{ width: `${progress}%` }}
             />
           </div>
-          {mediaCount > 10 ? (
+          {uploadCount > 10 ? (
             <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
-              Larger media sets can spend extra time on the final save. Homzie
-              will open the success screen as soon as the listing is confirmed.
+              Larger upload batches can spend extra time on the final save.
+              Homzie will open the success screen as soon as the listing is
+              confirmed.
             </p>
           ) : null}
 
@@ -1696,8 +1700,10 @@ export function CreateListingPage({
     () => getPublishIssues(draft, media.length),
     [draft, media.length],
   );
-  const mediaPayloadBytes = media.reduce(
-    (total, item) => total + (item.file?.size || item.size || 0),
+  const uploadMedia = media.filter((item) => item.file);
+  const uploadMediaCount = uploadMedia.length;
+  const uploadPayloadBytes = uploadMedia.reduce(
+    (total, item) => total + (item.file?.size || 0),
     0,
   );
   const publishIssueSteps = useMemo(
@@ -1996,26 +2002,37 @@ export function CreateListingPage({
 
     setPublishIntent(intent);
 
+    const mediaUploadTooLarge =
+      uploadPayloadBytes > maxListingUploadPayloadBytes ||
+      uploadMediaCount > maxListingUploadBatchItems;
+
+    if (mediaUploadTooLarge) {
+      event.preventDefault();
+      setActiveStep(4);
+      setPublishMessage(
+        `This save has ${uploadMediaCount} new media uploads totaling ${formatFileSize(uploadPayloadBytes)}. Upload at most ${maxListingUploadBatchItems} new items or ${formatFileSize(maxListingUploadPayloadBytes)} per save so Cloudflare does not block the request. Saved media can stay on the listing.`,
+      );
+      setPublishRequirementsOpen(true);
+      return;
+    }
+
     if (intent !== "published") {
       setPublishMessage("");
       return;
     }
 
     const issues = getPublishIssues(draft, media.length);
-    const mediaPayloadTooLarge = mediaPayloadBytes > maxListingPublishPayloadBytes;
 
-    if (!issues.length && !mediaPayloadTooLarge) {
+    if (!issues.length) {
       setPublishMessage("");
       setPublishRequirementsOpen(false);
       return;
     }
 
     event.preventDefault();
-    setActiveStep(mediaPayloadTooLarge ? 4 : issues[0].step);
+    setActiveStep(issues[0].step);
     setPublishMessage(
-      mediaPayloadTooLarge
-        ? `Listing media is ${formatFileSize(mediaPayloadBytes)} total. Keep each publish batch under ${formatFileSize(maxListingPublishPayloadBytes)} so it can pass through production upload limits.`
-        : `Listing incomplete: ${issues.map((issue) => issue.message).join(" ")}`,
+      `Listing incomplete: ${issues.map((issue) => issue.message).join(" ")}`,
     );
     setPublishRequirementsOpen(true);
   }
@@ -2080,7 +2097,7 @@ export function CreateListingPage({
           <div className="mx-auto mt-24 w-full max-w-6xl px-4 sm:px-6 lg:px-8">
             <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
               {listingError === "media-upload"
-                ? "Homzie could not save the listing media on the production server. Try again with fewer media items; if it repeats, the server media volume or upload limit needs attention."
+                ? `Homzie could not save that media batch. Upload at most ${maxListingUploadBatchItems} new media items or ${formatFileSize(maxListingUploadPayloadBytes)} per save, then save again. Existing saved media can stay on the listing.`
                 : "Homzie could not publish that listing. Please try again."}
             </div>
           </div>
@@ -2314,6 +2331,7 @@ export function CreateListingPage({
             intent={publishIntent}
             mediaCount={media.length}
             mode={mode}
+            uploadCount={uploadMediaCount}
             videoCount={videoCount}
           />
           {publishMessage ? (

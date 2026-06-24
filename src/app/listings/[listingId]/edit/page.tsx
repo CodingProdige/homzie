@@ -25,6 +25,7 @@ type EditListingPageProps = {
     listingId: string;
   }>;
   searchParams?: Promise<{
+    listingError?: string;
     listingUpdated?: string;
   }>;
 };
@@ -153,6 +154,7 @@ export default async function EditListingPage({
       }))}
       initialPublishIntent={listing.status === "draft" ? "draft" : "published"}
       listingId={listing.id}
+      listingError={query.listingError}
       listingUpdateFeedback={listingUpdateFeedback(query.listingUpdated)}
       mode="edit"
       profilePath={`/users/${user.username}`}

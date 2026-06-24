@@ -62,7 +62,8 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 const maxListingImageBytes = 15 * 1024 * 1024;
 const maxListingVideoBytes = 80 * 1024 * 1024;
 const maxListingMediaItems = 70;
-const maxListingPublishPayloadBytes = 90 * 1024 * 1024;
+const maxListingUploadBatchItems = 20;
+const maxListingUploadPayloadBytes = 45 * 1024 * 1024;
 const maxListingTitleLength = 120;
 const maxListingDescriptionLength = 3000;
 const maxListingFeatures = 10;
@@ -585,14 +586,20 @@ export async function createListing(formData: FormData) {
   }
 
   const mediaFiles = formData.getAll("mediaFiles");
+  const mediaUploadCount = mediaFiles.filter(
+    (value) => value instanceof File && value.size > 0,
+  ).length;
   const mediaPayloadBytes = mediaFiles.reduce(
     (total, value) => total + (value instanceof File ? value.size : 0),
     0,
   );
 
-  if (mediaPayloadBytes > maxListingPublishPayloadBytes) {
+  if (
+    mediaUploadCount > maxListingUploadBatchItems ||
+    mediaPayloadBytes > maxListingUploadPayloadBytes
+  ) {
     console.warn("[listings] createListing media payload too large", {
-      mediaCount: mediaFiles.filter((value) => value instanceof File && value.size > 0).length,
+      mediaCount: mediaUploadCount,
       mediaPayloadBytes,
       userId: session.user.id,
     });
@@ -606,7 +613,7 @@ export async function createListing(formData: FormData) {
   } catch (error) {
     console.error("[listings] createListing media upload failed", {
       error,
-      mediaCount: mediaFiles.filter((value) => value instanceof File && value.size > 0).length,
+      mediaCount: mediaUploadCount,
       mediaPayloadBytes,
       storageRoot: getMediaStorageRoot(),
       userId: session.user.id,
@@ -807,7 +814,43 @@ export async function updateListing(formData: FormData) {
 
   const agentProfile = await getAgentProfileForUser(session.user.id);
   const { data, description } = parseListingFormData(formData);
-  const uploadedMedia = await storeListingMedia(formData.getAll("mediaFiles"));
+  const mediaFiles = formData.getAll("mediaFiles");
+  const mediaUploadCount = mediaFiles.filter(
+    (value) => value instanceof File && value.size > 0,
+  ).length;
+  const mediaPayloadBytes = mediaFiles.reduce(
+    (total, value) => total + (value instanceof File ? value.size : 0),
+    0,
+  );
+
+  if (
+    mediaUploadCount > maxListingUploadBatchItems ||
+    mediaPayloadBytes > maxListingUploadPayloadBytes
+  ) {
+    console.warn("[listings] updateListing media payload too large", {
+      listingId: listingId.data,
+      mediaCount: mediaUploadCount,
+      mediaPayloadBytes,
+      userId: session.user.id,
+    });
+    redirect(`/listings/${listingId.data}/edit?listingError=media-upload`);
+  }
+
+  let uploadedMedia: Awaited<ReturnType<typeof storeListingMedia>>;
+
+  try {
+    uploadedMedia = await storeListingMedia(mediaFiles);
+  } catch (error) {
+    console.error("[listings] updateListing media upload failed", {
+      error,
+      listingId: listingId.data,
+      mediaCount: mediaUploadCount,
+      mediaPayloadBytes,
+      storageRoot: getMediaStorageRoot(),
+      userId: session.user.id,
+    });
+    redirect(`/listings/${listingId.data}/edit?listingError=media-upload`);
+  }
   const media = [
     ...parseExistingListingMedia(formData.get("existingMedia")),
     ...uploadedMedia,
