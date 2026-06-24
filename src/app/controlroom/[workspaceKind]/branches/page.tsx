@@ -118,7 +118,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
     LEFT JOIN property_listings pl
       ON pl.user_id = am.user_id
       AND pl.status = 'published'
-    WHERE a.agency_type = 'branch'
+    WHERE a.agency_type IN ('branch', 'independent')
       AND (
         a.parent_agency_id = ${workspace.agency.id}
         OR (
@@ -246,7 +246,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
             Branches
           </h1>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
-            Review branch affiliation requests, linked branches, owners, and operating policies for {workspace.agency.name}.
+            Review branch affiliation requests, linked branches, owners, and operating policies for {workspace.agency.name}. Network links never make the HQ liable for branch seat billing.
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">

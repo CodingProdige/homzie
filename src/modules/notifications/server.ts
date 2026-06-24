@@ -17,6 +17,12 @@ export type NotificationSurface = "in_app" | "push";
 const notificationVariables = [
   { key: "actor.name", label: "Actor name", fallback: "Someone" },
   { key: "actor.username", label: "Actor username" },
+  { key: "agency.actionLabel", label: "Agency action label" },
+  { key: "agency.actionUrl", label: "Agency action URL" },
+  { key: "agency.name", label: "Agency name" },
+  { key: "agency.networkName", label: "Network name" },
+  { key: "agency.requestingName", label: "Requesting agency name" },
+  { key: "agency.url", label: "Agency URL" },
   { key: "event.activeViewerCount", label: "Active viewer count" },
   { key: "event.count", label: "Event count" },
   { key: "event.reason", label: "Event reason" },
@@ -29,6 +35,14 @@ const notificationVariables = [
 
 const sampleVariables = {
   actor: { name: "Sarah Parker", username: "sarahparker" },
+  agency: {
+    actionLabel: "Review request",
+    actionUrl: "https://homzie.co.za/controlroom/networkhq/branches",
+    name: "Century 21",
+    networkName: "Century 21",
+    requestingName: "Century 21 Paarl",
+    url: "https://homzie.co.za/controlroom/networkhq/branches",
+  },
   event: {
     activeViewerCount: 3,
     count: 25,

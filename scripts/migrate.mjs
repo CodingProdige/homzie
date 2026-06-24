@@ -95,6 +95,16 @@ try {
   await sql`
     DO $$
     BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_employee_role') THEN
+        CREATE TYPE agency_employee_role AS ENUM ('admin', 'listing_coordinator', 'marketing', 'finance', 'viewer');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_member_status') THEN
         CREATE TYPE agency_member_status AS ENUM ('invited', 'active', 'suspended', 'removed');
       END IF;
@@ -622,6 +632,51 @@ try {
 
   await sql`
     CREATE INDEX IF NOT EXISTS agency_members_role_idx ON agency_members (role)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_employees (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+      invited_email text,
+      role agency_employee_role NOT NULL DEFAULT 'viewer',
+      status agency_member_status NOT NULL DEFAULT 'invited',
+      can_manage_branding boolean NOT NULL DEFAULT false,
+      can_manage_listings boolean NOT NULL DEFAULT false,
+      can_manage_members boolean NOT NULL DEFAULT false,
+      can_manage_billing boolean NOT NULL DEFAULT false,
+      can_view_buyer_activity boolean NOT NULL DEFAULT false,
+      invited_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      accepted_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS agency_employees_agency_user_idx
+    ON agency_employees (agency_id, user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_employees_agency_id_idx ON agency_employees (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_employees_user_id_idx ON agency_employees (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_employees_invited_email_idx ON agency_employees (invited_email)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_employees_status_idx ON agency_employees (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_employees_role_idx ON agency_employees (role)
   `;
 
   await sql`
@@ -2712,6 +2767,60 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS music_tracks_is_active_sort_order_idx
     ON music_tracks (is_active, sort_order)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_activity_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      actor_agency_id uuid REFERENCES agencies(id) ON DELETE SET NULL,
+      actor_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      event_type text NOT NULL,
+      title text NOT NULL,
+      body text NOT NULL,
+      action_label text,
+      action_href text,
+      severity text NOT NULL DEFAULT 'info',
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      read_at timestamptz,
+      archived_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_activity_events_agency_id_idx
+    ON agency_activity_events (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_activity_events_actor_agency_id_idx
+    ON agency_activity_events (actor_agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_activity_events_actor_user_id_idx
+    ON agency_activity_events (actor_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_activity_events_event_type_idx
+    ON agency_activity_events (event_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_activity_events_read_at_idx
+    ON agency_activity_events (read_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_activity_events_archived_at_idx
+    ON agency_activity_events (archived_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_activity_events_created_at_idx
+    ON agency_activity_events (created_at)
   `;
 
   console.log("Database migration completed.");

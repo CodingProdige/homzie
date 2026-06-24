@@ -3,8 +3,12 @@ import "server-only";
 import { and, desc, eq, ne } from "drizzle-orm";
 
 import { db, sql as rawSql } from "@/db";
-import { agencies, agencyMembers } from "@/db/schema";
+import { agencies, agencyEmployees, agencyMembers } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
+import {
+  agencyBadgeStyleFromSettings,
+  type AgencyBadgeStyle,
+} from "@/modules/agencies/brand-style";
 
 type AgencyInsertClient = Pick<typeof db, "insert" | "select">;
 
@@ -12,6 +16,7 @@ export type EffectiveAgencyBrand = {
   agencyId: string;
   agencyType: "independent" | "network" | "branch";
   badgeLabel: string;
+  badgeStyle: AgencyBadgeStyle;
   logoUrl: string | null;
   name: string;
   source: "agency" | "network";
@@ -24,6 +29,7 @@ type EffectiveAgencyBrandRow = {
   logo_url: string | null;
   name: string;
   source: "agency" | "network";
+  settings: unknown;
   user_id: string;
 };
 
@@ -49,9 +55,11 @@ export type AgencyWorkspace = {
     requestedParentAgencyName: string | null;
     slug: string;
     status: "pending" | "active" | "suspended";
+    settings: unknown;
     websiteUrl: string | null;
   };
   membership: {
+    accessType: "employee" | "member";
     agencyFunded: boolean;
     canCreateListings: boolean;
     canEditAgencyListings: boolean;
@@ -60,6 +68,7 @@ export type AgencyWorkspace = {
     canPublishListings: boolean;
     canSubmitListingRequests: boolean;
     canViewBuyerActivity: boolean;
+    employeeRole?: "admin" | "finance" | "listing_coordinator" | "marketing" | "viewer";
     role: "owner" | "admin" | "listing_manager" | "agent";
     status: "invited" | "active" | "suspended" | "removed";
   };
@@ -88,6 +97,7 @@ export async function getPrimaryAgencyWorkspace(
       agencyRegionPlaceData: agencies.regionPlaceData,
       agencyRegionPlaceId: agencies.regionPlaceId,
       agencyRequestedParentAgencyName: agencies.requestedParentAgencyName,
+      agencySettings: agencies.settings,
       agencySlug: agencies.slug,
       agencyStatus: agencies.status,
       agencyWebsiteUrl: agencies.websiteUrl,
@@ -113,7 +123,93 @@ export async function getPrimaryAgencyWorkspace(
     .orderBy(desc(agencyMembers.createdAt))
     .limit(1);
 
-  if (!row) return null;
+  if (!row) {
+    const [employeeRow] = await db
+      .select({
+        agencyType: agencies.agencyType,
+        agencyBadgeLabel: agencies.badgeLabel,
+        agencyBillingMode: agencies.billingMode,
+        agencyBrandingPolicy: agencies.brandingPolicy,
+        agencyBranchCode: agencies.branchCode,
+        agencyContactEmail: agencies.contactEmail,
+        agencyContactPhone: agencies.contactPhone,
+        agencyId: agencies.id,
+        agencyLocation: agencies.location,
+        agencyLogoUrl: agencies.logoUrl,
+        agencyName: agencies.name,
+        agencyNetworkVisibilityEnabled: agencies.networkVisibilityEnabled,
+        agencyParentAgencyId: agencies.parentAgencyId,
+        agencyParentLinkStatus: agencies.parentLinkStatus,
+        agencyRegion: agencies.region,
+        agencyRegionPlaceData: agencies.regionPlaceData,
+        agencyRegionPlaceId: agencies.regionPlaceId,
+        agencyRequestedParentAgencyName: agencies.requestedParentAgencyName,
+        agencySettings: agencies.settings,
+        agencySlug: agencies.slug,
+        agencyStatus: agencies.status,
+        agencyWebsiteUrl: agencies.websiteUrl,
+        canManageBilling: agencyEmployees.canManageBilling,
+        canManageBranding: agencyEmployees.canManageBranding,
+        canManageListings: agencyEmployees.canManageListings,
+        canManageMembers: agencyEmployees.canManageMembers,
+        canViewBuyerActivity: agencyEmployees.canViewBuyerActivity,
+        employeeRole: agencyEmployees.role,
+        employeeStatus: agencyEmployees.status,
+      })
+      .from(agencyEmployees)
+      .innerJoin(agencies, eq(agencies.id, agencyEmployees.agencyId))
+      .where(
+        and(
+          eq(agencyEmployees.userId, userId),
+          ne(agencyEmployees.status, "removed"),
+        ),
+      )
+      .orderBy(desc(agencyEmployees.createdAt))
+      .limit(1);
+
+    if (!employeeRow) return null;
+
+    return {
+      agency: {
+        agencyType: employeeRow.agencyType,
+        badgeLabel: employeeRow.agencyBadgeLabel,
+        billingMode: employeeRow.agencyBillingMode,
+        brandingPolicy: employeeRow.agencyBrandingPolicy,
+        branchCode: employeeRow.agencyBranchCode,
+        contactEmail: employeeRow.agencyContactEmail,
+        contactPhone: employeeRow.agencyContactPhone,
+        id: employeeRow.agencyId,
+        location: employeeRow.agencyLocation,
+        logoUrl: employeeRow.agencyLogoUrl,
+        name: employeeRow.agencyName,
+        networkVisibilityEnabled: employeeRow.agencyNetworkVisibilityEnabled,
+        parentAgencyId: employeeRow.agencyParentAgencyId,
+        parentLinkStatus: employeeRow.agencyParentLinkStatus,
+        region: employeeRow.agencyRegion,
+        regionPlaceData: employeeRow.agencyRegionPlaceData,
+        regionPlaceId: employeeRow.agencyRegionPlaceId,
+        requestedParentAgencyName: employeeRow.agencyRequestedParentAgencyName,
+        settings: employeeRow.agencySettings,
+        slug: employeeRow.agencySlug,
+        status: employeeRow.agencyStatus,
+        websiteUrl: employeeRow.agencyWebsiteUrl,
+      },
+      membership: {
+        accessType: "employee",
+        agencyFunded: false,
+        canCreateListings: false,
+        canEditAgencyListings: employeeRow.canManageListings,
+        canManageBilling: employeeRow.canManageBilling,
+        canManageMembers: employeeRow.canManageMembers,
+        canPublishListings: employeeRow.canManageListings,
+        canSubmitListingRequests: false,
+        canViewBuyerActivity: employeeRow.canViewBuyerActivity,
+        employeeRole: employeeRow.employeeRole,
+        role: employeeRow.employeeRole === "admin" ? "admin" : "listing_manager",
+        status: employeeRow.employeeStatus,
+      },
+    };
+  }
 
   return {
     agency: {
@@ -135,11 +231,13 @@ export async function getPrimaryAgencyWorkspace(
       regionPlaceData: row.agencyRegionPlaceData,
       regionPlaceId: row.agencyRegionPlaceId,
       requestedParentAgencyName: row.agencyRequestedParentAgencyName,
+      settings: row.agencySettings,
       slug: row.agencySlug,
       status: row.agencyStatus,
       websiteUrl: row.agencyWebsiteUrl,
     },
     membership: {
+      accessType: "member",
       agencyFunded: row.agencyFunded,
       canCreateListings: row.canCreateListings,
       canEditAgencyListings: row.canEditAgencyListings,
@@ -380,6 +478,14 @@ export async function getEffectiveAgencyBrandsForUsers(userIds: string[]) {
           AND a.branding_policy = 'network_branding_enforced'
           AND a.parent_link_status = 'linked'
           AND parent.id IS NOT NULL
+          THEN parent.settings
+        ELSE a.settings
+      END AS settings,
+      CASE
+        WHEN a.agency_type = 'branch'
+          AND a.branding_policy = 'network_branding_enforced'
+          AND a.parent_link_status = 'linked'
+          AND parent.id IS NOT NULL
           THEN 'network'
         ELSE 'agency'
       END AS source
@@ -399,6 +505,7 @@ export async function getEffectiveAgencyBrandsForUsers(userIds: string[]) {
         agencyId: row.agency_id,
         agencyType: row.agency_type,
         badgeLabel: row.badge_label || row.name,
+        badgeStyle: agencyBadgeStyleFromSettings(row.settings),
         logoUrl: toPublicMediaUrl(row.logo_url),
         name: row.name,
         source: row.source,
@@ -409,6 +516,14 @@ export async function getEffectiveAgencyBrandsForUsers(userIds: string[]) {
 
 export function agencyRoleLabel(role: AgencyWorkspace["membership"]["role"]) {
   if (role === "listing_manager") return "Listing manager";
+
+  return role[0].toUpperCase() + role.slice(1);
+}
+
+export function agencyEmployeeRoleLabel(
+  role: NonNullable<AgencyWorkspace["membership"]["employeeRole"]>,
+) {
+  if (role === "listing_coordinator") return "Listing coordinator";
 
   return role[0].toUpperCase() + role.slice(1);
 }

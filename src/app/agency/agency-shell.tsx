@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
   BarChart3,
+  Bell,
   ClipboardCheck,
   CreditCard,
   ListOrdered,
@@ -15,22 +17,24 @@ import {
   Network,
   Radar,
   Settings,
+  ShieldCheck,
   TowerControl,
   UsersRound,
   X,
   type LucideIcon,
 } from "lucide-react";
 
-import { HomzieLogo } from "@/components/homzie-logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 
 type AgencyShellProps = {
   accountLabel: string;
+  activityCount?: number;
   agencyType?: "branch" | "independent" | "network";
   basePath?: string;
   children: ReactNode;
+  controlRoomLogoUrl?: string | null;
   roomLabel?: string;
   workspaceLabel: string;
 };
@@ -38,37 +42,40 @@ type AgencyShellProps = {
 function agencyNavItems(
   basePath: string,
   agencyType: AgencyShellProps["agencyType"],
+  activityCount: number,
 ): Array<{
+  badgeCount?: number;
   href?: string;
   icon: LucideIcon;
   label: string;
   planned?: boolean;
 }> {
   const items: Array<{
+    badgeCount?: number;
     href?: string;
     icon: LucideIcon;
     label: string;
     planned?: boolean;
-  }> = [
-    { href: basePath, icon: BarChart3, label: "Dashboard" },
-    { icon: UsersRound, label: "Members", planned: true },
+  }> = [{ href: basePath, icon: BarChart3, label: "Dashboard" }];
+
+  if (agencyType === "network") {
+    items.push({ href: `${basePath}/branches`, icon: Network, label: "Branches" });
+  }
+
+  if (agencyType === "branch" || agencyType === "independent") {
+    items.push({ href: `${basePath}/network`, icon: Network, label: "Network" });
+  }
+
+  items.push(
+    { href: `${basePath}/leaderboard`, icon: ListOrdered, label: "Leaderboard" },
+    { badgeCount: activityCount, href: `${basePath}/activity`, icon: Bell, label: "Activity" },
+    { href: `${basePath}/members`, icon: UsersRound, label: "Members" },
+    { href: `${basePath}/employees`, icon: ShieldCheck, label: "Employees" },
     { icon: ClipboardCheck, label: "Listing Requests", planned: true },
     { icon: Radar, label: "Buyer Activity", planned: true },
     { icon: CreditCard, label: "Billing", planned: true },
     { href: `${basePath}/settings`, icon: Settings, label: "Settings" },
-  ];
-
-  if (agencyType === "network") {
-    items.splice(1, 0, { href: `${basePath}/branches`, icon: Network, label: "Branches" });
-  }
-
-  if (agencyType === "network" || agencyType === "branch") {
-    items.splice(
-      agencyType === "network" ? 2 : 1,
-      0,
-      { href: `${basePath}/leaderboard`, icon: ListOrdered, label: "Leaderboard" },
-    );
-  }
+  );
 
   return items;
 }
@@ -86,20 +93,35 @@ function AgencyHomeButton({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function agencyTypeLabel(agencyType: AgencyShellProps["agencyType"]) {
+  if (agencyType === "network") return "Network HQ";
+  if (agencyType === "branch") return "Branch agency";
+
+  return "Independent agency";
+}
+
+function roleLabel(accountLabel: string) {
+  const [, role] = accountLabel.split(/[•·]/).map((part) => part.trim());
+
+  return role || accountLabel;
+}
+
 function AgencyNav({
+  activityCount,
   agencyType,
   basePath,
   onNavigate,
   pathname,
 }: {
   agencyType: AgencyShellProps["agencyType"];
+  activityCount: number;
   basePath: string;
   onNavigate?: () => void;
   pathname: string;
 }) {
   return (
     <nav className="space-y-1" aria-label="Agency pages">
-      {agencyNavItems(basePath, agencyType).map((item) => {
+      {agencyNavItems(basePath, agencyType, activityCount).map((item) => {
         const Icon = item.icon;
 
         if (!item.href) {
@@ -137,6 +159,11 @@ function AgencyNav({
           >
             <Icon className="size-4 shrink-0" />
             <span className="truncate">{item.label}</span>
+            {item.badgeCount ? (
+              <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white">
+                {item.badgeCount > 99 ? "99+" : item.badgeCount}
+              </span>
+            ) : null}
           </Link>
         );
       })}
@@ -144,69 +171,94 @@ function AgencyNav({
   );
 }
 
-function AgencyIdentityCard({
-  accountLabel,
-  workspaceLabel,
-}: {
-  accountLabel: string;
-  workspaceLabel: string;
-}) {
-  return (
-    <div className="rounded-lg border border-primary/20 bg-primary/8 p-3">
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
-          <TowerControl className="size-4" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-primary">
-            Agency access
-          </p>
-          <p className="truncate text-xs font-black">{workspaceLabel}</p>
-          <p className="truncate text-[11px] font-semibold text-muted-foreground">
-            {accountLabel}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AgencySidebar({
+function AgencyWorkspaceIdentity({
   accountLabel,
   agencyType,
   basePath,
-  pathname,
+  controlRoomLogoUrl,
   roomLabel,
   workspaceLabel,
 }: {
   accountLabel: string;
   agencyType: AgencyShellProps["agencyType"];
   basePath: string;
+  controlRoomLogoUrl?: string | null;
+  roomLabel: string;
+  workspaceLabel: string;
+}) {
+  return (
+    <Link
+      href={basePath}
+      className="block rounded-lg border border-primary/20 bg-primary/8 p-3 outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/25"
+      aria-label={`${workspaceLabel} ${roomLabel}`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-primary text-xs font-black text-primary-foreground">
+          {controlRoomLogoUrl ? (
+            <Image
+              src={controlRoomLogoUrl}
+              alt=""
+              width={36}
+              height={36}
+              className="size-full object-cover"
+            />
+          ) : (
+            <TowerControl className="size-4" />
+          )}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+            {agencyTypeLabel(agencyType)}
+          </p>
+          <p className="truncate text-sm font-black leading-tight">{workspaceLabel}</p>
+          <p className="truncate text-[11px] font-bold text-muted-foreground">
+            {roleLabel(accountLabel)} access
+          </p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function AgencySidebar({
+  accountLabel,
+  activityCount,
+  agencyType,
+  basePath,
+  controlRoomLogoUrl,
+  pathname,
+  roomLabel,
+  workspaceLabel,
+}: {
+  accountLabel: string;
+  activityCount: number;
+  agencyType: AgencyShellProps["agencyType"];
+  basePath: string;
+  controlRoomLogoUrl?: string | null;
   pathname: string;
   roomLabel: string;
   workspaceLabel: string;
 }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border bg-background px-4 py-5 lg:flex lg:flex-col">
-      <Link href={basePath} className="flex items-center gap-3 px-2" aria-label="Control room dashboard">
-        <HomzieLogo variant="mark" className="size-9" priority />
-        <div className="min-w-0">
-          <p className="text-sm font-black leading-tight">Homzie Agency</p>
-          <p className="truncate text-xs font-semibold text-muted-foreground">
-            {roomLabel}
-          </p>
-        </div>
-      </Link>
-
-      <div className="mt-6">
-        <AgencyIdentityCard
+      <div>
+        <AgencyWorkspaceIdentity
           accountLabel={accountLabel}
+          agencyType={agencyType}
+          basePath={basePath}
+          controlRoomLogoUrl={controlRoomLogoUrl}
+          roomLabel={roomLabel}
           workspaceLabel={workspaceLabel}
         />
       </div>
 
       <div className="mt-6 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-        <AgencyNav agencyType={agencyType} basePath={basePath} pathname={pathname} />
+        <AgencyNav
+          activityCount={activityCount}
+          agencyType={agencyType}
+          basePath={basePath}
+          pathname={pathname}
+        />
       </div>
 
       <div className="space-y-4 border-t border-border pt-4">
@@ -222,9 +274,11 @@ function AgencySidebar({
 
 export function AgencyShell({
   accountLabel,
+  activityCount = 0,
   agencyType = "independent",
   basePath = "/controlroom",
   children,
+  controlRoomLogoUrl,
   roomLabel = "Control room",
   workspaceLabel,
 }: AgencyShellProps) {
@@ -235,8 +289,10 @@ export function AgencyShell({
     <div className="min-h-screen bg-background text-foreground lg:flex">
       <AgencySidebar
         accountLabel={accountLabel}
+        activityCount={activityCount}
         agencyType={agencyType}
         basePath={basePath}
+        controlRoomLogoUrl={controlRoomLogoUrl}
         pathname={pathname}
         roomLabel={roomLabel}
         workspaceLabel={workspaceLabel}
@@ -267,13 +323,18 @@ export function AgencyShell({
                   </Dialog.Close>
                 </div>
                 <div className="border-b border-border px-4 py-4">
-                  <AgencyIdentityCard
+                  <AgencyWorkspaceIdentity
                     accountLabel={accountLabel}
+                    agencyType={agencyType}
+                    basePath={basePath}
+                    controlRoomLogoUrl={controlRoomLogoUrl}
+                    roomLabel={roomLabel}
                     workspaceLabel={workspaceLabel}
                   />
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
                   <AgencyNav
+                    activityCount={activityCount}
                     agencyType={agencyType}
                     basePath={basePath}
                     pathname={pathname}
@@ -294,13 +355,44 @@ export function AgencyShell({
           </Dialog.Root>
 
           <Link href={basePath} className="flex min-w-0 items-center gap-2">
-            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-              <TowerControl className="size-4" />
+            <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-md bg-primary/10 text-xs font-black text-primary">
+              {controlRoomLogoUrl ? (
+                <Image
+                  src={controlRoomLogoUrl}
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <TowerControl className="size-4" />
+              )}
             </span>
-            <span className="truncate text-sm font-black">{workspaceLabel}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black leading-tight">
+                {workspaceLabel}
+              </span>
+              <span className="block truncate text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+                {agencyTypeLabel(agencyType)}
+              </span>
+            </span>
           </Link>
 
-          <AgencyHomeButton compact />
+          <div className="flex items-center gap-2">
+            <Link
+              href={`${basePath}/activity`}
+              className="relative grid size-10 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              aria-label="Control room activity"
+            >
+              <Bell className="size-5" />
+              {activityCount ? (
+                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white">
+                  {activityCount > 99 ? "99+" : activityCount}
+                </span>
+              ) : null}
+            </Link>
+            <AgencyHomeButton compact />
+          </div>
         </header>
 
         {children}

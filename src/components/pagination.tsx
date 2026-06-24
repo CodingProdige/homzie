@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -6,7 +7,8 @@ import { cn } from "@/lib/utils";
 type PaginationProps = {
   alwaysShow?: boolean;
   currentPage: number;
-  hrefForPage: (page: number) => string;
+  hrefForPage?: (page: number) => string;
+  onPageChange?: (page: number) => void;
   totalPages: number;
 };
 
@@ -26,6 +28,7 @@ export function Pagination({
   alwaysShow = false,
   currentPage,
   hrefForPage,
+  onPageChange,
   totalPages,
 }: PaginationProps) {
   if (totalPages <= 1 && !alwaysShow) return null;
@@ -37,17 +40,14 @@ export function Pagination({
       aria-label="Pagination"
       className="mt-8 flex flex-wrap items-center justify-center gap-2"
     >
-      <Link
-        href={hrefForPage(Math.max(currentPage - 1, 1))}
-        aria-disabled={currentPage <= 1}
-        className={cn(
-          "inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-black text-card-foreground transition hover:bg-muted",
-          currentPage <= 1 && "pointer-events-none opacity-45",
-        )}
+      <PaginationControl
+        disabled={currentPage <= 1}
+        href={hrefForPage?.(Math.max(currentPage - 1, 1))}
+        onClick={onPageChange ? () => onPageChange(Math.max(currentPage - 1, 1)) : undefined}
       >
         <ChevronLeft className="size-4" />
         Previous
-      </Link>
+      </PaginationControl>
 
       {pages.map((page, index) => {
         const previousPage = pages[index - 1];
@@ -60,9 +60,10 @@ export function Pagination({
                 ...
               </span>
             ) : null}
-            <Link
-              href={hrefForPage(page)}
+            <PaginationControl
+              href={hrefForPage?.(page)}
               aria-current={page === currentPage ? "page" : undefined}
+              onClick={onPageChange ? () => onPageChange(page) : undefined}
               className={cn(
                 "grid h-10 min-w-10 place-items-center rounded-md border border-border bg-card px-3 text-sm font-black text-card-foreground transition hover:bg-muted",
                 page === currentPage &&
@@ -70,22 +71,61 @@ export function Pagination({
               )}
             >
               {page}
-            </Link>
+            </PaginationControl>
           </span>
         );
       })}
 
-      <Link
-        href={hrefForPage(Math.min(currentPage + 1, totalPages))}
-        aria-disabled={currentPage >= totalPages}
-        className={cn(
-          "inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-black text-card-foreground transition hover:bg-muted",
-          currentPage >= totalPages && "pointer-events-none opacity-45",
-        )}
+      <PaginationControl
+        disabled={currentPage >= totalPages}
+        href={hrefForPage?.(Math.min(currentPage + 1, totalPages))}
+        onClick={onPageChange ? () => onPageChange(Math.min(currentPage + 1, totalPages)) : undefined}
       >
         Next
         <ChevronRight className="size-4" />
-      </Link>
+      </PaginationControl>
     </nav>
+  );
+}
+
+function PaginationControl({
+  children,
+  className,
+  disabled,
+  href,
+  onClick,
+  ...props
+}: {
+  "aria-current"?: "page";
+  children: ReactNode;
+  className?: string;
+  disabled?: boolean;
+  href?: string;
+  onClick?: () => void;
+}) {
+  const classes = cn(
+    "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-black text-card-foreground transition hover:bg-muted",
+    disabled && "pointer-events-none opacity-45",
+    className,
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        className={classes}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={href || "#"} aria-disabled={disabled} className={classes} {...props}>
+      {children}
+    </Link>
   );
 }

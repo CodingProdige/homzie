@@ -9,6 +9,7 @@ export type CanonicalTableColumn<T> = {
   header: ReactNode;
   key: string;
   render: (row: T) => ReactNode;
+  sticky?: "right";
   useRowHref?: boolean;
 };
 
@@ -68,11 +69,23 @@ export function CanonicalTable<T>({
           >
             <thead className="bg-muted/50 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                {columns.map((column) => (
-                  <th key={column.key} className={cn("px-4 py-3", column.className)}>
-                    {column.header}
-                  </th>
-                ))}
+                {columns.map((column) => {
+                  const isStickyRight = column.sticky === "right" || column.key === "actions";
+
+                  return (
+                    <th
+                      key={column.key}
+                      className={cn(
+                        "px-4 py-3",
+                        isStickyRight &&
+                          "sticky right-0 z-20 bg-muted/95 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.35)]",
+                        column.className,
+                      )}
+                    >
+                      {column.header}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -83,30 +96,36 @@ export function CanonicalTable<T>({
                   <tr
                     key={getRowKey(row)}
                     className={cn(
-                      "border-t border-border",
+                      "group/row border-t border-border",
                       href && "group/row transition-colors hover:bg-muted/40",
                     )}
                   >
-                    {columns.map((column) => (
-                      <td
-                        key={column.key}
-                        className={cn(
-                          "border-t border-border px-4 py-4 align-middle",
-                          column.className,
-                        )}
-                      >
-                        {href && column.useRowHref !== false ? (
-                          <Link
-                            href={href}
-                            className="block min-h-8 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-                          >
-                            {column.render(row)}
-                          </Link>
-                        ) : (
-                          column.render(row)
-                        )}
-                      </td>
-                    ))}
+                    {columns.map((column) => {
+                      const isStickyRight = column.sticky === "right" || column.key === "actions";
+
+                      return (
+                        <td
+                          key={column.key}
+                          className={cn(
+                            "border-t border-border px-4 py-4 align-middle",
+                            isStickyRight &&
+                              "sticky right-0 z-10 bg-card shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.35)] transition-colors group-hover/row:bg-muted/40",
+                            column.className,
+                          )}
+                        >
+                          {href && column.useRowHref !== false ? (
+                            <Link
+                              href={href}
+                              className="block min-h-8 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+                            >
+                              {column.render(row)}
+                            </Link>
+                          ) : (
+                            column.render(row)
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}

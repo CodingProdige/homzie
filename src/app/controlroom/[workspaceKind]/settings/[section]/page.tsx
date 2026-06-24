@@ -14,6 +14,11 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { sql } from "@/db";
+import { toPublicMediaUrl } from "@/media/paths";
+import {
+  agencyBadgeStyleFromSettings,
+  agencyControlRoomLogoPathFromSettings,
+} from "@/modules/agencies/brand-style";
 import {
   approveBranchLinkAction,
   declineBranchLinkAction,
@@ -34,6 +39,7 @@ import {
   getPrimaryAgencyWorkspace,
 } from "@/modules/agencies/server";
 import { authOptions } from "@/modules/auth/config";
+import { AgencyBrandingForm } from "./agency-branding-form";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +90,11 @@ function parseSettingsSection(value: string): SettingsSection | null {
 }
 
 type ParentAgencyRow = {
+  badge_label: string | null;
+  id: string;
+  logo_url: string | null;
   name: string;
+  settings: unknown;
   slug: string;
 };
 
@@ -142,7 +152,7 @@ export default async function ControlRoomSettingsPage({
   const [parentRows, branchRows, outgoingTransferRows] = await Promise.all([
     workspace.agency.parentAgencyId
       ? sql<ParentAgencyRow[]>`
-          SELECT name, slug
+          SELECT id, name, slug, logo_url, badge_label, settings
           FROM agencies
           WHERE id = ${workspace.agency.parentAgencyId}
           LIMIT 1
@@ -193,9 +203,27 @@ export default async function ControlRoomSettingsPage({
   const parentAgency = parentRows[0] || null;
   const branchUsesNetworkBrand =
     workspace.agency.agencyType === "branch" &&
-    workspace.agency.brandingPolicy === "network_branding_enforced";
-  const canManageOwnBrand =
+    workspace.agency.brandingPolicy === "network_branding_enforced" &&
+    workspace.agency.parentLinkStatus === "linked" &&
+    Boolean(parentAgency);
+  const canManageControlRoomBrand = workspace.membership.canManageMembers;
+  const canManagePublicBrand =
     workspace.membership.canManageMembers && !branchUsesNetworkBrand;
+  const effectivePublicBrand = branchUsesNetworkBrand && parentAgency
+    ? {
+        badgeLabel: parentAgency.badge_label || parentAgency.name,
+        badgeStyle: agencyBadgeStyleFromSettings(parentAgency.settings),
+        logoUrl: toPublicMediaUrl(parentAgency.logo_url),
+        name: parentAgency.name,
+        sourceLabel: "Network HQ brand",
+      }
+    : {
+        badgeLabel: workspace.agency.badgeLabel || workspace.agency.name,
+        badgeStyle: agencyBadgeStyleFromSettings(workspace.agency.settings),
+        logoUrl: toPublicMediaUrl(workspace.agency.logoUrl),
+        name: workspace.agency.name,
+        sourceLabel: "Local agency brand",
+      };
   const settingsPath = `/controlroom/${kind}/settings`;
   const currentSection = sectionMeta[section];
 
@@ -324,7 +352,7 @@ export default async function ControlRoomSettingsPage({
               {workspace.agency.agencyType === "network"
                 ? "This is the brand branches and linked agents will inherit when Network HQ branding is enforced."
                 : branchUsesNetworkBrand
-                  ? "This branch is currently locked to the Network HQ brand."
+                  ? "Your control room identity stays local, but public listing and agent badges are currently inherited from Network HQ."
                   : "This is the local agency brand used when branch branding is allowed."}
             </p>
           </div>
@@ -333,47 +361,26 @@ export default async function ControlRoomSettingsPage({
           </span>
         </div>
 
-        <form
+        <AgencyBrandingForm
           action={updateAgencyBrandIdentityAction}
-          className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.8fr_auto] lg:items-end"
-        >
-          <label className="grid gap-2">
-            <span className="text-sm font-black">Logo URL</span>
-            <input
-              name="logoUrl"
-              defaultValue={workspace.agency.logoUrl || ""}
-              disabled={!canManageOwnBrand}
-              placeholder="https://..."
-              className="h-11 min-w-0 rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </label>
-          <label className="grid gap-2">
-            <span className="text-sm font-black">Badge label</span>
-            <input
-              name="badgeLabel"
-              defaultValue={workspace.agency.badgeLabel || ""}
-              disabled={!canManageOwnBrand}
-              placeholder="Century 21 Paarl"
-              maxLength={40}
-              className="h-11 min-w-0 rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </label>
-          <Button
-            type="submit"
-            disabled={!canManageOwnBrand}
-            className="h-11 whitespace-nowrap font-black"
-          >
-            Save brand
-          </Button>
-        </form>
-
-        {branchUsesNetworkBrand ? (
-          <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
-            Network HQ controls the brand shown on this branch, its linked agents,
-            and its listings. Ask the HQ owner/admin to switch this branch to own
-            branding if the branch should manage its own identity.
-          </p>
-        ) : null}
+          agencyName={workspace.agency.name}
+          badgeLabel={workspace.agency.badgeLabel || workspace.agency.name}
+          badgeStyle={agencyBadgeStyleFromSettings(workspace.agency.settings)}
+          canManageControlRoomBrand={canManageControlRoomBrand}
+          canManagePublicBrand={canManagePublicBrand}
+          controlRoomLogoUrl={toPublicMediaUrl(
+            agencyControlRoomLogoPathFromSettings(workspace.agency.settings),
+          )}
+          effectivePublicBrand={effectivePublicBrand}
+          isNetworkBrandLocked={branchUsesNetworkBrand}
+          localPublicBrand={{
+            badgeLabel: workspace.agency.badgeLabel || workspace.agency.name,
+            badgeStyle: agencyBadgeStyleFromSettings(workspace.agency.settings),
+            logoUrl: toPublicMediaUrl(workspace.agency.logoUrl),
+            name: workspace.agency.name,
+          }}
+          publicLogoUrl={toPublicMediaUrl(workspace.agency.logoUrl)}
+        />
       </section>
 
       {workspace.agency.agencyType === "network" ? (

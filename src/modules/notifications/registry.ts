@@ -16,6 +16,14 @@ export type NotificationTemplateContext = {
   conversation?: {
     url?: string | null;
   };
+  agency?: {
+    actionLabel?: string | null;
+    actionUrl?: string | null;
+    name?: string | null;
+    networkName?: string | null;
+    requestingName?: string | null;
+    url?: string | null;
+  };
   event: {
     activeViewerCount?: number | null;
     count?: number | null;
@@ -52,6 +60,58 @@ export type NotificationRegistryItem = {
 };
 
 export const notificationRegistry = [
+  {
+    category: "Control room",
+    defaultEmailEnabled: true,
+    defaultPushEnabled: true,
+    emailTemplateKey: "agency.network_link.requested",
+    eventType: "agency.network_link.requested",
+    label: "Network link requested",
+    preferenceCategory: "messages",
+    pushBody: "{{agency.requestingName}} wants to link to {{agency.networkName}}.",
+    pushTitle: "New branch request",
+    template:
+      "{{agency.requestingName}} requested to link to {{agency.networkName}}. Review the request in your control room.",
+  },
+  {
+    category: "Control room",
+    defaultEmailEnabled: true,
+    defaultPushEnabled: true,
+    emailTemplateKey: "agency.network_link.approved",
+    eventType: "agency.network_link.approved",
+    label: "Network link approved",
+    preferenceCategory: "messages",
+    pushBody: "{{agency.networkName}} approved your network link.",
+    pushTitle: "Network request approved",
+    template:
+      "{{agency.networkName}} approved your request. Your agency is now linked to the network.",
+  },
+  {
+    category: "Control room",
+    defaultEmailEnabled: true,
+    defaultPushEnabled: true,
+    emailTemplateKey: "agency.network_link.declined",
+    eventType: "agency.network_link.declined",
+    label: "Network link declined",
+    preferenceCategory: "messages",
+    pushBody: "{{agency.networkName}} declined your network link request.",
+    pushTitle: "Network request declined",
+    template:
+      "{{agency.networkName}} declined your request. You can review your network settings in the control room.",
+  },
+  {
+    category: "Control room",
+    defaultEmailEnabled: true,
+    defaultPushEnabled: true,
+    emailTemplateKey: "agency.network_link.left",
+    eventType: "agency.network_link.left",
+    label: "Branch left network",
+    preferenceCategory: "messages",
+    pushBody: "{{agency.requestingName}} left {{agency.networkName}}.",
+    pushTitle: "Branch left network",
+    template:
+      "{{agency.requestingName}} left {{agency.networkName}}. The branch is now independent.",
+  },
   {
     category: "Offers",
     defaultEmailEnabled: true,

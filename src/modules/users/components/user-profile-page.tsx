@@ -41,6 +41,7 @@ import { GlobalFooter } from "@/components/global-footer";
 import { cn } from "@/lib/utils";
 import { toPublicMediaUrl } from "@/media/paths";
 import { useCurrency } from "@/modules/currency/currency-provider";
+import { AgencyBrandBadge } from "@/modules/agencies/components/agency-brand-badge";
 import type { EffectiveAgencyBrand } from "@/modules/agencies/server";
 import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
 import { startConversationAction } from "@/modules/messages/actions";
@@ -76,6 +77,7 @@ type UserProfile = {
   reels: ProfileReel[];
   savedListings: ProfileListing[];
   savedReels: ProfileReel[];
+  viewerHasAgencyWorkspace?: boolean;
   viewerRole?: "user" | "admin";
   viewerSignedIn?: boolean;
   viewerUsername?: string;
@@ -568,22 +570,7 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
           @{profile.username}
         </p>
         {profile.agencyBrand ? (
-          <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-foreground shadow-sm">
-            <span className="grid size-6 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-[10px] text-primary">
-              {profile.agencyBrand.logoUrl ? (
-                <Image
-                  src={profile.agencyBrand.logoUrl}
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="size-full object-cover"
-                />
-              ) : (
-                profile.agencyBrand.name.slice(0, 2).toUpperCase()
-              )}
-            </span>
-            <span className="truncate">{profile.agencyBrand.badgeLabel}</span>
-          </div>
+          <AgencyBrandBadge brand={profile.agencyBrand} className="mt-2" />
         ) : null}
 
         <div className="mt-3 grid max-w-sm grid-cols-3 gap-2 sm:mt-5 sm:flex sm:gap-10">
@@ -1973,6 +1960,7 @@ export function UserProfilePage({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <GlobalHeader
+        viewerHasAgencyWorkspace={profile.viewerHasAgencyWorkspace}
         viewerRole={profile.viewerRole}
         viewerUsername={profile.viewerUsername}
       />

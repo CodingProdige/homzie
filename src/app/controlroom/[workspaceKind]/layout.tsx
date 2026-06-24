@@ -4,6 +4,9 @@ import { getServerSession } from "next-auth";
 
 import { AgencyShell } from "@/app/agency/agency-shell";
 import { sql } from "@/db";
+import { toPublicMediaUrl } from "@/media/paths";
+import { getUnreadAgencyActivityCount } from "@/modules/agencies/activity";
+import { agencyControlRoomLogoPathFromSettings } from "@/modules/agencies/brand-style";
 import {
   controlRoomKindForWorkspace,
   controlRoomLabel,
@@ -11,6 +14,7 @@ import {
   parseControlRoomKind,
 } from "@/modules/agencies/control-room";
 import {
+  agencyEmployeeRoleLabel,
   agencyRoleLabel,
   agencyTypeLabel,
   getPrimaryAgencyWorkspace,
@@ -76,16 +80,27 @@ export default async function ControlRoomLayout({
     redirect(controlRoomPathForWorkspace(workspace));
   }
 
+  const activityCount = workspace
+    ? await getUnreadAgencyActivityCount(workspace.agency.id)
+    : 0;
   const workspaceLabel = workspace?.agency.name || "Agency workspace";
   const accountLabel = workspace
-    ? `${agencyTypeLabel(workspace.agency.agencyType)} · ${agencyRoleLabel(workspace.membership.role)}`
+    ? `${agencyTypeLabel(workspace.agency.agencyType)} · ${
+        workspace.membership.accessType === "employee" && workspace.membership.employeeRole
+          ? `${agencyEmployeeRoleLabel(workspace.membership.employeeRole)} employee`
+          : agencyRoleLabel(workspace.membership.role)
+      }`
     : user?.email || user?.name || "Create workspace";
 
   return (
     <AgencyShell
       accountLabel={accountLabel}
+      activityCount={activityCount}
       agencyType={workspace?.agency.agencyType || "independent"}
       basePath={`/controlroom/${kind}`}
+      controlRoomLogoUrl={toPublicMediaUrl(
+        agencyControlRoomLogoPathFromSettings(workspace?.agency.settings),
+      )}
       roomLabel={controlRoomLabel(kind)}
       workspaceLabel={workspaceLabel}
     >

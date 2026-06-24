@@ -39,6 +39,7 @@ async function getUsers() {
       u.contact_phone AS "contactPhone",
       u.whatsapp_number AS "whatsappNumber",
       u.public_contact_visible AS "publicContactVisible",
+      u.agent_trial_used_at::text AS "agentTrialUsedAt",
       u.created_at::text AS "createdAt",
       u.updated_at::text AS "updatedAt",
       ap.status AS "agentProfileStatus",
@@ -49,7 +50,7 @@ async function getUsers() {
       aw.agency_status AS "agencyStatus",
       aw.member_role AS "agencyMemberRole",
       aw.member_status AS "agencyMemberStatus",
-      activity.last_online_at::text AS "lastOnlineAt",
+      coalesce(activity.last_online_at, u.created_at)::text AS "lastOnlineAt",
       (
         SELECT s.status
         FROM subscriptions s
@@ -57,6 +58,20 @@ async function getUsers() {
         ORDER BY s.created_at DESC
         LIMIT 1
       ) AS "activeSubscriptionStatus",
+      (
+        SELECT s.current_period_start::text
+        FROM subscriptions s
+        WHERE s.user_id = u.id
+        ORDER BY s.created_at DESC
+        LIMIT 1
+      ) AS "subscriptionCurrentPeriodStart",
+      (
+        SELECT s.current_period_end::text
+        FROM subscriptions s
+        WHERE s.user_id = u.id
+        ORDER BY s.created_at DESC
+        LIMIT 1
+      ) AS "subscriptionCurrentPeriodEnd",
       (
         SELECT count(*)
         FROM property_listings pl

@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { sql } from "@/db";
+import { toPublicMediaUrl } from "@/media/paths";
+import { getUnreadAgencyActivityCount } from "@/modules/agencies/activity";
+import { agencyControlRoomLogoPathFromSettings } from "@/modules/agencies/brand-style";
 import {
   agencyRoleLabel,
   agencyTypeLabel,
@@ -65,11 +68,19 @@ export default async function AgencyLayout({
   const roomLabel = workspace
     ? controlRoomLabel(controlRoomKindForWorkspace(workspace))
     : "Control room";
+  const activityCount = workspace
+    ? await getUnreadAgencyActivityCount(workspace.agency.id)
+    : 0;
 
   return (
     <AgencyShell
       accountLabel={accountLabel}
+      activityCount={activityCount}
+      agencyType={workspace?.agency.agencyType || "independent"}
       basePath={basePath}
+      controlRoomLogoUrl={toPublicMediaUrl(
+        agencyControlRoomLogoPathFromSettings(workspace?.agency.settings),
+      )}
       roomLabel={roomLabel}
       workspaceLabel={workspaceLabel}
     >

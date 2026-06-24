@@ -52,6 +52,13 @@ export const agencyMemberRoleEnum = pgEnum("agency_member_role", [
   "listing_manager",
   "agent",
 ]);
+export const agencyEmployeeRoleEnum = pgEnum("agency_employee_role", [
+  "admin",
+  "listing_coordinator",
+  "marketing",
+  "finance",
+  "viewer",
+]);
 export const agencyMemberStatusEnum = pgEnum("agency_member_status", [
   "invited",
   "active",
@@ -251,6 +258,39 @@ export const agencyMembers = pgTable(
     index("agency_members_invited_email_idx").on(table.invitedEmail),
     index("agency_members_status_idx").on(table.status),
     index("agency_members_role_idx").on(table.role),
+  ],
+);
+
+export const agencyEmployees = pgTable(
+  "agency_employees",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    invitedEmail: text("invited_email"),
+    role: agencyEmployeeRoleEnum("role").notNull().default("viewer"),
+    status: agencyMemberStatusEnum("status").notNull().default("invited"),
+    canManageBranding: boolean("can_manage_branding").notNull().default(false),
+    canManageListings: boolean("can_manage_listings").notNull().default(false),
+    canManageMembers: boolean("can_manage_members").notNull().default(false),
+    canManageBilling: boolean("can_manage_billing").notNull().default(false),
+    canViewBuyerActivity: boolean("can_view_buyer_activity").notNull().default(false),
+    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("agency_employees_agency_user_idx").on(table.agencyId, table.userId),
+    index("agency_employees_agency_id_idx").on(table.agencyId),
+    index("agency_employees_user_id_idx").on(table.userId),
+    index("agency_employees_invited_email_idx").on(table.invitedEmail),
+    index("agency_employees_status_idx").on(table.status),
+    index("agency_employees_role_idx").on(table.role),
   ],
 );
 
@@ -1415,6 +1455,41 @@ export const userEvents = pgTable(
   ],
 );
 
+export const agencyActivityEvents = pgTable(
+  "agency_activity_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    actorAgencyId: uuid("actor_agency_id").references(() => agencies.id, {
+      onDelete: "set null",
+    }),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    eventType: text("event_type").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    actionLabel: text("action_label"),
+    actionHref: text("action_href"),
+    severity: text("severity").notNull().default("info"),
+    metadata: jsonb("metadata").notNull().default({}),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("agency_activity_events_agency_id_idx").on(table.agencyId),
+    index("agency_activity_events_actor_agency_id_idx").on(table.actorAgencyId),
+    index("agency_activity_events_actor_user_id_idx").on(table.actorUserId),
+    index("agency_activity_events_event_type_idx").on(table.eventType),
+    index("agency_activity_events_read_at_idx").on(table.readAt),
+    index("agency_activity_events_archived_at_idx").on(table.archivedAt),
+    index("agency_activity_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const webPushSubscriptions = pgTable(
   "web_push_subscriptions",
   {
@@ -1847,6 +1922,10 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   billingAgencies: many(agencies, { relationName: "agencyBillingOwner" }),
   agencyMemberships: many(agencyMembers, { relationName: "agencyMemberUser" }),
   agencyInvitesSent: many(agencyMembers, { relationName: "agencyInviteSender" }),
+  agencyEmployeeAccess: many(agencyEmployees, { relationName: "agencyEmployeeUser" }),
+  agencyEmployeeInvitesSent: many(agencyEmployees, {
+    relationName: "agencyEmployeeInviteSender",
+  }),
   requestedAgencyOwnershipTransfers: many(agencyOwnershipTransfers, {
     relationName: "agencyOwnershipTransferRequester",
   }),
@@ -1903,8 +1982,35 @@ export const agenciesRelations = relations(agencies, ({ one, many }) => ({
     relationName: "agencyBillingOwner",
   }),
   members: many(agencyMembers),
+  employees: many(agencyEmployees),
+  activityEvents: many(agencyActivityEvents, {
+    relationName: "agencyActivityRecipient",
+  }),
+  actorActivityEvents: many(agencyActivityEvents, {
+    relationName: "agencyActivityActor",
+  }),
   ownershipTransfers: many(agencyOwnershipTransfers),
 }));
+
+export const agencyActivityEventsRelations = relations(
+  agencyActivityEvents,
+  ({ one }) => ({
+    agency: one(agencies, {
+      fields: [agencyActivityEvents.agencyId],
+      references: [agencies.id],
+      relationName: "agencyActivityRecipient",
+    }),
+    actorAgency: one(agencies, {
+      fields: [agencyActivityEvents.actorAgencyId],
+      references: [agencies.id],
+      relationName: "agencyActivityActor",
+    }),
+    actorUser: one(users, {
+      fields: [agencyActivityEvents.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const agencyMembersRelations = relations(agencyMembers, ({ one }) => ({
   agency: one(agencies, {
@@ -1920,6 +2026,23 @@ export const agencyMembersRelations = relations(agencyMembers, ({ one }) => ({
     fields: [agencyMembers.invitedByUserId],
     references: [users.id],
     relationName: "agencyInviteSender",
+  }),
+}));
+
+export const agencyEmployeesRelations = relations(agencyEmployees, ({ one }) => ({
+  agency: one(agencies, {
+    fields: [agencyEmployees.agencyId],
+    references: [agencies.id],
+  }),
+  user: one(users, {
+    fields: [agencyEmployees.userId],
+    references: [users.id],
+    relationName: "agencyEmployeeUser",
+  }),
+  invitedByUser: one(users, {
+    fields: [agencyEmployees.invitedByUserId],
+    references: [users.id],
+    relationName: "agencyEmployeeInviteSender",
   }),
 }));
 
@@ -2337,8 +2460,12 @@ export type Agency = typeof agencies.$inferSelect;
 export type NewAgency = typeof agencies.$inferInsert;
 export type AgencyMember = typeof agencyMembers.$inferSelect;
 export type NewAgencyMember = typeof agencyMembers.$inferInsert;
+export type AgencyEmployee = typeof agencyEmployees.$inferSelect;
+export type NewAgencyEmployee = typeof agencyEmployees.$inferInsert;
 export type AgencyOwnershipTransfer = typeof agencyOwnershipTransfers.$inferSelect;
 export type NewAgencyOwnershipTransfer = typeof agencyOwnershipTransfers.$inferInsert;
+export type AgencyActivityEvent = typeof agencyActivityEvents.$inferSelect;
+export type NewAgencyActivityEvent = typeof agencyActivityEvents.$inferInsert;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
 export type UserNotificationPreferences =

@@ -1,12 +1,33 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { agencies, agencyMembers, agencyOwnershipTransfers, users } from "@/db/schema";
+import {
+  agencies,
+  agencyEmployees,
+  agencyMembers,
+  agencyOwnershipTransfers,
+  users,
+} from "@/db/schema";
+import { getMediaStorageRoot } from "@/media/storage";
+import { notifyAgencyActivity } from "@/modules/agencies/activity";
+import {
+  agencyBadgeFontOptions,
+  agencyBadgeFontWeightOptions,
+  agencyBadgeRadiusOptions,
+  agencyBadgeStyleFromSettings,
+  agencyControlRoomLogoPathFromSettings,
+  agencySettingsWithBadgeStyle,
+  defaultAgencyBadgeStyle,
+  type AgencyBadgeStyle,
+} from "@/modules/agencies/brand-style";
 import { authOptions } from "@/modules/auth/config";
 import {
   createAgencyWithOwner,
@@ -57,6 +78,105 @@ function formBrandingPolicy(value: string) {
     : "branch_branding_allowed";
 }
 
+const agencyLogoTypes: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const maxAgencyLogoBytes = 5 * 1024 * 1024;
+const hexColorPattern = /^#[0-9a-f]{6}$/i;
+
+function formColor(formData: FormData, key: string, fallback: string) {
+  const value = formString(formData, key);
+
+  return hexColorPattern.test(value) ? value : fallback;
+}
+
+function formOption(
+  formData: FormData,
+  key: string,
+  options: readonly { value: string }[],
+  fallback: string,
+) {
+  const value = formString(formData, key);
+
+  return options.some((option) => option.value === value) ? value : fallback;
+}
+
+function agencyBadgeStyleFromForm(formData: FormData): AgencyBadgeStyle {
+  return {
+    backgroundColor: formColor(
+      formData,
+      "badgeBackgroundColor",
+      defaultAgencyBadgeStyle.backgroundColor,
+    ),
+    borderRadius: formOption(
+      formData,
+      "badgeBorderRadius",
+      agencyBadgeRadiusOptions,
+      defaultAgencyBadgeStyle.borderRadius,
+    ),
+    fontFamily: formOption(
+      formData,
+      "badgeFontFamily",
+      agencyBadgeFontOptions,
+      defaultAgencyBadgeStyle.fontFamily,
+    ),
+    fontWeight: formOption(
+      formData,
+      "badgeFontWeight",
+      agencyBadgeFontWeightOptions,
+      defaultAgencyBadgeStyle.fontWeight,
+    ),
+    textColor: formColor(
+      formData,
+      "badgeTextColor",
+      defaultAgencyBadgeStyle.textColor,
+    ),
+  };
+}
+
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  return value instanceof File && value.size > 0 ? value : null;
+}
+
+async function storeAgencyLogo(
+  file: File,
+  agencyId: string,
+  purpose: "control-room" | "public",
+) {
+  const extension = agencyLogoTypes[file.type];
+
+  if (!extension) {
+    throw new Error("Upload a JPG, PNG, or WebP logo image.");
+  }
+
+  if (file.size > maxAgencyLogoBytes) {
+    throw new Error("Logo image must be 5MB or smaller.");
+  }
+
+  const now = new Date();
+  const relativeDirectory = path.posix.join(
+    "agencies",
+    String(now.getFullYear()),
+    String(now.getMonth() + 1).padStart(2, "0"),
+  );
+  const fileName = `${agencyId}-${purpose}-${randomUUID()}.${extension}`;
+  const storedPath = path.posix.join(relativeDirectory, fileName);
+  const storageRoot = getMediaStorageRoot();
+  const absoluteDirectory = path.join(storageRoot, relativeDirectory);
+
+  await mkdir(absoluteDirectory, { recursive: true });
+  await writeFile(
+    path.join(absoluteDirectory, fileName),
+    Buffer.from(await file.arrayBuffer()),
+  );
+
+  return storedPath;
+}
+
 function agencyTypeControlRoomPath(agencyType: "branch" | "independent" | "network") {
   return agencyType === "network" ? "/controlroom/networkhq" : "/controlroom/agency";
 }
@@ -66,6 +186,8 @@ function revalidateControlRoomPaths(path = "/controlroom") {
   revalidatePath("/agency");
   revalidatePath(path);
   revalidatePath(`${path}/branches`);
+  revalidatePath(`${path}/activity`);
+  revalidatePath(`${path}/network`);
   revalidatePath(`${path}/leaderboard`);
   revalidatePath(`${path}/settings`);
 }
@@ -216,10 +338,28 @@ export async function approveBranchLinkAction(formData: FormData) {
 
   if (!branchAgencyId) return;
 
+  const session = await getServerSession(authOptions);
+  const [branchAgency] = await db
+    .select({
+      id: agencies.id,
+      name: agencies.name,
+    })
+    .from(agencies)
+    .where(
+      and(
+        eq(agencies.id, branchAgencyId),
+        inArray(agencies.agencyType, ["branch", "independent"]),
+      ),
+    )
+    .limit(1);
+
+  if (!branchAgency) return;
+
   await db
     .update(agencies)
     .set({
-      billingMode: "parent",
+      agencyType: "branch",
+      billingMode: "self",
       brandingPolicy: workspace.agency.brandingPolicy,
       parentAgencyId: workspace.agency.id,
       parentLinkStatus: "linked",
@@ -229,9 +369,25 @@ export async function approveBranchLinkAction(formData: FormData) {
     .where(
       and(
         eq(agencies.id, branchAgencyId),
-        eq(agencies.agencyType, "branch"),
+        inArray(agencies.agencyType, ["branch", "independent"]),
       ),
     );
+
+  await notifyAgencyActivity({
+    actionHref: "/controlroom/agency/network",
+    actionLabel: "View network",
+    actorAgencyId: workspace.agency.id,
+    actorUserId: session?.user?.id || null,
+    agencyId: branchAgency.id,
+    body: `${workspace.agency.name} approved your request. Your agency is now linked to the network.`,
+    eventType: "agency.network_link.approved",
+    metadata: {
+      networkAgencyId: workspace.agency.id,
+      requestingAgencyId: branchAgency.id,
+    },
+    severity: "success",
+    title: "Network request approved",
+  });
 
   revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
 }
@@ -310,27 +466,278 @@ async function requireAgencyManager() {
   return workspace;
 }
 
+type AgencyEmployeeInviteRole =
+  | "admin"
+  | "finance"
+  | "listing_coordinator"
+  | "marketing"
+  | "viewer";
+type ManageableAgencyStatus = "active" | "removed" | "suspended";
+
+function formAgencyEmployeeRole(value: string): AgencyEmployeeInviteRole {
+  if (
+    value === "admin" ||
+    value === "listing_coordinator" ||
+    value === "marketing" ||
+    value === "finance" ||
+    value === "viewer"
+  ) {
+    return value;
+  }
+
+  return "viewer";
+}
+
+function formMemberStatus(value: string): ManageableAgencyStatus {
+  if (value === "active" || value === "suspended" || value === "removed") {
+    return value;
+  }
+
+  return "active";
+}
+
+function employeePermissionsForRole(
+  role: AgencyEmployeeInviteRole,
+) {
+  return {
+    canManageBilling: role === "admin" || role === "finance",
+    canManageBranding: role === "admin" || role === "marketing",
+    canManageListings: role === "admin" || role === "listing_coordinator",
+    canManageMembers: role === "admin",
+    canViewBuyerActivity:
+      role === "admin" || role === "listing_coordinator" || role === "marketing",
+  };
+}
+
+export async function inviteAgencyMemberAction(formData: FormData) {
+  const workspace = await requireAgencyManager();
+  const session = await getServerSession(authOptions);
+  const email = formString(formData, "email").toLowerCase();
+  const role = "agent" as const;
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Enter a valid agent email address.");
+  }
+
+  const [existingUser] = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  const existingMembership = existingUser
+    ? await db
+        .select({ id: agencyMembers.id })
+        .from(agencyMembers)
+        .where(
+          and(
+            eq(agencyMembers.agencyId, workspace.agency.id),
+            eq(agencyMembers.userId, existingUser.id),
+          ),
+        )
+        .limit(1)
+    : [];
+
+  const values = {
+    acceptedAt: existingUser ? new Date() : null,
+    agencyFunded: true,
+    canCreateListings: false,
+    canEditAgencyListings: false,
+    canManageBilling: false,
+    canManageMembers: false,
+    canPublishListings: false,
+    canSubmitListingRequests: true,
+    canViewBuyerActivity: true,
+    invitedByUserId: session?.user?.id || null,
+    invitedEmail: existingUser ? null : email,
+    role,
+    status: existingUser ? "active" as const : "invited" as const,
+    updatedAt: new Date(),
+    userId: existingUser?.id || null,
+  };
+
+  if (existingMembership[0]) {
+    await db
+      .update(agencyMembers)
+      .set(values)
+      .where(eq(agencyMembers.id, existingMembership[0].id));
+  } else {
+    await db.insert(agencyMembers).values({
+      ...values,
+      agencyId: workspace.agency.id,
+    });
+  }
+
+  await notifyAgencyActivity({
+    actionHref: `${controlRoomPathForWorkspace(workspace)}/members`,
+    actionLabel: "View members",
+    actorAgencyId: workspace.agency.id,
+    actorUserId: session?.user?.id || null,
+    agencyId: workspace.agency.id,
+    body: existingUser
+      ? `${existingUser.name} was linked as a paid agency agent.`
+      : `${email} was invited as a paid agency agent.`,
+    eventType: "agency.member.invited",
+    metadata: { email, role },
+    severity: "info",
+    title: "Agency agent updated",
+  });
+
+  revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+}
+
+export async function updateAgencyMemberStatusAction(formData: FormData) {
+  const workspace = await requireAgencyManager();
+  const memberId = formString(formData, "memberId");
+  const status = formMemberStatus(formString(formData, "status"));
+
+  if (!memberId) return;
+
+  const [member] = await db
+    .select({ role: agencyMembers.role })
+    .from(agencyMembers)
+    .where(and(eq(agencyMembers.id, memberId), eq(agencyMembers.agencyId, workspace.agency.id)))
+    .limit(1);
+
+  if (!member || member.role === "owner") {
+    throw new Error("Agency owners cannot be removed from the members page.");
+  }
+
+  await db
+    .update(agencyMembers)
+    .set({ status, updatedAt: new Date() })
+    .where(and(eq(agencyMembers.id, memberId), eq(agencyMembers.agencyId, workspace.agency.id)));
+
+  revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+}
+
+export async function inviteAgencyEmployeeAction(formData: FormData) {
+  const workspace = await requireAgencyManager();
+  const session = await getServerSession(authOptions);
+  const email = formString(formData, "email").toLowerCase();
+  const role = formAgencyEmployeeRole(formString(formData, "role"));
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Enter a valid employee email address.");
+  }
+
+  const [existingUser] = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  const existingEmployee = existingUser
+    ? await db
+        .select({ id: agencyEmployees.id })
+        .from(agencyEmployees)
+        .where(
+          and(
+            eq(agencyEmployees.agencyId, workspace.agency.id),
+            eq(agencyEmployees.userId, existingUser.id),
+          ),
+        )
+        .limit(1)
+    : [];
+
+  const values = {
+    acceptedAt: existingUser ? new Date() : null,
+    ...employeePermissionsForRole(role),
+    invitedByUserId: session?.user?.id || null,
+    invitedEmail: existingUser ? null : email,
+    role,
+    status: existingUser ? "active" as const : "invited" as const,
+    updatedAt: new Date(),
+    userId: existingUser?.id || null,
+  };
+
+  if (existingEmployee[0]) {
+    await db
+      .update(agencyEmployees)
+      .set(values)
+      .where(eq(agencyEmployees.id, existingEmployee[0].id));
+  } else {
+    await db.insert(agencyEmployees).values({
+      ...values,
+      agencyId: workspace.agency.id,
+    });
+  }
+
+  await notifyAgencyActivity({
+    actionHref: `${controlRoomPathForWorkspace(workspace)}/employees`,
+    actionLabel: "View employees",
+    actorAgencyId: workspace.agency.id,
+    actorUserId: session?.user?.id || null,
+    agencyId: workspace.agency.id,
+    body: existingUser
+      ? `${existingUser.name} was linked as an internal employee.`
+      : `${email} was invited as an internal employee.`,
+    eventType: "agency.employee.invited",
+    metadata: { email, role },
+    severity: "info",
+    title: "Agency employee updated",
+  });
+
+  revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+}
+
+export async function updateAgencyEmployeeStatusAction(formData: FormData) {
+  const workspace = await requireAgencyManager();
+  const employeeId = formString(formData, "employeeId");
+  const status = formMemberStatus(formString(formData, "status"));
+
+  if (!employeeId) return;
+
+  await db
+    .update(agencyEmployees)
+    .set({ status, updatedAt: new Date() })
+    .where(
+      and(
+        eq(agencyEmployees.id, employeeId),
+        eq(agencyEmployees.agencyId, workspace.agency.id),
+      ),
+    );
+
+  revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+}
+
 export async function updateAgencyBrandIdentityAction(formData: FormData) {
   const workspace = await requireAgencyManager();
-  const logoUrl = cleanOptionalText(formString(formData, "logoUrl"), 600);
-  const badgeLabel = cleanOptionalText(formString(formData, "badgeLabel"), 40);
-
-  if (logoUrl && !/^https?:\/\//i.test(logoUrl)) {
-    throw new Error("Logo URL must start with http:// or https://.");
-  }
-
-  if (
+  const publicLogoFile = formFile(formData, "publicLogoFile");
+  const controlRoomLogoFile = formFile(formData, "controlRoomLogoFile");
+  const publicBrandLocked =
     workspace.agency.agencyType === "branch" &&
-    workspace.agency.brandingPolicy === "network_branding_enforced"
-  ) {
-    throw new Error("This branch is using Network HQ branding.");
-  }
+    workspace.agency.brandingPolicy === "network_branding_enforced" &&
+    workspace.agency.parentLinkStatus === "linked" &&
+    Boolean(workspace.agency.parentAgencyId);
+  const badgeLabel = publicBrandLocked
+    ? workspace.agency.badgeLabel
+    : cleanOptionalText(formString(formData, "badgeLabel"), 40);
+  const badgeStyle = publicBrandLocked
+    ? agencyBadgeStyleFromSettings(workspace.agency.settings)
+    : agencyBadgeStyleFromForm(formData);
+
+  const logoUrl = !publicBrandLocked && publicLogoFile
+    ? await storeAgencyLogo(publicLogoFile, workspace.agency.id, "public")
+    : workspace.agency.logoUrl;
+  const controlRoomLogoPath = controlRoomLogoFile
+    ? await storeAgencyLogo(
+        controlRoomLogoFile,
+        workspace.agency.id,
+        "control-room",
+      )
+    : agencyControlRoomLogoPathFromSettings(workspace.agency.settings);
 
   await db
     .update(agencies)
     .set({
       badgeLabel,
       logoUrl,
+      settings: agencySettingsWithBadgeStyle(
+        workspace.agency.settings,
+        badgeStyle,
+        controlRoomLogoPath,
+      ),
       updatedAt: new Date(),
     })
     .where(eq(agencies.id, workspace.agency.id));
@@ -344,9 +751,27 @@ export async function declineBranchLinkAction(formData: FormData) {
 
   if (!branchAgencyId) return;
 
+  const session = await getServerSession(authOptions);
+  const [branchAgency] = await db
+    .select({
+      id: agencies.id,
+      name: agencies.name,
+    })
+    .from(agencies)
+    .where(
+      and(
+        eq(agencies.id, branchAgencyId),
+        inArray(agencies.agencyType, ["branch", "independent"]),
+      ),
+    )
+    .limit(1);
+
+  if (!branchAgency) return;
+
   await db
     .update(agencies)
     .set({
+      billingMode: "self",
       parentAgencyId: null,
       parentLinkStatus: "declined",
       requestedParentAgencyName: workspace.agency.name,
@@ -355,9 +780,25 @@ export async function declineBranchLinkAction(formData: FormData) {
     .where(
       and(
         eq(agencies.id, branchAgencyId),
-        eq(agencies.agencyType, "branch"),
+        inArray(agencies.agencyType, ["branch", "independent"]),
       ),
     );
+
+  await notifyAgencyActivity({
+    actionHref: "/controlroom/agency/network",
+    actionLabel: "View network",
+    actorAgencyId: workspace.agency.id,
+    actorUserId: session?.user?.id || null,
+    agencyId: branchAgency.id,
+    body: `${workspace.agency.name} declined your network link request.`,
+    eventType: "agency.network_link.declined",
+    metadata: {
+      networkAgencyId: workspace.agency.id,
+      requestingAgencyId: branchAgency.id,
+    },
+    severity: "warning",
+    title: "Network request declined",
+  });
 
   revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
 }
@@ -368,9 +809,28 @@ export async function unlinkBranchAction(formData: FormData) {
 
   if (!branchAgencyId) return;
 
+  const session = await getServerSession(authOptions);
+  const [branchAgency] = await db
+    .select({
+      id: agencies.id,
+      name: agencies.name,
+    })
+    .from(agencies)
+    .where(
+      and(
+        eq(agencies.id, branchAgencyId),
+        eq(agencies.agencyType, "branch"),
+        eq(agencies.parentAgencyId, workspace.agency.id),
+      ),
+    )
+    .limit(1);
+
+  if (!branchAgency) return;
+
   await db
     .update(agencies)
     .set({
+      agencyType: "independent",
       billingMode: "self",
       parentAgencyId: null,
       parentLinkStatus: "none",
@@ -385,7 +845,146 @@ export async function unlinkBranchAction(formData: FormData) {
       ),
     );
 
+  await notifyAgencyActivity({
+    actionHref: "/controlroom/agency/network",
+    actionLabel: "View network",
+    actorAgencyId: workspace.agency.id,
+    actorUserId: session?.user?.id || null,
+    agencyId: branchAgency.id,
+    body: `${workspace.agency.name} unlinked your branch. Your agency is now independent.`,
+    eventType: "agency.network_link.declined",
+    metadata: {
+      networkAgencyId: workspace.agency.id,
+      requestingAgencyId: branchAgency.id,
+    },
+    severity: "warning",
+    title: "Branch unlinked from network",
+  });
+
   revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+}
+
+async function requireNonNetworkAgencyManager() {
+  const workspace = await requireAgencyManager();
+
+  if (workspace.agency.agencyType === "network") {
+    throw new Error("Network HQ workspaces manage branches from the Branches page.");
+  }
+
+  return workspace;
+}
+
+export async function requestNetworkLinkAction(formData: FormData) {
+  const workspace = await requireNonNetworkAgencyManager();
+  const networkAgencyId = formString(formData, "networkAgencyId");
+
+  if (!networkAgencyId) {
+    throw new Error("Select a Network HQ before sending the link request.");
+  }
+
+  if (workspace.agency.parentLinkStatus === "linked") {
+    throw new Error("Leave the current network before requesting another one.");
+  }
+
+  const [networkAgency] = await db
+    .select({
+      id: agencies.id,
+      name: agencies.name,
+    })
+    .from(agencies)
+    .where(
+      and(
+        eq(agencies.id, networkAgencyId),
+        eq(agencies.agencyType, "network"),
+      ),
+    )
+    .limit(1);
+
+  if (!networkAgency || networkAgency.id === workspace.agency.id) {
+    throw new Error("Select a valid Network HQ.");
+  }
+
+  await db
+    .update(agencies)
+    .set({
+      billingMode: "self",
+      parentAgencyId: null,
+      parentLinkStatus: "pending",
+      requestedParentAgencyName: networkAgency.name,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(agencies.id, workspace.agency.id),
+        inArray(agencies.agencyType, ["branch", "independent"]),
+      ),
+    );
+
+  const session = await getServerSession(authOptions);
+
+  await notifyAgencyActivity({
+    actionHref: "/controlroom/networkhq/branches",
+    actionLabel: "Review request",
+    actorAgencyId: workspace.agency.id,
+    actorUserId: session?.user?.id || null,
+    agencyId: networkAgency.id,
+    body: `${workspace.agency.name} requested to link to ${networkAgency.name}. Review the request from Branches.`,
+    eventType: "agency.network_link.requested",
+    metadata: {
+      networkAgencyId: networkAgency.id,
+      requestingAgencyId: workspace.agency.id,
+    },
+    severity: "action_required",
+    title: "New branch affiliation request",
+  });
+
+  revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+  revalidateControlRoomPaths("/controlroom/networkhq");
+}
+
+export async function leaveNetworkAction() {
+  const workspace = await requireNonNetworkAgencyManager();
+  const session = await getServerSession(authOptions);
+  const parentAgencyId = workspace.agency.parentAgencyId;
+  const parentAgencyName = workspace.agency.requestedParentAgencyName;
+
+  await db
+    .update(agencies)
+    .set({
+      agencyType: "independent",
+      billingMode: "self",
+      parentAgencyId: null,
+      parentLinkStatus: "none",
+      requestedParentAgencyName: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(agencies.id, workspace.agency.id),
+        inArray(agencies.agencyType, ["branch", "independent"]),
+      ),
+    );
+
+  if (parentAgencyId) {
+    await notifyAgencyActivity({
+      actionHref: "/controlroom/networkhq/branches",
+      actionLabel: "View branches",
+      actorAgencyId: workspace.agency.id,
+      actorUserId: session?.user?.id || null,
+      agencyId: parentAgencyId,
+      body: `${workspace.agency.name} left ${parentAgencyName || "your network"}. The agency is now independent.`,
+      eventType: "agency.network_link.left",
+      metadata: {
+        networkAgencyId: parentAgencyId,
+        requestingAgencyId: workspace.agency.id,
+      },
+      severity: "info",
+      title: "Branch left network",
+    });
+  }
+
+  revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+  revalidateControlRoomPaths("/controlroom/networkhq");
 }
 
 async function requireAgencyOwner() {

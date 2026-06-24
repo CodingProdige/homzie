@@ -25,6 +25,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AgencyBrandBadge } from "@/modules/agencies/components/agency-brand-badge";
 import {
   toggleListingLike,
   toggleListingSave,
@@ -508,22 +509,11 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
           </span>
         ) : null}
         {listing.agencyBrand ? (
-          <span className="absolute bottom-3 right-3 z-10 inline-flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[10px] font-black text-foreground shadow-sm backdrop-blur">
-            <span className="grid size-4 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-[8px] text-primary">
-              {listing.agencyBrand.logoUrl ? (
-                <Image
-                  src={listing.agencyBrand.logoUrl}
-                  alt=""
-                  width={16}
-                  height={16}
-                  className="size-full object-cover"
-                />
-              ) : (
-                listing.agencyBrand.name.slice(0, 2).toUpperCase()
-              )}
-            </span>
-            <span className="max-w-32 truncate">{listing.agencyBrand.badgeLabel}</span>
-          </span>
+          <AgencyBrandBadge
+            brand={listing.agencyBrand}
+            className="absolute bottom-3 right-3 z-10 max-w-[calc(100%-1.5rem)] backdrop-blur"
+            size="sm"
+          />
         ) : null}
         {listing.id ? (
           <ListingEngagementActions

@@ -1,21 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   BadgeCheck,
   Building2,
   CalendarDays,
   Clock3,
   ExternalLink,
+  Filter,
   Network,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   UserRound,
   X,
 } from "lucide-react";
 
+import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -38,6 +42,9 @@ export type AdminUserRow = {
   publicContactVisible: boolean;
   agentProfileStatus: string | null;
   activeSubscriptionStatus: string | null;
+  agentTrialUsedAt: string | null;
+  subscriptionCurrentPeriodEnd: string | null;
+  subscriptionCurrentPeriodStart: string | null;
   agencyId: string | null;
   agencyName: string | null;
   agencySlug: string | null;
@@ -72,11 +79,76 @@ const accountTypeOptions = [
   { label: "Independent agencies", value: "independent" },
 ] as const;
 
+const subscriptionOptions = [
+  { label: "All billing states", value: "all" },
+  { label: "Subscribed", value: "subscribed" },
+  { label: "Free trial", value: "trial" },
+  { label: "Not subscribed", value: "free" },
+  { label: "Billing issue", value: "billing_issue" },
+] as const;
+
+const pageSize = 10;
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-ZA", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function daysBetween(first: Date, second: Date) {
+  return Math.ceil((second.getTime() - first.getTime()) / 86_400_000);
+}
+
+function getTrialState(user: AdminUserRow) {
+  if (!user.agentTrialUsedAt) return null;
+
+  const startedAt = new Date(user.agentTrialUsedAt);
+  const endsAt = new Date(startedAt.getTime() + 7 * 86_400_000);
+  const daysRemaining = daysBetween(new Date(), endsAt);
+  const day = Math.min(7, Math.max(1, 8 - Math.max(0, daysRemaining)));
+
+  return {
+    day,
+    daysRemaining: Math.max(0, daysRemaining),
+    endsAt,
+    isActive: Date.now() < endsAt.getTime(),
+  };
+}
+
+function subscriptionState(user: AdminUserRow) {
+  const trial = getTrialState(user);
+  const status = user.activeSubscriptionStatus;
+
+  if (trial?.isActive) return "trial";
+  if (status === "active") return "subscribed";
+  if (status === "past_due" || status === "pending") return "billing_issue";
+
+  return "free";
+}
+
+function subscriptionLabel(user: AdminUserRow) {
+  const state = subscriptionState(user);
+  const trial = getTrialState(user);
+
+  if (state === "trial" && trial) {
+    return `Trial day ${trial.day}/7`;
+  }
+
+  if (state === "subscribed") return "Subscribed";
+  if (state === "billing_issue") return "Billing issue";
+
+  return "Not subscribed";
+}
+
+function subscriptionTone(user: AdminUserRow): "default" | "muted" | "success" | "warning" {
+  const state = subscriptionState(user);
+
+  if (state === "subscribed") return "success";
+  if (state === "trial") return "default";
+  if (state === "billing_issue") return "warning";
+
+  return "muted";
 }
 
 function formatLastOnline(value: string | null) {
@@ -169,14 +241,16 @@ function StatusBadge({
   tone = "default",
   value,
 }: {
-  tone?: "default" | "muted" | "warning";
+  tone?: "default" | "muted" | "success" | "warning";
   value: string;
 }) {
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black uppercase",
-        tone === "warning"
+        tone === "success"
+          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+          : tone === "warning"
           ? "bg-amber-500/12 text-amber-700 dark:text-amber-300"
           : tone === "muted"
             ? "bg-secondary text-secondary-foreground"
@@ -263,7 +337,10 @@ function UserDetailsDialog({
                 <StatusBadge value={`agency ${agencyRoleLabel(user.agencyMemberRole)}`} />
               ) : null}
               {user.activeSubscriptionStatus ? (
-                <StatusBadge value={`subscription ${user.activeSubscriptionStatus}`} />
+                <StatusBadge
+                  value={subscriptionLabel(user)}
+                  tone={subscriptionTone(user)}
+                />
               ) : null}
             </div>
 
@@ -282,6 +359,23 @@ function UserDetailsDialog({
               <DetailItem label="Agency status" value={user.agencyStatus} />
               <DetailItem label="Membership status" value={user.agencyMemberStatus} />
               <DetailItem label="Last online" value={formatLastOnline(user.lastOnlineAt)} />
+              <DetailItem label="Subscription" value={subscriptionLabel(user)} />
+              <DetailItem
+                label="Trial"
+                value={
+                  getTrialState(user)
+                    ? `${getTrialState(user)?.isActive ? "Active" : "Used"} · day ${getTrialState(user)?.day}/7 · ends ${formatDateTime(getTrialState(user)!.endsAt.toISOString())}`
+                    : "Not started"
+                }
+              />
+              <DetailItem
+                label="Billing period"
+                value={
+                  user.subscriptionCurrentPeriodEnd
+                    ? `Until ${formatDateTime(user.subscriptionCurrentPeriodEnd)}`
+                    : null
+                }
+              />
               <DetailItem label="Google place ID" value={user.locationPlaceId} />
               <DetailItem
                 label="Public contact"
@@ -322,6 +416,23 @@ function UserDetailsDialog({
   );
 }
 
+function FilterRadioItem({
+  children,
+  value,
+}: {
+  children: ReactNode;
+  value: string;
+}) {
+  return (
+    <DropdownMenu.RadioItem
+      value={value}
+      className="flex cursor-pointer select-none items-center rounded-md px-2 py-1.5 text-sm font-bold outline-none transition-colors focus:bg-accent data-[state=checked]:bg-primary/10 data-[state=checked]:text-primary"
+    >
+      {children}
+    </DropdownMenu.RadioItem>
+  );
+}
+
 export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<(typeof roleOptions)[number]["value"]>("all");
@@ -329,6 +440,9 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
     useState<(typeof accountTypeOptions)[number]["value"]>("all");
   const [status, setStatus] =
     useState<(typeof statusOptions)[number]["value"]>("all");
+  const [subscription, setSubscription] =
+    useState<(typeof subscriptionOptions)[number]["value"]>("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
 
   const filteredUsers = useMemo(() => {
@@ -347,16 +461,38 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         (accountType === "personal" && !user.agencyType) ||
         user.agencyType === accountType;
       const matchesStatus = status === "all" || user.status === status;
+      const matchesSubscription =
+        subscription === "all" || subscriptionState(user) === subscription;
 
-      return matchesQuery && matchesRole && matchesAccountType && matchesStatus;
+      return (
+        matchesQuery &&
+        matchesRole &&
+        matchesAccountType &&
+        matchesStatus &&
+        matchesSubscription
+      );
     });
-  }, [accountType, query, role, status, users]);
+  }, [accountType, query, role, status, subscription, users]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [accountType, query, role, status, subscription]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedUsers = filteredUsers.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize,
+  );
+  const activeFilterCount = [role, status, accountType, subscription].filter(
+    (value) => value !== "all",
+  ).length;
 
   return (
     <>
       <section className="mt-8 rounded-lg border border-border bg-card shadow-sm">
         <div className="border-b border-border px-4 py-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_12rem_10rem_auto] lg:items-center">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label className="relative">
               <span className="sr-only">Search users</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -364,59 +500,113 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
                 placeholder="Search by display name, username, or email"
-                className="pl-9"
+                className="pl-9 lg:w-[32rem]"
               />
             </label>
-            <select
-              value={role}
-              onChange={(event) =>
-                setRole(event.currentTarget.value as typeof role)
-              }
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              aria-label="Filter by role"
-            >
-              {roleOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={status}
-              onChange={(event) =>
-                setStatus(event.currentTarget.value as typeof status)
-              }
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              aria-label="Filter by status"
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={accountType}
-              onChange={(event) =>
-                setAccountType(event.currentTarget.value as typeof accountType)
-              }
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              aria-label="Filter by account type"
-            >
-              {accountTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+
+            <DropdownMenu.Root modal={false}>
+              <DropdownMenu.Trigger asChild>
+                <Button type="button" variant="outline" className="gap-2 font-black">
+                  <SlidersHorizontal className="size-4" />
+                  Filters
+                  {activeFilterCount ? (
+                    <span className="grid size-5 place-items-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  className="z-[80] grid w-72 gap-3 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl"
+                >
+                  <div className="flex items-center gap-2 border-b border-border pb-2">
+                    <Filter className="size-4 text-primary" />
+                    <p className="text-sm font-black">Filter users</p>
+                  </div>
+
+                  <div>
+                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                      Subscription
+                    </p>
+                    <DropdownMenu.RadioGroup
+                      value={subscription}
+                      onValueChange={(value) =>
+                        setSubscription(value as typeof subscription)
+                      }
+                    >
+                      {subscriptionOptions.map((option) => (
+                        <FilterRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </FilterRadioItem>
+                      ))}
+                    </DropdownMenu.RadioGroup>
+                  </div>
+
+                  <div>
+                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                      Role
+                    </p>
+                    <DropdownMenu.RadioGroup
+                      value={role}
+                      onValueChange={(value) => setRole(value as typeof role)}
+                    >
+                      {roleOptions.map((option) => (
+                        <FilterRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </FilterRadioItem>
+                      ))}
+                    </DropdownMenu.RadioGroup>
+                  </div>
+
+                  <div>
+                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                      Account
+                    </p>
+                    <DropdownMenu.RadioGroup
+                      value={accountType}
+                      onValueChange={(value) =>
+                        setAccountType(value as typeof accountType)
+                      }
+                    >
+                      {accountTypeOptions.map((option) => (
+                        <FilterRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </FilterRadioItem>
+                      ))}
+                    </DropdownMenu.RadioGroup>
+                  </div>
+
+                  <div>
+                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                      Status
+                    </p>
+                    <DropdownMenu.RadioGroup
+                      value={status}
+                      onValueChange={(value) => setStatus(value as typeof status)}
+                    >
+                      {statusOptions.map((option) => (
+                        <FilterRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </FilterRadioItem>
+                      ))}
+                    </DropdownMenu.RadioGroup>
+                  </div>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+
             <Button
               type="button"
               variant="outline"
+              className="lg:ml-auto"
               onClick={() => {
                 setQuery("");
                 setRole("all");
                 setAccountType("all");
                 setStatus("all");
+                setSubscription("all");
               }}
             >
               Reset
@@ -429,12 +619,13 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1020px] text-left text-sm">
+          <table className="w-full min-w-[1120px] text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Account</th>
+                <th className="px-4 py-3">Subscription</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Activity</th>
                 <th className="px-4 py-3">Last online</th>
@@ -442,7 +633,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredUsers.map((user) => (
+              {paginatedUsers.map((user) => (
                 <tr
                   key={user.id}
                   className="cursor-pointer transition-colors hover:bg-accent/40"
@@ -472,6 +663,23 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                   </td>
                   <td className="px-4 py-4">
                     <AccountSummary user={user} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex flex-col items-start gap-1">
+                      <StatusBadge
+                        value={subscriptionLabel(user)}
+                        tone={subscriptionTone(user)}
+                      />
+                      {getTrialState(user)?.isActive ? (
+                        <span className="text-xs font-bold text-muted-foreground">
+                          {getTrialState(user)?.daysRemaining} days left
+                        </span>
+                      ) : user.subscriptionCurrentPeriodEnd ? (
+                        <span className="text-xs font-bold text-muted-foreground">
+                          Until {formatDateTime(user.subscriptionCurrentPeriodEnd)}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-1.5">
@@ -511,6 +719,16 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         {!filteredUsers.length ? (
           <div className="px-4 py-10 text-center text-sm font-semibold text-muted-foreground">
             No users match those filters.
+          </div>
+        ) : null}
+
+        {filteredUsers.length ? (
+          <div className="border-t border-border px-4 pb-5">
+            <Pagination
+              currentPage={safeCurrentPage}
+              onPageChange={setCurrentPage}
+              totalPages={totalPages}
+            />
           </div>
         ) : null}
       </section>

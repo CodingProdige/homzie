@@ -17,7 +17,10 @@ import {
 } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
-import { getEffectiveAgencyBrandsForUsers } from "@/modules/agencies/server";
+import {
+  getEffectiveAgencyBrandsForUsers,
+  getPrimaryAgencyWorkspace,
+} from "@/modules/agencies/server";
 import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { getAgentPerformanceStats } from "@/modules/agents/performance";
 import { UserProfilePage as UserProfile } from "@/modules/users/components/user-profile-page";
@@ -796,6 +799,7 @@ export default async function UserProfilePage({
     hasSubscription,
     profileAgencyBrands,
     viewer,
+    viewerAgencyWorkspace,
     viewerFollowingProfile,
     profileReels,
     profileListings,
@@ -816,6 +820,9 @@ export default async function UserProfilePage({
           .where(eq(users.id, viewerUserId))
           .limit(1)
           .then(([user]) => user || null)
+      : Promise.resolve(null),
+    viewerUserId
+      ? getPrimaryAgencyWorkspace(viewerUserId)
       : Promise.resolve(null),
     viewerUserId && !isOwner
       ? db
@@ -924,6 +931,7 @@ export default async function UserProfilePage({
         savedListings,
         savedReels,
         viewerRole: viewer?.role || undefined,
+        viewerHasAgencyWorkspace: Boolean(viewerAgencyWorkspace),
         viewerSignedIn: Boolean(viewerUserId),
         viewerUsername: viewer?.username || undefined,
         viewerAvatarUrl:

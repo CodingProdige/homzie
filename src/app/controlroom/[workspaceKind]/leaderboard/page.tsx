@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Leaderboard | Homzie Control Room",
-  description: "Rank branch and agent performance inside your control room.",
+  description: "Rank branch and agent performance inside your control room where available.",
 };
 
 type LeaderboardPageProps = {
@@ -87,10 +87,6 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
   if (!workspace) redirect(`/controlroom/${kind}`);
   if (controlRoomKindForWorkspace(workspace) !== kind) {
     redirect(`${controlRoomPathForWorkspace(workspace)}/leaderboard`);
-  }
-
-  if (workspace.agency.agencyType === "independent") {
-    redirect(controlRoomPathForWorkspace(workspace));
   }
 
   const isNetwork = workspace.agency.agencyType === "network";
@@ -316,6 +312,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
           </h1>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
             Rank performance using buyer views, high-intent actions, offer starts, active listings, and team footprint over the last 30 days.
+            Independent agencies see their agents only; Network HQ workspaces also see branch rankings.
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
