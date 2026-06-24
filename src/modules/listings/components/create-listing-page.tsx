@@ -16,7 +16,7 @@ import {
   useTransition,
 } from "react";
 import Image from "next/image";
-import { useFormStatus } from "react-dom";
+import { flushSync, useFormStatus } from "react-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -2071,7 +2071,7 @@ export function CreateListingPage({
     });
 
     try {
-      const uploadedMedia = [...mediaRef.current];
+      const uploadedMedia = mediaRef.current.map((item) => ({ ...item }));
       let completed = 0;
 
       for (const item of uploadedMedia) {
@@ -2098,7 +2098,10 @@ export function CreateListingPage({
         });
       }
 
-      setMedia(uploadedMedia);
+      flushSync(() => {
+        mediaRef.current = uploadedMedia;
+        setMedia(uploadedMedia);
+      });
       syncMediaInputFiles(mediaInputRef.current, uploadedMedia);
       if (mediaInputRef.current) {
         mediaInputRef.current.value = "";
@@ -2239,6 +2242,8 @@ export function CreateListingPage({
             <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
               {listingError === "media-upload"
                 ? "Homzie could not save that listing media. Please try again."
+                : listingError === "publish-validation"
+                  ? "Homzie could not publish yet because required listing details are missing. Review the highlighted steps and try again."
                 : "Homzie could not publish that listing. Please try again."}
             </div>
           </div>

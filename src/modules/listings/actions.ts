@@ -606,7 +606,15 @@ export async function createListing(formData: FormData) {
     });
     redirect("/listings/new?listingError=media-upload");
   }
-  assertListingCanPublish(data, description, media.length);
+  try {
+    assertListingCanPublish(data, description, media.length);
+  } catch (error) {
+    console.warn("[listings] createListing publish validation failed", {
+      error,
+      userId: session.user.id,
+    });
+    redirect("/listings/new?listingError=publish-validation");
+  }
   const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
@@ -861,20 +869,29 @@ export async function updateListing(formData: FormData) {
       ? data.suburb || null
       : detailsString(existingDetails, "suburb") || null,
   };
-  assertListingCanPublish(
-    {
-      ...data,
-      city: locationFields.city || "",
-      country: locationFields.country || "",
-      googlePlaceData: canChangePropertyIdentity ? data.googlePlaceData : "",
-      googlePlaceId: locationFields.googlePlaceId || "",
-      location: locationFields.location,
-      province: locationFields.province || "",
-      suburb: locationFields.suburb || "",
-    },
-    description,
-    media.length,
-  );
+  try {
+    assertListingCanPublish(
+      {
+        ...data,
+        city: locationFields.city || "",
+        country: locationFields.country || "",
+        googlePlaceData: canChangePropertyIdentity ? data.googlePlaceData : "",
+        googlePlaceId: locationFields.googlePlaceId || "",
+        location: locationFields.location,
+        province: locationFields.province || "",
+        suburb: locationFields.suburb || "",
+      },
+      description,
+      media.length,
+    );
+  } catch (error) {
+    console.warn("[listings] updateListing publish validation failed", {
+      error,
+      listingId: listingId.data,
+      userId: session.user.id,
+    });
+    redirect(`/listings/${listingId.data}/edit?listingError=publish-validation`);
+  }
   const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
