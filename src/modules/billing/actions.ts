@@ -13,7 +13,7 @@ import {
   agentSubscriptionPlans,
 } from "./plans";
 import {
-  sendSubscriptionTrialStartedEmail,
+  hasSubscriptionPaymentMethod,
   syncStripeSubscription,
 } from "./subscription-sync";
 import {
@@ -230,7 +230,7 @@ export async function startAgentSubscriptionCheckout(
     .where(eq(subscriptions.userId, user.id))
     .orderBy(desc(subscriptions.createdAt))
     .limit(1);
-  const trialApplied = !user.agentTrialUsedAt && !previousSubscription;
+  let trialApplied = !user.agentTrialUsedAt;
 
   try {
     if (previousSubscription?.providerReference) {
@@ -238,13 +238,13 @@ export async function startAgentSubscriptionCheckout(
         const existingStripeSubscription = await stripe.subscriptions.retrieve(
           previousSubscription.providerReference,
         );
+        const existingSync = await syncStripeSubscription(existingStripeSubscription);
 
         if (
-          existingStripeSubscription.status === "active" ||
-          existingStripeSubscription.status === "trialing"
+          existingSync.status === "active" &&
+          (existingStripeSubscription.status !== "trialing" ||
+            hasSubscriptionPaymentMethod(existingStripeSubscription))
         ) {
-          await syncStripeSubscription(existingStripeSubscription);
-
           return {
             ok: false,
             error:
@@ -252,6 +252,13 @@ export async function startAgentSubscriptionCheckout(
                 ? "Your agent trial is already active. Open billing to review it."
                 : "Your agent subscription is already active. Open billing to review it.",
           };
+        }
+
+        if (
+          existingStripeSubscription.status === "trialing" &&
+          !hasSubscriptionPaymentMethod(existingStripeSubscription)
+        ) {
+          await stripe.subscriptions.cancel(existingStripeSubscription.id).catch(() => null);
         }
       } catch {
         // If Stripe no longer has the old subscription, continue with a new checkout.
@@ -315,25 +322,6 @@ export async function startAgentSubscriptionCheckout(
       currentPeriodEnd,
     });
 
-    if (trialApplied) {
-      await db
-        .update(users)
-        .set({
-          agentTrialUsedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, user.id));
-      await sendSubscriptionTrialStartedEmail({
-        trialEndsAt:
-          typeof stripeSubscription.trial_end === "number"
-            ? new Date(stripeSubscription.trial_end * 1000)
-            : null,
-        userId: user.id,
-      }).catch((error) => {
-        console.error("[email] subscription trial failed", error);
-      });
-    }
-
     return {
       ok: true,
       clientSecret,
@@ -356,6 +344,7 @@ export async function startAgentSubscriptionCheckout(
 
 export async function syncAgentSubscriptionStatus(
   subscriptionId: string,
+  paymentMethodId?: string | null,
 ): Promise<SyncAgentSubscriptionResult> {
   const session = await getServerSession(authOptions);
 
@@ -381,13 +370,51 @@ export async function syncAgentSubscriptionStatus(
 
   try {
     const stripe = await getStripe();
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    let subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
     if (subscription.metadata.userId !== session.user.id) {
       return {
         ok: false,
         error: "This subscription does not belong to your account.",
       };
+    }
+
+    if (paymentMethodId) {
+      const customerId =
+        typeof subscription.customer === "string"
+          ? subscription.customer
+          : subscription.customer.id;
+      const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+      const paymentMethodCustomer =
+        typeof paymentMethod.customer === "string"
+          ? paymentMethod.customer
+          : paymentMethod.customer?.id || null;
+
+      if (paymentMethodCustomer && paymentMethodCustomer !== customerId) {
+        return {
+          ok: false,
+          error: "This payment method does not belong to your Stripe customer.",
+        };
+      }
+
+      if (!paymentMethodCustomer) {
+        await stripe.paymentMethods.attach(paymentMethodId, {
+          customer: customerId,
+        });
+      }
+
+      await stripe.customers.update(customerId, {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      });
+
+      subscription = await stripe.subscriptions.update(subscriptionId, {
+        default_payment_method: paymentMethodId,
+        payment_settings: {
+          save_default_payment_method: "on_subscription",
+        },
+      });
     }
 
     const synced = await syncStripeSubscription(subscription);

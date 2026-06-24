@@ -33,6 +33,14 @@ type StripeCheckout = {
   trialApplied: boolean;
 };
 
+function getStripePaymentMethodId(
+  value: string | { id?: string } | null | undefined,
+) {
+  if (!value) return null;
+
+  return typeof value === "string" ? value : value.id || null;
+}
+
 function getPlanCards(trialEligible: boolean): Record<
   AgentPlanInterval,
   {
@@ -111,7 +119,16 @@ function StripePaymentForm({
         return;
       }
 
-      const synced = await syncAgentSubscriptionStatus(subscriptionId);
+      const paymentMethodId =
+        "setupIntent" in result
+          ? getStripePaymentMethodId(result.setupIntent?.payment_method)
+          : "paymentIntent" in result
+            ? getStripePaymentMethodId(result.paymentIntent?.payment_method)
+            : null;
+      const synced = await syncAgentSubscriptionStatus(
+        subscriptionId,
+        paymentMethodId,
+      );
 
       if (synced.ok && synced.status === "active") {
         trackGoogleEvent(trialApplied ? "trial_started" : "subscription_started", {
@@ -131,7 +148,11 @@ function StripePaymentForm({
         return;
       }
 
-      window.location.assign(profilePath);
+      setError(
+        synced.ok
+          ? "Your payment method was not saved yet. Please confirm your card before starting the trial."
+          : synced.error,
+      );
     });
   };
 

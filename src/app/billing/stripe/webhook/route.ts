@@ -48,7 +48,9 @@ export async function POST(request: Request) {
     event.type === "customer.subscription.updated" ||
     event.type === "customer.subscription.deleted"
   ) {
-    await syncStripeSubscription(event.data.object as Stripe.Subscription);
+    const subscription = event.data.object as Stripe.Subscription;
+    const currentSubscription = await stripe.subscriptions.retrieve(subscription.id);
+    await syncStripeSubscription(currentSubscription);
   }
 
   if (

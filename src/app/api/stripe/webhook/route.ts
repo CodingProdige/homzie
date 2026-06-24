@@ -48,7 +48,8 @@ export async function POST(request: Request) {
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        await syncStripeSubscription(subscription);
+        const currentSubscription = await stripe.subscriptions.retrieve(subscription.id);
+        await syncStripeSubscription(currentSubscription);
         break;
       }
       case "invoice.payment_succeeded":

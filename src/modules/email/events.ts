@@ -77,6 +77,11 @@ export const emailNotificationEvents = [
       },
       {
         defaultEnabled: true,
+        key: "billing.subscription_trial_incomplete",
+        label: "Trial setup incomplete",
+      },
+      {
+        defaultEnabled: true,
         key: "billing.subscription_active",
         label: "Subscription active",
       },

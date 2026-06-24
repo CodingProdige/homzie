@@ -320,6 +320,33 @@ export const defaultEmailTemplates = [
   },
   {
     category: "Billing",
+    description: "Sent when a trial was created but no payment method was saved.",
+    enabled: true,
+    html: `
+      <h1>Complete your Homzie trial setup</h1>
+      <p>Your Homzie Agent trial was started, but no payment method was saved successfully.</p>
+      <p>We paused the incomplete trial so you are not left with broken billing or unexpected invoice issues.</p>
+      <p>You can restart setup and activate your 7-day trial once your card is securely saved by Stripe.</p>
+      <p><a class="button" href="{{billingUrl}}">Restart trial setup</a></p>
+    `,
+    key: "billing.subscription_trial_incomplete",
+    name: "Trial setup incomplete",
+    preheader: "Add a payment method to activate your Homzie Agent trial.",
+    sampleVariables: {
+      app: { name: "Homzie", url: "https://homzie.co.za" },
+      billingUrl: "https://homzie.co.za/settings/billing",
+      user: { firstName: "Dillon", name: "Dillon Jurgens" },
+    },
+    subject: "Complete your {{app.name}} trial setup",
+    text: "Your {{app.name}} Agent trial was started, but no payment method was saved. Restart setup here: {{billingUrl}}",
+    variables: [
+      ...commonVariables,
+      { key: "user.firstName", label: "Recipient first name" },
+      { key: "billingUrl", label: "Billing URL" },
+    ],
+  },
+  {
+    category: "Billing",
     description: "Sent when an agent subscription becomes active.",
     enabled: true,
     html: `

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useActionState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
@@ -11,6 +12,7 @@ import {
   Clock3,
   ExternalLink,
   Filter,
+  Loader2,
   Network,
   Search,
   ShieldCheck,
@@ -23,6 +25,7 @@ import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { auditIncompleteTrialsAction } from "../actions";
 
 export type AdminUserRow = {
   id: string;
@@ -433,6 +436,43 @@ function FilterRadioItem({
   );
 }
 
+function IncompleteTrialAuditButton() {
+  const [state, formAction, isPending] = useActionState(
+    async () => auditIncompleteTrialsAction(),
+    { message: "", ok: true },
+  );
+
+  return (
+    <div className="flex flex-col gap-2 lg:items-end">
+      <form action={formAction}>
+        <Button
+          type="submit"
+          variant="outline"
+          className="font-black"
+          disabled={isPending}
+        >
+          {isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <ShieldCheck className="size-4" />
+          )}
+          Audit incomplete trials
+        </Button>
+      </form>
+      {state.message ? (
+        <p
+          className={cn(
+            "max-w-sm text-xs font-bold",
+            state.ok ? "text-emerald-700" : "text-destructive",
+          )}
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<(typeof roleOptions)[number]["value"]>("all");
@@ -600,7 +640,6 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
             <Button
               type="button"
               variant="outline"
-              className="lg:ml-auto"
               onClick={() => {
                 setQuery("");
                 setRole("all");
@@ -611,6 +650,9 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
             >
               Reset
             </Button>
+            <div className="lg:ml-auto">
+              <IncompleteTrialAuditButton />
+            </div>
           </div>
           <p className="mt-3 text-xs font-bold text-muted-foreground">
             Showing {filteredUsers.length.toLocaleString("en-ZA")} of{" "}

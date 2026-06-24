@@ -34,6 +34,7 @@ import {
   saveStoredMusicApiSettings,
   type MusicApiSettings,
 } from "@/modules/platform-settings/music-api-settings";
+import { auditIncompleteTrialSubscriptions } from "@/modules/billing/trial-integrity";
 import {
   defaultReservationSettings,
   saveStoredReservationSettings,
@@ -80,6 +81,11 @@ export type AdminDemoProfileSettingsState = {
 };
 
 export type AdminSeoSettingsState = {
+  message: string;
+  ok: boolean;
+};
+
+export type AdminTrialAuditState = {
   message: string;
   ok: boolean;
 };
@@ -240,6 +246,35 @@ export async function updateAdminStripeSettings(
         error instanceof Error
           ? error.message
           : "Could not save Stripe settings.",
+    };
+  }
+}
+
+export async function auditIncompleteTrialsAction(): Promise<AdminTrialAuditState> {
+  try {
+    await assertActiveAdmin();
+
+    const result = await auditIncompleteTrialSubscriptions();
+    revalidatePath("/admin/users");
+
+    if (result.errors.length) {
+      return {
+        ok: false,
+        message: `Checked ${result.checked}. Cancelled ${result.cancelled}, emailed ${result.emailed}, skipped ${result.skipped}. ${result.errors.length} failed.`,
+      };
+    }
+
+    return {
+      ok: true,
+      message: `Checked ${result.checked}. Cancelled ${result.cancelled} incomplete trials, emailed ${result.emailed}, skipped ${result.skipped}.`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not audit incomplete trials.",
     };
   }
 }

@@ -13,6 +13,29 @@ function toDate(seconds: number | null | undefined) {
   return seconds ? new Date(seconds * 1000) : null;
 }
 
+export function hasSubscriptionPaymentMethod(subscription: Stripe.Subscription) {
+  const typedSubscription = subscription as Stripe.Subscription & {
+    default_payment_method?: string | Stripe.PaymentMethod | null;
+    default_source?: string | Stripe.CustomerSource | null;
+  };
+
+  return Boolean(
+    typedSubscription.default_payment_method ||
+      typedSubscription.default_source,
+  );
+}
+
+function toSyncedSubscriptionStatus(subscription: Stripe.Subscription) {
+  if (
+    subscription.status === "trialing" &&
+    !hasSubscriptionPaymentMethod(subscription)
+  ) {
+    return "pending";
+  }
+
+  return toAppSubscriptionStatus(subscription.status);
+}
+
 function getSubscriptionPeriod(subscription: Stripe.Subscription) {
   const typedSubscription = subscription as Stripe.Subscription & {
     current_period_start?: number;
@@ -220,7 +243,7 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
   const userId = subscription.metadata.userId;
   const agentProfileId = subscription.metadata.agentProfileId || null;
   const interval = subscription.metadata.interval || "month";
-  const status = toAppSubscriptionStatus(subscription.status);
+  const status = toSyncedSubscriptionStatus(subscription);
   const { currentPeriodStart, currentPeriodEnd } =
     getSubscriptionPeriod(subscription);
 
@@ -292,25 +315,34 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription) 
     trial_end?: number | null;
   };
 
-  if (typedSubscription.trial_end) {
+  if (typedSubscription.trial_end && status === "active") {
     await db
       .update(users)
       .set({
-        agentTrialUsedAt: toDate(typedSubscription.trial_end) || new Date(),
+        agentTrialUsedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
   }
 
   if (status === "active" && existing?.status !== "active") {
-    await sendSubscriptionActiveEmail({
-      amountCents,
-      currency,
-      interval,
-      userId,
-    }).catch((error) => {
-      console.error("[email] subscription active failed", error);
-    });
+    if (subscription.status === "trialing") {
+      await sendSubscriptionTrialStartedEmail({
+        trialEndsAt: toDate(typedSubscription.trial_end),
+        userId,
+      }).catch((error) => {
+        console.error("[email] subscription trial failed", error);
+      });
+    } else {
+      await sendSubscriptionActiveEmail({
+        amountCents,
+        currency,
+        interval,
+        userId,
+      }).catch((error) => {
+        console.error("[email] subscription active failed", error);
+      });
+    }
   }
 
   return { status, currentPeriodEnd };
