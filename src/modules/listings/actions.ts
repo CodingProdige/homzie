@@ -347,6 +347,42 @@ function parseGooglePlaceData(value: string | undefined) {
   }
 }
 
+function listingDetailsObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function detailsString(
+  details: Record<string, unknown>,
+  key: string,
+): string {
+  const value = details[key];
+
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function hasCompleteLocationParts({
+  city,
+  country,
+  location,
+  province,
+}: {
+  city?: string | null;
+  country?: string | null;
+  location?: string | null;
+  province?: string | null;
+}) {
+  return Boolean(
+    location?.trim() &&
+      location.trim() !== "Location not set" &&
+      location.trim().length >= 2 &&
+      city?.trim() &&
+      province?.trim() &&
+      country?.trim(),
+  );
+}
+
 function listingCoverImagePath(
   media: StoredListingMedia[],
   preferredIndex: number,
@@ -742,6 +778,7 @@ export async function updateListing(formData: FormData) {
 
   const [existingListing] = await db
     .select({
+      details: propertyListings.details,
       listedAt: propertyListings.listedAt,
       lockedAt: propertyListings.lockedAt,
       location: propertyListings.location,
@@ -775,7 +812,53 @@ export async function updateListing(formData: FormData) {
     ...parseExistingListingMedia(formData.get("existingMedia")),
     ...uploadedMedia,
   ].slice(0, maxListingMediaItems);
-  assertListingCanPublish(data, description, media.length);
+  const existingDetails = listingDetailsObject(existingListing.details);
+  const existingLocationComplete = hasCompleteLocationParts({
+    city: detailsString(existingDetails, "city"),
+    country: detailsString(existingDetails, "country"),
+    location: existingListing.location,
+    province: detailsString(existingDetails, "province"),
+  });
+  const canChangePropertyIdentity =
+    existingListing.status === "draft" || !existingLocationComplete;
+  const googlePlaceData = canChangePropertyIdentity
+    ? parseGooglePlaceData(data.googlePlaceData)
+    : existingDetails.googlePlaceData || null;
+  const locationFields = {
+    city: canChangePropertyIdentity
+      ? data.city || null
+      : detailsString(existingDetails, "city") || null,
+    country: canChangePropertyIdentity
+      ? data.country || null
+      : detailsString(existingDetails, "country") || null,
+    googlePlaceData,
+    googlePlaceId: canChangePropertyIdentity
+      ? data.googlePlaceId || null
+      : detailsString(existingDetails, "googlePlaceId") || null,
+    location: canChangePropertyIdentity
+      ? data.location
+      : existingListing.location || data.location,
+    province: canChangePropertyIdentity
+      ? data.province || null
+      : detailsString(existingDetails, "province") || null,
+    suburb: canChangePropertyIdentity
+      ? data.suburb || null
+      : detailsString(existingDetails, "suburb") || null,
+  };
+  assertListingCanPublish(
+    {
+      ...data,
+      city: locationFields.city || "",
+      country: locationFields.country || "",
+      googlePlaceData: canChangePropertyIdentity ? data.googlePlaceData : "",
+      googlePlaceId: locationFields.googlePlaceId || "",
+      location: locationFields.location,
+      province: locationFields.province || "",
+      suburb: locationFields.suburb || "",
+    },
+    description,
+    media.length,
+  );
   const reservationFields = await getValidatedReservationFields(data);
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
@@ -815,24 +898,24 @@ export async function updateListing(formData: FormData) {
     listingType: data.listingType,
     qualifier: data.priceQualifier,
   });
-  const googlePlaceData = parseGooglePlaceData(data.googlePlaceData);
   const nextStatus =
     existingListing.status === "reserved" ? "reserved" : data.publishIntent;
-  const [identity] = await db
-    .insert(propertyIdentities)
-    .values({
-      city: data.city || null,
-      country: data.country || null,
-      googlePlaceData,
-      googlePlaceId: data.googlePlaceId || null,
-      normalizedAddress: data.location.toLowerCase(),
-      province: data.province || null,
-      suburb: data.suburb || null,
-      propertyType: data.propertyType,
-    })
-    .onConflictDoNothing()
-    .returning({ id: propertyIdentities.id });
-  const canChangePropertyIdentity = existingListing.status === "draft";
+  const [identity] = canChangePropertyIdentity
+    ? await db
+        .insert(propertyIdentities)
+        .values({
+          city: locationFields.city,
+          country: locationFields.country,
+          googlePlaceData,
+          googlePlaceId: locationFields.googlePlaceId,
+          normalizedAddress: locationFields.location.toLowerCase(),
+          province: locationFields.province,
+          suburb: locationFields.suburb,
+          propertyType: data.propertyType,
+        })
+        .onConflictDoNothing()
+        .returning({ id: propertyIdentities.id })
+    : [{ id: existingListing.propertyIdentityId }];
 
   await db
     .update(propertyListings)
@@ -851,20 +934,20 @@ export async function updateListing(formData: FormData) {
         floorSize: data.floorSize ?? null,
         furnishedStatus: data.furnishedStatus || null,
         garages: data.garages ?? null,
-        googlePlaceData,
-        googlePlaceId: data.googlePlaceId || null,
+        googlePlaceData: locationFields.googlePlaceData,
+        googlePlaceId: locationFields.googlePlaceId,
         insuranceEstimateCents,
-        city: data.city || null,
-        country: data.country || null,
+        city: locationFields.city,
+        country: locationFields.country,
         localTaxesCents,
         parking: data.parking ?? null,
         petsAllowed: data.petsAllowed || null,
         previousAskingPriceCents,
         priceQualifier: data.priceQualifier || null,
-        province: data.province || null,
+        province: locationFields.province,
         rentalYield: data.rentalYield ?? null,
         shortLetAllowed: data.shortLetAllowed || null,
-        suburb: data.suburb || null,
+        suburb: locationFields.suburb,
         transferCostsEstimateCents,
         utilitiesEstimateCents,
       },
@@ -875,9 +958,7 @@ export async function updateListing(formData: FormData) {
           ? new Date()
           : existingListing.listedAt,
       listingType: data.listingType,
-      location: canChangePropertyIdentity
-        ? data.location
-        : existingListing.location,
+      location: locationFields.location,
       mandateEndDate: parseDate(data.mandateEndDate),
       mandateStartDate: parseDate(data.mandateStartDate),
       mandateType: data.mandateType,

@@ -523,6 +523,16 @@ function getPublishIssues(draft: ListingDraft, mediaCount: number) {
   return issues;
 }
 
+function hasCompleteListingLocation(draft: ListingDraft) {
+  return Boolean(
+    draft.location.trim().length >= 2 &&
+      draft.location.trim() !== "Location not set" &&
+      draft.city.trim() &&
+      draft.province.trim() &&
+      draft.country.trim(),
+  );
+}
+
 function isListingStepComplete(
   stepIndex: number,
   draft: ListingDraft,
@@ -532,12 +542,7 @@ function isListingStepComplete(
     case 0:
       return Boolean(draft.listingType && draft.propertyType);
     case 1:
-      return Boolean(
-        draft.location.trim().length >= 2 &&
-          draft.city.trim() &&
-          draft.province.trim() &&
-          draft.country.trim(),
-      );
+      return hasCompleteListingLocation(draft);
     case 2: {
       const hasBedroomCount = draft.bedrooms.trim() !== "";
       const hasBathroomCount = draft.bathrooms.trim() !== "";
@@ -1668,6 +1673,9 @@ export function CreateListingPage({
   const formId = `listing-form-${mode}-${listingId || "new"}`;
   const formAction = mode === "edit" ? updateListing : createListing;
   const isPublishedEdit = mode === "edit" && initialPublishIntent === "published";
+  const isLocationRepairMode =
+    isPublishedEdit && !hasCompleteListingLocation(draft);
+  const isLocationLocked = isPublishedEdit && !isLocationRepairMode;
   const profileListingsPath = `${profilePath}?tab=listings`;
   const backHref = mode === "edit" && listingId ? `/listings/${listingId}` : profileListingsPath;
   const listingHref = listingId ? `/listings/${listingId}` : "";
@@ -2440,7 +2448,8 @@ export function CreateListingPage({
                 {activeStep === 1 ? (
                   <LocationStep
                     draft={draft}
-                    isLocked={isPublishedEdit}
+                    isLocked={isLocationLocked}
+                    isRepairMode={isLocationRepairMode}
                     setDraft={setDraft}
                   />
                 ) : null}
@@ -2639,10 +2648,12 @@ function ListingTypeStep({
 function LocationStep({
   draft,
   isLocked = false,
+  isRepairMode = false,
   setDraft,
 }: {
   draft: ListingDraft;
   isLocked?: boolean;
+  isRepairMode?: boolean;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
   const [query, setQuery] = useState(draft.location);
@@ -2778,11 +2789,19 @@ function LocationStep({
       <div>
         <h2 className="text-lg font-black">Location</h2>
         <p className="mt-1 text-sm font-semibold text-muted-foreground">
-          {isLocked
-            ? "Published listing locations are locked so performance matching cannot be avoided by changing the address."
-            : "Search the address, suburb, city, or country. We store this structured so listings can be matched later."}
+          {isRepairMode
+            ? "This published listing has incomplete location data. Fix the missing fields to relock the location after saving."
+            : isLocked
+              ? "Published listing locations are locked so performance matching cannot be avoided by changing the address."
+              : "Search the address, suburb, city, or country. We store this structured so listings can be matched later."}
         </p>
       </div>
+      {isRepairMode ? (
+        <p className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs font-black text-amber-700 dark:text-amber-300">
+          Location repair mode is active. Complete the address details, then save
+          the listing to lock this section again.
+        </p>
+      ) : null}
       <div className="block text-sm font-black">
         Property location
         <input
