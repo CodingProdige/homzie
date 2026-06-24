@@ -272,6 +272,7 @@ function parseListingFormData(formData: FormData) {
     .filter(Boolean)
     .slice(0, maxListingFeatures);
   const publishIntent = String(formData.get("publishIntent") || "draft");
+  const mandateType = String(formData.get("mandateType") || "");
   const parsed = listingSchema.safeParse({
     askingPrice: numberOrUndefined(formData.get("askingPrice")),
     availableFrom: formData.get("availableFrom"),
@@ -296,7 +297,9 @@ function parseListingFormData(formData: FormData) {
     localTaxes: numberOrUndefined(formData.get("localTaxes")),
     mandateEndDate: formData.get("mandateEndDate"),
     mandateStartDate: formData.get("mandateStartDate"),
-    mandateType: formData.get("mandateType"),
+    mandateType: (mandateTypeValues as readonly string[]).includes(mandateType)
+      ? mandateType
+      : "open",
     communityFees: numberOrUndefined(formData.get("communityFees")),
     parking: numberOrUndefined(formData.get("parking")),
     petsAllowed: formData.get("petsAllowed") || "",
@@ -615,7 +618,17 @@ export async function createListing(formData: FormData) {
     });
     redirect("/listings/new?listingError=publish-validation");
   }
-  const reservationFields = await getValidatedReservationFields(data);
+  let reservationFields: Awaited<ReturnType<typeof getValidatedReservationFields>>;
+
+  try {
+    reservationFields = await getValidatedReservationFields(data);
+  } catch (error) {
+    console.error("[listings] createListing reservation validation failed", {
+      error,
+      userId: session.user.id,
+    });
+    redirect("/listings/new?listingError=reservation-validation");
+  }
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
     Math.max(media.length - 1, 0),
@@ -892,7 +905,18 @@ export async function updateListing(formData: FormData) {
     });
     redirect(`/listings/${listingId.data}/edit?listingError=publish-validation`);
   }
-  const reservationFields = await getValidatedReservationFields(data);
+  let reservationFields: Awaited<ReturnType<typeof getValidatedReservationFields>>;
+
+  try {
+    reservationFields = await getValidatedReservationFields(data);
+  } catch (error) {
+    console.error("[listings] updateListing reservation validation failed", {
+      error,
+      listingId: listingId.data,
+      userId: session.user.id,
+    });
+    redirect(`/listings/${listingId.data}/edit?listingError=reservation-validation`);
+  }
   const coverIndex = Math.min(
     Math.max(Number(formData.get("coverIndex") || 0), 0),
     Math.max(media.length - 1, 0),
@@ -933,104 +957,120 @@ export async function updateListing(formData: FormData) {
   });
   const nextStatus =
     existingListing.status === "reserved" ? "reserved" : data.publishIntent;
-  const [identity] = canChangePropertyIdentity
-    ? await db
-        .insert(propertyIdentities)
-        .values({
+  try {
+    const [identity] = canChangePropertyIdentity
+      ? await db
+          .insert(propertyIdentities)
+          .values({
+            city: locationFields.city,
+            country: locationFields.country,
+            googlePlaceData,
+            googlePlaceId: locationFields.googlePlaceId,
+            normalizedAddress: locationFields.location.toLowerCase(),
+            province: locationFields.province,
+            suburb: locationFields.suburb,
+            propertyType: data.propertyType,
+          })
+          .onConflictDoNothing()
+          .returning({ id: propertyIdentities.id })
+      : [{ id: existingListing.propertyIdentityId }];
+
+    await db
+      .update(propertyListings)
+      .set({
+        agentProfileId: agentProfile?.id || null,
+        askingPriceCents,
+        coverImageUrl,
+        description: description || null,
+        details: {
+          availableFrom: data.availableFrom || null,
+          bathrooms: data.bathrooms ?? null,
+          bedrooms: data.bedrooms ?? null,
+          buyerIncentive: data.buyerIncentive || null,
+          communityFeesCents,
+          erfSize: data.erfSize ?? null,
+          floorSize: data.floorSize ?? null,
+          furnishedStatus: data.furnishedStatus || null,
+          garages: data.garages ?? null,
+          googlePlaceData: locationFields.googlePlaceData,
+          googlePlaceId: locationFields.googlePlaceId,
+          insuranceEstimateCents,
           city: locationFields.city,
           country: locationFields.country,
-          googlePlaceData,
-          googlePlaceId: locationFields.googlePlaceId,
-          normalizedAddress: locationFields.location.toLowerCase(),
+          localTaxesCents,
+          parking: data.parking ?? null,
+          petsAllowed: data.petsAllowed || null,
+          previousAskingPriceCents,
+          priceQualifier: data.priceQualifier || null,
           province: locationFields.province,
+          rentalYield: data.rentalYield ?? null,
+          shortLetAllowed: data.shortLetAllowed || null,
           suburb: locationFields.suburb,
-          propertyType: data.propertyType,
-        })
-        .onConflictDoNothing()
-        .returning({ id: propertyIdentities.id })
-    : [{ id: existingListing.propertyIdentityId }];
+          transferCostsEstimateCents,
+          utilitiesEstimateCents,
+        },
+        features: data.features || [],
+        listedAt:
+          data.publishIntent === "published" &&
+          existingListing.status !== "published"
+            ? new Date()
+            : existingListing.listedAt,
+        listingType: data.listingType,
+        location: locationFields.location,
+        mandateEndDate: parseDate(data.mandateEndDate),
+        mandateStartDate: parseDate(data.mandateStartDate),
+        mandateType: data.mandateType,
+        media,
+        priceLabel,
+        propertyIdentityId: canChangePropertyIdentity
+          ? identity?.id || existingListing.propertyIdentityId || null
+          : existingListing.propertyIdentityId,
+        propertyType: data.propertyType,
+        ...reservationFields,
+        status: nextStatus,
+        title: data.title,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(propertyListings.id, listingId.data),
+          eq(propertyListings.userId, session.user.id),
+        ),
+      );
 
-  await db
-    .update(propertyListings)
-    .set({
-      agentProfileId: agentProfile?.id || null,
-      askingPriceCents,
-      coverImageUrl,
-      description: description || null,
-      details: {
-        availableFrom: data.availableFrom || null,
-        bathrooms: data.bathrooms ?? null,
-        bedrooms: data.bedrooms ?? null,
-        buyerIncentive: data.buyerIncentive || null,
-        communityFeesCents,
-        erfSize: data.erfSize ?? null,
-        floorSize: data.floorSize ?? null,
-        furnishedStatus: data.furnishedStatus || null,
-        garages: data.garages ?? null,
-        googlePlaceData: locationFields.googlePlaceData,
-        googlePlaceId: locationFields.googlePlaceId,
-        insuranceEstimateCents,
-        city: locationFields.city,
-        country: locationFields.country,
-        localTaxesCents,
-        parking: data.parking ?? null,
-        petsAllowed: data.petsAllowed || null,
-        previousAskingPriceCents,
-        priceQualifier: data.priceQualifier || null,
-        province: locationFields.province,
-        rentalYield: data.rentalYield ?? null,
-        shortLetAllowed: data.shortLetAllowed || null,
-        suburb: locationFields.suburb,
-        transferCostsEstimateCents,
-        utilitiesEstimateCents,
-      },
-      features: data.features || [],
-      listedAt:
-        data.publishIntent === "published" &&
-        existingListing.status !== "published"
-          ? new Date()
-          : existingListing.listedAt,
-      listingType: data.listingType,
-      location: locationFields.location,
-      mandateEndDate: parseDate(data.mandateEndDate),
-      mandateStartDate: parseDate(data.mandateStartDate),
-      mandateType: data.mandateType,
-      media,
-      priceLabel,
-      propertyIdentityId: canChangePropertyIdentity
-        ? identity?.id || existingListing.propertyIdentityId || null
-        : existingListing.propertyIdentityId,
-      propertyType: data.propertyType,
-      ...reservationFields,
-      status: nextStatus,
-      title: data.title,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(propertyListings.id, listingId.data),
-        eq(propertyListings.userId, session.user.id),
-      ),
-    );
-
-  await db.insert(propertyListingStatusHistory).values({
-    listingId: listingId.data,
-    reason:
-      existingListing.status === nextStatus
-        ? "Listing details updated."
-        : nextStatus === "published"
-          ? "Listing updated and published."
-          : "Listing updated and saved as draft.",
-    toStatus: nextStatus,
-    userId: session.user.id,
-  });
+    await db.insert(propertyListingStatusHistory).values({
+      listingId: listingId.data,
+      reason:
+        existingListing.status === nextStatus
+          ? "Listing details updated."
+          : nextStatus === "published"
+            ? "Listing updated and published."
+            : "Listing updated and saved as draft.",
+      toStatus: nextStatus,
+      userId: session.user.id,
+    });
+  } catch (error) {
+    console.error("[listings] updateListing database save failed", {
+      error,
+      listingId: listingId.data,
+      mediaCount: media.length,
+      userId: session.user.id,
+    });
+    redirect(`/listings/${listingId.data}/edit?listingError=save-failed`);
+  }
 
   if (data.publishIntent === "published") {
-    await recordHashtagUsage({
+    void recordHashtagUsage({
       sourceId: listingId.data,
       sourceType: "listing",
       tags: extractHashtags(data.title, plainListingDescription(description)),
       userId: session.user.id,
+    }).catch((error) => {
+      console.error("[listings] updateListing hashtag recording failed", {
+        error,
+        listingId: listingId.data,
+        userId: session.user.id,
+      });
     });
 
     if (existingListing.status !== "published") {

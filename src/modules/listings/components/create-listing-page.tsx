@@ -69,6 +69,7 @@ import {
   mandateTypeOptions,
   propertyTypeOptions,
   type ListingType,
+  type MandateType,
   type PropertyType,
 } from "@/modules/listings/options";
 
@@ -309,12 +310,19 @@ const initialDraft: ListingDraft = {
   utilitiesEstimate: "",
 };
 
+function mandateTypeValue(value: string): MandateType {
+  return mandateTypeOptions.some((option) => option.value === value)
+    ? (value as MandateType)
+    : "open";
+}
+
 function buildInitialDraft(value?: Partial<ListingDraft>) {
   const draft = { ...initialDraft, ...value };
 
   return {
     ...draft,
     features: draft.features.slice(0, maxListingFeatures).map(normalizeFeatureInput),
+    mandateType: mandateTypeValue(draft.mandateType),
   };
 }
 
@@ -2244,6 +2252,10 @@ export function CreateListingPage({
                 ? "Homzie could not save that listing media. Please try again."
                 : listingError === "publish-validation"
                   ? "Homzie could not publish yet because required listing details are missing. Review the highlighted steps and try again."
+                  : listingError === "reservation-validation"
+                    ? "Homzie could not save the reservation settings for this listing. Review the mandate and pricing details, then try again."
+                    : listingError === "save-failed"
+                      ? "Homzie could not save the listing details. Please try again."
                 : "Homzie could not publish that listing. Please try again."}
             </div>
           </div>

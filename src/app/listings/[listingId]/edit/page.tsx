@@ -15,8 +15,10 @@ import {
 } from "@/modules/listings/server/listing-data";
 import {
   listingTypeOptions,
+  mandateTypeOptions,
   propertyTypeOptions,
   type ListingType,
+  type MandateType,
   type PropertyType,
 } from "@/modules/listings/options";
 
@@ -50,6 +52,12 @@ function propertyTypeValue(value: string): PropertyType {
   return propertyTypeOptions.some((option) => option.value === value)
     ? (value as PropertyType)
     : "free_standing_house";
+}
+
+function mandateTypeValue(value: string): MandateType {
+  return mandateTypeOptions.some((option) => option.value === value)
+    ? (value as MandateType)
+    : "open";
 }
 
 function listingUpdateFeedback(
@@ -88,7 +96,7 @@ function draftFromListing(listing: ListingDetailData): Partial<ListingDraft> {
     localTaxes: centsToInput(listing.localTaxesCents),
     mandateEndDate: listing.mandateEndDate,
     mandateStartDate: listing.mandateStartDate,
-    mandateType: listing.mandateType,
+    mandateType: mandateTypeValue(listing.mandateType),
     parking: numberToInput(listing.parking),
     petsAllowed: listing.petsAllowed,
     previousAskingPrice: centsToInput(listing.previousAskingPriceCents),
