@@ -42,6 +42,13 @@ async function getUsers() {
       u.created_at::text AS "createdAt",
       u.updated_at::text AS "updatedAt",
       ap.status AS "agentProfileStatus",
+      aw.agency_id AS "agencyId",
+      aw.agency_name AS "agencyName",
+      aw.agency_slug AS "agencySlug",
+      aw.agency_type AS "agencyType",
+      aw.agency_status AS "agencyStatus",
+      aw.member_role AS "agencyMemberRole",
+      aw.member_status AS "agencyMemberStatus",
       (
         SELECT s.status
         FROM subscriptions s
@@ -61,6 +68,29 @@ async function getUsers() {
       ) AS "reelCount"
     FROM users u
     LEFT JOIN agent_profiles ap ON ap.user_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT
+        a.id AS agency_id,
+        a.name AS agency_name,
+        a.slug AS agency_slug,
+        a.agency_type,
+        a.status AS agency_status,
+        am.role AS member_role,
+        am.status AS member_status
+      FROM agency_members am
+      INNER JOIN agencies a ON a.id = am.agency_id
+      WHERE am.user_id = u.id
+        AND am.status <> 'removed'
+      ORDER BY
+        CASE am.role
+          WHEN 'owner' THEN 0
+          WHEN 'admin' THEN 1
+          WHEN 'listing_manager' THEN 2
+          ELSE 3
+        END,
+        am.created_at DESC
+      LIMIT 1
+    ) aw ON true
     ORDER BY u.created_at DESC
   `;
 

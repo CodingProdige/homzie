@@ -5,8 +5,10 @@ import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BadgeCheck,
+  Building2,
   CalendarDays,
   ExternalLink,
+  Network,
   Search,
   ShieldCheck,
   UserRound,
@@ -35,6 +37,13 @@ export type AdminUserRow = {
   publicContactVisible: boolean;
   agentProfileStatus: string | null;
   activeSubscriptionStatus: string | null;
+  agencyId: string | null;
+  agencyName: string | null;
+  agencySlug: string | null;
+  agencyType: "independent" | "network" | "branch" | null;
+  agencyStatus: "pending" | "active" | "suspended" | null;
+  agencyMemberRole: "owner" | "admin" | "listing_manager" | "agent" | null;
+  agencyMemberStatus: "invited" | "active" | "suspended" | "removed" | null;
   listingCount: number;
   reelCount: number;
   createdAt: string;
@@ -51,6 +60,14 @@ const statusOptions = [
   { label: "All statuses", value: "all" },
   { label: "Active", value: "active" },
   { label: "Disabled", value: "disabled" },
+] as const;
+
+const accountTypeOptions = [
+  { label: "All accounts", value: "all" },
+  { label: "Personal", value: "personal" },
+  { label: "Network HQ", value: "network" },
+  { label: "Branch agencies", value: "branch" },
+  { label: "Independent agencies", value: "independent" },
 ] as const;
 
 function formatDateTime(value: string) {
@@ -88,6 +105,44 @@ function UserAvatar({ user }: { user: AdminUserRow }) {
     <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-black text-primary">
       {initialsFromName(user.name)}
     </span>
+  );
+}
+
+function agencyTypeLabel(type: AdminUserRow["agencyType"]) {
+  if (type === "network") return "Network HQ";
+  if (type === "branch") return "Branch agency";
+  if (type === "independent") return "Independent agency";
+  return "Personal";
+}
+
+function agencyRoleLabel(role: AdminUserRow["agencyMemberRole"]) {
+  if (role === "listing_manager") return "Listing manager";
+  if (!role) return null;
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+function AccountSummary({ user }: { user: AdminUserRow }) {
+  if (!user.agencyType || !user.agencyName) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+        <UserRound className="size-4" />
+        Personal
+      </span>
+    );
+  }
+
+  const Icon = user.agencyType === "network" ? Network : Building2;
+
+  return (
+    <div className="min-w-0">
+      <span className="inline-flex max-w-full items-center gap-1.5 font-bold">
+        <Icon className="size-4 shrink-0 text-primary" />
+        <span className="truncate">{agencyTypeLabel(user.agencyType)}</span>
+      </span>
+      <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
+        {user.agencyName}
+      </p>
+    </div>
   );
 }
 
@@ -182,6 +237,12 @@ function UserDetailsDialog({
               {user.agentProfileStatus ? (
                 <StatusBadge value={`agent ${user.agentProfileStatus}`} />
               ) : null}
+              {user.agencyType ? (
+                <StatusBadge value={agencyTypeLabel(user.agencyType)} />
+              ) : null}
+              {user.agencyMemberRole ? (
+                <StatusBadge value={`agency ${agencyRoleLabel(user.agencyMemberRole)}`} />
+              ) : null}
               {user.activeSubscriptionStatus ? (
                 <StatusBadge value={`subscription ${user.activeSubscriptionStatus}`} />
               ) : null}
@@ -196,6 +257,11 @@ function UserDetailsDialog({
               <DetailItem label="Contact phone" value={user.contactPhone} />
               <DetailItem label="WhatsApp" value={user.whatsappNumber} />
               <DetailItem label="Location" value={user.location} />
+              <DetailItem label="Account type" value={agencyTypeLabel(user.agencyType)} />
+              <DetailItem label="Agency / Network" value={user.agencyName} />
+              <DetailItem label="Agency role" value={agencyRoleLabel(user.agencyMemberRole)} />
+              <DetailItem label="Agency status" value={user.agencyStatus} />
+              <DetailItem label="Membership status" value={user.agencyMemberStatus} />
               <DetailItem label="Google place ID" value={user.locationPlaceId} />
               <DetailItem
                 label="Public contact"
@@ -239,6 +305,8 @@ function UserDetailsDialog({
 export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<(typeof roleOptions)[number]["value"]>("all");
+  const [accountType, setAccountType] =
+    useState<(typeof accountTypeOptions)[number]["value"]>("all");
   const [status, setStatus] =
     useState<(typeof statusOptions)[number]["value"]>("all");
   const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
@@ -251,19 +319,24 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         !normalizedQuery ||
         user.name.toLowerCase().includes(normalizedQuery) ||
         user.username?.toLowerCase().includes(normalizedQuery) ||
-        user.email.toLowerCase().includes(normalizedQuery);
+        user.email.toLowerCase().includes(normalizedQuery) ||
+        user.agencyName?.toLowerCase().includes(normalizedQuery);
       const matchesRole = role === "all" || user.role === role;
+      const matchesAccountType =
+        accountType === "all" ||
+        (accountType === "personal" && !user.agencyType) ||
+        user.agencyType === accountType;
       const matchesStatus = status === "all" || user.status === status;
 
-      return matchesQuery && matchesRole && matchesStatus;
+      return matchesQuery && matchesRole && matchesAccountType && matchesStatus;
     });
-  }, [query, role, status, users]);
+  }, [accountType, query, role, status, users]);
 
   return (
     <>
       <section className="mt-8 rounded-lg border border-border bg-card shadow-sm">
         <div className="border-b border-border px-4 py-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto] lg:items-center">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_12rem_10rem_auto] lg:items-center">
             <label className="relative">
               <span className="sr-only">Search users</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -302,12 +375,27 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                 </option>
               ))}
             </select>
+            <select
+              value={accountType}
+              onChange={(event) =>
+                setAccountType(event.currentTarget.value as typeof accountType)
+              }
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              aria-label="Filter by account type"
+            >
+              {accountTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <Button
               type="button"
               variant="outline"
               onClick={() => {
                 setQuery("");
                 setRole("all");
+                setAccountType("all");
                 setStatus("all");
               }}
             >
@@ -321,11 +409,12 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Account</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Activity</th>
                 <th className="px-4 py-3">Created</th>
@@ -359,6 +448,9 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                       )}
                       {user.role}
                     </span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <AccountSummary user={user} />
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-1.5">
