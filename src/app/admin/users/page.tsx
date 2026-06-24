@@ -49,6 +49,7 @@ async function getUsers() {
       aw.agency_status AS "agencyStatus",
       aw.member_role AS "agencyMemberRole",
       aw.member_status AS "agencyMemberStatus",
+      activity.last_online_at::text AS "lastOnlineAt",
       (
         SELECT s.status
         FROM subscriptions s
@@ -91,6 +92,67 @@ async function getUsers() {
         am.created_at DESC
       LIMIT 1
     ) aw ON true
+    LEFT JOIN LATERAL (
+      SELECT max(activity_at) AS last_online_at
+      FROM (
+        SELECT max(last_seen_at) AS activity_at
+        FROM listing_presence_sessions
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM listing_view_events
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM listing_action_events
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(last_watched_at)
+        FROM reel_watch_sessions
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM reel_watch_events
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM reel_feedback
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM reel_listing_clicks
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM profile_view_events
+        WHERE viewer_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM listing_saves
+        WHERE user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM listing_likes
+        WHERE user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM reel_saves
+        WHERE user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM reel_likes
+        WHERE user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM messages
+        WHERE sender_user_id = u.id
+        UNION ALL
+        SELECT max(created_at)
+        FROM user_events
+        WHERE actor_user_id = u.id
+      ) signed_in_activity
+      WHERE activity_at IS NOT NULL
+    ) activity ON true
     ORDER BY u.created_at DESC
   `;
 

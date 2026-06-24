@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Building2,
   CalendarDays,
+  Clock3,
   ExternalLink,
   Network,
   Search,
@@ -44,6 +45,7 @@ export type AdminUserRow = {
   agencyStatus: "pending" | "active" | "suspended" | null;
   agencyMemberRole: "owner" | "admin" | "listing_manager" | "agent" | null;
   agencyMemberStatus: "invited" | "active" | "suspended" | "removed" | null;
+  lastOnlineAt: string | null;
   listingCount: number;
   reelCount: number;
   createdAt: string;
@@ -75,6 +77,23 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatLastOnline(value: string | null) {
+  if (!value) return "Never seen";
+
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 5) return "Active now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  return formatDateTime(value);
 }
 
 function initialsFromName(name: string) {
@@ -262,6 +281,7 @@ function UserDetailsDialog({
               <DetailItem label="Agency role" value={agencyRoleLabel(user.agencyMemberRole)} />
               <DetailItem label="Agency status" value={user.agencyStatus} />
               <DetailItem label="Membership status" value={user.agencyMemberStatus} />
+              <DetailItem label="Last online" value={formatLastOnline(user.lastOnlineAt)} />
               <DetailItem label="Google place ID" value={user.locationPlaceId} />
               <DetailItem
                 label="Public contact"
@@ -409,7 +429,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1020px] text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">User</th>
@@ -417,6 +437,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                 <th className="px-4 py-3">Account</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Activity</th>
+                <th className="px-4 py-3">Last online</th>
                 <th className="px-4 py-3">Created</th>
               </tr>
             </thead>
@@ -468,6 +489,12 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                   <td className="px-4 py-4 text-xs font-bold text-muted-foreground">
                     {user.listingCount.toLocaleString("en-ZA")} listings ·{" "}
                     {user.reelCount.toLocaleString("en-ZA")} reels
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                      <Clock3 className="size-4" />
+                      {formatLastOnline(user.lastOnlineAt)}
+                    </span>
                   </td>
                   <td className="px-4 py-4">
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
