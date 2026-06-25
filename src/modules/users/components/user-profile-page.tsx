@@ -1084,6 +1084,14 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
             </Button>
           ) : null}
         </div>
+        {profile.isOwner && !profile.publicPerformanceVisible ? (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-emerald-700 dark:text-emerald-300">
+            <BadgeCheck className="mt-0.5 size-4 shrink-0" />
+            <p className="text-xs font-bold leading-5">
+              Hidden from public view. Only you can see this privacy status.
+            </p>
+          </div>
+        ) : null}
       </div>
     );
   }
