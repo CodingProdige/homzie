@@ -1126,7 +1126,10 @@ export function ProfileSettingsForm({
           </div>
 
           <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <Field label="Contact email">
+            <Field
+              label="Public contact email"
+              description="Used on your public profile and listing contact cards. This does not change your sign-in email."
+            >
               <Input
                 name="contactEmail"
                 value={contactEmail}

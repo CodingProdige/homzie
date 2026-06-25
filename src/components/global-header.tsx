@@ -11,6 +11,7 @@ import {
   Heart,
   Home,
   Menu,
+  MonitorDown,
   Radar,
   Send,
   ShieldCheck,
@@ -94,6 +95,11 @@ export function GlobalHeader({
       label: "Events",
       href: eventsHref,
       icon: Heart,
+    },
+    {
+      label: "Install Homzie",
+      href: "/install",
+      icon: MonitorDown,
     },
     ...(viewerUsername
       ? [
@@ -201,6 +207,24 @@ export function GlobalHeader({
           <CountryPreferenceSelector compact className="shrink-0" />
           <CurrencySelector compact className="shrink-0" />
           <GlobalUserSearchTrigger className="hidden lg:inline-flex" />
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            className={cn(
+              "hidden lg:inline-flex",
+              isActiveHref("/install") && "bg-primary/10 text-primary",
+            )}
+            aria-label="Install Homzie"
+          >
+            <Link
+              href="/install"
+              aria-current={isActiveHref("/install") ? "page" : undefined}
+              title="Install Homzie"
+            >
+              <MonitorDown className="size-5" />
+            </Link>
+          </Button>
           {viewerUsername ? (
             <Button
               variant="ghost"
