@@ -8,19 +8,23 @@ import {
   Save,
   Search,
   ShieldCheck,
+  Trophy,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SettingsPageHeader } from "../settings-page-header";
-import {
-  emptyPrivacySettingsState,
-  updatePrivacySettings,
-} from "./actions";
+import { updatePrivacySettings, type PrivacySettingsState } from "./actions";
 
 export type PrivacyFormValues = {
   profileVisible: boolean;
   publicContactVisible: boolean;
+  publicPerformanceVisible: boolean;
   searchVisible: boolean;
+};
+
+const emptyPrivacySettingsState: PrivacySettingsState = {
+  message: "",
+  ok: false,
 };
 
 function PrivacySwitch({
@@ -113,6 +117,30 @@ export function PrivacyForm({ preferences }: { preferences: PrivacyFormValues })
         <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
           <div className="min-w-0">
             <h2 className="text-lg font-bold tracking-normal text-card-foreground">
+              Public performance
+            </h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+              Choose whether visitors can see your sold totals, win rate, and public performance page.
+            </p>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <PrivacySwitch
+              checked={preferences.publicPerformanceVisible}
+              name="publicPerformanceVisible"
+              title="Show my performance publicly"
+              description="Display sales performance on agent cards, your profile, and your public performance page."
+              icon={Trophy}
+            />
+            <div className="rounded-lg border border-border bg-primary/5 px-4 py-3 text-sm font-semibold leading-6 text-foreground">
+              Turning this off keeps your performance private from visitors. You can still see your own analytics and performance data.
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold tracking-normal text-card-foreground">
               Discoverability
             </h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
@@ -149,6 +177,7 @@ export function PrivacyForm({ preferences }: { preferences: PrivacyFormValues })
               </h2>
               <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
                 Search visibility affects discovery. Profile visibility affects whether your public pages can be opened. Public contact visibility controls whether your contact details are shown on profile and listing surfaces.
+                Public performance visibility only controls public display of sales performance; it does not delete or change your private analytics.
               </p>
             </div>
           </div>

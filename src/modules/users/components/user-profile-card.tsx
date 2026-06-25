@@ -8,6 +8,7 @@ export type UserProfileCardData = {
   headline: string | null;
   isPromoted?: boolean;
   location: string | null;
+  publicPerformanceVisible?: boolean;
   soldCount?: number;
   totalSoldValueLabel?: string;
   username: string;
@@ -81,7 +82,14 @@ export function UserProfileCard({
           ) : null}
         </div>
 
-        {typeof profile.soldCount === "number" ? (
+        {profile.publicPerformanceVisible === false ? (
+          <div className="w-full rounded-md bg-muted px-3 py-2 text-xs">
+            <p className="font-black text-muted-foreground">Performance private</p>
+            <p className="mt-0.5 font-semibold text-muted-foreground">
+              Sales proof hidden by agent
+            </p>
+          </div>
+        ) : typeof profile.soldCount === "number" ? (
           <div className="w-full rounded-md bg-muted px-3 py-2 text-xs">
             {profile.totalSoldValueLabel && profile.soldCount > 0 ? (
               <>

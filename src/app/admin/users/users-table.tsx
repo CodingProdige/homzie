@@ -10,6 +10,7 @@ import {
   Building2,
   CalendarDays,
   Clock3,
+  Crown,
   ExternalLink,
   Filter,
   Loader2,
@@ -25,7 +26,11 @@ import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { auditIncompleteTrialsAction } from "../actions";
+import {
+  auditIncompleteTrialsAction,
+  updateAdminProAccessOverride,
+  type AdminProAccessOverrideState,
+} from "../actions";
 
 export type AdminUserRow = {
   id: string;
@@ -46,6 +51,10 @@ export type AdminUserRow = {
   agentProfileStatus: string | null;
   activeSubscriptionStatus: string | null;
   agentTrialUsedAt: string | null;
+  proAccessOverrideEnabled: boolean;
+  proAccessOverrideExpiresAt: string | null;
+  proAccessOverrideReason: string | null;
+  proAccessOverrideUpdatedAt: string | null;
   subscriptionCurrentPeriodEnd: string | null;
   subscriptionCurrentPeriodStart: string | null;
   agencyId: string | null;
@@ -84,6 +93,7 @@ const accountTypeOptions = [
 
 const subscriptionOptions = [
   { label: "All billing states", value: "all" },
+  { label: "Admin granted", value: "admin_granted" },
   { label: "Subscribed", value: "subscribed" },
   { label: "Free trial", value: "trial" },
   { label: "Not subscribed", value: "free" },
@@ -119,10 +129,18 @@ function getTrialState(user: AdminUserRow) {
   };
 }
 
+function hasActiveProOverride(user: AdminUserRow) {
+  if (!user.proAccessOverrideEnabled) return false;
+  if (!user.proAccessOverrideExpiresAt) return true;
+
+  return new Date(user.proAccessOverrideExpiresAt).getTime() > Date.now();
+}
+
 function subscriptionState(user: AdminUserRow) {
   const trial = getTrialState(user);
   const status = user.activeSubscriptionStatus;
 
+  if (hasActiveProOverride(user)) return "admin_granted";
   if (trial?.isActive) return "trial";
   if (status === "active") return "subscribed";
   if (status === "past_due" || status === "pending") return "billing_issue";
@@ -138,6 +156,7 @@ function subscriptionLabel(user: AdminUserRow) {
     return `Trial day ${trial.day}/7`;
   }
 
+  if (state === "admin_granted") return "Admin granted Pro";
   if (state === "subscribed") return "Subscribed";
   if (state === "billing_issue") return "Billing issue";
 
@@ -147,7 +166,7 @@ function subscriptionLabel(user: AdminUserRow) {
 function subscriptionTone(user: AdminUserRow): "default" | "muted" | "success" | "warning" {
   const state = subscriptionState(user);
 
-  if (state === "subscribed") return "success";
+  if (state === "subscribed" || state === "admin_granted") return "success";
   if (state === "trial") return "default";
   if (state === "billing_issue") return "warning";
 
@@ -282,6 +301,103 @@ function DetailItem({
   );
 }
 
+function dateInputValue(value: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toISOString().slice(0, 10);
+}
+
+function AdminProAccessOverrideForm({ user }: { user: AdminUserRow }) {
+  const initialState: AdminProAccessOverrideState = { message: "", ok: true };
+  const [state, formAction, isPending] = useActionState(
+    updateAdminProAccessOverride,
+    initialState,
+  );
+  const activeOverride = hasActiveProOverride(user);
+
+  return (
+    <form
+      action={formAction}
+      className="mt-5 rounded-lg border border-border bg-muted/20 p-4"
+    >
+      <input type="hidden" name="userId" value={user.id} />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-sm font-black">
+            <Crown className="size-4 text-primary" />
+            Admin granted Pro
+          </p>
+          <p className="mt-1 max-w-xl text-xs font-semibold leading-5 text-muted-foreground">
+            Grants buyer-intent access without touching Stripe. This does not
+            create a subscription, invoice, or payment method.
+          </p>
+        </div>
+        <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-black">
+          <input
+            name="enabled"
+            type="checkbox"
+            defaultChecked={activeOverride}
+            className="size-4 accent-primary"
+          />
+          Pro enabled
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
+        <label className="grid gap-1 text-xs font-black">
+          Expires on
+          <Input
+            name="expiresAt"
+            type="date"
+            defaultValue={dateInputValue(user.proAccessOverrideExpiresAt)}
+          />
+          <span className="text-[11px] font-semibold text-muted-foreground">
+            Leave blank for no expiry.
+          </span>
+        </label>
+        <label className="grid gap-1 text-xs font-black">
+          Reason
+          <Input
+            name="reason"
+            defaultValue={user.proAccessOverrideReason || ""}
+            maxLength={240}
+            placeholder="Demo access, partner account, internal QA..."
+          />
+          <span className="text-[11px] font-semibold text-muted-foreground">
+            Visible to admins only.
+          </span>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p
+          className={cn(
+            "text-xs font-bold",
+            state.message
+              ? state.ok
+                ? "text-emerald-700 dark:text-emerald-300"
+                : "text-destructive"
+              : "text-muted-foreground",
+          )}
+        >
+          {state.message ||
+            (activeOverride
+              ? "This user currently has admin granted Pro access."
+              : "This user does not have admin granted Pro access.")}
+        </p>
+        <Button type="submit" disabled={isPending} className="font-black">
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+          Save Pro access
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function UserDetailsDialog({
   onOpenChange,
   open,
@@ -345,6 +461,9 @@ function UserDetailsDialog({
                   tone={subscriptionTone(user)}
                 />
               ) : null}
+              {hasActiveProOverride(user) ? (
+                <StatusBadge value="admin granted Pro" tone="success" />
+              ) : null}
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -363,6 +482,19 @@ function UserDetailsDialog({
               <DetailItem label="Membership status" value={user.agencyMemberStatus} />
               <DetailItem label="Last online" value={formatLastOnline(user.lastOnlineAt)} />
               <DetailItem label="Subscription" value={subscriptionLabel(user)} />
+              <DetailItem
+                label="Pro override"
+                value={
+                  hasActiveProOverride(user)
+                    ? user.proAccessOverrideExpiresAt
+                      ? `Enabled until ${formatDateTime(user.proAccessOverrideExpiresAt)}`
+                      : "Enabled with no expiry"
+                    : user.proAccessOverrideEnabled
+                      ? "Expired"
+                      : "Not enabled"
+                }
+              />
+              <DetailItem label="Override reason" value={user.proAccessOverrideReason} />
               <DetailItem
                 label="Trial"
                 value={
@@ -388,11 +520,21 @@ function UserDetailsDialog({
               <DetailItem label="Reels" value={user.reelCount.toLocaleString("en-ZA")} />
               <DetailItem label="Created" value={formatDateTime(user.createdAt)} />
               <DetailItem label="Updated" value={formatDateTime(user.updatedAt)} />
+              <DetailItem
+                label="Override updated"
+                value={
+                  user.proAccessOverrideUpdatedAt
+                    ? formatDateTime(user.proAccessOverrideUpdatedAt)
+                    : null
+                }
+              />
             </div>
 
             <div className="mt-3">
               <DetailItem label="Bio" value={user.bio} />
             </div>
+
+            <AdminProAccessOverrideForm user={user} />
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-muted-foreground">
@@ -708,7 +850,12 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                         value={subscriptionLabel(user)}
                         tone={subscriptionTone(user)}
                       />
-                      {getTrialState(user)?.isActive ? (
+                      {hasActiveProOverride(user) &&
+                      user.proAccessOverrideExpiresAt ? (
+                        <span className="text-xs font-bold text-muted-foreground">
+                          Until {formatDateTime(user.proAccessOverrideExpiresAt)}
+                        </span>
+                      ) : getTrialState(user)?.isActive ? (
                         <span className="text-xs font-bold text-muted-foreground">
                           {getTrialState(user)?.daysRemaining} days left
                         </span>

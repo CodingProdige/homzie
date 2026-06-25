@@ -33,6 +33,7 @@ type AgentDirectoryItem = {
   locationProvince: string | null;
   locationSuburb: string | null;
   name: string;
+  publicPerformanceVisible: boolean;
   soldCount: number;
   totalSoldValueCents: number;
   username: string;
@@ -117,6 +118,7 @@ async function getAgentDirectory({
       locationProvince: agentProfiles.locationProvince,
       locationSuburb: agentProfiles.locationSuburb,
       name: users.name,
+      publicPerformanceVisible: users.publicPerformanceVisible,
       username: users.username,
     })
     .from(subscriptions)
@@ -244,8 +246,11 @@ async function getAgentDirectory({
       locationProvince: agent.locationProvince,
       locationSuburb: agent.locationSuburb,
       name: agent.name,
-      soldCount: stats.soldCount,
-      totalSoldValueCents: stats.totalSoldValueCents,
+      publicPerformanceVisible: agent.publicPerformanceVisible,
+      soldCount: agent.publicPerformanceVisible ? stats.soldCount : 0,
+      totalSoldValueCents: agent.publicPerformanceVisible
+        ? stats.totalSoldValueCents
+        : 0,
       username: agent.username || "",
     };
   });
@@ -445,9 +450,11 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
                     </span>
                     <span className="inline-flex items-center gap-2 rounded-md bg-muted px-3 py-2">
                       <Award className="size-4 text-primary" />
-                      {agent.soldCount
-                        ? formatCurrencyCompact(agent.totalSoldValueCents)
-                        : "No sales"}
+                      {!agent.publicPerformanceVisible
+                        ? "Private"
+                        : agent.soldCount
+                          ? formatCurrencyCompact(agent.totalSoldValueCents)
+                          : "No sales"}
                     </span>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import { agentProfiles } from "@/db/schema";
 export {
   getActiveAgentSubscription,
   hasActiveAgentSubscription,
+  hasAgentProAccess,
 } from "@/modules/access/agent-access";
 
 export async function getAgentProfileForUser(userId: string) {

@@ -26,7 +26,6 @@ import {
   Send,
   Share2,
   Sparkles,
-  TrendingUp,
   Trophy,
   UsersRound,
   UserRound,
@@ -74,6 +73,7 @@ type UserProfile = {
   hasActiveSubscription: boolean;
   initialTab?: ProfileTab;
   listings: ProfileListing[];
+  publicPerformanceVisible: boolean;
   reels: ProfileReel[];
   savedListings: ProfileListing[];
   savedReels: ProfileReel[];
@@ -165,28 +165,28 @@ type ProfileListing = {
 
 const agentCtaFeatures = [
   {
-    icon: Home,
-    title: "Create listings",
-    description: "Showcase properties that get attention.",
-    className: "bg-primary/10 text-primary",
+    icon: Eye,
+    title: "See active buyers",
+    description: "Know who is viewing and returning.",
+    className: "border-white/15 bg-white/8 text-white",
   },
   {
-    icon: Clapperboard,
-    title: "Post reels",
-    description: "Share videos that build trust and reach.",
-    className: "bg-brand-pink/10 text-brand-pink",
+    icon: BarChart3,
+    title: "Track every signal",
+    description: "Saves, likes, offers, photos, and calculator use.",
+    className: "border-white/15 bg-white/8 text-white",
   },
   {
-    icon: UsersRound,
-    title: "Grow followers",
-    description: "Build your audience and your brand.",
-    className: "bg-orange-100 text-orange-500",
+    icon: MessageCircle,
+    title: "Chat while hot",
+    description: "Start conversations before interest cools.",
+    className: "border-white/15 bg-white/8 text-white",
   },
   {
-    icon: TrendingUp,
-    title: "Capture leads",
-    description: "Get enquiries from serious buyers.",
-    className: "bg-emerald-100 text-emerald-600",
+    icon: Sparkles,
+    title: "Get AI guidance",
+    description: "See what to improve and why.",
+    className: "border-white/15 bg-white/8 text-white",
   },
 ];
 
@@ -221,7 +221,7 @@ function ProfileAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string }
   );
 }
 
-function CreateNewMenu() {
+function CreateNewMenu({ className }: { className?: string } = {}) {
   const createItems = getCreateItems();
 
   return (
@@ -229,8 +229,8 @@ function CreateNewMenu() {
       <div className="hidden sm:block">
         <DropdownMenu.Root modal={false}>
           <DropdownMenu.Trigger asChild>
-            <Button className="min-w-0 px-4">
-              Create New
+            <Button className={cn("min-w-0 px-4", className)}>
+              <span className="truncate">Create New</span>
               <ChevronDown className="size-4" />
             </Button>
           </DropdownMenu.Trigger>
@@ -262,8 +262,8 @@ function CreateNewMenu() {
 
       <Dialog.Root>
         <Dialog.Trigger asChild>
-          <Button className="min-w-0 px-4 sm:hidden">
-            Create New
+          <Button className={cn("min-w-0 px-4 sm:hidden", className)}>
+            <span className="truncate">Create New</span>
             <ChevronDown className="size-4" />
           </Button>
         </Dialog.Trigger>
@@ -672,18 +672,25 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
         </div>
       ) : null}
 
-      <div className="col-span-2 flex max-w-full flex-wrap gap-3 sm:col-span-1 sm:col-start-2">
+      <div className="col-span-2 flex max-w-full min-w-0 flex-nowrap items-center gap-2 sm:col-span-1 sm:col-start-2 sm:gap-3">
         {profile.isOwner ? (
           <>
-            <Button asChild variant="outline" className="min-w-0 sm:w-56">
-              <Link href="/settings">Profile Settings</Link>
+            <Button
+              asChild
+              variant="outline"
+              className="h-10 min-w-0 flex-1 px-3 text-xs sm:w-56 sm:flex-none sm:text-sm"
+            >
+              <Link href="/settings">
+                <span className="truncate">Profile Settings</span>
+              </Link>
             </Button>
-            <CreateNewMenu />
+            <CreateNewMenu className="h-10 min-w-0 flex-1 px-3 text-xs sm:flex-none sm:text-sm" />
             <ShareProfileDialog
               username={profile.username}
               name={profile.name}
+              className="size-10 shrink-0"
             />
-            <Button asChild variant="outline" size="icon" className="shrink-0">
+            <Button asChild variant="outline" size="icon" className="size-10 shrink-0">
               <Link
                 href={`/users/${profile.username}/analytics`}
                 aria-label="Open content analytics"
@@ -1081,6 +1088,27 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
     );
   }
 
+  if (!profile.publicPerformanceVisible && !profile.isOwner) {
+    return (
+      <div className="max-w-lg rounded-lg border border-border bg-card p-4 shadow-sm lg:max-w-none">
+        <div className="flex items-center gap-3">
+          <div className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+            <LockKeyhole className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Agent performance
+            </p>
+            <p className="mt-1 text-sm font-black">Performance private</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+              This agent has chosen not to publish sales performance publicly.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-lg overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-[max-width] duration-300 ease-out lg:max-w-none">
       <button
@@ -1254,26 +1282,24 @@ function PerformanceStatsGrid({
 }
 
 function AgentBrandCta() {
-  const { formatPriceLabel } = useCurrency();
-
   return (
     <section className="page-container pb-8">
-      <div className="relative isolate overflow-hidden rounded-lg border border-primary/10 bg-[#f5f0ff] p-6 shadow-sm md:p-8 lg:grid lg:min-h-[360px] lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-10">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_95%_5%,rgba(255,77,184,0.24),transparent_34%),radial-gradient(circle_at_6%_100%,rgba(78,42,255,0.12),transparent_35%)]" />
+      <div className="relative isolate overflow-hidden rounded-lg border border-white/10 bg-brand-black p-6 text-white shadow-2xl shadow-primary/10 md:p-8 lg:grid lg:min-h-[360px] lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-10">
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_92%_8%,rgba(255,77,184,0.32),transparent_34%),radial-gradient(circle_at_10%_100%,rgba(78,42,255,0.28),transparent_38%)]" />
 
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
-            Build your property brand
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand-pink">
+            Buyer intent locked
           </p>
-          <h2 className="mt-4 max-w-xl text-[1.75rem] font-bold leading-[1.12] tracking-tight text-brand-black sm:text-4xl">
-            Turn your profile into a{" "}
-            <span className="homzie-gradient-text">
-              property creator
-            </span>{" "}
-            portfolio.
+          <h2 className="mt-4 max-w-xl text-[1.75rem] font-bold leading-[1.12] tracking-tight sm:text-4xl">
+            Your listings are live.{" "}
+            <span className="homzie-gradient-text">Your buyer intent</span>{" "}
+            is locked.
           </h2>
-          <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-            Publish freely, then unlock realtime buyer intent, listing insights, and hotter follow-ups when demand starts moving.
+          <p className="mt-4 max-w-xl text-sm leading-6 text-white/72">
+            Publish listings and reels for free. Go Pro when you want to see
+            realtime buyer activity, AI insights, and chat opportunities while
+            buyers are still engaged.
           </p>
 
           <div className="mt-8 hidden grid-cols-4 gap-8 md:grid">
@@ -1283,14 +1309,14 @@ function AgentBrandCta() {
                 <div key={feature.title}>
                   <div
                     className={cn(
-                      "flex size-12 items-center justify-center rounded-lg shadow-sm",
+                      "flex size-9 items-center justify-center rounded-md border shadow-sm",
                       feature.className,
                     )}
                   >
-                    <Icon className="size-5" />
+                    <Icon className="size-4" />
                   </div>
-                  <p className="mt-4 text-xs font-bold text-brand-black">{feature.title}</p>
-                  <p className="mt-1 text-xs leading-5 text-[#6f6f7d]">
+                  <p className="mt-4 text-xs font-bold text-white">{feature.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-white/56">
                     {feature.description}
                   </p>
                 </div>
@@ -1300,10 +1326,17 @@ function AgentBrandCta() {
 
           <div className="mt-8 flex min-w-0 flex-col gap-3 sm:flex-row">
             <Button asChild className="h-11 min-w-0 px-7">
-              <Link href="/go-pro">
-                <Sparkles className="size-4" />
-                Start Building My Brand
+              <Link href="/become-agent">
+                <LockKeyhole className="size-4" />
+                Unlock buyer intent
               </Link>
+            </Button>
+            <Button
+              asChild
+              className="h-11 min-w-0 border-white/20 bg-white/8 px-7 text-white hover:bg-white/12"
+              variant="outline"
+            >
+              <Link href="/go-pro">See Pro features</Link>
             </Button>
           </div>
         </div>
@@ -1311,51 +1344,54 @@ function AgentBrandCta() {
         <div className="relative hidden min-h-[300px] lg:block">
           <div className="absolute left-0 top-24 z-20 rounded-lg bg-white px-4 py-3 text-xs font-bold text-brand-black shadow-xl">
             <span className="flex items-center gap-2">
-              <UsersRound className="size-4 text-primary" />
-              Build your personal brand
+              <MessageCircle className="size-4 text-primary" />
+              Chat while active
             </span>
           </div>
           <div className="absolute right-0 top-5 z-20 rounded-lg bg-white px-4 py-3 text-xs font-bold text-brand-black shadow-xl">
             <span className="flex items-center gap-2">
-              <TrendingUp className="size-4 text-primary" />
-              More visibility
+              <Eye className="size-4 text-primary" />
+              3 active buyers
             </span>
-            <span className="mt-1 block text-muted-foreground">More leads</span>
+            <span className="mt-1 block text-muted-foreground">Viewing now</span>
           </div>
           <div className="absolute right-0 bottom-12 z-20 rounded-lg bg-white px-4 py-3 text-xs font-bold text-brand-black shadow-xl">
             <span className="flex items-center gap-2">
-              <Eye className="size-4 text-emerald-600" />
-              Grow your business
+              <Sparkles className="size-4 text-emerald-600" />
+              AI insight ready
             </span>
           </div>
-          <div className="absolute right-16 top-9 w-[260px] overflow-hidden rounded-lg bg-white text-brand-black shadow-2xl">
-            <div className="relative h-[190px] bg-[linear-gradient(135deg,#2a3657,#8da0ca)]">
-              <div className="absolute inset-x-6 bottom-7 rounded-md bg-brand-black/90 p-4">
-                <div className="h-16 rounded bg-[linear-gradient(135deg,#f29b38,#7b5cff)]" />
+          <div className="absolute right-16 top-9 w-[280px] overflow-hidden rounded-lg border border-white/20 bg-white text-brand-black shadow-2xl">
+            <div className="border-b border-border bg-[linear-gradient(135deg,#f4f0ff,#ffe8f5)] p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+                Buyer activity
+              </p>
+              <p className="mt-1 text-2xl font-black">Intent is locked</p>
+              <div className="mt-4 space-y-2 blur-[2px]">
+                {["Sarah Parker", "James M.", "Lindiwe N."].map((name, index) => (
+                  <div
+                    key={name}
+                    className="flex items-center justify-between rounded-md bg-white/85 px-3 py-2 shadow-sm"
+                  >
+                    <span className="text-xs font-black">{name}</span>
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-black text-primary">
+                      {index === 0 ? "High" : "Live"}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <div className="absolute left-10 top-8 h-16 w-28 rounded-t-lg bg-[#243151]" />
-              <div className="absolute bottom-7 left-10 h-14 w-36 rounded-t-lg bg-[#1d2845]" />
-              <div className="absolute bottom-7 right-10 h-20 w-16 rounded-t-lg bg-[#2b3758]" />
-              <div className="absolute bottom-7 left-14 h-6 w-20 rounded bg-[#f1a14a]/80" />
-              <div className="absolute bottom-7 right-20 h-8 w-20 rounded bg-[#7b5cff]/80" />
-              <div className="absolute inset-x-0 bottom-0 h-7 bg-[#6e84aa]" />
-              <div className="absolute left-6 top-5 rounded-full bg-white/90 p-1.5 text-primary shadow">
-                <Flag className="size-4" />
+              <div className="absolute inset-0 grid place-items-center">
+                <span className="grid size-12 place-items-center rounded-full bg-brand-black text-white shadow-lg">
+                  <LockKeyhole className="size-5" />
+                </span>
               </div>
             </div>
             <div className="p-4">
-              <span className="rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">
-                For Sale
-              </span>
-              <p className="mt-2 text-lg font-bold">
-                {formatPriceLabel("R3,850,000")}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                3 Bed · 2 Bath · 180m2
-              </p>
-              <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span className="truncate">Bloubergstrand, Cape Town</span>
-                <Bookmark className="size-4" />
+              <div className="rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-xs font-black">AI summary</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Upgrade to see which buyers are serious and what they did.
+                </p>
               </div>
             </div>
           </div>

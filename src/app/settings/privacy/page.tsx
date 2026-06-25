@@ -18,6 +18,7 @@ export default async function PrivacySettingsPage() {
     .select({
       profileVisible: users.profileVisible,
       publicContactVisible: users.publicContactVisible,
+      publicPerformanceVisible: users.publicPerformanceVisible,
       searchVisible: users.searchVisible,
       username: users.username,
     })
@@ -32,6 +33,7 @@ export default async function PrivacySettingsPage() {
   const preferences: PrivacyFormValues = {
     profileVisible: profile.profileVisible,
     publicContactVisible: profile.publicContactVisible,
+    publicPerformanceVisible: profile.publicPerformanceVisible,
     searchVisible: profile.searchVisible,
   };
 

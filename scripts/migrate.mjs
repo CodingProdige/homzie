@@ -247,6 +247,11 @@ try {
 
   await sql`
     ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS public_performance_visible boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE users
     ADD COLUMN IF NOT EXISTS search_visible boolean NOT NULL DEFAULT true
   `;
 
@@ -263,6 +268,31 @@ try {
   await sql`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS agent_trial_used_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS pro_access_override_enabled boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS pro_access_override_expires_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS pro_access_override_reason text
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS pro_access_override_updated_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS pro_access_override_updated_by_user_id uuid
   `;
 
   await sql`

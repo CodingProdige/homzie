@@ -14,7 +14,7 @@ import { BackButton } from "@/components/back-button";
 import { HomzieLogo } from "@/components/homzie-logo";
 import { db } from "@/db";
 import { subscriptions, users } from "@/db/schema";
-import { hasActiveAgentSubscription } from "@/modules/agents/queries";
+import { hasAgentProAccess } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { StartAgentCheckoutButton } from "@/modules/billing/components/start-agent-checkout-button";
 import {
@@ -71,9 +71,9 @@ export default async function BecomeAgentPage() {
     redirect("/onboarding/username?callbackUrl=/become-agent");
   }
 
-  const hasSubscription = await hasActiveAgentSubscription(session.user.id);
+  const hasProAccess = await hasAgentProAccess(session.user.id);
 
-  if (hasSubscription) {
+  if (hasProAccess) {
     redirect(`/users/${user.username}?agent=active`);
   }
 

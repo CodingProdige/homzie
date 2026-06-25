@@ -90,6 +90,11 @@ export type AdminTrialAuditState = {
   ok: boolean;
 };
 
+export type AdminProAccessOverrideState = {
+  message: string;
+  ok: boolean;
+};
+
 export type AdminModerationUpdateState = {
   message: string;
   ok: boolean;
@@ -275,6 +280,73 @@ export async function auditIncompleteTrialsAction(): Promise<AdminTrialAuditStat
         error instanceof Error
           ? error.message
           : "Could not audit incomplete trials.",
+    };
+  }
+}
+
+export async function updateAdminProAccessOverride(
+  _previousState: AdminProAccessOverrideState,
+  formData: FormData,
+): Promise<AdminProAccessOverrideState> {
+  try {
+    const adminUserId = await assertActiveAdmin();
+    const userId = formString(formData, "userId");
+    const enabled = formBoolean(formData, "enabled");
+    const reason = formString(formData, "reason").slice(0, 240);
+    const expiresAtRaw = formString(formData, "expiresAt");
+
+    if (!userId) {
+      throw new Error("Choose a user first.");
+    }
+
+    let expiresAt: Date | null = null;
+
+    if (enabled && expiresAtRaw) {
+      expiresAt = new Date(`${expiresAtRaw}T23:59:59.999Z`);
+
+      if (Number.isNaN(expiresAt.getTime())) {
+        throw new Error("Choose a valid expiry date.");
+      }
+    }
+
+    const [updatedUser] = await sql<Array<{ username: string | null }>>`
+      UPDATE users
+      SET
+        pro_access_override_enabled = ${enabled},
+        pro_access_override_expires_at = ${enabled ? expiresAt : null},
+        pro_access_override_reason = ${enabled ? reason || null : null},
+        pro_access_override_updated_at = now(),
+        pro_access_override_updated_by_user_id = ${adminUserId},
+        updated_at = now()
+      WHERE id = ${userId}
+      RETURNING username
+    `;
+
+    if (!updatedUser) {
+      throw new Error("Could not find that user.");
+    }
+
+    revalidatePath("/admin/users");
+    revalidatePath("/listings/activity");
+
+    if (updatedUser.username) {
+      revalidatePath(`/users/${updatedUser.username}`);
+      revalidatePath(`/users/${updatedUser.username}/performance`);
+    }
+
+    return {
+      ok: true,
+      message: enabled
+        ? "Admin granted Pro access is enabled."
+        : "Admin granted Pro access is disabled.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not update admin granted Pro access.",
     };
   }
 }

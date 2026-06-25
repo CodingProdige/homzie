@@ -299,6 +299,7 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
         gt(subscriptions.currentPeriodEnd, now),
         eq(agentProfiles.status, "active"),
         eq(users.status, "active"),
+        eq(users.publicPerformanceVisible, true),
       ),
     )
     .orderBy(desc(subscriptions.currentPeriodEnd))

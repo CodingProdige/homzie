@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils";
 
 type ThemeMode = "light" | "dark" | "system";
 
+const themeCookieName = "homzie-theme";
+const themeMaxAgeSeconds = 60 * 60 * 24 * 365;
+
 const modes: Array<{ mode: ThemeMode; icon: typeof Sun; label: string }> = [
   { mode: "light", icon: Sun, label: "Light mode" },
   { mode: "dark", icon: Moon, label: "Dark mode" },
@@ -18,6 +21,12 @@ function applyTheme(mode: ThemeMode) {
   const shouldUseDark = mode === "dark" || (mode === "system" && prefersDark);
 
   document.documentElement.classList.toggle("dark", shouldUseDark);
+  document.documentElement.style.colorScheme = shouldUseDark ? "dark" : "light";
+}
+
+function persistTheme(mode: ThemeMode) {
+  window.localStorage.setItem("homzie-theme", mode);
+  document.cookie = `${themeCookieName}=${encodeURIComponent(mode)}; Max-Age=${themeMaxAgeSeconds}; Path=/; SameSite=Lax`;
 }
 
 export function ThemeToggle() {
@@ -52,7 +61,7 @@ export function ThemeToggle() {
 
   const updateMode = (nextMode: ThemeMode) => {
     setMode(nextMode);
-    window.localStorage.setItem("homzie-theme", nextMode);
+    persistTheme(nextMode);
     applyTheme(nextMode);
   };
 

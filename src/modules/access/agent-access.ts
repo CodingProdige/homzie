@@ -1,11 +1,16 @@
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { agencyMembers, subscriptions, users } from "@/db/schema";
 import { getStripe } from "@/modules/billing/stripe";
 import { syncStripeSubscription } from "@/modules/billing/subscription-sync";
 
-export type AgentAccessSource = "admin" | "agency" | "subscription" | "none";
+export type AgentAccessSource =
+  | "admin"
+  | "admin_override"
+  | "agency"
+  | "subscription"
+  | "none";
 
 export type AgentAccess = {
   accessSource: AgentAccessSource;
@@ -15,6 +20,7 @@ export type AgentAccess = {
   canViewBuyerIntent: boolean;
   canViewListingPerformance: boolean;
   hasActiveSubscription: boolean;
+  hasAdminGrantedProAccess: boolean;
   hasAgencyFundedSeat: boolean;
   isAdmin: boolean;
 };
@@ -95,6 +101,33 @@ export async function hasActiveAgentSubscription(userId: string) {
   return Boolean(await getActiveAgentSubscription(userId));
 }
 
+export async function hasAdminGrantedProAccess(userId: string) {
+  const now = new Date();
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        eq(users.id, userId),
+        eq(users.status, "active"),
+        eq(users.proAccessOverrideEnabled, true),
+        or(
+          isNull(users.proAccessOverrideExpiresAt),
+          gt(users.proAccessOverrideExpiresAt, now),
+        ),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(user);
+}
+
+export async function hasAgentProAccess(userId: string) {
+  const access = await getAgentAccess(userId);
+
+  return access.canViewBuyerIntent;
+}
+
 export async function getAgentAccess(userId: string): Promise<AgentAccess> {
   const [subscription, fundedSeatRows, userRows] = await Promise.all([
     getActiveAgentSubscription(userId),
@@ -111,23 +144,42 @@ export async function getAgentAccess(userId: string): Promise<AgentAccess> {
       )
       .limit(1),
     db
-      .select({ role: users.role })
+      .select({
+        proAccessOverrideEnabled: users.proAccessOverrideEnabled,
+        proAccessOverrideExpiresAt: users.proAccessOverrideExpiresAt,
+        role: users.role,
+        status: users.status,
+      })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1),
   ]);
 
+  const now = new Date();
+  const user = userRows[0];
   const hasActiveSubscription = Boolean(subscription);
   const hasAgencyFundedSeat = fundedSeatRows.length > 0;
-  const isAdmin = userRows[0]?.role === "admin";
-  const canViewBuyerIntent = isAdmin || hasActiveSubscription || hasAgencyFundedSeat;
+  const hasAdminGrantedProAccess = Boolean(
+    user?.status === "active" &&
+      user.proAccessOverrideEnabled &&
+      (!user.proAccessOverrideExpiresAt ||
+        user.proAccessOverrideExpiresAt > now),
+  );
+  const isAdmin = user?.role === "admin";
+  const canViewBuyerIntent =
+    isAdmin ||
+    hasActiveSubscription ||
+    hasAgencyFundedSeat ||
+    hasAdminGrantedProAccess;
   const accessSource: AgentAccessSource = isAdmin
     ? "admin"
     : hasAgencyFundedSeat
       ? "agency"
-      : hasActiveSubscription
-        ? "subscription"
-        : "none";
+      : hasAdminGrantedProAccess
+        ? "admin_override"
+        : hasActiveSubscription
+          ? "subscription"
+          : "none";
 
   return {
     accessSource,
@@ -137,6 +189,7 @@ export async function getAgentAccess(userId: string): Promise<AgentAccess> {
     canViewBuyerIntent,
     canViewListingPerformance: canViewBuyerIntent,
     hasActiveSubscription,
+    hasAdminGrantedProAccess,
     hasAgencyFundedSeat,
     isAdmin,
   };

@@ -96,6 +96,7 @@ export const users = pgTable("users", {
   whatsappNumber: text("whatsapp_number"),
   publicContactVisible: boolean("public_contact_visible").notNull().default(true),
   profileVisible: boolean("profile_visible").notNull().default(true),
+  publicPerformanceVisible: boolean("public_performance_visible").notNull().default(true),
   searchVisible: boolean("search_visible").notNull().default(true),
   isDemo: boolean("is_demo").notNull().default(false),
   passwordHash: text("password_hash"),
@@ -103,6 +104,17 @@ export const users = pgTable("users", {
   status: userStatusEnum("status").notNull().default("active"),
   emailVerified: boolean("email_verified").notNull().default(false),
   agentTrialUsedAt: timestamp("agent_trial_used_at", { withTimezone: true }),
+  proAccessOverrideEnabled: boolean("pro_access_override_enabled")
+    .notNull()
+    .default(false),
+  proAccessOverrideExpiresAt: timestamp("pro_access_override_expires_at", {
+    withTimezone: true,
+  }),
+  proAccessOverrideReason: text("pro_access_override_reason"),
+  proAccessOverrideUpdatedAt: timestamp("pro_access_override_updated_at", {
+    withTimezone: true,
+  }),
+  proAccessOverrideUpdatedByUserId: uuid("pro_access_override_updated_by_user_id"),
   adsBillingAnchorAt: timestamp("ads_billing_anchor_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

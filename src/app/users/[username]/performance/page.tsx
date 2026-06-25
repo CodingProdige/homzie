@@ -64,6 +64,7 @@ async function getPerformanceProfile(usernameParam: string) {
       id: users.id,
       avatarUrl: users.avatarUrl,
       name: users.name,
+      publicPerformanceVisible: users.publicPerformanceVisible,
       username: users.username,
     })
     .from(users)
@@ -301,6 +302,13 @@ export async function generateMetadata({
     };
   }
 
+  if (!profile.publicPerformanceVisible) {
+    return {
+      title: `${profile.name} profile | Homzie`,
+      description: `${profile.name} has chosen to keep sales performance private.`,
+    };
+  }
+
   return {
     title: `${profile.name} performance | Homzie`,
     description: `View ${profile.name}'s verified Homzie agent performance.`,
@@ -347,6 +355,34 @@ export default async function AgentPerformancePage({
             <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
               Agent performance is available for subscribed Homzie Agent profiles
               once sales and mandate outcomes are tracked.
+            </p>
+            <Button asChild className="mt-6">
+              <Link href={`/users/${profile.username}`}>Back to profile</Link>
+            </Button>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (!profile.publicPerformanceVisible && !isOwner) {
+    return (
+      <main className={pageClassName}>
+        <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-6 pt-20 sm:px-8 sm:pb-8">
+          <PageTopBar
+            actions={<CurrencySelector />}
+            className="fixed inset-x-0 top-0 z-50 mx-auto max-w-3xl px-5 sm:px-8"
+          />
+          <section className="my-auto rounded-lg border border-border bg-white p-6 text-center shadow-sm sm:p-10">
+            <div className="mx-auto grid size-16 place-items-center rounded-full bg-muted text-muted-foreground">
+              <LockKeyhole className="size-7" />
+            </div>
+            <h1 className="mt-5 text-2xl font-black tracking-tight">
+              Performance private
+            </h1>
+            <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+              This agent has chosen not to publish sales performance publicly.
+              Their listings and profile remain available.
             </p>
             <Button asChild className="mt-6">
               <Link href={`/users/${profile.username}`}>Back to profile</Link>

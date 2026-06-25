@@ -70,6 +70,7 @@ const getUserProfile = cache(async function getUserProfile(usernameParam: string
       contactPhone: users.contactPhone,
       whatsappNumber: users.whatsappNumber,
       publicContactVisible: users.publicContactVisible,
+      publicPerformanceVisible: users.publicPerformanceVisible,
     })
     .from(users)
     .where(
@@ -867,6 +868,26 @@ export default async function UserProfilePage({
   const publicProfileUrl = absoluteUrl(`/users/${profile.username}`);
   const avatarImage = toPublicMediaUrl(profile.avatarUrl);
   const locationLabel = profileLocationLabel(profile);
+  const canExposePublicPerformance = profile.publicPerformanceVisible || isOwner;
+  const visibleAgentStats = canExposePublicPerformance
+    ? agentStats
+    : {
+        avgDaysToSellLabel: "Private",
+        completedMandates: 0,
+        completedMandatesLabel: "Private",
+        disputedCount: 0,
+        expiredCount: 0,
+        soldCount: 0,
+        soldExternallyCount: 0,
+        soldThisYear: 0,
+        soldThisYearLabel: "Private",
+        totalSoldValueThisYearCents: 0,
+        totalSoldValueThisYearLabel: "Private",
+        verifiedSales: 0,
+        verifiedSalesLabel: "Private",
+        withdrawnCount: 0,
+        winRateLabel: "Private",
+      };
   const profileJsonLd = {
     "@context": "https://schema.org",
     "@type": "RealEstateAgent",
@@ -895,51 +916,52 @@ export default async function UserProfilePage({
         }}
       />
       <UserProfile
-      profile={{
-        id: profile.id,
-        agencyBrand: profileAgencyBrands.get(profile.id) || undefined,
-        name: profile.name,
-        username: profile.username,
-        avatarUrl: toPublicMediaUrl(profile.avatarUrl) || undefined,
-        bio: profile.bio || undefined,
-        location: locationLabel || undefined,
-        followerCount: socialStats.followers,
-        followingCount: socialStats.following,
-        connections,
-        postCount: socialStats.posts,
-        contactEmail: profile.publicContactVisible
-          ? profile.contactEmail || undefined
-          : undefined,
-        contactPhone: profile.publicContactVisible
-          ? profile.contactPhone || undefined
-          : undefined,
-        whatsappNumber: profile.publicContactVisible
-          ? profile.whatsappNumber || undefined
-          : undefined,
-        agentStats,
-        isOwner,
-        isFollowing: viewerFollowingProfile,
-        hasActiveSubscription: hasAgentAccess,
-        initialTab:
-          query.tab === "listings" || query.tab === "saved"
-            ? query.tab
+        profile={{
+          id: profile.id,
+          agencyBrand: profileAgencyBrands.get(profile.id) || undefined,
+          name: profile.name,
+          username: profile.username,
+          avatarUrl: toPublicMediaUrl(profile.avatarUrl) || undefined,
+          bio: profile.bio || undefined,
+          location: locationLabel || undefined,
+          followerCount: socialStats.followers,
+          followingCount: socialStats.following,
+          connections,
+          postCount: socialStats.posts,
+          contactEmail: profile.publicContactVisible
+            ? profile.contactEmail || undefined
             : undefined,
-        archiveFeedback: query.listingArchived
-          ? archiveFeedbackMessage(query.archiveStatus)
-          : undefined,
-        listings: profileListings,
-        reels: profileReels,
-        savedListings,
-        savedReels,
-        viewerRole: viewer?.role || undefined,
-        viewerHasAgencyWorkspace: Boolean(viewerAgencyWorkspace),
-        viewerSignedIn: Boolean(viewerUserId),
-        viewerUsername: viewer?.username || undefined,
-        viewerAvatarUrl:
-          toPublicMediaUrl(viewer?.avatarUrl) ||
-          toPublicMediaUrl(session?.user?.image) ||
-          undefined,
-      }}
+          contactPhone: profile.publicContactVisible
+            ? profile.contactPhone || undefined
+            : undefined,
+          whatsappNumber: profile.publicContactVisible
+            ? profile.whatsappNumber || undefined
+            : undefined,
+          agentStats: visibleAgentStats,
+          isOwner,
+          isFollowing: viewerFollowingProfile,
+          hasActiveSubscription: hasAgentAccess,
+          publicPerformanceVisible: profile.publicPerformanceVisible,
+          initialTab:
+            query.tab === "listings" || query.tab === "saved"
+              ? query.tab
+              : undefined,
+          archiveFeedback: query.listingArchived
+            ? archiveFeedbackMessage(query.archiveStatus)
+            : undefined,
+          listings: profileListings,
+          reels: profileReels,
+          savedListings,
+          savedReels,
+          viewerRole: viewer?.role || undefined,
+          viewerHasAgencyWorkspace: Boolean(viewerAgencyWorkspace),
+          viewerSignedIn: Boolean(viewerUserId),
+          viewerUsername: viewer?.username || undefined,
+          viewerAvatarUrl:
+            toPublicMediaUrl(viewer?.avatarUrl) ||
+            toPublicMediaUrl(session?.user?.image) ||
+            undefined,
+        }}
       />
     </>
   );

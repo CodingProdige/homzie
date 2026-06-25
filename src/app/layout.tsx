@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Poppins } from "next/font/google";
+import { cookies } from "next/headers";
 import Script from "next/script";
 import { Suspense } from "react";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
@@ -75,21 +76,49 @@ const googleAnalyticsId =
 const googleAdsId =
   process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-18217057293";
 const googleTagId = googleAnalyticsId || googleAdsId;
+const themeCookieName = "homzie-theme";
+const validThemeModes = new Set(["light", "dark", "system"]);
+const themeBootstrapScript = `
+  (function() {
+    try {
+      var cookieMatch = document.cookie.match(/(?:^|; )homzie-theme=([^;]*)/);
+      var cookieMode = cookieMatch ? decodeURIComponent(cookieMatch[1]) : "";
+      var storedMode = window.localStorage.getItem("homzie-theme");
+      var mode = storedMode || cookieMode || "light";
+      if (mode !== "light" && mode !== "dark" && mode !== "system") mode = "light";
+      var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      var useDark = mode === "dark" || (mode === "system" && prefersDark);
+      document.documentElement.classList.toggle("dark", useDark);
+      document.documentElement.style.colorScheme = useDark ? "dark" : "light";
+    } catch (_) {}
+  })();
+`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const seoPromise = getStoredSeoSettings();
   const siteUrl = getSiteUrl();
+  const cookieStore = await cookies();
+  const themeCookie = cookieStore.get(themeCookieName)?.value;
+  const themeMode = themeCookie && validThemeModes.has(themeCookie) ? themeCookie : "light";
+  const serverUsesDark = themeMode === "dark";
 
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${poppins.variable} ${geistMono.variable} h-full antialiased${serverUsesDark ? " dark" : ""}`}
+      style={{ colorScheme: serverUsesDark ? "dark" : "light" }}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <Script
+          id="homzie-theme-bootstrap"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
+        />
         {googleTagId ? (
           <>
             <Script

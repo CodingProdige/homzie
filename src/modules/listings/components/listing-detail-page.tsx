@@ -735,7 +735,10 @@ function LockedOwnerLiveIntentPanel() {
               active buyers, returning viewers, and AI-assisted intent signals.
             </p>
             <Button asChild className="mt-5 h-11 w-full">
-              <Link href="/settings/billing">Unlock buyer intent</Link>
+              <Link href="/become-agent">Start 7-day free trial</Link>
+            </Button>
+            <Button asChild className="mt-2 h-10 w-full" variant="outline">
+              <Link href="/go-pro">View Pro features</Link>
             </Button>
           </div>
         </div>

@@ -836,21 +836,19 @@ function SubscriptionDetails({ billing }: { billing: BillingData | null }) {
 
 function CompactAgentUpgradeCta({ trialEligible }: { trialEligible: boolean }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-primary/15 bg-secondary p-5 shadow-sm sm:p-6">
+    <section className="overflow-hidden rounded-lg border border-primary/15 bg-brand-black p-5 text-white shadow-sm sm:p-6">
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-            Build your property brand
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-pink">
+            Buyer intent locked
           </p>
           <h2 className="mt-2 max-w-xl text-2xl font-bold leading-tight tracking-tight">
-            Turn your profile into a{" "}
-            <span className="homzie-gradient-text">property agent</span>{" "}
-            portfolio.
+            Go Pro to unlock realtime buyer demand.
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70">
             {trialEligible
-              ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()}, then publish listings, post property reels, capture leads, and manage your agent billing from this page.`
-              : "Subscribe instantly to publish listings, post property reels, capture leads, and manage your agent billing from this page."}
+              ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()} to see active buyers, buyer timelines, AI insights, and chat opportunities.`
+              : "Subscribe to see active buyers, buyer timelines, AI insights, and chat opportunities."}
           </p>
         </div>
         <Button asChild className="h-11 px-6">

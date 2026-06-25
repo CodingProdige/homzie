@@ -14,19 +14,15 @@ export type PrivacySettingsState = {
   ok: boolean;
 };
 
-export const emptyPrivacySettingsState: PrivacySettingsState = {
-  message: "",
-  ok: false,
-};
-
 const privacySettingsSchema = z.object({
   profileVisible: z.boolean(),
   publicContactVisible: z.boolean(),
+  publicPerformanceVisible: z.boolean(),
   searchVisible: z.boolean(),
 });
 
 export async function updatePrivacySettings(
-  _previousState: PrivacySettingsState = emptyPrivacySettingsState,
+  _previousState: PrivacySettingsState,
   formData: FormData,
 ): Promise<PrivacySettingsState> {
   void _previousState;
@@ -40,6 +36,7 @@ export async function updatePrivacySettings(
   const parsed = privacySettingsSchema.safeParse({
     profileVisible: formData.get("profileVisible") === "on",
     publicContactVisible: formData.get("publicContactVisible") === "on",
+    publicPerformanceVisible: formData.get("publicPerformanceVisible") === "on",
     searchVisible: formData.get("searchVisible") === "on",
   });
 
@@ -65,6 +62,7 @@ export async function updatePrivacySettings(
     .set({
       profileVisible: parsed.data.profileVisible,
       publicContactVisible: parsed.data.publicContactVisible,
+      publicPerformanceVisible: parsed.data.publicPerformanceVisible,
       searchVisible: parsed.data.searchVisible,
       updatedAt: new Date(),
     })

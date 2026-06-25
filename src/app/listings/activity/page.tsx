@@ -4,8 +4,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { ArrowRight, Eye, Lock, Radar, TrendingDown, TrendingUp, UsersRound } from "lucide-react";
+import { Eye, Lock, Radar, TrendingDown, TrendingUp, UsersRound } from "lucide-react";
 
+import { BackButton } from "@/components/back-button";
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
@@ -710,13 +711,7 @@ function LockedListingActivityState({
         viewerUsername={viewerUsername}
       />
       <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-20 sm:px-6 lg:px-8 lg:pt-28">
-        <Link
-          href="/listings"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
-        >
-          <ArrowRight className="size-4 rotate-180" />
-          Back to listings
-        </Link>
+        <BackButton className="font-semibold text-muted-foreground hover:text-primary" />
 
         <section className="mt-6 rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-start gap-4">
@@ -731,16 +726,16 @@ function LockedListingActivityState({
                 Unlock realtime activity across your listings
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                This page is for buyer activity on listings you own. It is separate
-                from the future global active buyers and active sellers discovery
-                tools.
+                Your listings can stay live for free. Go Pro when you want to see
+                active buyers, buyer events, AI insights, and chat opportunities
+                across the listings you own.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button asChild>
-                  <Link href="/settings/billing">Open billing</Link>
+                  <Link href="/become-agent">Start 7-day free trial</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/go-pro">View Pro plan</Link>
+                  <Link href="/go-pro">View Pro features</Link>
                 </Button>
               </div>
             </div>
