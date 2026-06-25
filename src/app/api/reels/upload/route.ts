@@ -5,7 +5,6 @@ import { randomUUID } from "node:crypto";
 import { getServerSession } from "next-auth";
 
 import { getMediaStorageRoot } from "@/media/storage";
-import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 
 export const runtime = "nodejs";
@@ -29,13 +28,6 @@ export async function POST(request: Request) {
 
   if (!session?.user?.id) {
     return Response.json({ error: "Sign in to upload a reel." }, { status: 401 });
-  }
-
-  if (!(await hasActiveAgentSubscription(session.user.id))) {
-    return Response.json(
-      { error: "An active agent subscription is required." },
-      { status: 403 },
-    );
   }
 
   const formData = await request.formData();

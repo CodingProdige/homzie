@@ -25,6 +25,7 @@ import {
   calculateReservationFees,
   getStoredReservationSettings,
 } from "@/modules/platform-settings/reservation-settings";
+import { getAgentAccess } from "@/modules/access/agent-access";
 
 export type ListingMediaItem = {
   name: string;
@@ -53,6 +54,7 @@ export type ListingDetailData = {
   bathrooms: number | null;
   bedrooms: number | null;
   buyerIncentive: string;
+  canViewBuyerIntent: boolean;
   city: string;
   communityFeesCents: number | null;
   country: string;
@@ -324,9 +326,11 @@ export async function getListingDetail({
     .select({ count: sql<number>`count(*)::int` })
     .from(propertyOffers)
     .where(eq(propertyOffers.listingId, listingId));
+  const access = viewerUserId && isOwner ? await getAgentAccess(viewerUserId) : null;
 
   return await mapListingRow(row, {
     agencyBrand: (await getEffectiveAgencyBrandsForUsers([row.userId])).get(row.userId) || null,
+    canViewBuyerIntent: Boolean(access?.canViewBuyerIntent),
     isOwner,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: Boolean(like),
@@ -399,6 +403,7 @@ export async function getOwnedListingDetail({
 
   return await mapListingRow(row, {
     agencyBrand: (await getEffectiveAgencyBrandsForUsers([row.userId])).get(row.userId) || null,
+    canViewBuyerIntent: true,
     isOwner: true,
     isUnavailableForViewer: row.status !== "published",
     likedByViewer: false,
@@ -413,6 +418,7 @@ async function mapListingRow(
   row: NonNullable<ListingRow>,
   viewerState: {
     agencyBrand: EffectiveAgencyBrand | null;
+    canViewBuyerIntent: boolean;
     isOwner: boolean;
     isUnavailableForViewer: boolean;
     likedByViewer: boolean;
@@ -470,6 +476,7 @@ async function mapListingRow(
     bathrooms: numberValue(details.bathrooms),
     bedrooms: numberValue(details.bedrooms),
     buyerIncentive: stringValue(details.buyerIncentive),
+    canViewBuyerIntent: viewerState.canViewBuyerIntent,
     city: stringValue(details.city),
     communityFeesCents: numberValue(details.communityFeesCents),
     country: stringValue(details.country),

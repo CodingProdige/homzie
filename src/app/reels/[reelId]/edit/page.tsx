@@ -7,7 +7,6 @@ import { Trash2 } from "lucide-react";
 import { db } from "@/db";
 import { reels, users } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
-import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import {
   ReelMvpEditor,
@@ -196,10 +195,6 @@ export default async function EditReelPage({ params }: EditReelPageProps) {
 
   if (!session?.user?.id) {
     redirect("/sign-in");
-  }
-
-  if (!(await hasActiveAgentSubscription(session.user.id))) {
-    redirect("/become-agent");
   }
 
   const { reelId } = await params;

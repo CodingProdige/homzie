@@ -36,7 +36,7 @@ import {
   getAgentPerformanceStats,
   getAgentSoldPropertyHistory,
 } from "@/modules/agents/performance";
-import { hasActiveAgentSubscription } from "@/modules/agents/queries";
+import { getAgentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
@@ -322,7 +322,7 @@ export default async function AgentPerformancePage({
 
   const session = await getServerSession(authOptions);
   const isOwner = session?.user?.id === profile.id;
-  const hasSubscription = await hasActiveAgentSubscription(profile.id);
+  const hasSubscription = (await getAgentAccess(profile.id)).canViewListingPerformance;
   const pageClassName =
     "relative min-h-screen overflow-x-hidden bg-[#fbfbfe] text-brand-black";
   const surfaceClassName = "rounded-lg border border-border bg-white shadow-sm";

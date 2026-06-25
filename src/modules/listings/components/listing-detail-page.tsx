@@ -618,6 +618,132 @@ function ActivityFeedRow({ activity }: { activity: LiveIntentActivity }) {
   );
 }
 
+function LockedOwnerLiveIntentPanel() {
+  const sampleRows = [
+    { label: "Returning buyer", meta: "Viewed multiple times" },
+    { label: "Active buyer", meta: "Browsing listing now" },
+  ];
+
+  return (
+    <section className="mt-5 w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-black/5 sm:mt-6">
+      <div className="relative min-w-0 p-3 sm:p-6">
+        <div className="pointer-events-none select-none blur-[2px]">
+          <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-5">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
+                  <span className="size-2.5 rounded-full bg-primary shadow-[0_0_12px_rgba(123,92,255,0.7)] sm:size-3" />
+                  Buyer activity
+                </span>
+                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
+                  Live
+                </span>
+              </div>
+              <h2 className="mt-2 text-lg font-black tracking-tight sm:mt-3 sm:text-3xl">
+                Buyer intent is being captured
+              </h2>
+              <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-black text-emerald-600 sm:mt-2 sm:gap-2 sm:text-sm">
+                <TrendingUp className="size-3.5 sm:size-4" />
+                <span className="min-w-0 truncate">Unlock to see who is serious</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Eye className="size-4 text-muted-foreground sm:size-5" />
+              <div>
+                <p className="text-[11px] font-black sm:text-sm">Live listing views</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                  Buyer activity
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid min-w-0 gap-4 sm:mt-8 sm:gap-5 lg:grid-cols-2">
+            <div className="min-w-0 rounded-lg border border-rose-200 bg-rose-50/20 p-3 sm:p-4">
+              <div className="mb-3 flex items-start justify-between gap-2.5 sm:mb-4 sm:gap-3">
+                <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+                  <span className="grid h-7 w-7 min-w-7 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 sm:h-9 sm:w-9 sm:min-w-9">
+                    <Flame className="size-3.5 shrink-0 sm:size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-black uppercase tracking-wide text-rose-600 sm:text-sm">
+                      High intent
+                    </h3>
+                    <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                      Serious buyers showing strong interest
+                    </p>
+                  </div>
+                </div>
+                <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-rose-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+                  ?
+                </span>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-rose-100 bg-card">
+                {sampleRows.map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex min-w-0 items-center justify-between gap-3 border-b border-border/70 px-3 py-3 last:border-b-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black">{row.label}</p>
+                      <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
+                        {row.meta}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-black text-primary-foreground">
+                      Chat
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-w-0 rounded-lg border border-blue-200 bg-blue-50/10 p-3 sm:p-4">
+              <div className="mb-3 flex items-start justify-between gap-2.5 sm:mb-4 sm:gap-3">
+                <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+                  <span className="grid h-7 w-7 min-w-7 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-600 sm:h-9 sm:w-9 sm:min-w-9">
+                    <Eye className="size-3.5 shrink-0 sm:size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-black uppercase tracking-wide text-blue-600 sm:text-sm">
+                      Low intent
+                    </h3>
+                    <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                      Browsing and exploring
+                    </p>
+                  </div>
+                </div>
+                <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-blue-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+                  ?
+                </span>
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-card p-3 text-xs font-semibold leading-5 text-muted-foreground sm:p-4 sm:text-sm">
+                First-time active buyers will appear here once unlocked.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute inset-0 z-10 grid place-items-center bg-background/65 p-5 text-center backdrop-blur-[1px]">
+          <div className="max-w-sm">
+            <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
+              <Lock className="size-5" />
+            </span>
+            <h3 className="mt-3 text-lg font-black">Unlock buyer activity</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              Keep publishing listings for free. Upgrade when you want to see
+              active buyers, returning viewers, and AI-assisted intent signals.
+            </p>
+            <Button asChild className="mt-5 h-11 w-full">
+              <Link href="/settings/billing">Unlock buyer intent</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function OwnerLiveIntentPanel({
   intent,
   listingId,
@@ -1718,7 +1844,7 @@ export function ListingDetailPage({
     };
   }, [listing.id]);
   useEffect(() => {
-    if (!listing.isOwner) return;
+    if (!listing.isOwner || !listing.canViewBuyerIntent) return;
 
     const refreshLiveIntent = () => {
       startLiveIntentTransition(async () => {
@@ -1743,7 +1869,7 @@ export function ListingDetailPage({
     const interval = window.setInterval(refreshLiveIntent, 8000);
 
     return () => window.clearInterval(interval);
-  }, [listing.id, listing.isOwner]);
+  }, [listing.canViewBuyerIntent, listing.id, listing.isOwner]);
   const showPreviousMedia = () => {
     recordListingAction("gallery_previous");
     setActiveMediaIndex((index) =>
@@ -2011,10 +2137,14 @@ export function ListingDetailPage({
             </section>
 
             {listing.isOwner ? (
-              <OwnerLiveIntentPanel
-                intent={liveIntent}
-                listingId={listing.id}
-              />
+              listing.canViewBuyerIntent ? (
+                <OwnerLiveIntentPanel
+                  intent={liveIntent}
+                  listingId={listing.id}
+                />
+              ) : (
+                <LockedOwnerLiveIntentPanel />
+              )
             ) : null}
 
             <section className="mt-8">

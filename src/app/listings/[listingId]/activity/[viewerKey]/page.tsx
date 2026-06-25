@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/canonical-table";
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
+import { getAgentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import {
@@ -26,6 +27,7 @@ import {
 } from "@/modules/listings/components/listing-activity-ui";
 import { ActivityRealtimeRefresh } from "@/modules/listings/components/activity-realtime-refresh";
 import { AiInsightRefreshButton } from "@/modules/listings/components/ai-insight-refresh-button";
+import { LockedBuyerIntentPage } from "@/modules/listings/components/locked-buyer-intent-page";
 import { ListingPreviewCard } from "@/modules/listings/components/listing-preview-card";
 
 export const dynamic = "force-dynamic";
@@ -572,7 +574,7 @@ export default async function ListingViewerActivityPage({
     );
   }
 
-  const [viewer, listingRows] = await Promise.all([
+  const [viewer, listingRows, access] = await Promise.all([
     getViewerChrome(userId),
     sql<
       {
@@ -590,11 +592,23 @@ export default async function ListingViewerActivityPage({
       WHERE id = ${listingId}
       LIMIT 1
     `,
+    getAgentAccess(userId),
   ]);
   const listing = listingRows[0];
 
   if (!listing || listing.user_id !== userId) {
     notFound();
+  }
+
+  if (!access.canViewBuyerIntent) {
+    return (
+      <LockedBuyerIntentPage
+        backHref={`/listings/${listingId}/activity`}
+        viewerHasAgencyWorkspace={Boolean(viewer.hasAgencyWorkspace)}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
+    );
   }
 
   await sql`

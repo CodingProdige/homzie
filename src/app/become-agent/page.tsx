@@ -27,28 +27,28 @@ import { CurrencySelector } from "@/modules/currency/currency-selector";
 const features = [
   {
     icon: Home,
-    title: "Publish listings",
-    description: "Showcase properties that get attention.",
+    title: "Publish freely",
+    description: "Keep listings and reels open while Pro unlocks demand.",
   },
   {
     icon: Clapperboard,
-    title: "Post property reels",
-    description: "Create content that builds trust and reach.",
+    title: "See buyer intent",
+    description: "Unlock live activity, timelines, and buyer insights.",
   },
   {
     icon: TrendingUp,
-    title: "Boost visibility",
-    description: "Get discovered by more buyers and renters.",
+    title: "Follow up faster",
+    description: "Act while interest is live, not after it goes cold.",
   },
 ];
 
 const planBenefits = [
-  "Public agent profile with your name, handle, bio, location, stats, listings, reels, and saved trust signals.",
-  "Publish active property listings and keep them linked to your profile for buyers and renters to browse.",
-  "Upload property reels and link each video to a listing so viewers can move from discovery to enquiry.",
-  "Receive leads and viewing booking requests from interested users once those flows are enabled.",
-  "Access agent dashboard tools for profile editing, listing management, video management, and performance insights.",
-  "Eligible for future boosts and paid visibility features without changing your account type again.",
+  "Keep your public agent profile, listings, and reels live while Pro unlocks the demand layer behind them.",
+  "See active buyers, returning viewers, listing activity, and buyer timelines across listings you own.",
+  "Unlock AI buyer insights and listing performance guidance so you know what activity actually means.",
+  "Start conversations from buyer-intent surfaces while the buyer is active or recently engaged.",
+  "Access listing buyer activity overview pages and owner-only live buyer panels.",
+  "Stay eligible for future agency-funded seats, branch control room access, and paid visibility features.",
 ];
 
 export default async function BecomeAgentPage() {
@@ -98,26 +98,23 @@ export default async function BecomeAgentPage() {
         </div>
 
         <div className="relative z-10 flex min-h-screen min-w-0 flex-col px-5 pb-8 pt-20 sm:px-12 sm:pt-24 lg:px-12 lg:pb-8 xl:px-16">
-          <div className="mt-12 max-w-xl min-w-0 lg:mt-16">
+          <div className="homzie-fade-up mt-12 max-w-xl min-w-0 lg:mt-16">
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand-pink">
               Homzie Agents
             </p>
             <h1 className="mt-4 max-w-full text-3xl font-bold leading-[1.05] tracking-tight min-[420px]:text-4xl sm:text-5xl lg:text-6xl">
-              <span className="block">Turn your profile</span>
-              <span className="block">into a</span>
-              <span className="homzie-gradient-text block">
-                property agent
-              </span>{" "}
-              <span className="block">portfolio.</span>
+              <span className="block">Unlock live</span>
+              <span className="homzie-gradient-text block">buyer intent</span>
+              <span className="block">on your listings.</span>
             </h1>
             <p className="mt-5 max-w-lg break-words text-sm leading-7 text-white/78 sm:text-base">
               {trialEligible
                 ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()}, then pay `
                 : "Subscribe instantly for "}
               <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
-              /month to publish
-              listings, post reels, link videos to properties, capture leads,
-              and build visibility on Homzie.
+              /month to see active buyers, buyer timelines, AI insights, and
+              listing performance signals while your listings and reels stay
+              free to publish.
             </p>
           </div>
 
@@ -127,7 +124,7 @@ export default async function BecomeAgentPage() {
               return (
                 <div
                   key={feature.title}
-                  className="group flex min-w-0 items-center gap-4 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] p-4 backdrop-blur sm:p-5 lg:block lg:rounded-none lg:border-y-0 lg:border-l-0 lg:border-r lg:bg-transparent lg:px-5 lg:first:pl-0 lg:last:border-r-0"
+                  className="homzie-hover-lift group flex min-w-0 items-center gap-4 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] p-4 backdrop-blur sm:p-5 lg:block lg:rounded-none lg:border-y-0 lg:border-l-0 lg:border-r lg:bg-transparent lg:px-5 lg:first:pl-0 lg:last:border-r-0"
                 >
                   <div className="flex size-14 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] text-brand-pink shadow-lg shadow-black/10 lg:size-12">
                     <Icon className="size-6" />
@@ -151,11 +148,11 @@ export default async function BecomeAgentPage() {
         </div>
 
         <div className="relative z-10 flex min-h-screen min-w-0 items-center px-4 pb-8 sm:px-10 lg:px-10 lg:py-8 xl:px-14">
-          <div className="w-full min-w-0 overflow-hidden rounded-lg bg-white p-6 text-brand-black shadow-2xl shadow-black/25 sm:p-10 lg:p-8 xl:p-10">
+          <div className="homzie-fade-up homzie-delay-1 w-full min-w-0 overflow-hidden rounded-lg bg-white p-6 text-brand-black shadow-2xl shadow-black/25 sm:p-10 lg:p-8 xl:p-10">
             <>
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-bold text-primary">Agent plan</p>
+                    <p className="text-sm font-bold text-primary">Homzie Pro</p>
                     <p className="mt-2 text-sm font-semibold text-muted-foreground">
                       {trialEligible
                         ? `${agentSubscriptionTrialLabel} on monthly and yearly plans.`
@@ -171,8 +168,8 @@ export default async function BecomeAgentPage() {
                     </div>
                   </div>
                   <span className="inline-flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-primary">
-                    <Sparkles className="size-3.5" />
-                    Agent tools
+                      <Sparkles className="size-3.5" />
+                    Buyer intent tools
                   </span>
                 </div>
 

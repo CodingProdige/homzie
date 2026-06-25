@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useActionState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -513,10 +513,6 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
       );
     });
   }, [accountType, query, role, status, subscription, users]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [accountType, query, role, status, subscription]);
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);

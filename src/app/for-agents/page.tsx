@@ -159,7 +159,7 @@ export default async function ForAgentsPage() {
           <div className="absolute inset-0 bg-black/62" />
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent" />
 
-          <div className="relative z-10 mx-auto flex min-h-[92svh] w-full max-w-7xl flex-col justify-end px-4 pb-20 pt-28 sm:px-6 lg:px-8">
+          <div className="homzie-fade-up relative z-10 mx-auto flex min-h-[92svh] w-full max-w-7xl flex-col justify-end px-4 pb-20 pt-28 sm:px-6 lg:px-8">
             <p className="text-xs font-black uppercase tracking-[0.24em] text-white/75">
               Homzie for estate agents
             </p>
@@ -191,7 +191,7 @@ export default async function ForAgentsPage() {
             return (
               <article
                 key={card.title}
-                className="rounded-lg border border-border bg-card p-5 shadow-xl shadow-primary/5"
+                className="homzie-hover-lift rounded-lg border border-border bg-card p-5 shadow-xl shadow-primary/5"
               >
                 <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary">
                   <Icon className="size-5" />
@@ -229,7 +229,7 @@ export default async function ForAgentsPage() {
             />
           </div>
 
-          <div className="mt-8 overflow-hidden rounded-lg border border-border bg-brand-black shadow-2xl shadow-primary/10">
+          <div className="homzie-fade-up homzie-delay-1 mt-8 overflow-hidden rounded-lg border border-border bg-brand-black shadow-2xl shadow-primary/10">
             <AgentWalkthroughVideo
               className="aspect-video w-full bg-brand-black object-contain"
             />
@@ -254,7 +254,7 @@ export default async function ForAgentsPage() {
                 return (
                   <article
                     key={feature.title}
-                    className="rounded-lg border border-border bg-card p-5 shadow-sm"
+                    className="homzie-hover-lift rounded-lg border border-border bg-card p-5 shadow-sm"
                   >
                     <Icon className="size-5 text-primary" />
                     <h3 className="mt-4 text-lg font-black">{feature.title}</h3>
@@ -300,7 +300,7 @@ export default async function ForAgentsPage() {
             ].map((item) => (
               <div
                 key={item}
-                className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 shadow-sm"
+                className="homzie-hover-lift flex items-start gap-3 rounded-lg border border-border bg-card p-4 shadow-sm"
               >
                 <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
                 <p className="text-sm font-black leading-6">{item}</p>
@@ -318,7 +318,7 @@ export default async function ForAgentsPage() {
               Stop waiting for cold enquiries.
             </h2>
 
-            <div className="mt-8 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <div className="homzie-fade-up homzie-delay-1 mt-8 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
               {comparisonRows.map((row, index) => (
                 <div
                   key={row.old}
@@ -353,7 +353,7 @@ export default async function ForAgentsPage() {
 
         <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <AgentPricingViewedTracker />
-          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-primary/5">
+          <div className="homzie-hover-lift overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-primary/5">
             <div className="grid gap-0 lg:grid-cols-[1fr_0.85fr]">
               <div className="p-6 sm:p-8 lg:p-10">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">

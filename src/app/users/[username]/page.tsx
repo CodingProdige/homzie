@@ -21,7 +21,7 @@ import {
   getEffectiveAgencyBrandsForUsers,
   getPrimaryAgencyWorkspace,
 } from "@/modules/agencies/server";
-import { hasActiveAgentSubscription } from "@/modules/agents/queries";
+import { getAgentAccess } from "@/modules/access/agent-access";
 import { getAgentPerformanceStats } from "@/modules/agents/performance";
 import { UserProfilePage as UserProfile } from "@/modules/users/components/user-profile-page";
 import { toPublicMediaUrl } from "@/media/paths";
@@ -796,7 +796,7 @@ export default async function UserProfilePage({
   const isOwner = session?.user?.id === profile.id;
   const viewerUserId = session?.user?.id || null;
   const [
-    hasSubscription,
+    agentAccess,
     profileAgencyBrands,
     viewer,
     viewerAgencyWorkspace,
@@ -807,7 +807,7 @@ export default async function UserProfilePage({
     socialStats,
     connections,
   ] = await Promise.all([
-    hasActiveAgentSubscription(profile.id),
+    getAgentAccess(profile.id),
     getEffectiveAgencyBrandsForUsers([profile.id]),
     viewerUserId
       ? db
@@ -850,7 +850,8 @@ export default async function UserProfilePage({
     getProfileSocialStats(profile.id),
     getProfileConnections(profile.id, viewerUserId),
   ]);
-  const canViewSaved = isOwner || hasSubscription;
+  const hasAgentAccess = agentAccess.canViewBuyerIntent;
+  const canViewSaved = isOwner || hasAgentAccess;
   const [savedReels, savedListings] = await Promise.all([
     getSavedReels({
       canViewSaved,
@@ -918,7 +919,7 @@ export default async function UserProfilePage({
         agentStats,
         isOwner,
         isFollowing: viewerFollowingProfile,
-        hasActiveSubscription: hasSubscription,
+        hasActiveSubscription: hasAgentAccess,
         initialTab:
           query.tab === "listings" || query.tab === "saved"
             ? query.tab

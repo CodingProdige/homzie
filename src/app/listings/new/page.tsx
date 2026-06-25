@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { CreateListingPage } from "@/modules/listings/components/create-listing-page";
 
@@ -32,10 +31,6 @@ export default async function NewListingPage({ searchParams }: NewListingPagePro
 
   if (!user?.username) {
     redirect("/onboarding/username");
-  }
-
-  if (!(await hasActiveAgentSubscription(session.user.id))) {
-    redirect("/become-agent");
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Check, ChevronDown, Link2, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ export function NetworkSearchPicker({
 }: {
   options: NetworkSearchOption[];
 }) {
+  const listboxId = useId();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -55,6 +56,7 @@ export function NetworkSearchPicker({
             placeholder={selectedNetwork?.name || "Search existing networks"}
             className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-20 text-sm font-semibold outline-none transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/25"
             aria-autocomplete="list"
+            aria-controls={listboxId}
             aria-expanded={isOpen}
             aria-label="Search Network HQs"
             role="combobox"
@@ -98,6 +100,7 @@ export function NetworkSearchPicker({
         {isOpen ? (
           <div
             className="absolute left-0 right-0 top-[76px] z-20 max-h-72 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+            id={listboxId}
             role="listbox"
           >
             {filteredOptions.length ? (

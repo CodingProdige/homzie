@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/canonical-table";
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
+import { getAgentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import { clearListingBuyerActivityAction } from "@/modules/listings/activity-count-actions";
@@ -25,6 +26,7 @@ import {
 } from "@/modules/listings/components/listing-activity-ui";
 import { ListingPreviewCard } from "@/modules/listings/components/listing-preview-card";
 import { ActivityRealtimeRefresh } from "@/modules/listings/components/activity-realtime-refresh";
+import { LockedBuyerIntentPage } from "@/modules/listings/components/locked-buyer-intent-page";
 import { ChatNowButton } from "@/modules/messages/components/chat-now-button";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +87,7 @@ export default async function ListingActivityPage({
     redirect(`/sign-in?callbackUrl=/listings/${listingId}/activity`);
   }
 
-  const [viewer, listingRows] = await Promise.all([
+  const [viewer, listingRows, access] = await Promise.all([
     getViewerChrome(userId),
     sql<
       {
@@ -103,11 +105,23 @@ export default async function ListingActivityPage({
       WHERE id = ${listingId}
       LIMIT 1
     `,
+    getAgentAccess(userId),
   ]);
   const listing = listingRows[0];
 
   if (!listing || listing.user_id !== userId) {
     notFound();
+  }
+
+  if (!access.canViewBuyerIntent) {
+    return (
+      <LockedBuyerIntentPage
+        backHref={`/listings/${listingId}`}
+        viewerHasAgencyWorkspace={Boolean(viewer.hasAgencyWorkspace)}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
+    );
   }
 
   const [countRows, activityGroups, unreadRows] = await Promise.all([

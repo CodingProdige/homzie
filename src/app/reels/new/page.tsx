@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { hasActiveAgentSubscription } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { ReelMvpEditor } from "@/modules/reels/components/reel-mvp-editor";
 
@@ -23,10 +22,6 @@ export default async function NewReelPage() {
 
   if (!user?.username) {
     redirect("/onboarding/username");
-  }
-
-  if (!(await hasActiveAgentSubscription(session.user.id))) {
-    redirect("/become-agent");
   }
 
   return (

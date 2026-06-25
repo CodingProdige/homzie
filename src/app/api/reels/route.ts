@@ -5,10 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reels } from "@/db/schema";
 import { toStoredMediaPath } from "@/media/paths";
-import {
-  getAgentProfileForUser,
-  hasActiveAgentSubscription,
-} from "@/modules/agents/queries";
+import { getAgentProfileForUser } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { recordReelHashtagUsage } from "@/modules/hashtags/server";
 import {
@@ -67,13 +64,6 @@ export async function POST(request: Request) {
 
     if (!session?.user?.id) {
       return Response.json({ error: "Sign in to save a reel." }, { status: 401 });
-    }
-
-    if (!(await hasActiveAgentSubscription(session.user.id))) {
-      return Response.json(
-        { error: "An active agent subscription is required." },
-        { status: 403 },
-      );
     }
 
     const parsed = reelPayloadSchema.safeParse(await request.json());

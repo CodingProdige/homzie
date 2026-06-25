@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/canonical-table";
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
+import { getAgentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import { ActivityRealtimeRefresh } from "@/modules/listings/components/activity-realtime-refresh";
@@ -739,7 +740,7 @@ function LockedListingActivityState({
                   <Link href="/settings/billing">Open billing</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/become-agent">View agent plans</Link>
+                  <Link href="/go-pro">View Pro plan</Link>
                 </Button>
               </div>
             </div>
@@ -767,19 +768,11 @@ export default async function ListingActivityOverviewPage({
   const pageSize = 25;
   const offset = (currentPage - 1) * pageSize;
 
-  const [viewer, subscriptionRows] = await Promise.all([
+  const [viewer, access] = await Promise.all([
     getViewerChrome(userId),
-    sql<{ has_access: boolean }[]>`
-      SELECT EXISTS (
-        SELECT 1
-        FROM subscriptions
-        WHERE user_id = ${userId}
-          AND status = 'active'
-          AND (current_period_end IS NULL OR current_period_end > now())
-      ) AS has_access
-    `,
+    getAgentAccess(userId),
   ]);
-  const hasAccess = Boolean(subscriptionRows[0]?.has_access);
+  const hasAccess = access.canViewBuyerIntent;
 
   if (!hasAccess) {
     return (

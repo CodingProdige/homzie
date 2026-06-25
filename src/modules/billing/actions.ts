@@ -214,7 +214,7 @@ export async function startAgentSubscriptionCheckout(
     .where(eq(subscriptions.userId, user.id))
     .orderBy(desc(subscriptions.createdAt))
     .limit(1);
-  let trialApplied = !user.agentTrialUsedAt;
+  const trialApplied = !user.agentTrialUsedAt;
 
   try {
     if (previousSubscription?.providerReference) {

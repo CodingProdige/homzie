@@ -598,7 +598,7 @@ export function AgencyBrandingForm({
         {isNetworkBrandLocked ? (
           <p className="max-w-2xl text-xs font-semibold leading-5 text-muted-foreground">
             Network HQ controls public listing and agent badges. You can still
-            update this branch's local control room logo.
+            update this branch&apos;s local control room logo.
           </p>
         ) : (
           <p className="max-w-2xl text-xs font-semibold leading-5 text-muted-foreground">

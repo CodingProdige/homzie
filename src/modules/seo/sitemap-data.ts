@@ -26,6 +26,7 @@ export async function getStaticSitemapEntries(now = new Date()): Promise<Metadat
     { url: absoluteUrl("/agents"), lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: absoluteUrl("/reels"), lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: absoluteUrl("/for-agents"), lastModified: now, changeFrequency: "monthly", priority: 0.75 },
+    { url: absoluteUrl("/go-pro"), lastModified: now, changeFrequency: "monthly", priority: 0.78 },
     { url: absoluteUrl("/become-agent"), lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: absoluteUrl("/property"), lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: absoluteUrl("/property/for-sale"), lastModified: now, changeFrequency: "daily", priority: 0.85 },

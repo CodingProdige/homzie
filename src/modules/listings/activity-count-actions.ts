@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 
 import { sql } from "@/db";
+import { hasBuyerIntentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 
 export async function getUnreadListingBuyerActivityCountAction() {
@@ -12,17 +13,10 @@ export async function getUnreadListingBuyerActivityCountAction() {
 
   if (!userId) return 0;
 
+  if (!(await hasBuyerIntentAccess(userId))) return 0;
+
   const [row] = await sql<{ count: number }[]>`
-    WITH active_subscription AS (
-      SELECT EXISTS (
-        SELECT 1
-        FROM subscriptions
-        WHERE user_id = ${userId}
-          AND status = 'active'
-          AND (current_period_end IS NULL OR current_period_end > now())
-      ) AS has_access
-    ),
-    owned_listings AS (
+    WITH owned_listings AS (
       SELECT id
       FROM property_listings
       WHERE user_id = ${userId}
@@ -52,11 +46,7 @@ export async function getUnreadListingBuyerActivityCountAction() {
       WHERE viewer_key IS NOT NULL
       GROUP BY listing_id, viewer_key
     )
-    SELECT
-      CASE
-        WHEN (SELECT has_access FROM active_subscription) THEN count(*)::int
-        ELSE 0
-      END AS count
+    SELECT count(*)::int AS count
     FROM viewer_latest vl
     LEFT JOIN listing_activity_reads lar
       ON lar.listing_id = vl.listing_id

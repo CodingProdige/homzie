@@ -221,17 +221,13 @@ function ProfileAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string }
   );
 }
 
-function CreateNewMenu({
-  hasActiveSubscription,
-}: {
-  hasActiveSubscription: boolean;
-}) {
-  const createItems = getCreateItems(hasActiveSubscription);
+function CreateNewMenu() {
+  const createItems = getCreateItems();
 
   return (
     <>
       <div className="hidden sm:block">
-        <DropdownMenu.Root>
+        <DropdownMenu.Root modal={false}>
           <DropdownMenu.Trigger asChild>
             <Button className="min-w-0 px-4">
               Create New
@@ -253,11 +249,7 @@ function CreateNewMenu({
                       href={item.href}
                       className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-medium outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                     >
-                      {hasActiveSubscription ? (
-                        <Icon className="size-4 text-primary" />
-                      ) : (
-                        <LockKeyhole className="size-4 text-primary" />
-                      )}
+                      <Icon className="size-4 text-primary" />
                       New {item.label}
                     </Link>
                   </DropdownMenu.Item>
@@ -275,35 +267,31 @@ function CreateNewMenu({
             <ChevronDown className="size-4" />
           </Button>
         </Dialog.Trigger>
-        <CreateNewDialogContent hasActiveSubscription={hasActiveSubscription} />
+        <CreateNewDialogContent />
       </Dialog.Root>
     </>
   );
 }
 
-function getCreateItems(hasActiveSubscription: boolean) {
+function getCreateItems() {
   return [
     {
       label: "Reel",
       description: "Post a vertical property video.",
-      href: hasActiveSubscription ? "/reels/new" : "/become-agent",
+      href: "/reels/new",
       icon: Clapperboard,
     },
     {
       label: "Listing",
       description: "Create a property listing.",
-      href: hasActiveSubscription ? "/listings/new" : "/become-agent",
+      href: "/listings/new",
       icon: Home,
     },
   ];
 }
 
-function CreateNewDialogContent({
-  hasActiveSubscription,
-}: {
-  hasActiveSubscription: boolean;
-}) {
-  const createItems = getCreateItems(hasActiveSubscription);
+function CreateNewDialogContent() {
+  const createItems = getCreateItems();
 
   return (
     <Dialog.Portal>
@@ -337,17 +325,11 @@ function CreateNewDialogContent({
                   href={item.href}
                   className="flex min-w-0 items-center gap-4 rounded-md px-2 py-3 text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
-                  {hasActiveSubscription ? (
-                    <Icon className="size-6 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <LockKeyhole className="size-6 shrink-0 text-muted-foreground" />
-                  )}
+                  <Icon className="size-6 shrink-0 text-muted-foreground" />
                   <span className="min-w-0">
                     <span className="block font-semibold">New {item.label}</span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {hasActiveSubscription
-                        ? item.description
-                        : "Unlock agent tools to publish."}
+                      {item.description}
                     </span>
                   </span>
                 </Link>
@@ -696,7 +678,7 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
             <Button asChild variant="outline" className="min-w-0 sm:w-56">
               <Link href="/settings">Profile Settings</Link>
             </Button>
-            <CreateNewMenu hasActiveSubscription={profile.hasActiveSubscription} />
+            <CreateNewMenu />
             <ShareProfileDialog
               username={profile.username}
               name={profile.name}
@@ -1091,7 +1073,7 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
           </div>
           {profile.isOwner ? (
             <Button asChild size="sm">
-              <Link href="/become-agent">Unlock</Link>
+              <Link href="/go-pro">Unlock</Link>
             </Button>
           ) : null}
         </div>
@@ -1291,7 +1273,7 @@ function AgentBrandCta() {
             portfolio.
           </h2>
           <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-            Unlock the tools to showcase properties, grow your audience, and capture real leads.
+            Publish freely, then unlock realtime buyer intent, listing insights, and hotter follow-ups when demand starts moving.
           </p>
 
           <div className="mt-8 hidden grid-cols-4 gap-8 md:grid">
@@ -1318,7 +1300,7 @@ function AgentBrandCta() {
 
           <div className="mt-8 flex min-w-0 flex-col gap-3 sm:flex-row">
             <Button asChild className="h-11 min-w-0 px-7">
-              <Link href="/become-agent">
+              <Link href="/go-pro">
                 <Sparkles className="size-4" />
                 Start Building My Brand
               </Link>
@@ -1694,11 +1676,9 @@ function ProfileReelCard({
 }
 
 function MobileBottomNav({
-  hasActiveSubscription,
   viewerUsername,
   viewerAvatarUrl,
 }: {
-  hasActiveSubscription: boolean;
   viewerUsername?: string;
   viewerAvatarUrl?: string;
 }) {
@@ -1707,7 +1687,7 @@ function MobileBottomNav({
     { label: "Home", icon: Home, href: "/", active: true },
     { label: "Messages", icon: Send, href: "#" },
     {
-      label: hasActiveSubscription ? "Create" : "Agent",
+      label: "Create",
       icon: Plus,
       href: "#",
       primary: true,
@@ -1751,9 +1731,7 @@ function MobileBottomNav({
                     type="button"
                     className={navItemClassName}
                     aria-label={
-                      hasActiveSubscription
-                        ? "Create new"
-                        : "Become an agent to create"
+                      "Create new"
                     }
                   >
                     <span className={iconWrapClassName}>
@@ -1761,9 +1739,7 @@ function MobileBottomNav({
                     </span>
                   </button>
                 </Dialog.Trigger>
-                <CreateNewDialogContent
-                  hasActiveSubscription={hasActiveSubscription}
-                />
+                <CreateNewDialogContent />
               </Dialog.Root>
             );
           }
@@ -1977,7 +1953,7 @@ export function UserProfilePage({
         <ProfileTabs
           activeTab={activeTab}
           canViewSaved={canViewSaved}
-          isLocked={profile.isOwner && !profile.hasActiveSubscription}
+          isLocked={false}
           listingCount={profile.listings.length}
           onTabChange={handleTabChange}
           reelCount={profile.reels.length}
@@ -1997,7 +1973,6 @@ export function UserProfilePage({
         viewerUsername={profile.viewerUsername}
       />
       <MobileBottomNav
-        hasActiveSubscription={profile.hasActiveSubscription}
         viewerUsername={profile.viewerUsername}
         viewerAvatarUrl={profile.viewerAvatarUrl}
       />
