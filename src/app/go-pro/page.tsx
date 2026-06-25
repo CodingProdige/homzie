@@ -482,7 +482,7 @@ export default async function GoProPage() {
             {[
               [
                 "Can I create listings without Pro?",
-                "Yes. Listings, reels, and your public agent profile are free. Pro unlocks buyer intent and performance visibility.",
+                "Yes. Listings, reels, your public agent profile, and agent performance are free. Pro unlocks realtime buyer intent, AI listing insight, and chat opportunities.",
               ],
               [
                 "What happens if my agency pays for me?",

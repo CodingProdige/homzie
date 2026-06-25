@@ -11,7 +11,6 @@ import {
   Heart,
   Home,
   Menu,
-  MonitorDown,
   Radar,
   Send,
   ShieldCheck,
@@ -32,6 +31,7 @@ import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { EventCountBadge } from "@/modules/events/components/event-count-badge";
 import { ListingBuyerActivityCountBadge } from "@/modules/listings/components/listing-buyer-activity-count-badge";
 import { MessageCountBadge } from "@/modules/messages/components/message-count-badge";
+import { InstallHomzieButton } from "@/modules/pwa/components/pwa-install";
 
 const navItems: Array<{
   href: string;
@@ -95,11 +95,6 @@ export function GlobalHeader({
       label: "Events",
       href: eventsHref,
       icon: Heart,
-    },
-    {
-      label: "Install Homzie",
-      href: "/install",
-      icon: MonitorDown,
     },
     ...(viewerUsername
       ? [
@@ -207,24 +202,6 @@ export function GlobalHeader({
           <CountryPreferenceSelector compact className="shrink-0" />
           <CurrencySelector compact className="shrink-0" />
           <GlobalUserSearchTrigger className="hidden lg:inline-flex" />
-          <Button
-            variant="ghost"
-            size="icon"
-            asChild
-            className={cn(
-              "hidden lg:inline-flex",
-              isActiveHref("/install") && "bg-primary/10 text-primary",
-            )}
-            aria-label="Install Homzie"
-          >
-            <Link
-              href="/install"
-              aria-current={isActiveHref("/install") ? "page" : undefined}
-              title="Install Homzie"
-            >
-              <MonitorDown className="size-5" />
-            </Link>
-          </Button>
           {viewerUsername ? (
             <Button
               variant="ghost"
@@ -433,6 +410,9 @@ export function GlobalHeader({
                     <GlobalUserSearchTrigger
                       display="menu-item"
                       onOpen={() => setMenuOpen(false)}
+                    />
+                    <InstallHomzieButton
+                      className="mb-2 h-12 justify-start rounded-md px-3 shadow-none"
                     />
                     {mobileItems.map((item) => {
                       const Icon = item.icon;

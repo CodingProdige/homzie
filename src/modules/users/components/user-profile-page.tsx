@@ -1062,40 +1062,6 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
     },
   ];
 
-  if (!profile.hasActiveSubscription) {
-    return (
-      <div className="max-w-lg rounded-lg border border-primary/10 bg-card p-4 shadow-sm lg:max-w-none">
-        <div className="flex items-center gap-3">
-          <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-            <LockKeyhole className="size-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-              Agent performance
-            </p>
-            <p className="mt-1 text-sm font-black">Locked until subscribed</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
-              Verified sales, win rate, and mandate history unlock for Homzie Agent profiles.
-            </p>
-          </div>
-          {profile.isOwner ? (
-            <Button asChild size="sm">
-              <Link href="/go-pro">Unlock</Link>
-            </Button>
-          ) : null}
-        </div>
-        {profile.isOwner && !profile.publicPerformanceVisible ? (
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-emerald-700 dark:text-emerald-300">
-            <BadgeCheck className="mt-0.5 size-4 shrink-0" />
-            <p className="text-xs font-bold leading-5">
-              Hidden from public view. Only you can see this privacy status.
-            </p>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
   if (!profile.publicPerformanceVisible && !profile.isOwner) {
     return (
       <div className="max-w-lg rounded-lg border border-border bg-card p-4 shadow-sm lg:max-w-none">
@@ -1236,6 +1202,17 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      {profile.isOwner && !profile.publicPerformanceVisible ? (
+        <div className="border-t border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-emerald-700 dark:text-emerald-300">
+          <div className="flex items-start gap-2">
+            <BadgeCheck className="mt-0.5 size-4 shrink-0" />
+            <p className="text-xs font-bold leading-5">
+              Hidden from public view. Only you can see this performance section
+              and privacy status.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

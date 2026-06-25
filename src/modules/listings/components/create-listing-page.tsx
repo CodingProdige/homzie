@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type Dispatch,
   type FormEvent,
+  type KeyboardEvent,
   type PointerEvent,
   type SetStateAction,
   useEffect,
@@ -27,11 +28,14 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   CircleDollarSign,
   Grip,
   House,
   ImagePlus,
+  Link2,
   LoaderCircle,
   MapPin,
   Play,
@@ -58,6 +62,7 @@ import { ListingCard, type ListingCardData } from "@/modules/listings/components
 import {
   archiveListing,
   createListing,
+  importListingDraftFromUrl,
   improveListingDescription,
   improveListingTitle,
   updateListing,
@@ -149,6 +154,7 @@ type ListingFormMedia = {
   previewUrl: string;
   size?: number;
   sizeLabel: string;
+  sourceUrl?: string;
   type?: string;
 };
 
@@ -158,6 +164,7 @@ type ListingAutosaveState = {
   activeStep: number;
   coverIndex: number;
   draft: ListingDraft;
+  importedLocationCandidate?: ImportedLocationCandidate | null;
   savedAt: number;
   version: 1;
 };
@@ -206,6 +213,7 @@ export type ListingFormInitialMedia = {
   name?: string;
   path: string;
   size?: number;
+  sourceUrl?: string;
   type?: string;
 };
 
@@ -269,6 +277,35 @@ type MediaUploadState = {
   completed: number;
   total: number;
 };
+
+type ImportedListingSummary = {
+  foundImageCount?: number;
+  importedImageCount?: number;
+  skippedExistingImageCount?: number;
+  sourceUrl: string;
+  warnings: string[];
+};
+
+type ImportedLocationCandidate = {
+  sourceUrl: string;
+  value: string;
+};
+
+type ImportedLocationSuggestion = {
+  formattedAddress: string;
+  option: GoogleAutocompletePrediction;
+  parts: {
+    city: string;
+    country: string;
+    province: string;
+    suburb: string;
+  };
+  place: GooglePlaceDetails | null;
+};
+
+type ImportListingActionResult = Awaited<
+  ReturnType<typeof importListingDraftFromUrl>
+>;
 
 const initialDraft: ListingDraft = {
   askingPrice: "",
@@ -340,6 +377,7 @@ function buildInitialMedia(value?: ListingFormInitialMedia[]) {
         previewUrl,
         size: item.size || 0,
         sizeLabel: item.size ? formatFileSize(item.size) : "Saved",
+        sourceUrl: item.sourceUrl,
         type: item.type || "image/webp",
       };
     })
@@ -359,13 +397,14 @@ function getListingAutosaveKey({
 }
 
 function mediaToAutosave(media: ListingFormMedia[]) {
-  return media.map(({ file, id, name, path, size, sizeLabel, type }) => ({
+  return media.map(({ file, id, name, path, size, sizeLabel, sourceUrl, type }) => ({
     file,
     id,
     name,
     path,
     size,
     sizeLabel,
+    sourceUrl,
     type,
   }));
 }
@@ -388,6 +427,18 @@ function autosaveToMedia(media: ListingAutosaveMedia[]) {
       };
     })
     .filter((item): item is ListingFormMedia => Boolean(item));
+}
+
+function RequiredAsterisk() {
+  return (
+    <span
+      aria-hidden="true"
+      className="ml-1 text-base font-black leading-none text-destructive"
+      title="Required"
+    >
+      *
+    </span>
+  );
 }
 
 function syncMediaInputFiles(
@@ -476,7 +527,11 @@ async function clearAutosavedMedia(key: string) {
   });
 }
 
-function getPublishIssues(draft: ListingDraft, mediaCount: number) {
+function getPublishIssues(
+  draft: ListingDraft,
+  mediaCount: number,
+  options: { requiresLocationConfirmation?: boolean } = {},
+) {
   const issues: PublishIssue[] = [];
 
   if (!draft.listingType) {
@@ -497,6 +552,10 @@ function getPublishIssues(draft: ListingDraft, mediaCount: number) {
 
   if (!draft.city.trim() || !draft.province.trim() || !draft.country.trim()) {
     issues.push({ message: "Add city, province, and country.", step: 1 });
+  }
+
+  if (options.requiresLocationConfirmation) {
+    issues.push({ message: "Confirm the imported property location.", step: 1 });
   }
 
   if (richTextToPlainText(draft.description).length < 40) {
@@ -550,12 +609,16 @@ function isListingStepComplete(
   stepIndex: number,
   draft: ListingDraft,
   mediaCount: number,
+  options: { requiresLocationConfirmation?: boolean } = {},
 ) {
   switch (stepIndex) {
     case 0:
       return Boolean(draft.listingType && draft.propertyType);
     case 1:
-      return hasCompleteListingLocation(draft);
+      return (
+        hasCompleteListingLocation(draft) &&
+        !options.requiresLocationConfirmation
+      );
     case 2: {
       const hasBedroomCount = draft.bedrooms.trim() !== "";
       const hasBathroomCount = draft.bathrooms.trim() !== "";
@@ -585,7 +648,7 @@ function isListingStepComplete(
     case 5:
       return Boolean(draft.mandateType);
     case 6:
-      return getPublishIssues(draft, mediaCount).length === 0;
+      return getPublishIssues(draft, mediaCount, options).length === 0;
     default:
       return false;
   }
@@ -1667,6 +1730,227 @@ function serializablePlaceData(
   });
 }
 
+async function getPlaceDetailsForPrediction(
+  option: GoogleAutocompletePrediction,
+) {
+  await loadGooglePlaces();
+  const places = (window as GoogleWindow).google?.maps?.places;
+
+  if (!places) {
+    throw new Error("Google Places is not available.");
+  }
+
+  const service = new places.PlacesService(document.createElement("div"));
+  const sessionToken = new places.AutocompleteSessionToken();
+
+  return new Promise<GooglePlaceDetails | null>((resolve) => {
+    service.getDetails(
+      {
+        fields: [
+          "address_components",
+          "formatted_address",
+          "geometry",
+          "name",
+          "place_id",
+          "types",
+        ],
+        placeId: option.place_id,
+        sessionToken,
+      },
+      (result, status) => {
+        resolve(status === places.PlacesServiceStatus.OK ? result : null);
+      },
+    );
+  });
+}
+
+async function findImportedLocationSuggestion(value: string) {
+  await loadGooglePlaces();
+  const places = (window as GoogleWindow).google?.maps?.places;
+
+  if (!places) {
+    throw new Error("Google Places is not available.");
+  }
+
+  const service = new places.AutocompleteService();
+  const sessionToken = new places.AutocompleteSessionToken();
+
+  const predictions = await new Promise<GoogleAutocompletePrediction[]>(
+    (resolve) => {
+      service.getPlacePredictions(
+        {
+          input: value,
+          sessionToken,
+        },
+        (results, status) => {
+          resolve(
+            status === places.PlacesServiceStatus.OK && results?.length
+              ? results
+              : [],
+          );
+        },
+      );
+    },
+  );
+  const option = predictions[0];
+
+  if (!option) return null;
+
+  const place = await getPlaceDetailsForPrediction(option);
+  const formattedAddress = place?.formatted_address || option.description;
+
+  return {
+    formattedAddress,
+    option,
+    parts: placeLocationParts(place || {}, formattedAddress),
+    place,
+  } satisfies ImportedLocationSuggestion;
+}
+
+function ImportListingFromLinkPanel({
+  existingImportedMediaSources,
+  onImported,
+  summary,
+}: {
+  existingImportedMediaSources: string[];
+  onImported: (result: ImportListingActionResult) => void;
+  summary: ImportedListingSummary | null;
+}) {
+  const [url, setUrl] = useState("");
+  const [message, setMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  function importDraft() {
+    const nextUrl = url.trim();
+
+    if (!nextUrl) {
+      setMessage("Paste a listing link first.");
+      return;
+    }
+
+    setMessage("");
+
+    startTransition(async () => {
+      const result = await importListingDraftFromUrl(
+        nextUrl,
+        existingImportedMediaSources,
+      );
+
+      if ("error" in result && result.error) {
+        setMessage(result.error);
+        return;
+      }
+
+      onImported(result);
+      setMessage("Imported. Review every field before publishing.");
+    });
+  }
+
+  function handleImportKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+
+    event.preventDefault();
+    importDraft();
+  }
+
+  return (
+    <section className="mt-5 overflow-hidden rounded-xl border border-white/10 bg-[#101123] text-white shadow-sm">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0 p-5 sm:p-6">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-violet-100">
+            <Link2 className="size-3.5" />
+            Import from link
+          </div>
+          <h2 className="mt-4 max-w-2xl text-2xl font-black tracking-tight sm:text-3xl">
+            Paste a property link and start from an editable draft.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/70">
+            Homzie will pull the title, price, location clues, listing details,
+            description, and usable images where the source page exposes them.
+          </p>
+
+          <div
+            className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+          >
+            <label className="sr-only" htmlFor="listing-import-url">
+              Listing URL
+            </label>
+            <input
+              id="listing-import-url"
+              type="url"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              onKeyDown={handleImportKeyDown}
+              placeholder="https://example.com/property/..."
+              className="h-12 min-w-0 rounded-lg border border-white/15 bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+              disabled={isPending}
+            />
+            <Button
+              type="button"
+              className="h-12 whitespace-nowrap"
+              disabled={isPending}
+              onClick={importDraft}
+            >
+              {isPending ? (
+                <>
+                  <LoaderCircle className="size-4 animate-spin" />
+                  Importing
+                </>
+              ) : (
+                <>
+                  <Link2 className="size-4" />
+                  Import draft
+                </>
+              )}
+            </Button>
+          </div>
+
+          {message ? (
+            <p className="mt-3 text-xs font-bold text-violet-100">{message}</p>
+          ) : null}
+        </div>
+
+        <div className="border-t border-white/10 bg-white/[0.04] p-5 sm:p-6 lg:border-l lg:border-t-0">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-white/45">
+            Import rules
+          </p>
+          <ul className="mt-4 space-y-3 text-sm font-semibold leading-6 text-white/75">
+            <li>Review every imported field before publishing.</li>
+            <li>Only import listings and media you are authorised to use.</li>
+            <li>Some portals hide data, so missing fields can be completed manually.</li>
+          </ul>
+          {summary ? (
+            <div className="mt-5 rounded-lg border border-white/10 bg-white/10 p-4 text-sm">
+              <p className="truncate font-black" title={summary.sourceUrl}>
+                Imported from {summary.sourceUrl}
+              </p>
+              <p className="mt-2 text-xs font-bold text-white/65">
+                {summary.importedImageCount ?? 0} of{" "}
+                {summary.foundImageCount ?? 0} image candidates imported.
+                {summary.skippedExistingImageCount
+                  ? ` ${summary.skippedExistingImageCount} already attached.`
+                  : ""}
+              </p>
+              {summary.warnings.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {summary.warnings.slice(0, 3).map((warning) => (
+                    <span
+                      key={warning}
+                      className="rounded-full bg-white/10 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.08em] text-white/70"
+                    >
+                      {warning}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function CreateListingPage({
   initialCoverIndex = 0,
   initialDraft,
@@ -1706,6 +1990,10 @@ export function CreateListingPage({
   );
   const [publishMessage, setPublishMessage] = useState("");
   const [coverIndex, setCoverIndex] = useState(initialCoverIndex);
+  const [importSummary, setImportSummary] =
+    useState<ImportedListingSummary | null>(null);
+  const [importedLocationCandidate, setImportedLocationCandidate] =
+    useState<ImportedLocationCandidate | null>(null);
   const [mediaUploadState, setMediaUploadState] = useState<MediaUploadState>({
     active: false,
     completed: 0,
@@ -1713,8 +2001,13 @@ export function CreateListingPage({
   });
   const [, setMediaStatus] = useState("");
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const stepsScrollerRef = useRef<HTMLDivElement>(null);
   const autosaveHydratedRef = useRef(false);
   const mediaRef = useRef<ListingFormMedia[]>([]);
+  const [stepScrollState, setStepScrollState] = useState({
+    canScrollNext: false,
+    canScrollPrevious: false,
+  });
   const autosaveKey = useMemo(
     () => getListingAutosaveKey({ listingId, mode, profilePath }),
     [listingId, mode, profilePath],
@@ -1741,9 +2034,17 @@ export function CreateListingPage({
       ),
     [draft.listingType],
   );
+  const requiresLocationConfirmation = Boolean(
+    importedLocationCandidate &&
+      !draft.googlePlaceId &&
+      importedLocationCandidate.value.trim() === draft.location.trim(),
+  );
   const publishIssues = useMemo(
-    () => getPublishIssues(draft, media.length),
-    [draft, media.length],
+    () =>
+      getPublishIssues(draft, media.length, {
+        requiresLocationConfirmation,
+      }),
+    [draft, media.length, requiresLocationConfirmation],
   );
   const uploadMedia = media.filter((item) => item.file);
   const uploadMediaCount = uploadMedia.length;
@@ -1803,6 +2104,7 @@ export function CreateListingPage({
 
         if (parsedState?.version === 1 && parsedState.draft) {
           setDraft(buildInitialDraft(parsedState.draft));
+          setImportedLocationCandidate(parsedState.importedLocationCandidate || null);
           setActiveStep(
             Math.min(Math.max(Number(parsedState.activeStep || 0), 0), steps.length - 1),
           );
@@ -1840,6 +2142,7 @@ export function CreateListingPage({
         activeStep,
         coverIndex,
         draft,
+        importedLocationCandidate,
         savedAt: Date.now(),
         version: 1,
       };
@@ -1855,11 +2158,38 @@ export function CreateListingPage({
     }, 500);
 
     return () => window.clearTimeout(timeout);
-  }, [activeStep, autosaveKey, coverIndex, draft, media]);
+  }, [activeStep, autosaveKey, coverIndex, draft, importedLocationCandidate, media]);
 
   useEffect(() => {
     mediaRef.current = media;
   }, [media]);
+
+  useEffect(() => {
+    const scroller = stepsScrollerRef.current;
+
+    if (!scroller) return;
+
+    function updateScrollState() {
+      const element = stepsScrollerRef.current;
+
+      if (!element) return;
+
+      setStepScrollState({
+        canScrollNext:
+          element.scrollLeft + element.clientWidth < element.scrollWidth - 4,
+        canScrollPrevious: element.scrollLeft > 4,
+      });
+    }
+
+    updateScrollState();
+    scroller.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+
+    return () => {
+      scroller.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -1891,6 +2221,69 @@ export function CreateListingPage({
     if (mediaInputRef.current) {
       mediaInputRef.current.files = transfer.files;
     }
+  }
+
+  function applyImportedListing(result: ImportListingActionResult) {
+    if ("error" in result) return;
+
+    const importedDraft = result.draft || {};
+    const importedMedia = buildInitialMedia(result.media);
+    const hasImportedLocation = Boolean(importedDraft.location);
+
+    setDraft((current) =>
+      buildInitialDraft({
+        ...current,
+        ...importedDraft,
+        features: importedDraft.features?.length
+          ? importedDraft.features
+          : current.features,
+        googlePlaceData: "",
+        googlePlaceId: "",
+      }),
+    );
+
+    if (importedMedia.length) {
+      setMedia((current) => {
+        const existingSourceUrls = new Set(
+          current
+            .map((item) => item.sourceUrl)
+            .filter((sourceUrl): sourceUrl is string => Boolean(sourceUrl)),
+        );
+        const uniqueImportedMedia = importedMedia.filter(
+          (item) =>
+            item.path &&
+            !current.some((existingItem) => existingItem.path === item.path) &&
+            (!item.sourceUrl || !existingSourceUrls.has(item.sourceUrl)),
+        );
+        const next = [...current, ...uniqueImportedMedia].slice(
+          0,
+          maxListingMediaItems,
+        );
+
+        syncMediaFiles(next);
+
+        return next;
+      });
+      setCoverIndex((current) => (media.length ? current : 0));
+    }
+
+    setImportSummary({
+      foundImageCount: result.foundImageCount,
+      importedImageCount: result.importedImageCount,
+      skippedExistingImageCount: result.skippedExistingImageCount,
+      sourceUrl: result.sourceUrl,
+      warnings: result.warnings,
+    });
+    setImportedLocationCandidate(
+      hasImportedLocation
+        ? {
+            sourceUrl: result.sourceUrl,
+            value: importedDraft.location || "",
+          }
+        : null,
+    );
+    setActiveStep(1);
+    setPublishMessage("Imported draft from link. Review every field before publishing.");
   }
 
   async function handleMediaChange(event: ChangeEvent<HTMLInputElement>) {
@@ -2009,6 +2402,8 @@ export function CreateListingPage({
     setDraft(buildInitialDraft(initialDraft));
     setMedia(buildInitialMedia(initialMedia));
     setCoverIndex(initialCoverIndex);
+    setImportSummary(null);
+    setImportedLocationCandidate(null);
     setMediaUploadState({ active: false, completed: 0, total: 0 });
     setMediaStatus("");
     setPublishMessage("");
@@ -2210,6 +2605,9 @@ export function CreateListingPage({
   const previewImageUrls = media
     .filter(isImageMedia)
     .map((item) => item.previewUrl);
+  const existingImportedMediaSources = media
+    .map((item) => item.sourceUrl)
+    .filter((sourceUrl): sourceUrl is string => Boolean(sourceUrl));
   const previewVideoUrls = media
     .filter(isVideoMedia)
     .map((item) => item.previewUrl);
@@ -2241,6 +2639,7 @@ export function CreateListingPage({
                 name: item.name,
                 path: item.path,
                 size: item.size || 0,
+                sourceUrl: item.sourceUrl,
                 type: item.type || "image/webp",
               })),
           )}
@@ -2520,6 +2919,13 @@ export function CreateListingPage({
                   : "Listing updated. Your changes have been saved."}
             </p>
           ) : null}
+          {mode === "create" ? (
+            <ImportListingFromLinkPanel
+              existingImportedMediaSources={existingImportedMediaSources}
+              onImported={applyImportedListing}
+              summary={importSummary}
+            />
+          ) : null}
 
           <Dialog.Root open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
             <Dialog.Portal>
@@ -2563,7 +2969,11 @@ export function CreateListingPage({
           >
             <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
               <div className="h-fit max-h-[calc(100dvh-7rem)] max-w-full overflow-hidden rounded-lg border border-border bg-card p-3 text-card-foreground shadow-sm lg:overflow-y-auto lg:overscroll-contain">
-                <div className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] lg:block lg:space-y-1 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
+                <div className="relative lg:static">
+                  <div
+                    ref={stepsScrollerRef}
+                    className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] lg:block lg:space-y-1 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden"
+                  >
                   {steps.map((step, index) => {
                     const Icon = step.icon;
                     const isActive = index === activeStep;
@@ -2572,6 +2982,7 @@ export function CreateListingPage({
                       index,
                       draft,
                       media.length,
+                      { requiresLocationConfirmation },
                     );
 
                     return (
@@ -2609,6 +3020,27 @@ export function CreateListingPage({
                       </button>
                     );
                   })}
+                  </div>
+                  {stepScrollState.canScrollPrevious ? (
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center rounded-l-lg bg-gradient-to-r from-card via-card/90 to-transparent lg:hidden"
+                    >
+                      <span className="grid size-7 place-items-center rounded-full border border-border bg-background/95 text-primary shadow-sm">
+                        <ChevronLeft className="size-4" />
+                      </span>
+                    </div>
+                  ) : null}
+                  {stepScrollState.canScrollNext ? (
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end rounded-r-lg bg-gradient-to-l from-card via-card/90 to-transparent lg:hidden"
+                    >
+                      <span className="grid size-7 place-items-center rounded-full border border-border bg-background/95 text-primary shadow-sm">
+                        <ChevronRight className="size-4" />
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </aside>
@@ -2637,9 +3069,14 @@ export function CreateListingPage({
                 ) : null}
                 {activeStep === 1 ? (
                   <LocationStep
+                    key={importedLocationCandidate?.value || "location-step"}
                     draft={draft}
+                    importedLocationCandidate={importedLocationCandidate}
                     isLocked={isLocationLocked}
                     isRepairMode={isLocationRepairMode}
+                    onImportedLocationResolved={() =>
+                      setImportedLocationCandidate(null)
+                    }
                     setDraft={setDraft}
                   />
                 ) : null}
@@ -2773,7 +3210,10 @@ function ListingTypeStep({
   return (
     <div className="space-y-7">
       <div>
-        <h2 className="text-lg font-black">What are you listing?</h2>
+        <h2 className="inline-flex items-center text-lg font-black">
+          What are you listing?
+          <RequiredAsterisk />
+        </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {listingTypeOptions.map((option) => {
             const Icon = option.icon;
@@ -2801,7 +3241,10 @@ function ListingTypeStep({
       </div>
 
       <div>
-        <h2 className="text-lg font-black">Property type</h2>
+        <h2 className="inline-flex items-center text-lg font-black">
+          Property type
+          <RequiredAsterisk />
+        </h2>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {availablePropertyTypes.map((option) => {
             const Icon = option.icon;
@@ -2837,19 +3280,68 @@ function ListingTypeStep({
 
 function LocationStep({
   draft,
+  importedLocationCandidate,
   isLocked = false,
   isRepairMode = false,
+  onImportedLocationResolved,
   setDraft,
 }: {
   draft: ListingDraft;
+  importedLocationCandidate?: ImportedLocationCandidate | null;
   isLocked?: boolean;
   isRepairMode?: boolean;
+  onImportedLocationResolved?: () => void;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
   const [query, setQuery] = useState(draft.location);
   const [predictions, setPredictions] = useState<GoogleAutocompletePrediction[]>([]);
+  const [importedSuggestion, setImportedSuggestion] =
+    useState<ImportedLocationSuggestion | null>(null);
+  const [importedSuggestionError, setImportedSuggestionError] = useState("");
   const [placesError, setPlacesError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const hasPendingImportedLocation = Boolean(
+    importedLocationCandidate &&
+      !draft.googlePlaceId &&
+      importedLocationCandidate.value.trim() === draft.location.trim(),
+  );
+  const isResolvingImportedLocation = Boolean(
+    hasPendingImportedLocation && !importedSuggestion && !importedSuggestionError,
+  );
+
+  useEffect(() => {
+    if (!importedLocationCandidate || !hasPendingImportedLocation || isLocked) {
+      return;
+    }
+
+    let isCurrent = true;
+
+    findImportedLocationSuggestion(importedLocationCandidate.value)
+      .then((suggestion) => {
+        if (!isCurrent) return;
+
+        setImportedSuggestion(suggestion);
+        setImportedSuggestionError(
+          suggestion
+            ? ""
+            : "No strong Google match was found. Search and select the location manually.",
+        );
+      })
+      .catch((error: unknown) => {
+        if (!isCurrent) return;
+
+        setImportedSuggestion(null);
+        setImportedSuggestionError(
+          error instanceof Error
+            ? error.message
+            : "Could not resolve this imported location.",
+        );
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [hasPendingImportedLocation, importedLocationCandidate, isLocked]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -2922,46 +3414,15 @@ function LocationStep({
     }));
   }
 
-  async function selectLocation(option: GoogleAutocompletePrediction) {
-    let place: GooglePlaceDetails | null = null;
-
-    try {
-      await loadGooglePlaces();
-      const places = (window as GoogleWindow).google?.maps?.places;
-
-      if (places) {
-        const service = new places.PlacesService(document.createElement("div"));
-        const sessionToken = new places.AutocompleteSessionToken();
-
-        place = await new Promise<GooglePlaceDetails | null>((resolve) => {
-          service.getDetails(
-            {
-              fields: [
-                "address_components",
-                "formatted_address",
-                "geometry",
-                "name",
-                "place_id",
-                "types",
-              ],
-              placeId: option.place_id,
-              sessionToken,
-            },
-            (result, status) => {
-              resolve(status === places.PlacesServiceStatus.OK ? result : null);
-            },
-          );
-        });
-      }
-    } catch {
-      place = null;
-    }
-
-    const formattedAddress = place?.formatted_address || option.description;
-    const parts = placeLocationParts(place || {}, formattedAddress);
-
+  function applyLocationSelection({
+    formattedAddress,
+    option,
+    parts,
+    place,
+  }: ImportedLocationSuggestion) {
     setQuery(option.description);
     setPredictions([]);
+    onImportedLocationResolved?.();
     setDraft((current) => ({
       ...current,
       city: parts.city,
@@ -2972,6 +3433,25 @@ function LocationStep({
       province: parts.province,
       suburb: parts.suburb,
     }));
+  }
+
+  async function selectLocation(option: GoogleAutocompletePrediction) {
+    let place: GooglePlaceDetails | null = null;
+
+    try {
+      place = await getPlaceDetailsForPrediction(option);
+    } catch {
+      place = null;
+    }
+
+    const formattedAddress = place?.formatted_address || option.description;
+
+    applyLocationSelection({
+      formattedAddress,
+      option,
+      parts: placeLocationParts(place || {}, formattedAddress),
+      place,
+    });
   }
 
   return (
@@ -2992,8 +3472,73 @@ function LocationStep({
           the listing to lock this section again.
         </p>
       ) : null}
+      {hasPendingImportedLocation ? (
+        <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[0.68rem] font-black uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">
+                Confirm imported location
+              </p>
+              <h3 className="mt-2 text-base font-black">
+                This address was imported and still needs your confirmation.
+              </h3>
+              <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                Pick the Google Places match below, or search manually before
+                publishing.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-amber-500/15 px-3 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              Action needed
+            </span>
+          </div>
+
+          <div className="mt-4 rounded-md border border-border bg-background p-3">
+            {isResolvingImportedLocation ? (
+              <p className="flex items-center gap-2 text-sm font-black text-muted-foreground">
+                <LoaderCircle className="size-4 animate-spin text-primary" />
+                Looking for the best Google match
+              </p>
+            ) : importedSuggestion ? (
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <button
+                  type="button"
+                  className="flex min-w-0 items-start gap-3 rounded-md text-left"
+                  onClick={() => applyLocationSelection(importedSuggestion)}
+                >
+                  <MapPin className="mt-1 size-4 shrink-0 text-primary" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-black">
+                      {importedSuggestion.option.structured_formatting?.main_text ||
+                        importedSuggestion.option.description}
+                    </span>
+                    <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
+                      {importedSuggestion.formattedAddress}
+                    </span>
+                  </span>
+                </button>
+                <Button
+                  type="button"
+                  className="h-10 whitespace-nowrap"
+                  onClick={() => applyLocationSelection(importedSuggestion)}
+                >
+                  <CheckCircle2 className="size-4" />
+                  Use this location
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm font-semibold leading-6 text-muted-foreground">
+                {importedSuggestionError ||
+                  "No Google match has been selected yet. Search below and choose the correct location."}
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
       <div className="block text-sm font-black">
-        Property location
+        <span className="inline-flex items-center">
+          Property location
+          <RequiredAsterisk />
+        </span>
         <input
           name="location"
           value={draft.location}
@@ -3001,6 +3546,7 @@ function LocationStep({
             const value = event.target.value;
             const parts = splitLocation(value);
             setQuery(value);
+            onImportedLocationResolved?.();
             setDraft((current) => ({
               ...current,
               city: parts.city,
@@ -3056,9 +3602,13 @@ function LocationStep({
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-black">Address details</h3>
+            <h3 className="text-sm font-black">
+              {draft.googlePlaceId ? "Selected location" : "Address details"}
+            </h3>
             <p className="mt-1 text-xs font-semibold text-muted-foreground">
-              If Google cannot find the exact property, enter these manually.
+              {draft.googlePlaceId
+                ? "This is the structured location Homzie will use for matching, search, and buyer activity."
+                : "If Google cannot find the exact property, enter these manually."}
             </p>
           </div>
           {draft.googlePlaceId ? (
@@ -3071,48 +3621,77 @@ function LocationStep({
             </span>
           )}
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
-            Suburb
-            <input
-              value={draft.suburb}
-              onChange={(event) => updateAddressPart("suburb", event.target.value)}
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-              disabled={isLocked}
-              placeholder="Denneburg"
-            />
-          </label>
-          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
-            City
-            <input
-              value={draft.city}
-              onChange={(event) => updateAddressPart("city", event.target.value)}
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-              disabled={isLocked}
-              placeholder="Paarl"
-            />
-          </label>
-          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
-            Province
-            <input
-              value={draft.province}
-              onChange={(event) => updateAddressPart("province", event.target.value)}
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-              disabled={isLocked}
-              placeholder="Western Cape"
-            />
-          </label>
-          <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
-            Country
-            <input
-              value={draft.country}
-              onChange={(event) => updateAddressPart("country", event.target.value)}
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-              disabled={isLocked}
-              placeholder="South Africa"
-            />
-          </label>
-        </div>
+        {draft.googlePlaceId ? (
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+            {[
+              ["Suburb", draft.suburb || "Not detected"],
+              ["City", draft.city || "Not detected"],
+              ["Province", draft.province || "Not detected"],
+              ["Country", draft.country || "Not detected"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md bg-muted/50 px-3 py-2">
+                <dt className="text-[0.65rem] font-black uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </dt>
+                <dd className="mt-1 truncate font-black text-foreground" title={value}>
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Suburb
+              <input
+                value={draft.suburb}
+                onChange={(event) => updateAddressPart("suburb", event.target.value)}
+                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+                disabled={isLocked}
+                placeholder="Denneburg"
+              />
+            </label>
+            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+              <span className="inline-flex items-center">
+                City
+                <RequiredAsterisk />
+              </span>
+              <input
+                value={draft.city}
+                onChange={(event) => updateAddressPart("city", event.target.value)}
+                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+                disabled={isLocked}
+                placeholder="Paarl"
+              />
+            </label>
+            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+              <span className="inline-flex items-center">
+                Province
+                <RequiredAsterisk />
+              </span>
+              <input
+                value={draft.province}
+                onChange={(event) => updateAddressPart("province", event.target.value)}
+                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+                disabled={isLocked}
+                placeholder="Western Cape"
+              />
+            </label>
+            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+              <span className="inline-flex items-center">
+                Country
+                <RequiredAsterisk />
+              </span>
+              <input
+                value={draft.country}
+                onChange={(event) => updateAddressPart("country", event.target.value)}
+                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+                disabled={isLocked}
+                placeholder="South Africa"
+              />
+            </label>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3259,7 +3838,10 @@ function DetailsStep({
       </div>
       <div className="block text-sm font-black">
         <span className="flex items-center justify-between gap-3">
-          <span>Listing title</span>
+          <span className="inline-flex items-center">
+            Listing title
+            <RequiredAsterisk />
+          </span>
           <span className="text-xs font-black text-muted-foreground">
             {draft.title.length}/{maxTitleLength}
           </span>
@@ -3322,7 +3904,10 @@ function DetailsStep({
       </div>
       <div className="block text-sm font-black">
         <span className="flex items-center justify-between gap-3">
-          <span>Description</span>
+          <span className="inline-flex items-center">
+            Description
+            <RequiredAsterisk />
+          </span>
           <span className="text-xs font-black text-muted-foreground">
             {descriptionText.length}/{maxDescriptionLength}
           </span>
@@ -3397,7 +3982,13 @@ function DetailsStep({
           >
         ).map(([key, label, step]) => (
           <label key={key} className="block text-sm font-black">
-            {label}
+            <span className="inline-flex items-center">
+              {label}
+              {(key === "bedrooms" || key === "bathrooms") &&
+              residentialPropertyTypes.has(draft.propertyType) ? (
+                <RequiredAsterisk />
+              ) : null}
+            </span>
             <input
               name={key}
               value={draft[key]}
@@ -3420,7 +4011,13 @@ function DetailsStep({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-black">
-          Floor size m²
+          <span className="inline-flex items-center">
+            Floor size m²
+            {residentialPropertyTypes.has(draft.propertyType) ||
+            commercialPropertyTypes.has(draft.propertyType) ? (
+              <RequiredAsterisk />
+            ) : null}
+          </span>
           <input
             name="floorSize"
             value={draft.floorSize}
@@ -3434,7 +4031,12 @@ function DetailsStep({
           />
         </label>
         <label className="block text-sm font-black">
-          Erf / land size m²
+          <span className="inline-flex items-center">
+            Erf / land size m²
+            {landOnlyPropertyTypes.has(draft.propertyType) ? (
+              <RequiredAsterisk />
+            ) : null}
+          </span>
           <input
             name="erfSize"
             value={draft.erfSize}
@@ -3568,7 +4170,10 @@ function PricingStep({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-black">
-          Asking price ({currency})
+          <span className="inline-flex items-center">
+            Asking price ({currency})
+            <RequiredAsterisk />
+          </span>
           <input
             value={askingPriceValue}
             type="number"
@@ -3898,7 +4503,10 @@ function MediaStep({
         onClick={onOpenFilePicker}
       >
         <ImagePlus className="size-8 text-primary" />
-        <span className="mt-3 text-sm font-black">Upload listing media</span>
+        <span className="mt-3 inline-flex items-center text-sm font-black">
+          Upload listing media
+          <RequiredAsterisk />
+        </span>
         <span className="mt-1 text-xs font-semibold text-muted-foreground">
           Choose photos or video. Select a photo as the cover when possible.
         </span>

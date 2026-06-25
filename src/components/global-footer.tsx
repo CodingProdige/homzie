@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Mail, MapPin, MonitorDown } from "lucide-react";
+import { Mail, MapPin } from "lucide-react";
 
 import { HomzieLogo } from "@/components/homzie-logo";
-import { Button } from "@/components/ui/button";
+import { InstallHomzieButton } from "@/modules/pwa/components/pwa-install";
 
 const footerSections = [
   {
@@ -65,12 +65,7 @@ export function GlobalFooter({
               Install Homzie for faster access, realtime buyer alerts, messages, and app-like browsing.
             </p>
           </div>
-          <Button asChild className="w-full shrink-0 sm:w-auto">
-            <Link href="/install">
-              <MonitorDown className="size-4" />
-              Install Homzie
-            </Link>
-          </Button>
+          <InstallHomzieButton className="w-full shrink-0 sm:w-auto" />
         </div>
       </div>
       <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.25fr_repeat(5,1fr)] lg:px-8">

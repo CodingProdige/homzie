@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-type ThemeMode = "light" | "dark" | "system";
+type ThemeMode = "light" | "dark";
 
 const themeCookieName = "homzie-theme";
 const themeMaxAgeSeconds = 60 * 60 * 24 * 365;
@@ -13,12 +13,10 @@ const themeMaxAgeSeconds = 60 * 60 * 24 * 365;
 const modes: Array<{ mode: ThemeMode; icon: typeof Sun; label: string }> = [
   { mode: "light", icon: Sun, label: "Light mode" },
   { mode: "dark", icon: Moon, label: "Dark mode" },
-  { mode: "system", icon: Monitor, label: "System theme" },
 ];
 
 function applyTheme(mode: ThemeMode) {
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const shouldUseDark = mode === "dark" || (mode === "system" && prefersDark);
+  const shouldUseDark = mode === "dark";
 
   document.documentElement.classList.toggle("dark", shouldUseDark);
   document.documentElement.style.colorScheme = shouldUseDark ? "dark" : "light";
@@ -27,6 +25,7 @@ function applyTheme(mode: ThemeMode) {
 function persistTheme(mode: ThemeMode) {
   window.localStorage.setItem("homzie-theme", mode);
   document.cookie = `${themeCookieName}=${encodeURIComponent(mode)}; Max-Age=${themeMaxAgeSeconds}; Path=/; SameSite=Lax`;
+  document.cookie = "homzie-theme-effective=; Max-Age=0; Path=/; SameSite=Lax";
 }
 
 export function ThemeToggle() {
@@ -36,9 +35,7 @@ export function ThemeToggle() {
     }
 
     const storedMode = window.localStorage.getItem("homzie-theme");
-    return storedMode === "dark" ||
-      storedMode === "system" ||
-      storedMode === "light"
+    return storedMode === "dark" || storedMode === "light"
       ? storedMode
       : "light";
   });
@@ -47,22 +44,9 @@ export function ThemeToggle() {
     applyTheme(mode);
   }, [mode]);
 
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      if (mode === "system") {
-        applyTheme("system");
-      }
-    };
-
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
-  }, [mode]);
-
   const updateMode = (nextMode: ThemeMode) => {
     setMode(nextMode);
     persistTheme(nextMode);
-    applyTheme(nextMode);
   };
 
   return (

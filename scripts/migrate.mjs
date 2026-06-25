@@ -844,10 +844,10 @@ try {
       description text,
       location text,
       price_label text,
-      asking_price_cents integer,
-      sold_price_cents integer,
+      asking_price_cents bigint,
+      sold_price_cents bigint,
       reservation_enabled boolean NOT NULL DEFAULT false,
-      reservation_amount_cents integer,
+      reservation_amount_cents bigint,
       active_reservation_id uuid,
       is_demo_content boolean NOT NULL DEFAULT false,
       cover_image_url text,
@@ -892,12 +892,12 @@ try {
 
   await sql`
     ALTER TABLE property_listings
-    ADD COLUMN IF NOT EXISTS asking_price_cents integer
+    ADD COLUMN IF NOT EXISTS asking_price_cents bigint
   `;
 
   await sql`
     ALTER TABLE property_listings
-    ADD COLUMN IF NOT EXISTS sold_price_cents integer
+    ADD COLUMN IF NOT EXISTS sold_price_cents bigint
   `;
 
   await sql`
@@ -907,7 +907,14 @@ try {
 
   await sql`
     ALTER TABLE property_listings
-    ADD COLUMN IF NOT EXISTS reservation_amount_cents integer
+    ADD COLUMN IF NOT EXISTS reservation_amount_cents bigint
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+      ALTER COLUMN asking_price_cents TYPE bigint,
+      ALTER COLUMN sold_price_cents TYPE bigint,
+      ALTER COLUMN reservation_amount_cents TYPE bigint
   `;
 
   await sql`
@@ -1035,11 +1042,16 @@ try {
       claim_status text NOT NULL DEFAULT 'pending',
       proof_status text NOT NULL DEFAULT 'pending',
       proof_summary text,
-      sold_price_cents integer,
+      sold_price_cents bigint,
       sold_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `;
+
+  await sql`
+    ALTER TABLE property_sale_claims
+      ALTER COLUMN sold_price_cents TYPE bigint
   `;
 
   await sql`
@@ -1112,10 +1124,10 @@ try {
       listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
       buyer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       agent_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      amount_cents integer NOT NULL,
+      amount_cents bigint NOT NULL,
       platform_fee_cents integer NOT NULL DEFAULT 0,
       processing_fee_cents integer NOT NULL DEFAULT 0,
-      total_paid_cents integer NOT NULL,
+      total_paid_cents bigint NOT NULL,
       currency text NOT NULL DEFAULT 'ZAR',
       status text NOT NULL DEFAULT 'pending',
       stripe_checkout_session_id text,
@@ -1129,7 +1141,7 @@ try {
       reviewed_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
       release_approved_at timestamptz,
       released_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
-      transfer_amount_cents integer,
+      transfer_amount_cents bigint,
       transfer_reference text,
       proof_of_transfer_url text,
       admin_notes text,
@@ -1141,6 +1153,12 @@ try {
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+      ALTER COLUMN amount_cents TYPE bigint,
+      ALTER COLUMN total_paid_cents TYPE bigint
   `;
 
   await sql`
@@ -1190,7 +1208,12 @@ try {
 
   await sql`
     ALTER TABLE listing_reservations
-    ADD COLUMN IF NOT EXISTS transfer_amount_cents integer
+    ADD COLUMN IF NOT EXISTS transfer_amount_cents bigint
+  `;
+
+  await sql`
+    ALTER TABLE listing_reservations
+      ALTER COLUMN transfer_amount_cents TYPE bigint
   `;
 
   await sql`
@@ -1998,7 +2021,7 @@ try {
       listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
       buyer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       agent_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      amount_cents integer NOT NULL,
+      amount_cents bigint NOT NULL,
       currency text NOT NULL DEFAULT 'ZAR',
       note text,
       status text NOT NULL DEFAULT 'pending',
@@ -2006,6 +2029,11 @@ try {
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `;
+
+  await sql`
+    ALTER TABLE property_offers
+      ALTER COLUMN amount_cents TYPE bigint
   `;
 
   await sql`

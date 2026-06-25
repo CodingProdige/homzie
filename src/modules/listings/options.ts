@@ -125,6 +125,13 @@ export const mandateTypeOptions = [
     icon: ShieldCheck,
   },
   {
+    value: "dual",
+    label: "Dual mandate",
+    description:
+      "Two appointed agents or agencies may market the property under the agreed mandate terms.",
+    icon: Handshake,
+  },
+  {
     value: "rental",
     label: "Rental mandate",
     description:

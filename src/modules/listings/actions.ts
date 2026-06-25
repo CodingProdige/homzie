@@ -128,6 +128,7 @@ type StoredListingMedia = {
   name: string;
   path: string;
   size: number;
+  sourceUrl?: string;
   type: string;
 };
 
@@ -262,6 +263,20 @@ const descriptionImprovementSchema = z.object({
   location: z.string().trim().max(240).optional(),
   propertyType: z.enum(propertyTypeValues),
   title: z.string().trim().min(4).max(maxListingTitleLength),
+});
+const listingImportAiSchema = z.object({
+  askingPrice: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
+  bathrooms: z.coerce.number().min(0).max(99).optional(),
+  bedrooms: z.coerce.number().int().min(0).max(99).optional(),
+  description: z.string().trim().max(10_000).optional(),
+  erfSize: z.coerce.number().min(0).max(10_000_000).optional(),
+  features: z.array(z.string().trim().min(1).max(80)).max(maxListingFeatures).optional(),
+  floorSize: z.coerce.number().min(0).max(10_000_000).optional(),
+  garages: z.coerce.number().int().min(0).max(99).optional(),
+  listingType: z.enum(listingTypeValues).optional(),
+  parking: z.coerce.number().int().min(0).max(99).optional(),
+  propertyType: z.enum(propertyTypeValues).optional(),
+  title: z.string().trim().max(maxListingTitleLength).optional(),
 });
 
 function parseListingFormData(formData: FormData) {
@@ -558,6 +573,821 @@ async function findDuplicateActiveListing({
   return duplicate || null;
 }
 
+const importUrlSchema = z.string().trim().url().max(2_000);
+const maxImportHtmlBytes = 2_500_000;
+const maxImportedImages = maxListingMediaItems;
+const importedImageFetchTimeoutMs = 8_000;
+const importedHtmlFetchTimeoutMs = 12_000;
+
+function isBlockedImportHostname(hostname: string) {
+  const normalized = hostname.toLowerCase();
+
+  if (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "0.0.0.0" ||
+    normalized === "::1"
+  ) {
+    return true;
+  }
+
+  if (/^127\./.test(normalized) || /^10\./.test(normalized) || /^192\.168\./.test(normalized)) {
+    return true;
+  }
+
+  const private172 = normalized.match(/^172\.(\d{1,2})\./);
+
+  return private172 ? Number(private172[1]) >= 16 && Number(private172[1]) <= 31 : false;
+}
+
+function safeImportUrl(value: string) {
+  const parsed = importUrlSchema.safeParse(value);
+
+  if (!parsed.success) {
+    throw new Error("Paste a valid property listing URL.");
+  }
+
+  const url = new URL(parsed.data);
+
+  if (!["http:", "https:"].includes(url.protocol) || isBlockedImportHostname(url.hostname)) {
+    throw new Error("That URL cannot be imported.");
+  }
+
+  return url;
+}
+
+function decodeHtmlEntities(value: string) {
+  const entities: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
+  };
+
+  return value
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&([a-z]+);/gi, (match, entity) => entities[String(entity).toLowerCase()] || match);
+}
+
+function stripHtml(value: string) {
+  return decodeHtmlEntities(
+    value
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+function htmlTextLines(value: string) {
+  return decodeHtmlEntities(
+    value
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<\/?(?:article|aside|blockquote|br|div|dl|dt|dd|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|section|table|tbody|td|tfoot|th|thead|tr|ul)[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .split(/\n+/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .filter((line, index, lines) => lines.indexOf(line) === index);
+}
+
+function metaContent(html: string, key: string) {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = [
+    new RegExp(`<meta[^>]+property=["']${escapedKey}["'][^>]+content=["']([^"']*)["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+name=["']${escapedKey}["'][^>]+content=["']([^"']*)["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${escapedKey}["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+name=["']${escapedKey}["'][^>]*>`, "i"),
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+
+    if (match?.[1]) return decodeHtmlEntities(match[1]).trim();
+  }
+
+  return "";
+}
+
+function titleContent(html: string) {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+
+  return match?.[1] ? stripHtml(match[1]) : "";
+}
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+
+  return "";
+}
+
+function flattenJsonLd(value: unknown): Record<string, unknown>[] {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap(flattenJsonLd);
+  }
+
+  if (typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  const graph = flattenJsonLd(record["@graph"]);
+
+  return [record, ...graph];
+}
+
+function jsonLdObjects(html: string) {
+  const objects: Record<string, unknown>[] = [];
+
+  for (const match of html.matchAll(
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  )) {
+    const rawJson = match[1] || "";
+
+    try {
+      objects.push(...flattenJsonLd(JSON.parse(rawJson)));
+    } catch {
+      try {
+        objects.push(...flattenJsonLd(JSON.parse(decodeHtmlEntities(rawJson))));
+      } catch {
+        // Ignore malformed third-party JSON-LD.
+      }
+    }
+  }
+
+  return objects;
+}
+
+function nestedRecord(value: unknown): Record<string, unknown> {
+  if (Array.isArray(value)) return nestedRecord(value[0]);
+
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function extractJsonLdAddress(objects: Record<string, unknown>[]) {
+  for (const object of objects) {
+    const address = nestedRecord(object.address);
+    const street = firstString(address.streetAddress);
+    const suburb = firstString(address.addressLocality, address.addressRegion);
+    const city = firstString(address.addressLocality);
+    const province = firstString(address.addressRegion);
+    const countryRecord = nestedRecord(address.addressCountry);
+    const country = firstString(address.addressCountry, countryRecord.name);
+    const parts = [street, suburb, city, province, country]
+      .filter(Boolean)
+      .filter((part, index, list) => list.indexOf(part) === index);
+
+    if (parts.length) {
+      return {
+        city,
+        country,
+        location: parts.join(", "),
+        province,
+        suburb: suburb !== city ? suburb : "",
+      };
+    }
+  }
+
+  return { city: "", country: "", location: "", province: "", suburb: "" };
+}
+
+function extractJsonLdImages(objects: Record<string, unknown>[]) {
+  const images: string[] = [];
+
+  for (const object of objects) {
+    const image = object.image;
+
+    if (typeof image === "string") {
+      images.push(image);
+    } else if (Array.isArray(image)) {
+      for (const item of image) {
+        if (typeof item === "string") images.push(item);
+        else if (item && typeof item === "object") {
+          const url = firstString((item as Record<string, unknown>).url);
+          if (url) images.push(url);
+        }
+      }
+    } else if (image && typeof image === "object") {
+      const url = firstString((image as Record<string, unknown>).url);
+      if (url) images.push(url);
+    }
+  }
+
+  return images;
+}
+
+function normalizeMoney(value: string) {
+  const numeric = value
+    .replace(/[^\d,.]/g, "")
+    .replace(/\s/g, "")
+    .replace(/,(?=\d{3}\b)/g, "")
+    .replace(/,/g, ".");
+
+  const amount = Number(numeric);
+
+  return Number.isFinite(amount) && amount > 0 ? String(Math.round(amount)) : "";
+}
+
+function firstTextNumber(text: string, pattern: RegExp) {
+  const match = text.match(pattern);
+
+  return match?.[1] ? match[1].replace(",", ".") : "";
+}
+
+function numberNearLabel(lines: string[], labels: string[]) {
+  const labelPattern = new RegExp(`\\b(?:${labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "i");
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] || "";
+    if (!labelPattern.test(line)) continue;
+
+    const combined = [line, lines[index + 1] || ""].join(" ");
+    const afterLabel = combined.match(/:\s*(\d+(?:[,.]\d+)?)/);
+    const beforeLabel = combined.match(/(\d+(?:[,.]\d+)?)\s*(?:bed|bedroom|bath|bathroom|garage|parking|parkings|parking bays?|m²|sqm|sq m|square metres?)?/i);
+    const value = afterLabel?.[1] || beforeLabel?.[1] || "";
+
+    if (value) return value.replace(",", ".");
+  }
+
+  return "";
+}
+
+function inferListingType(text: string) {
+  const normalized = text.toLowerCase();
+
+  const saleSignal = /\b(for sale|house for sale|home for sale|property for sale|buy|purchase|selling price|asking price|bond calculator)\b/.test(normalized);
+  const rentalSignal =
+    /\b(to rent|for rent|rental|monthly rental|rental amount|lease|tenant|per month)\b/.test(normalized) ||
+    /(?:r|zar)\s?[\d\s,.]{3,}\s*(?:\/\s*(?:month|pm)|p\/m|per month)\b/i.test(text);
+
+  if (rentalSignal && !saleSignal) {
+    return "rental" as const;
+  }
+
+  if (saleSignal) return "sale" as const;
+
+  if (/\b(development|new development|off plan|off-plan)\b/.test(normalized)) {
+    return "development" as const;
+  }
+
+  if (/\b(commercial|office|retail|industrial|warehouse)\b/.test(normalized)) {
+    return "commercial" as const;
+  }
+
+  return "sale" as const;
+}
+
+function inferPropertyType(text: string) {
+  const normalized = text.toLowerCase();
+
+  if (/\b(apartment|flat)\b/.test(normalized)) return "apartment" as const;
+  if (/\b(townhouse|town house)\b/.test(normalized)) return "townhouse" as const;
+  if (/\b(estate)\b/.test(normalized)) return "estate_home" as const;
+  if (/\b(vacant land|plot|stand)\b/.test(normalized)) return "vacant_land" as const;
+  if (/\b(development project)\b/.test(normalized)) return "development_project" as const;
+  if (/\b(development unit)\b/.test(normalized)) return "development_unit" as const;
+  if (/\boffice\b/.test(normalized)) return "office" as const;
+  if (/\bretail\b/.test(normalized)) return "retail" as const;
+  if (/\bindustrial\b/.test(normalized)) return "industrial" as const;
+  if (/\bwarehouse\b/.test(normalized)) return "warehouse" as const;
+
+  return "free_standing_house" as const;
+}
+
+function extractDescriptionSection(lines: string[]) {
+  const stopPattern = /^(features|amenities|property details|listing details|external features|interior features|contact|bond calculator|calculate bond|similar properties|share|location|map|documents)$/i;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^description$/i.test(lines[index] || "")) continue;
+
+    const parts: string[] = [];
+
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor] || "";
+
+      if (stopPattern.test(line)) break;
+      if (/^read full description/i.test(line)) continue;
+      if (line.length < 3) continue;
+
+      parts.push(line);
+
+      if (parts.join(" ").length >= maxListingDescriptionLength) break;
+    }
+
+    const description = cleanListingDescription(parts.join("\n\n"));
+    if (description.length >= 40) return description;
+  }
+
+  return "";
+}
+
+function extractFeaturesFromText(text: string) {
+  const featureMap: Array<[RegExp, string]> = [
+    [/\bstudy\b/i, "Study"],
+    [/\bpet friendly\b|\bpets allowed\b/i, "Pet friendly"],
+    [/\bpool\b|\bswimming pool\b/i, "Pool"],
+    [/\bgarden\b/i, "Garden"],
+    [/\bsolar panels?\b|\bsolar\b/i, "Solar"],
+    [/\bbackup battery\b|\binverter\b|\bbackup power\b/i, "Backup power"],
+    [/\bsecurity\b|\bsecure estate\b|\bgated\b/i, "Security"],
+    [/\bfibre\b|\bfiber\b/i, "Fibre"],
+    [/\bsea view\b|\bocean view\b/i, "Sea view"],
+    [/\bmountain view\b/i, "Mountain view"],
+    [/\bfurnished\b/i, "Furnished"],
+    [/\bair conditioning\b|\baircon\b/i, "Air conditioning"],
+    [/\bstaff quarters\b|\bdomestic quarters\b/i, "Staff quarters"],
+  ];
+
+  return featureMap
+    .filter(([pattern]) => pattern.test(text))
+    .map(([, label]) => label)
+    .slice(0, maxListingFeatures);
+}
+
+function normalizeImportedFeature(value: string) {
+  const normalized = value.toLowerCase();
+
+  if (/\bbackup\b|\binverter\b|\bbattery\b/.test(normalized)) return "Backup power";
+  if (/\bsolar\b/.test(normalized)) return "Solar";
+  if (/\bpet\b/.test(normalized)) return "Pet friendly";
+  if (/\bair\s?con\b|\bair conditioning\b/.test(normalized)) return "Air conditioning";
+  if (/\bstaff\b|\bdomestic quarters\b/.test(normalized)) return "Staff quarters";
+
+  return normalizeListingFeature(value);
+}
+
+function importedDescriptionHtml(value: string) {
+  const cleaned = cleanListingDescription(stripHtml(value));
+
+  if (!cleaned) return "";
+
+  return cleaned
+    .split(/\n{2,}|(?<=\.)\s+(?=[A-Z])/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((part) => `<p>${part.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)
+    .join("");
+}
+
+type ImportedDraft = {
+  askingPrice: string;
+  bathrooms: string;
+  bedrooms: string;
+  city: string;
+  country: string;
+  description: string;
+  erfSize: string;
+  features: string[];
+  floorSize: string;
+  garages: string;
+  listingType: (typeof listingTypeOptions)[number]["value"];
+  location: string;
+  parking: string;
+  propertyType: (typeof propertyTypeOptions)[number]["value"];
+  province: string;
+  suburb: string;
+  title: string;
+};
+
+function responseOutputText(result: {
+  output_text?: string;
+  output?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
+}) {
+  return (
+    result.output_text ||
+    result.output
+      ?.flatMap((item) => item.content || [])
+      .map((content) => content.text || "")
+      .join(" ") ||
+    ""
+  );
+}
+
+function parseJsonObject(value: string) {
+  const trimmed = value.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function mergeImportedDraft(
+  base: ImportedDraft,
+  aiDraft: z.infer<typeof listingImportAiSchema>,
+): ImportedDraft {
+  return {
+    ...base,
+    askingPrice: aiDraft.askingPrice ? String(Math.round(aiDraft.askingPrice)) : base.askingPrice,
+    bathrooms: typeof aiDraft.bathrooms === "number" ? String(aiDraft.bathrooms) : base.bathrooms,
+    bedrooms: typeof aiDraft.bedrooms === "number" ? String(Math.round(aiDraft.bedrooms)) : base.bedrooms,
+    description: aiDraft.description ? importedDescriptionHtml(aiDraft.description) : base.description,
+    erfSize: typeof aiDraft.erfSize === "number" && aiDraft.erfSize > 0 ? String(aiDraft.erfSize) : base.erfSize,
+    features: aiDraft.features?.length
+      ? aiDraft.features.map(normalizeImportedFeature).filter(Boolean).slice(0, maxListingFeatures)
+      : base.features,
+    floorSize:
+      typeof aiDraft.floorSize === "number" && aiDraft.floorSize > 0
+        ? String(aiDraft.floorSize)
+        : base.floorSize,
+    garages: typeof aiDraft.garages === "number" ? String(Math.round(aiDraft.garages)) : base.garages,
+    listingType: (aiDraft.listingType || base.listingType) as ImportedDraft["listingType"],
+    parking: typeof aiDraft.parking === "number" ? String(Math.round(aiDraft.parking)) : base.parking,
+    propertyType: (aiDraft.propertyType || base.propertyType) as ImportedDraft["propertyType"],
+    title: aiDraft.title ? cleanListingTitle(aiDraft.title) : base.title,
+  };
+}
+
+async function mapImportedListingWithAi(input: {
+  baseDraft: ImportedDraft;
+  jsonLd: Record<string, unknown>[];
+  sourceUrl: string;
+  textLines: string[];
+}) {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) return { draft: input.baseDraft, usedAi: false };
+
+  const evidence = input.textLines
+    .filter((line) => line.length <= 280)
+    .slice(0, 220)
+    .join("\n")
+    .slice(0, 18_000);
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      body: JSON.stringify({
+        input: [
+          {
+            content: [
+              {
+                text: [
+                  "Extract structured data from this South African property listing page.",
+                  "Use only facts explicitly present in the evidence. Do not invent.",
+                  "Return strict JSON only, with these optional keys:",
+                  "title, listingType, propertyType, askingPrice, bedrooms, bathrooms, garages, parking, floorSize, erfSize, features, description.",
+                  "",
+                  "Rules:",
+                  "- listingType must be sale, rental, development, or commercial.",
+                  "- If the evidence says 'for sale' or has a bond calculator, prefer sale unless there is clear rental/monthly rent language.",
+                  "- Only use rental when the page clearly says to rent, rental, lease, per month, /month, p/m, or monthly rental.",
+                  "- askingPrice must be a number in ZAR, without cents or separators.",
+                  "- bedrooms, bathrooms, garages, and parking must be numeric counts. Do not confuse garages with parking.",
+                  "- floorSize and erfSize must be numeric square metre values. If only one size exists, map it only when the label makes the meaning clear.",
+                  "- description must be the full marketing description section, not only the headline or mandate line.",
+                  "- features must be short labels, max 24 characters each.",
+                  "",
+                  `Source URL: ${input.sourceUrl}`,
+                  `Current deterministic draft: ${JSON.stringify(input.baseDraft)}`,
+                  `JSON-LD evidence: ${JSON.stringify(input.jsonLd).slice(0, 6000)}`,
+                  "",
+                  "Visible page evidence:",
+                  evidence,
+                ].join("\n"),
+                type: "input_text",
+              },
+            ],
+            role: "user",
+          },
+        ],
+        max_output_tokens: 900,
+        model: process.env.OPENAI_IMPORT_MODEL || defaultTitleImprovementModel,
+      }),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[listings] import AI mapping failed", {
+        error: errorText.slice(0, 500),
+        status: response.status,
+      });
+
+      return { draft: input.baseDraft, usedAi: false };
+    }
+
+    const result = (await response.json()) as {
+      output_text?: string;
+      output?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
+    };
+    const parsed = listingImportAiSchema.safeParse(parseJsonObject(responseOutputText(result)));
+
+    if (!parsed.success) {
+      console.error("[listings] import AI mapping returned invalid JSON", parsed.error.flatten());
+      return { draft: input.baseDraft, usedAi: false };
+    }
+
+    return { draft: mergeImportedDraft(input.baseDraft, parsed.data), usedAi: true };
+  } catch (error) {
+    console.error("[listings] import AI mapping error", error);
+
+    return { draft: input.baseDraft, usedAi: false };
+  }
+}
+
+function absoluteImportUrl(value: string, sourceUrl: URL) {
+  try {
+    const url = new URL(decodeHtmlEntities(value), sourceUrl);
+
+    if (!["http:", "https:"].includes(url.protocol)) return "";
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function importImageSourceKey(value: string) {
+  try {
+    const url = new URL(value);
+
+    url.hash = "";
+
+    return url.toString();
+  } catch {
+    return value.trim();
+  }
+}
+
+function extractImageUrls(html: string, sourceUrl: URL, objects: Record<string, unknown>[]) {
+  const candidates = [
+    metaContent(html, "og:image"),
+    metaContent(html, "twitter:image"),
+    ...extractJsonLdImages(objects),
+  ];
+
+  for (const match of html.matchAll(/<img[^>]+(?:src|data-src|data-lazy-src)=["']([^"']+)["'][^>]*>/gi)) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  return Array.from(
+    new Set(
+      candidates
+        .map((candidate) => absoluteImportUrl(candidate, sourceUrl))
+        .filter(Boolean)
+        .filter((url) => !url.startsWith("data:")),
+    ),
+  ).slice(0, maxImportedImages);
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      headers: {
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "user-agent":
+          "Mozilla/5.0 (compatible; HomzieListingImporter/1.0; +https://homzie.co.za)",
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function importImageCandidates(urls: string[], knownSourceUrls: string[] = []) {
+  const media: StoredListingMedia[] = [];
+  const warnings: string[] = [];
+  const knownSourceKeys = new Set(
+    knownSourceUrls
+      .map((url) => importImageSourceKey(String(url || "")))
+      .filter(Boolean),
+  );
+  let skippedExistingCount = 0;
+
+  for (const url of urls) {
+    if (media.length >= maxImportedImages) break;
+
+    const sourceKey = importImageSourceKey(url);
+
+    if (knownSourceKeys.has(sourceKey)) {
+      skippedExistingCount += 1;
+      continue;
+    }
+
+    try {
+      const response = await fetchWithTimeout(url, importedImageFetchTimeoutMs);
+      const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() || "";
+      const contentLength = Number(response.headers.get("content-length") || 0);
+
+      if (!response.ok || !listingImageTypes[contentType]) continue;
+      if (contentLength > maxListingImageBytes) continue;
+
+      const bytes = await response.arrayBuffer();
+
+      if (bytes.byteLength > maxListingImageBytes) continue;
+
+      const extension = listingImageTypes[contentType];
+      const fileName = `imported-listing-${media.length + 1}.${extension}`;
+      const file = new File([bytes], fileName, { type: contentType });
+      const [storedFile] = await storeListingMedia([file]);
+
+      if (storedFile) {
+        media.push({
+          ...storedFile,
+          sourceUrl: url,
+        });
+        knownSourceKeys.add(sourceKey);
+      }
+    } catch {
+      warnings.push("Some imported images could not be downloaded.");
+    }
+  }
+
+  return {
+    media,
+    skippedExistingCount,
+    warnings: Array.from(new Set(warnings)),
+  };
+}
+
+export async function importListingDraftFromUrl(
+  urlValue: string,
+  existingImportedMediaSources: string[] = [],
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return { error: "Sign in to import a listing." };
+  }
+
+  let sourceUrl: URL;
+
+  try {
+    sourceUrl = safeImportUrl(urlValue);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Paste a valid property listing URL.",
+    };
+  }
+
+  try {
+    const response = await fetchWithTimeout(sourceUrl.toString(), importedHtmlFetchTimeoutMs);
+    const contentType = response.headers.get("content-type") || "";
+    const contentLength = Number(response.headers.get("content-length") || 0);
+
+    if (!response.ok) {
+      return { error: "Homzie could not read that listing page." };
+    }
+
+    if (contentLength > maxImportHtmlBytes) {
+      return { error: "That page is too large to import safely." };
+    }
+
+    if (contentType && !contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
+      return { error: "That link does not look like a property listing page." };
+    }
+
+    const html = await response.text();
+
+    if (html.length > maxImportHtmlBytes) {
+      return { error: "That page is too large to import safely." };
+    }
+
+    const objects = jsonLdObjects(html);
+    const visibleText = stripHtml(html);
+    const textLines = htmlTextLines(html);
+    const structuredText = textLines.join("\n");
+    const jsonLdTitle = firstString(...objects.map((object) => firstString(object.name, object.headline)));
+    const jsonLdDescription = firstString(...objects.map((object) => object.description));
+    const jsonLdOffer =
+      objects
+        .map((object) => nestedRecord(object.offers))
+        .find((offer) => Object.keys(offer).length) || {};
+    const jsonLdAddress = extractJsonLdAddress(objects);
+    const title = cleanListingTitle(
+      firstString(metaContent(html, "og:title"), jsonLdTitle, titleContent(html)).replace(/\s+[|-]\s+.*$/, ""),
+    );
+    const sectionDescription = extractDescriptionSection(textLines);
+    const descriptionSource = firstString(
+      sectionDescription,
+      metaContent(html, "og:description"),
+      metaContent(html, "description"),
+      jsonLdDescription,
+      visibleText.slice(0, 1200),
+    );
+    const priceText = firstString(
+      metaContent(html, "product:price:amount"),
+      firstString(jsonLdOffer.price, nestedRecord(jsonLdOffer.priceSpecification).price),
+      visibleText.match(/(?:R|ZAR)\s?[\d\s,.]{4,}/i)?.[0],
+    );
+    const listingType = inferListingType(`${title} ${visibleText}`);
+    const propertyType = inferPropertyType(`${title} ${visibleText}`);
+    const imageUrls = extractImageUrls(html, sourceUrl, objects);
+    const importedImages = await importImageCandidates(
+      imageUrls,
+      existingImportedMediaSources.slice(0, maxListingMediaItems),
+    );
+    const bedrooms =
+      numberNearLabel(textLines, ["Bedrooms", "Bedroom", "Beds", "Bed"]) ||
+      firstTextNumber(visibleText, /(\d+(?:[,.]\d+)?)\s*(?:bed|bedroom|beds|bedrooms)\b/i);
+    const bathrooms =
+      numberNearLabel(textLines, ["Bathrooms", "Bathroom", "Baths", "Bath"]) ||
+      firstTextNumber(visibleText, /(\d+(?:[,.]\d+)?)\s*(?:bath|bathroom|baths|bathrooms)\b/i);
+    const garages =
+      numberNearLabel(textLines, ["Garages", "Garage"]) ||
+      firstTextNumber(visibleText, /(\d+)\s*(?:garage|garages)\b/i);
+    const parking =
+      numberNearLabel(textLines, ["Parking", "Parkings", "Parking bays"]) ||
+      firstTextNumber(visibleText, /(\d+)\s*(?:parking|parkings|parking bays?)\b/i);
+    const floorSize =
+      firstTextNumber(structuredText, /(?:floor size|floor area|under roof|building size|house size|home size)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m²|sqm|sq m|square metres?)/i) ||
+      firstTextNumber(structuredText, /(\d+(?:[,.]\d+)?)\s*(?:m²|sqm|sq m|square metres?)\D{0,24}(?:floor|under roof|building)/i);
+    const erfSize =
+      firstTextNumber(structuredText, /(?:erf|land size|plot size|stand size)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m²|sqm|sq m|square metres?)/i) ||
+      firstTextNumber(structuredText, /(\d+(?:[,.]\d+)?)\s*(?:m²|sqm|sq m|square metres?)\D{0,24}(?:erf|plot|stand|land)/i);
+    const location =
+      jsonLdAddress.location ||
+      firstString(metaContent(html, "og:locality"), metaContent(html, "place:location:latitude")) ||
+      "";
+    const baseDraft: ImportedDraft = {
+      askingPrice: normalizeMoney(priceText),
+      bathrooms,
+      bedrooms: bedrooms ? String(Math.round(Number(bedrooms))) : "",
+      city: jsonLdAddress.city,
+      country: jsonLdAddress.country,
+      description: importedDescriptionHtml(descriptionSource),
+      erfSize,
+      features: extractFeaturesFromText(visibleText),
+      floorSize,
+      garages,
+      listingType,
+      location,
+      parking,
+      propertyType,
+      province: jsonLdAddress.province,
+      suburb: jsonLdAddress.suburb,
+      title,
+    };
+    const aiMapped = await mapImportedListingWithAi({
+      baseDraft,
+      jsonLd: objects,
+      sourceUrl: sourceUrl.toString(),
+      textLines,
+    });
+    const warnings = [
+      ...importedImages.warnings,
+      aiMapped.usedAi
+        ? "AI reviewed the scraped listing details. Confirm the imported facts before publishing."
+        : "Review every imported field before publishing.",
+      importedImages.media.length
+        ? "Imported images were saved to this draft. Confirm you have permission to use them."
+        : "No usable listing images could be imported.",
+      importedImages.skippedExistingCount
+        ? `${importedImages.skippedExistingCount} previously imported image${
+            importedImages.skippedExistingCount === 1 ? " was" : "s were"
+          } already in this draft and skipped.`
+        : "",
+      !location ? "Location needs review." : "",
+    ].filter(Boolean);
+
+    return {
+      draft: aiMapped.draft,
+      foundImageCount: imageUrls.length,
+      importedImageCount: importedImages.media.length,
+      media: importedImages.media,
+      skippedExistingImageCount: importedImages.skippedExistingCount,
+      sourceUrl: sourceUrl.toString(),
+      warnings,
+    };
+  } catch (error) {
+    console.error("[listings] import listing from url failed", {
+      error,
+      sourceUrl: sourceUrl.toString(),
+      userId: session.user.id,
+    });
+
+    return { error: "Homzie could not import that listing. Try another link or create it manually." };
+  }
+}
+
 export async function createListing(formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -598,7 +1428,10 @@ export async function createListing(formData: FormData) {
   let media: Awaited<ReturnType<typeof storeListingMedia>>;
 
   try {
-    media = await storeListingMedia(mediaFiles);
+    media = [
+      ...parseExistingListingMedia(formData.get("existingMedia")),
+      ...(await storeListingMedia(mediaFiles)),
+    ].slice(0, maxListingMediaItems);
   } catch (error) {
     console.error("[listings] createListing media upload failed", {
       error,
@@ -2745,6 +3578,10 @@ function parseExistingListingMedia(value: FormDataEntryValue | null) {
           name: String(mediaItem.name || path.split("/").pop() || "Listing image"),
           path,
           size: Number(mediaItem.size || 0),
+          sourceUrl:
+            typeof mediaItem.sourceUrl === "string"
+              ? mediaItem.sourceUrl.slice(0, 2_000)
+              : undefined,
           type: String(mediaItem.type || "image/webp"),
         };
       })

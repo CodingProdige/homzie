@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Poppins } from "next/font/google";
 import { cookies } from "next/headers";
-import Script from "next/script";
 import { Suspense } from "react";
+import Script from "next/script";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { GoogleAnalyticsPageView } from "@/components/google-analytics-page-view";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
@@ -77,22 +77,7 @@ const googleAdsId =
   process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-18217057293";
 const googleTagId = googleAnalyticsId || googleAdsId;
 const themeCookieName = "homzie-theme";
-const validThemeModes = new Set(["light", "dark", "system"]);
-const themeBootstrapScript = `
-  (function() {
-    try {
-      var cookieMatch = document.cookie.match(/(?:^|; )homzie-theme=([^;]*)/);
-      var cookieMode = cookieMatch ? decodeURIComponent(cookieMatch[1]) : "";
-      var storedMode = window.localStorage.getItem("homzie-theme");
-      var mode = storedMode || cookieMode || "light";
-      if (mode !== "light" && mode !== "dark" && mode !== "system") mode = "light";
-      var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      var useDark = mode === "dark" || (mode === "system" && prefersDark);
-      document.documentElement.classList.toggle("dark", useDark);
-      document.documentElement.style.colorScheme = useDark ? "dark" : "light";
-    } catch (_) {}
-  })();
-`;
+const validThemeModes = new Set(["light", "dark"]);
 
 export default async function RootLayout({
   children,
@@ -114,11 +99,6 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <Script
-          id="homzie-theme-bootstrap"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
-        />
         {googleTagId ? (
           <>
             <Script

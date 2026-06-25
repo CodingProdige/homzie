@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   date,
   index,
@@ -422,10 +423,10 @@ export const propertyListings = pgTable(
     description: text("description"),
     location: text("location"),
     priceLabel: text("price_label"),
-    askingPriceCents: integer("asking_price_cents"),
-    soldPriceCents: integer("sold_price_cents"),
+    askingPriceCents: bigint("asking_price_cents", { mode: "number" }),
+    soldPriceCents: bigint("sold_price_cents", { mode: "number" }),
     reservationEnabled: boolean("reservation_enabled").notNull().default(false),
-    reservationAmountCents: integer("reservation_amount_cents"),
+    reservationAmountCents: bigint("reservation_amount_cents", { mode: "number" }),
     activeReservationId: uuid("active_reservation_id"),
     isDemoContent: boolean("is_demo_content").notNull().default(false),
     coverImageUrl: text("cover_image_url"),
@@ -473,10 +474,10 @@ export const listingReservations = pgTable(
     agentUserId: uuid("agent_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    amountCents: integer("amount_cents").notNull(),
+    amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
     platformFeeCents: integer("platform_fee_cents").notNull().default(0),
     processingFeeCents: integer("processing_fee_cents").notNull().default(0),
-    totalPaidCents: integer("total_paid_cents").notNull(),
+    totalPaidCents: bigint("total_paid_cents", { mode: "number" }).notNull(),
     currency: text("currency").notNull().default("ZAR"),
     status: text("status").notNull().default("pending"),
     stripeCheckoutSessionId: text("stripe_checkout_session_id"),
@@ -498,7 +499,7 @@ export const listingReservations = pgTable(
     releasedByUserId: uuid("released_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    transferAmountCents: integer("transfer_amount_cents"),
+    transferAmountCents: bigint("transfer_amount_cents", { mode: "number" }),
     transferReference: text("transfer_reference"),
     proofOfTransferUrl: text("proof_of_transfer_url"),
     adminNotes: text("admin_notes"),
@@ -545,7 +546,7 @@ export const propertySaleClaims = pgTable(
     claimStatus: text("claim_status").notNull().default("pending"),
     proofStatus: text("proof_status").notNull().default("pending"),
     proofSummary: text("proof_summary"),
-    soldPriceCents: integer("sold_price_cents"),
+    soldPriceCents: bigint("sold_price_cents", { mode: "number" }),
     soldAt: timestamp("sold_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1280,7 +1281,7 @@ export const propertyOffers = pgTable(
     agentUserId: uuid("agent_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    amountCents: integer("amount_cents").notNull(),
+    amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
     currency: text("currency").notNull().default("ZAR"),
     note: text("note"),
     status: text("status").notNull().default("pending"),

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useState } from "react";
 import {
   Bell,
@@ -13,6 +13,7 @@ import {
   Share,
   Smartphone,
   Sparkles,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -145,66 +146,74 @@ export function usePwaInstallState() {
 export async function promptHomzieInstall() {
   const installPrompt = window.__homzieInstallPrompt;
 
-  if (!installPrompt) return false;
+  if (!installPrompt) return null;
 
   window.__homzieInstallPrompt = null;
   notifyInstallPromptChange();
   await installPrompt.prompt();
-  await installPrompt.userChoice;
+  const choice = await installPrompt.userChoice;
   notifyInstallPromptChange();
 
-  return true;
+  return choice;
 }
 
 export function InstallHomzieButton({
   className,
   label = "Install Homzie",
   compact = false,
+  onOpen,
 }: {
   className?: string;
   label?: string;
   compact?: boolean;
+  onOpen?: () => void;
 }) {
   return (
-    <Link
-      href="/install"
-      className={cn(
-        "flex h-12 w-full min-w-0 items-center justify-center gap-3 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-center text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.28)] transition hover:scale-[1.005] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2",
-        compact && "h-9 w-auto px-3 text-xs",
-        className,
-      )}
+    <Dialog.Root
+      onOpenChange={(open) => {
+        if (open) onOpen?.();
+      }}
     >
-      <MonitorDown className={cn("size-4 shrink-0", compact && "size-3.5")} />
-      <span className="min-w-0 truncate">{label}</span>
-      <ChevronRight className={cn("size-4 shrink-0", compact && "size-3.5")} />
-    </Link>
+      <Dialog.Trigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-12 w-full min-w-0 items-center justify-center gap-3 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-center text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.28)] transition hover:scale-[1.005] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2",
+            compact && "h-9 w-auto px-3 text-xs",
+            className,
+          )}
+        >
+          <MonitorDown className={cn("size-4 shrink-0", compact && "size-3.5")} />
+          <span className="min-w-0 truncate">{label}</span>
+          <ChevronRight className={cn("size-4 shrink-0", compact && "size-3.5")} />
+        </button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[100] bg-brand-midnight/70 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[110] w-[min(calc(100vw-1.25rem),34rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-white/15 bg-brand-midnight text-white shadow-2xl outline-none">
+          <Dialog.Title className="sr-only">Install Homzie</Dialog.Title>
+          <Dialog.Close asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-3 top-3 z-20 size-9 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/15 hover:text-white"
+              aria-label="Close install flow"
+            >
+              <X className="size-4" />
+            </Button>
+          </Dialog.Close>
+          <Dialog.Description className="sr-only">
+            Install Homzie as a progressive web app and enable buyer alerts.
+          </Dialog.Description>
+          <PwaInstallFlow />
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
 export function InstallHomzieSettingsRow() {
   return <InstallHomzieButton />;
-}
-
-function StatusPill({
-  active,
-  children,
-}: {
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black",
-        active
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200"
-          : "border-border bg-muted/60 text-muted-foreground",
-      )}
-    >
-      {active ? <Check className="size-3.5" /> : null}
-      {children}
-    </span>
-  );
 }
 
 function InstructionStep({
@@ -217,13 +226,13 @@ function InstructionStep({
   detail: string;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-border bg-background p-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <Icon className="size-4" />
+    <div className="flex min-w-0 items-start gap-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
+        <Icon className="size-3.5" />
       </span>
       <span className="min-w-0">
-        <span className="block text-sm font-black text-foreground">{label}</span>
-        <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">
+        <span className="block text-sm font-black text-white">{label}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-white/65">
           {detail}
         </span>
       </span>
@@ -237,158 +246,146 @@ export function PwaInstallFlow({ className }: { className?: string }) {
   const [isPromptingInstall, setIsPromptingInstall] = useState(false);
   const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
   const [notice, setNotice] = useState("");
+  const [installWasTried, setInstallWasTried] = useState(false);
   const notificationsEnabled = notificationPermission === "granted";
   const notificationsBlocked = notificationPermission === "denied";
   const isIos = platform === "ios";
+  const needsInstall = !isInstalled;
+  const needsNotifications =
+    !notificationsEnabled &&
+    !notificationsBlocked &&
+    notificationPermission !== "unsupported";
+  const ready = !needsInstall && !needsNotifications;
+  const stepNumber = needsInstall ? 1 : needsNotifications ? 2 : 3;
+  const headline = needsInstall
+    ? "Install Homzie in one click."
+    : needsNotifications
+      ? "Turn on buyer alerts."
+      : "You are all set.";
+  const body = needsInstall
+    ? "Get Homzie on this device for faster access, realtime buyer updates, messages, and listing activity without hunting through browser tabs."
+    : needsNotifications
+      ? "Let Homzie tell you when buyers view, save, like, offer, or message while interest is still hot."
+      : "Homzie is installed and alerts are ready. Open it from your device whenever buyer activity starts moving.";
 
   return (
-    <div className={cn("grid gap-4", className)}>
-      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1fr_0.95fr] lg:p-8">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
-              <Sparkles className="size-3.5" />
-              Homzie app setup
-            </div>
-            <h1 className="mt-5 max-w-3xl text-3xl font-black tracking-tight text-foreground sm:text-5xl">
-              Install Homzie and keep buyer alerts close.
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground sm:text-base">
-              Get faster access to listings, messages, buyer activity, and the app-like
-              Homzie experience on this device.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <StatusPill active={isInstalled}>App installed</StatusPill>
-              <StatusPill active={notificationsEnabled}>Notifications enabled</StatusPill>
-            </div>
-          </div>
+    <div
+      className={cn(
+        "relative overflow-hidden bg-[radial-gradient(circle_at_18%_10%,rgba(123,92,255,0.44),transparent_31%),radial-gradient(circle_at_92%_18%,rgba(255,77,184,0.35),transparent_34%)] p-6 sm:p-8",
+        className,
+      )}
+    >
+      <div className="pointer-events-none absolute -right-16 -top-12 size-44 rounded-full bg-primary/25 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 left-8 size-56 rounded-full bg-[#ff4db8]/20 blur-3xl" />
 
-          <div className="relative min-h-56 overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_30%_15%,rgba(123,92,255,0.26),transparent_34%),radial-gradient(circle_at_80%_18%,rgba(255,77,184,0.18),transparent_32%),linear-gradient(135deg,hsl(var(--muted)),hsl(var(--background)))] p-5">
-            <div className="absolute right-5 top-5 rounded-full bg-background/80 px-3 py-1 text-xs font-black text-primary shadow-sm">
-              Homzie
-            </div>
-            <div className="flex h-full min-h-48 items-center justify-center">
-              <div className="relative flex size-36 items-center justify-center rounded-[2rem] bg-brand-midnight text-white shadow-2xl shadow-primary/25">
-                <Smartphone className="size-16" />
-                <span className="absolute -right-3 -top-3 flex size-11 items-center justify-center rounded-full bg-[image:var(--homzie-gradient)] shadow-lg">
-                  <Bell className="size-5" />
-                </span>
-              </div>
-            </div>
-          </div>
+      <div className="relative">
+        <div className="mx-auto flex size-20 items-center justify-center rounded-[1.6rem] bg-white/10 text-white shadow-2xl shadow-primary/20 ring-1 ring-white/15 sm:size-24">
+          {ready ? (
+            <Check className="size-10" />
+          ) : needsNotifications ? (
+            <Bell className="size-10" />
+          ) : (
+            <Smartphone className="size-10" />
+          )}
         </div>
-      </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Download className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
-                Step 1
-              </p>
-              <h2 className="mt-1 text-2xl font-black tracking-tight">
-                Install on this device
-              </h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-                We will use the native install prompt where your browser supports it.
-                Otherwise, follow the device steps below.
-              </p>
-            </div>
+        <div className="mt-5 flex items-center justify-center gap-2">
+          {[1, 2, 3].map((step) => (
+            <span
+              key={step}
+              className={cn(
+                "h-2 rounded-full transition-all",
+                step <= stepNumber ? "w-8 bg-white" : "w-2 bg-white/25",
+              )}
+            />
+          ))}
+        </div>
+
+        <div className="mx-auto mt-6 max-w-md text-center">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/80">
+            <Sparkles className="size-3.5" />
+            Homzie app setup
           </div>
+          <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            {headline}
+          </h2>
+          <p className="mt-3 text-sm font-semibold leading-6 text-white/72">{body}</p>
+        </div>
 
-          <div className="mt-5 grid gap-3">
-            {isInstalled ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200">
-                Homzie is already installed on this device.
-              </div>
-            ) : canPromptInstall ? (
-              <Button
-                type="button"
-                size="lg"
-                disabled={isPromptingInstall}
-                onClick={async () => {
-                  setNotice("");
-                  setIsPromptingInstall(true);
-                  await promptHomzieInstall();
-                  setIsPromptingInstall(false);
-                }}
-                className="w-full sm:w-fit"
-              >
-                {isPromptingInstall ? (
-                  <Loader2 className="size-4 animate-spin" />
+        <div className="mx-auto mt-7 grid max-w-md gap-3">
+          {needsInstall && canPromptInstall ? (
+            <Button
+              type="button"
+              size="lg"
+              disabled={isPromptingInstall}
+              onClick={async () => {
+                setNotice("");
+                setInstallWasTried(true);
+                setIsPromptingInstall(true);
+                const choice = await promptHomzieInstall();
+                setIsPromptingInstall(false);
+                if (choice?.outcome === "dismissed") {
+                  setNotice("No stress. Tap the button again when you are ready.");
+                }
+              }}
+              className="h-14 w-full rounded-md bg-[image:var(--homzie-gradient)] text-base font-black text-white shadow-[0_18px_45px_rgba(123,92,255,0.4)] hover:scale-[1.01] hover:opacity-95"
+            >
+              {isPromptingInstall ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : (
+                <MonitorDown className="size-5" />
+              )}
+              Click here to install
+              <ChevronRight className="size-5" />
+            </Button>
+          ) : null}
+
+          {needsInstall && !canPromptInstall ? (
+            <div className="rounded-lg border border-white/15 bg-white/10 p-4 text-left">
+              <p className="text-sm font-black text-white">
+                {isIos ? "Install from Safari" : "Open your browser install option"}
+              </p>
+              <div className="mt-4 grid gap-3">
+                {isIos ? (
+                  <>
+                    <InstructionStep
+                      icon={Share}
+                      label="Tap Share"
+                      detail="Open Homzie in Safari, then tap the share icon."
+                    />
+                    <InstructionStep
+                      icon={PlusSquare}
+                      label="Add to Home Screen"
+                      detail="Choose Add to Home Screen and keep the name as Homzie."
+                    />
+                    <InstructionStep
+                      icon={Check}
+                      label="Tap Add"
+                      detail="Homzie will appear on your Home Screen."
+                    />
+                  </>
                 ) : (
-                  <MonitorDown className="size-4" />
+                  <>
+                    <InstructionStep
+                      icon={Download}
+                      label="Use Chrome or Edge"
+                      detail="Open the browser menu and choose Install app when it appears."
+                    />
+                    <InstructionStep
+                      icon={Check}
+                      label="Keep the name Homzie"
+                      detail="Then open Homzie from your device like an app."
+                    />
+                  </>
                 )}
-                Install Homzie
-              </Button>
-            ) : isIos ? (
-              <div className="grid gap-3">
-                <InstructionStep
-                  icon={Share}
-                  label="Tap Share in Safari"
-                  detail="Use Safari for the smoothest Home Screen install flow on iPhone and iPad."
-                />
-                <InstructionStep
-                  icon={PlusSquare}
-                  label="Choose Add to Home Screen"
-                  detail="Homzie uses the app manifest name, so the suggested name should already be Homzie."
-                />
-                <InstructionStep
-                  icon={Check}
-                  label="Tap Add"
-                  detail="Open Homzie from your Home Screen after the icon appears."
-                />
               </div>
-            ) : (
-              <div className="rounded-lg border border-border bg-muted/50 p-4 text-sm font-semibold leading-6 text-muted-foreground">
-                Your browser has not exposed the install prompt yet. Open Homzie in Chrome,
-                Edge, or your browser menu and choose install when available.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Bell className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
-                Step 2
-              </p>
-              <h2 className="mt-1 text-2xl font-black tracking-tight">
-                Turn on buyer alerts
-              </h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-                Notifications keep realtime buyer activity, messages, offers, and
-                listing updates close even when Homzie is not open.
-              </p>
             </div>
-          </div>
+          ) : null}
 
-          <div className="mt-5 grid gap-3">
-            {notificationsEnabled ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200">
-                Notifications are enabled for this browser.
-              </div>
-            ) : notificationsBlocked ? (
-              <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-4 text-sm font-bold text-destructive">
-                Notifications are blocked. Enable them in your browser settings, then
-                return here.
-              </div>
-            ) : notificationPermission === "unsupported" ? (
-              <div className="rounded-lg border border-border bg-muted/50 p-4 text-sm font-semibold leading-6 text-muted-foreground">
-                Notifications are not supported in this browser. On iPhone, install
-                Homzie to your Home Screen first, then enable alerts from the installed app.
-              </div>
-            ) : (
+          {!needsInstall && needsNotifications ? (
+            <>
               <Button
                 type="button"
-                variant="outline"
                 size="lg"
                 disabled={isEnablingNotifications}
                 onClick={async () => {
@@ -407,43 +404,59 @@ export function PwaInstallFlow({ className }: { className?: string }) {
                     setIsEnablingNotifications(false);
                   }
                 }}
-                className="w-full sm:w-fit"
+                className="h-14 w-full rounded-md bg-[image:var(--homzie-gradient)] text-base font-black text-white shadow-[0_18px_45px_rgba(123,92,255,0.4)] hover:scale-[1.01] hover:opacity-95"
               >
                 {isEnablingNotifications ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-5 animate-spin" />
                 ) : (
-                  <Bell className="size-4" />
+                  <Bell className="size-5" />
                 )}
-                Enable buyer alerts
+                Click here to enable alerts
+                <ChevronRight className="size-5" />
               </Button>
-            )}
-            {notice ? (
-              <p className="text-xs font-bold text-muted-foreground">{notice}</p>
-            ) : null}
-          </div>
-        </div>
-      </section>
+              <button
+                type="button"
+                className="text-sm font-bold text-white/60 transition hover:text-white"
+                onClick={() =>
+                  setNotice("You can enable alerts later from this same install button.")
+                }
+              >
+                Maybe later
+              </button>
+            </>
+          ) : null}
 
-      <section className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
-          What you get
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {[
-            "Realtime buyer activity alerts",
-            "Faster access from your Home Screen",
-            "Messages and offer updates on this device",
-          ].map((item) => (
-            <div
-              key={item}
-              className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 text-sm font-bold"
-            >
-              <Check className="size-4 shrink-0 text-primary" />
-              <span>{item}</span>
+          {notificationsBlocked ? (
+            <div className="rounded-lg border border-red-300/25 bg-red-500/10 p-4 text-sm font-bold leading-6 text-red-100">
+              Notifications are blocked in this browser. Allow Homzie in browser settings,
+              then come back here.
             </div>
-          ))}
+          ) : null}
+
+          {notificationPermission === "unsupported" && !needsInstall ? (
+            <div className="rounded-lg border border-white/15 bg-white/10 p-4 text-sm font-semibold leading-6 text-white/70">
+              This browser does not support notifications. On iPhone, open Homzie from
+              the installed app and allow alerts there.
+            </div>
+          ) : null}
+
+          {ready ? (
+            <div className="rounded-lg border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm font-bold text-emerald-100">
+              Done. Homzie is installed and buyer alerts are enabled.
+            </div>
+          ) : null}
+
+          {notice ? (
+            <p className="text-center text-xs font-bold text-white/60">{notice}</p>
+          ) : null}
+
+          {installWasTried && needsInstall && !canPromptInstall && !isIos ? (
+            <p className="text-center text-xs font-semibold leading-5 text-white/50">
+              If the browser prompt was dismissed, reload Homzie and tap install again.
+            </p>
+          ) : null}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

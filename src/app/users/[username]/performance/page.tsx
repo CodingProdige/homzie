@@ -36,7 +36,6 @@ import {
   getAgentPerformanceStats,
   getAgentSoldPropertyHistory,
 } from "@/modules/agents/performance";
-import { getAgentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
@@ -330,40 +329,11 @@ export default async function AgentPerformancePage({
 
   const session = await getServerSession(authOptions);
   const isOwner = session?.user?.id === profile.id;
-  const hasSubscription = (await getAgentAccess(profile.id)).canViewListingPerformance;
   const pageClassName =
     "relative min-h-screen overflow-x-hidden bg-[#fbfbfe] text-brand-black";
   const surfaceClassName = "rounded-lg border border-border bg-white shadow-sm";
   const mutedSurfaceClassName =
     "rounded-lg border border-border bg-muted/35 shadow-sm";
-
-  if (!hasSubscription) {
-    return (
-      <main className={pageClassName}>
-        <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-6 pt-20 sm:px-8 sm:pb-8">
-          <PageTopBar
-            actions={<CurrencySelector />}
-            className="fixed inset-x-0 top-0 z-50 mx-auto max-w-3xl px-5 sm:px-8"
-          />
-          <section className="my-auto rounded-lg border border-primary/10 bg-white p-6 text-center shadow-sm sm:p-10">
-            <div className="mx-auto grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
-              <LockKeyhole className="size-7" />
-            </div>
-            <h1 className="mt-5 text-2xl font-black tracking-tight">
-              Performance locked
-            </h1>
-            <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
-              Agent performance is available for subscribed Homzie Agent profiles
-              once sales and mandate outcomes are tracked.
-            </p>
-            <Button asChild className="mt-6">
-              <Link href={`/users/${profile.username}`}>Back to profile</Link>
-            </Button>
-          </section>
-        </div>
-      </main>
-    );
-  }
 
   if (!profile.publicPerformanceVisible && !isOwner) {
     return (
