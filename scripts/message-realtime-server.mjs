@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { createAdapter } from "@socket.io/redis-adapter";
+import { parse as parseCookieHeaderValue } from "cookie";
 import { getToken } from "next-auth/jwt";
 import { createClient } from "redis";
 import { Server } from "socket.io";
@@ -7,10 +8,14 @@ import { Server } from "socket.io";
 const port = Number(process.env.MESSAGE_SOCKET_PORT || 3001);
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6380";
 const messageChannel = "homzie:messages";
-const sessionCookieName =
+const primarySessionCookieName =
   process.env.NODE_ENV === "production"
     ? "__Secure-homzie.session-token"
     : "homzie.session-token";
+const sessionCookieNames =
+  process.env.NODE_ENV === "production"
+    ? [primarySessionCookieName, "__Secure-next-auth.session-token"]
+    : [primarySessionCookieName, "next-auth.session-token"];
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
@@ -24,8 +29,9 @@ const io = new Server(httpServer, {
 const pubClient = createClient({ url: redisUrl });
 const subClient = pubClient.duplicate();
 const eventsClient = pubClient.duplicate();
+const presenceClient = pubClient.duplicate();
 
-for (const client of [pubClient, subClient, eventsClient]) {
+for (const client of [pubClient, subClient, eventsClient, presenceClient]) {
   client.on("error", (error) => {
     console.error("Messaging realtime Redis error", error);
   });
@@ -34,16 +40,102 @@ for (const client of [pubClient, subClient, eventsClient]) {
 await pubClient.connect();
 await subClient.connect();
 await eventsClient.connect();
+await presenceClient.connect();
 
 io.adapter(createAdapter(pubClient, subClient));
 
+function getCookieHeader(cookie) {
+  if (Array.isArray(cookie)) {
+    return cookie.join("; ");
+  }
+
+  return cookie || "";
+}
+
+function hasCookie(cookieHeader, cookieName) {
+  return cookieHeader
+    .split(";")
+    .some((cookie) => cookie.trim().startsWith(`${cookieName}=`));
+}
+
+function getTokenRequest(socket, cookieHeader) {
+  return {
+    cookies: parseCookieHeaderValue(cookieHeader),
+    headers: socket.request.headers,
+  };
+}
+
+function getAuthSecrets() {
+  const configuredSecrets = [
+    { name: "AUTH_SECRET", value: process.env.AUTH_SECRET },
+    { name: "NEXTAUTH_SECRET", value: process.env.NEXTAUTH_SECRET },
+  ];
+  const seen = new Set();
+
+  return configuredSecrets.filter(({ value }) => {
+    if (!value || seen.has(value)) {
+      return false;
+    }
+
+    seen.add(value);
+    return true;
+  });
+}
+
+async function getSocketAuthToken(socket) {
+  const authSecrets = getAuthSecrets();
+
+  if (authSecrets.length === 0) {
+    console.error(
+      "[messages-realtime] AUTH_SECRET or NEXTAUTH_SECRET must be configured for socket authentication.",
+    );
+    return null;
+  }
+
+  const cookieHeader = getCookieHeader(socket.request.headers.cookie);
+  const tokenRequest = getTokenRequest(socket, cookieHeader);
+  const errors = [];
+
+  for (const cookieName of sessionCookieNames) {
+    for (const { value: secret } of authSecrets) {
+      try {
+        const token = await getToken({
+          cookieName,
+          req: tokenRequest,
+          secret,
+        });
+
+        if (token?.sub) {
+          return token;
+        }
+      } catch (error) {
+        errors.push(
+          `${cookieName}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  console.warn("[messages-realtime] socket auth rejected", {
+    attemptedCookieNames: sessionCookieNames,
+    configuredSecrets: authSecrets.map(({ name }) => name),
+    cookiePresence: Object.fromEntries(
+      sessionCookieNames.map((cookieName) => [
+        cookieName,
+        hasCookie(cookieHeader, cookieName),
+      ]),
+    ),
+    errors,
+    host: socket.request.headers.host,
+    origin: socket.request.headers.origin,
+  });
+
+  return null;
+}
+
 io.use(async (socket, next) => {
   try {
-    const token = await getToken({
-      cookieName: sessionCookieName,
-      req: socket.request,
-      secret: process.env.AUTH_SECRET,
-    });
+    const token = await getSocketAuthToken(socket);
 
     if (!token?.sub) {
       next(new Error("Unauthenticated"));
@@ -62,7 +154,7 @@ io.on("connection", async (socket) => {
   const userRoom = `user:${userId}`;
 
   socket.join(userRoom);
-  await eventsClient.sAdd("homzie:messages:online-users", userId);
+  await presenceClient.sAdd("homzie:messages:online-users", userId);
   io.emit("presence:update", { online: true, userId });
 
   socket.on("conversation:join", (conversationId) => {
@@ -207,7 +299,7 @@ io.on("connection", async (socket) => {
     const sockets = await io.in(userRoom).fetchSockets();
 
     if (sockets.length === 0) {
-      await eventsClient.sRem("homzie:messages:online-users", userId);
+      await presenceClient.sRem("homzie:messages:online-users", userId);
       io.emit("presence:update", { online: false, userId });
     }
   });

@@ -93,6 +93,22 @@ function initials(name: string) {
   );
 }
 
+function getSocketUrl() {
+  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
+    return process.env.NEXT_PUBLIC_SOCKET_URL;
+  }
+
+  if (
+    process.env.NODE_ENV === "development" &&
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ) {
+    return `${window.location.protocol}//${window.location.hostname}:3001`;
+  }
+
+  return undefined;
+}
+
 function UserAvatar({
   className,
   user,
@@ -341,7 +357,7 @@ export function MessagesPage({
   }, [voicePreview]);
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || undefined, {
+    const socket = io(getSocketUrl(), {
       path: "/socket.io",
       transports: ["websocket", "polling"],
       withCredentials: true,
