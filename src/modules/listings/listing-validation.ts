@@ -66,10 +66,13 @@ export const residentialPropertyTypes = new Set<PropertyType | string>([
   "estate_home",
   "flatlet",
   "free_standing_house",
+  "golf_estate",
   "guest_house",
+  "lifestyle_estate",
   "retirement_unit",
   "room",
   "sectional_title_development",
+  "security_estate",
   "student_accommodation",
   "townhouse",
 ]);

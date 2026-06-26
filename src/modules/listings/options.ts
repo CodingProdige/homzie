@@ -118,6 +118,27 @@ export const propertyTypeOptions = [
     icon: Trees,
   },
   {
+    value: "lifestyle_estate",
+    label: "Lifestyle estate",
+    category: "residential",
+    listingTypes: ["sale", "rental", "development"],
+    icon: Trees,
+  },
+  {
+    value: "golf_estate",
+    label: "Golf estate",
+    category: "residential",
+    listingTypes: ["sale", "rental", "development"],
+    icon: LandPlot,
+  },
+  {
+    value: "security_estate",
+    label: "Security estate",
+    category: "residential",
+    listingTypes: ["sale", "rental", "development"],
+    icon: ShieldCheck,
+  },
+  {
     value: "retirement_unit",
     label: "Retirement unit",
     category: "residential",

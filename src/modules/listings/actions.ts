@@ -941,6 +941,11 @@ function inferPropertyType(text: string) {
   if (/\b(cluster)\b/.test(normalized)) return "cluster_home" as const;
   if (/\b(retirement)\b/.test(normalized)) return "retirement_unit" as const;
   if (/\b(guest house|guesthouse)\b/.test(normalized)) return "guest_house" as const;
+  if (/\b(golf estate)\b/.test(normalized)) return "golf_estate" as const;
+  if (/\b(security estate|secure estate|gated estate)\b/.test(normalized)) {
+    return "security_estate" as const;
+  }
+  if (/\b(lifestyle estate)\b/.test(normalized)) return "lifestyle_estate" as const;
   if (/\b(estate)\b/.test(normalized)) return "estate_home" as const;
   if (/\b(vacant land|plot|stand)\b/.test(normalized)) return "vacant_land" as const;
   if (/\b(development project)\b/.test(normalized)) return "development_project" as const;

@@ -361,6 +361,12 @@ type MediaUploadState = {
   total: number;
 };
 
+type MediaPreparationState = {
+  active: boolean;
+  completed: number;
+  total: number;
+};
+
 type ImportedListingSummary = {
   foundImageCount?: number;
   importedImageCount?: number;
@@ -874,14 +880,16 @@ function normalizeFeatureInput(value: string) {
 
 function SubmitButtons({
   intent,
-  isUploadingMedia,
+  isMediaBusy,
+  mediaBusyLabel = "Uploading",
   onReset,
   onBlockedPublish,
   publishIssues,
   setIntent,
 }: {
   intent: "draft" | "published";
-  isUploadingMedia?: boolean;
+  isMediaBusy?: boolean;
+  mediaBusyLabel?: string;
   onBlockedPublish: () => void;
   onReset: () => void;
   publishIssues: PublishIssue[];
@@ -898,6 +906,7 @@ function SubmitButtons({
         className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
         type="button"
         variant="outline"
+        disabled={isMediaBusy}
         onClick={onReset}
       >
         <span className="sm:hidden">Reset</span>
@@ -909,17 +918,17 @@ function SubmitButtons({
         name="publishIntent"
         value="draft"
         variant="outline"
-        disabled={savingDraft || isUploadingMedia}
+        disabled={savingDraft || isMediaBusy}
         onClick={() => setIntent("draft")}
       >
-        {isUploadingMedia ? "Uploading" : savingDraft ? "Saving" : "Save draft"}
+        {isMediaBusy ? mediaBusyLabel : savingDraft ? "Saving" : "Save draft"}
       </Button>
       <Button
         className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
         type={publishBlocked ? "button" : "submit"}
         name="publishIntent"
         value="published"
-        disabled={isUploadingMedia || (publishing && !publishBlocked)}
+        disabled={isMediaBusy || (publishing && !publishBlocked)}
         onClick={() => {
           setIntent("published");
 
@@ -928,8 +937,8 @@ function SubmitButtons({
           }
         }}
       >
-        {isUploadingMedia ? (
-          "Uploading"
+        {isMediaBusy ? (
+          mediaBusyLabel
         ) : publishing && !publishBlocked ? (
           "Publishing"
         ) : (
@@ -946,7 +955,8 @@ function SubmitButtons({
 function EditSubmitButtons({
   formId,
   intent,
-  isUploadingMedia,
+  isMediaBusy,
+  mediaBusyLabel = "Uploading",
   listingId,
   onBlockedPublish,
   publishIssues,
@@ -954,7 +964,8 @@ function EditSubmitButtons({
 }: {
   formId: string;
   intent: "draft" | "published";
-  isUploadingMedia?: boolean;
+  isMediaBusy?: boolean;
+  mediaBusyLabel?: string;
   listingId?: string;
   onBlockedPublish: () => void;
   publishIssues: PublishIssue[];
@@ -968,7 +979,7 @@ function EditSubmitButtons({
   return (
     <div className="flex min-w-0 flex-wrap justify-end gap-2 sm:gap-3">
       {listingId ? (
-        <ArchiveListingDialog disabled={false} formId={formId} />
+        <ArchiveListingDialog disabled={Boolean(isMediaBusy)} formId={formId} />
       ) : null}
       {intent === "draft" ? (
         <>
@@ -978,17 +989,17 @@ function EditSubmitButtons({
             name="publishIntent"
             value="draft"
             variant="outline"
-            disabled={savingDraft || isUploadingMedia}
+            disabled={savingDraft || isMediaBusy}
             onClick={() => setIntent("draft")}
           >
-            {isUploadingMedia ? "Uploading" : savingDraft ? "Updating" : "Update draft"}
+            {isMediaBusy ? mediaBusyLabel : savingDraft ? "Updating" : "Update draft"}
           </Button>
           <Button
             className="h-10 px-3 text-xs sm:px-4 sm:text-sm"
             type={publishBlocked ? "button" : "submit"}
             name="publishIntent"
             value="published"
-            disabled={isUploadingMedia || (publishing && !publishBlocked)}
+            disabled={isMediaBusy || (publishing && !publishBlocked)}
             onClick={() => {
               setIntent("published");
 
@@ -997,8 +1008,8 @@ function EditSubmitButtons({
               }
             }}
           >
-            {isUploadingMedia
-              ? "Uploading"
+            {isMediaBusy
+              ? mediaBusyLabel
               : publishing && !publishBlocked
                 ? "Publishing"
                 : "Publish listing"}
@@ -1010,7 +1021,7 @@ function EditSubmitButtons({
           type={publishBlocked ? "button" : "submit"}
           name="publishIntent"
           value="published"
-          disabled={isUploadingMedia || (publishing && !publishBlocked)}
+          disabled={isMediaBusy || (publishing && !publishBlocked)}
           onClick={() => {
             setIntent("published");
 
@@ -1019,8 +1030,8 @@ function EditSubmitButtons({
             }
           }}
         >
-          {isUploadingMedia
-            ? "Uploading"
+          {isMediaBusy
+            ? mediaBusyLabel
             : publishing && !publishBlocked
               ? "Updating"
               : "Update listing"}
@@ -2135,7 +2146,13 @@ export function CreateListingPage({
     completed: 0,
     total: 0,
   });
-  const [, setMediaStatus] = useState("");
+  const [mediaPreparationState, setMediaPreparationState] =
+    useState<MediaPreparationState>({
+      active: false,
+      completed: 0,
+      total: 0,
+    });
+  const [mediaStatus, setMediaStatus] = useState("");
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const stepsScrollerRef = useRef<HTMLDivElement>(null);
   const autosaveHydratedRef = useRef(false);
@@ -2213,6 +2230,9 @@ export function CreateListingPage({
   const uploadMedia = media.filter((item) => item.file);
   const uploadMediaCount = uploadMedia.length;
   const isUploadingMedia = mediaUploadState.active;
+  const isPreparingMedia = mediaPreparationState.active;
+  const isMediaBusy = isUploadingMedia || isPreparingMedia;
+  const mediaBusyLabel = isUploadingMedia ? "Uploading" : "Preparing media";
   const publishIssueSteps = useMemo(
     () => new Set(publishIssues.map((issue) => issue.step)),
     [publishIssues],
@@ -2470,21 +2490,47 @@ export function CreateListingPage({
   }
 
   async function handleMediaChange(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []).slice(
-      0,
-      maxListingMediaItems - media.length,
-    );
+    const selectedFiles = Array.from(event.target.files || []);
+    const availableSlots = Math.max(maxListingMediaItems - media.length, 0);
+    const files = selectedFiles.slice(0, availableSlots);
+    const skippedCount = Math.max(selectedFiles.length - files.length, 0);
     setMediaStatus("");
 
-    if (!files.length) return;
+    if (!files.length) {
+      if (selectedFiles.length) {
+        setMediaStatus(`You can add up to ${maxListingMediaItems} media items.`);
+      }
 
-    setMediaStatus("Optimizing media...");
+      return;
+    }
 
-    let compressedFiles: File[];
+    setMediaPreparationState({
+      active: true,
+      completed: 0,
+      total: files.length,
+    });
+    setMediaStatus(`Preparing media 0 of ${files.length}...`);
+
+    const compressedFiles: File[] = [];
 
     try {
-      compressedFiles = await Promise.all(files.map(optimizeMediaFile));
+      for (const file of files) {
+        const optimizedFile = await optimizeMediaFile(file);
+
+        compressedFiles.push(optimizedFile);
+        setMediaPreparationState({
+          active: true,
+          completed: compressedFiles.length,
+          total: files.length,
+        });
+        setMediaStatus(`Preparing media ${compressedFiles.length} of ${files.length}...`);
+      }
     } catch (error) {
+      setMediaPreparationState({
+        active: false,
+        completed: 0,
+        total: files.length,
+      });
       setMediaStatus(
         error instanceof Error ? error.message : "Could not optimize that media.",
       );
@@ -2497,6 +2543,11 @@ export function CreateListingPage({
     );
 
     if (oversizedVideo) {
+      setMediaPreparationState({
+        active: false,
+        completed: 0,
+        total: files.length,
+      });
       setMediaStatus(
         `Video ${oversizedVideo.name} is too large. Keep listing videos under ${maxListingVideoSizeMb}MB after optimization.`,
       );
@@ -2518,7 +2569,18 @@ export function CreateListingPage({
 
       return updatedMedia;
     });
-    setMediaStatus("");
+    setMediaPreparationState({
+      active: false,
+      completed: files.length,
+      total: files.length,
+    });
+    setMediaStatus(
+      `${nextMedia.length} ${nextMedia.length === 1 ? "media item is" : "media items are"} ready to upload when you save or publish.${
+        skippedCount
+          ? ` ${skippedCount} ${skippedCount === 1 ? "item was" : "items were"} skipped because the listing media limit is ${maxListingMediaItems}.`
+          : ""
+      }`,
+    );
   }
 
   function removeMedia(index: number) {
@@ -2588,6 +2650,7 @@ export function CreateListingPage({
     setImportSummary(null);
     setImportedLocationCandidate(null);
     setMediaUploadState({ active: false, completed: 0, total: 0 });
+    setMediaPreparationState({ active: false, completed: 0, total: 0 });
     setMediaStatus("");
     setPublishMessage("");
 
@@ -2732,7 +2795,7 @@ export function CreateListingPage({
 
     setPublishIntent(intent);
 
-    if (isUploadingMedia) {
+    if (isMediaBusy) {
       event.preventDefault();
       return;
     }
@@ -2980,7 +3043,8 @@ export function CreateListingPage({
                     listingId={listingId}
                     onBlockedPublish={openPublishRequirements}
                     publishIssues={publishIssues}
-                    isUploadingMedia={isUploadingMedia}
+                    isMediaBusy={isMediaBusy}
+                    mediaBusyLabel={mediaBusyLabel}
                     setIntent={setPublishIntent}
                   />
                 </>
@@ -2990,7 +3054,8 @@ export function CreateListingPage({
                   onBlockedPublish={openPublishRequirements}
                   onReset={requestResetForm}
                   publishIssues={publishIssues}
-                  isUploadingMedia={isUploadingMedia}
+                  isMediaBusy={isMediaBusy}
+                  mediaBusyLabel={mediaBusyLabel}
                   setIntent={setPublishIntent}
                 />
               )
@@ -3001,7 +3066,7 @@ export function CreateListingPage({
                   {listingHref ? (
                     <PageTopBarMenuItem
                       onSelect={() => {
-                        if (isUploadingMedia) return;
+                        if (isMediaBusy) return;
                         window.location.replace(listingHref);
                       }}
                     >
@@ -3010,7 +3075,7 @@ export function CreateListingPage({
                   ) : null}
                   <PageTopBarMenuItem
                     onSelect={() => {
-                      if (isUploadingMedia) return;
+                      if (isMediaBusy) return;
                       if (publishIntent === "published" && publishIssues.length) {
                         openPublishRequirements();
                         return;
@@ -3025,7 +3090,7 @@ export function CreateListingPage({
                     <PageTopBarMenuItem
                       className="text-primary"
                       onSelect={() => {
-                        if (isUploadingMedia) return;
+                        if (isMediaBusy) return;
                         setPublishIntent("published");
                         if (publishIssues.length) {
                           openPublishRequirements();
@@ -3040,7 +3105,7 @@ export function CreateListingPage({
                   <PageTopBarMenuItem
                     className="text-destructive"
                     onSelect={() => {
-                      if (isUploadingMedia) return;
+                      if (isMediaBusy) return;
                       window.setTimeout(() => {
                         document
                           .getElementById(`${formId}-archive-trigger`)
@@ -3055,7 +3120,7 @@ export function CreateListingPage({
                 <>
                   <PageTopBarMenuItem
                     onSelect={() => {
-                      if (isUploadingMedia) return;
+                      if (isMediaBusy) return;
                       requestResetForm();
                     }}
                   >
@@ -3063,7 +3128,7 @@ export function CreateListingPage({
                   </PageTopBarMenuItem>
                   <PageTopBarMenuItem
                     onSelect={() => {
-                      if (isUploadingMedia) return;
+                      if (isMediaBusy) return;
                       setPublishIntent("draft");
                       document.getElementById(`${formId}-save-draft`)?.click();
                     }}
@@ -3073,7 +3138,7 @@ export function CreateListingPage({
                   <PageTopBarMenuItem
                     className="text-primary"
                     onSelect={() => {
-                      if (isUploadingMedia) return;
+                      if (isMediaBusy) return;
                       setPublishIntent("published");
                       if (publishIssues.length) {
                         openPublishRequirements();
@@ -3100,7 +3165,7 @@ export function CreateListingPage({
           {mode === "edit" && listingId ? (
             <span className="hidden">
               <ArchiveListingDialog
-                disabled={false}
+                disabled={isMediaBusy}
                 formId={formId}
                 triggerId={`${formId}-archive-trigger`}
               />
@@ -3350,9 +3415,12 @@ export function CreateListingPage({
                   <MediaStep
                     coverIndex={coverIndex}
                     media={media}
+                    mediaPreparationState={mediaPreparationState}
+                    mediaStatus={mediaStatus}
                     onOpenFilePicker={() => mediaInputRef.current?.click()}
                     onRemove={removeMedia}
                     onReorder={reorderMedia}
+                    isPreparingMedia={isPreparingMedia}
                     setCoverIndex={setCoverIndex}
                   />
                 ) : null}
@@ -4926,20 +4994,25 @@ function PricingStep({
 
 function MediaStep({
   coverIndex,
+  isPreparingMedia,
   media,
+  mediaPreparationState,
+  mediaStatus,
   onOpenFilePicker,
   onRemove,
   onReorder,
   setCoverIndex,
 }: {
   coverIndex: number;
+  isPreparingMedia?: boolean;
   media: ListingFormMedia[];
+  mediaPreparationState: MediaPreparationState;
+  mediaStatus: string;
   onOpenFilePicker: () => void;
   onRemove: (index: number) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   setCoverIndex: (index: number) => void;
 }) {
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const videoCount = media.filter(isVideoMedia).length;
   const imageCount = media.length - videoCount;
 
@@ -4966,103 +5039,290 @@ function MediaStep({
       </div>
       <button
         type="button"
-        className="flex min-h-44 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-8 text-center transition-colors hover:bg-primary/10"
+        className={cn(
+          "flex min-h-44 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-8 text-center transition-colors hover:bg-primary/10",
+          isPreparingMedia && "cursor-wait opacity-75",
+        )}
+        disabled={isPreparingMedia}
         onClick={onOpenFilePicker}
       >
-        <ImagePlus className="size-8 text-primary" />
+        {isPreparingMedia ? (
+          <LoaderCircle className="size-8 animate-spin text-primary" />
+        ) : (
+          <ImagePlus className="size-8 text-primary" />
+        )}
         <span className="mt-3 inline-flex items-center text-sm font-medium">
-          Upload listing media
-          <RequiredAsterisk />
+          {isPreparingMedia ? "Preparing media" : "Upload listing media"}
+          {!isPreparingMedia ? <RequiredAsterisk /> : null}
         </span>
         <span className="mt-1 text-xs font-normal text-muted-foreground">
-          Choose photos or video. Select a photo as the cover when possible.
+          {isPreparingMedia
+            ? "Optimizing files and creating previews."
+            : "Choose photos or video. Select a photo as the cover when possible."}
         </span>
       </button>
+      <MediaPreparationStatus
+        state={mediaPreparationState}
+        status={mediaStatus}
+      />
       {media.length ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {media.map((item, index) => (
-            <div
-              key={item.id}
-              draggable
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-normal leading-5 text-muted-foreground">
+              Drag media to reorder. The cover image appears first on cards and detail pages.
+            </p>
+            <MediaArrangementDialog
+              coverIndex={coverIndex}
+              disabled={isPreparingMedia}
+              media={media}
+              onRemove={onRemove}
+              onReorder={onReorder}
+              setCoverIndex={setCoverIndex}
+            />
+          </div>
+          <MediaGrid
+            coverIndex={coverIndex}
+            media={media}
+            onRemove={onRemove}
+            onReorder={onReorder}
+            setCoverIndex={setCoverIndex}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MediaPreparationStatus({
+  state,
+  status,
+}: {
+  state: MediaPreparationState;
+  status: string;
+}) {
+  if (!state.active && !status) return null;
+
+  const isError = /^(could not|video|you can add)/i.test(status);
+  const progress = state.total
+    ? Math.max(8, Math.min(100, (state.completed / state.total) * 100))
+    : state.active
+      ? 12
+      : 100;
+  const Icon = state.active ? LoaderCircle : isError ? CircleAlert : CheckCircle2;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "rounded-lg border p-3 text-sm",
+        isError
+          ? "border-destructive/25 bg-destructive/10 text-destructive"
+          : "border-primary/25 bg-primary/5 text-foreground",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            "mt-0.5 grid size-8 shrink-0 place-items-center rounded-full",
+            isError ? "bg-destructive/10" : "bg-primary/10 text-primary",
+          )}
+        >
+          <Icon className={cn("size-4", state.active && "animate-spin")} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">
+            {status ||
+              `Preparing media ${Math.min(state.completed, state.total)} of ${state.total}`}
+          </p>
+          {state.active && state.total ? (
+            <p className="mt-1 text-xs font-normal text-muted-foreground">
+              {Math.min(state.completed, state.total)} of {state.total} files prepared
+            </p>
+          ) : null}
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-background">
+            <span
               className={cn(
-                "group relative cursor-grab overflow-hidden rounded-lg border border-border bg-muted transition-all active:cursor-grabbing",
-                draggedIndex === index && "scale-[0.98] opacity-60",
-                coverIndex === index && "ring-2 ring-primary",
+                "block h-full rounded-full transition-[width] duration-300 ease-out",
+                isError ? "bg-destructive" : "bg-[image:var(--homzie-gradient)]",
               )}
-              onDragStart={(event) => {
-                setDraggedIndex(index);
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", String(index));
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                const fromIndex = Number(event.dataTransfer.getData("text/plain"));
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-                if (Number.isFinite(fromIndex)) {
-                  onReorder(fromIndex, index);
-                }
+function MediaArrangementDialog({
+  coverIndex,
+  disabled,
+  media,
+  onRemove,
+  onReorder,
+  setCoverIndex,
+}: {
+  coverIndex: number;
+  disabled?: boolean;
+  media: ListingFormMedia[];
+  onRemove: (index: number) => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+  setCoverIndex: (index: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
 
-                setDraggedIndex(null);
-              }}
-              onDragEnd={() => setDraggedIndex(null)}
-            >
-              {isVideoMedia(item) ? (
-                <div className="relative aspect-[4/3] w-full bg-black">
-                  <video
-                    src={item.previewUrl}
-                    className="size-full object-cover"
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                  <span className="absolute inset-0 grid place-items-center bg-black/15 text-white">
-                    <Play className="size-7 fill-white" />
-                  </span>
-                </div>
-              ) : (
-                <Image
-                  src={item.previewUrl}
-                  alt={item.name}
-                  width={320}
-                  height={240}
-                  className="aspect-[4/3] w-full object-cover"
-                />
-              )}
-              <div className="absolute left-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm">
-                <Grip className="size-3.5" aria-hidden="true" />
-              </div>
-              {coverIndex === index ? (
-                <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground shadow-sm">
-                  Cover
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background hover:text-primary"
-                  onClick={() => setCoverIndex(index)}
-                  aria-label="Set as cover image"
-                  title="Set as cover"
-                >
-                  <ImagePlus className="size-3.5" />
-                </button>
-              )}
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Trigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 shrink-0 px-3 text-xs sm:text-sm"
+          disabled={disabled}
+        >
+          <Grip className="size-4" />
+          Arrange media
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/45 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[91] flex max-h-[min(44rem,calc(100dvh-2rem))] w-[min(calc(100vw-2rem),72rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl outline-none">
+          <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+            <div>
+              <Dialog.Title className="text-base font-semibold">
+                Arrange media
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
+                Drag cards to reorder, choose a cover image, or remove media from the listing.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
               <button
                 type="button"
-                className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background hover:text-destructive"
-                onClick={() => onRemove(index)}
-                aria-label="Remove media"
-                title="Remove media"
+                className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Close media arrangement"
               >
                 <X className="size-4" />
               </button>
+            </Dialog.Close>
+          </div>
+          <div className="min-h-0 overflow-y-auto p-5">
+            <MediaGrid
+              coverIndex={coverIndex}
+              gridClassName="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+              media={media}
+              onRemove={onRemove}
+              onReorder={onReorder}
+              setCoverIndex={setCoverIndex}
+            />
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function MediaGrid({
+  coverIndex,
+  gridClassName,
+  media,
+  onRemove,
+  onReorder,
+  setCoverIndex,
+}: {
+  coverIndex: number;
+  gridClassName?: string;
+  media: ListingFormMedia[];
+  onRemove: (index: number) => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+  setCoverIndex: (index: number) => void;
+}) {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  return (
+    <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3", gridClassName)}>
+      {media.map((item, index) => (
+        <div
+          key={item.id}
+          draggable
+          className={cn(
+            "group relative cursor-grab overflow-hidden rounded-lg border border-border bg-muted transition-all active:cursor-grabbing",
+            draggedIndex === index && "scale-[0.98] opacity-60",
+            coverIndex === index && "ring-2 ring-primary",
+          )}
+          onDragStart={(event) => {
+            setDraggedIndex(index);
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", String(index));
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            const fromIndex = Number(event.dataTransfer.getData("text/plain"));
+
+            if (Number.isFinite(fromIndex)) {
+              onReorder(fromIndex, index);
+            }
+
+            setDraggedIndex(null);
+          }}
+          onDragEnd={() => setDraggedIndex(null)}
+        >
+          {isVideoMedia(item) ? (
+            <div className="relative aspect-[4/3] w-full bg-black">
+              <video
+                src={item.previewUrl}
+                className="size-full object-cover"
+                muted
+                playsInline
+                preload="metadata"
+              />
+              <span className="absolute inset-0 grid place-items-center bg-black/15 text-white">
+                <Play className="size-7 fill-white" />
+              </span>
             </div>
-          ))}
+          ) : (
+            <Image
+              src={item.previewUrl}
+              alt={item.name}
+              width={320}
+              height={240}
+              className="aspect-[4/3] w-full object-cover"
+            />
+          )}
+          <div className="absolute left-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm">
+            <Grip className="size-3.5" aria-hidden="true" />
+          </div>
+          {coverIndex === index ? (
+            <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground shadow-sm">
+              Cover
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background hover:text-primary"
+              onClick={() => setCoverIndex(index)}
+              aria-label="Set as cover image"
+              title="Set as cover"
+            >
+              <ImagePlus className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            className="absolute bottom-2 right-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background hover:text-destructive"
+            onClick={() => onRemove(index)}
+            aria-label="Remove media"
+            title="Remove media"
+          >
+            <X className="size-4" />
+          </button>
         </div>
-      ) : null}
+      ))}
     </div>
   );
 }
