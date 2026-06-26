@@ -207,7 +207,7 @@ function ProfileAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string }
   const safeAvatarUrl = toPublicMediaUrl(avatarUrl);
 
   return (
-    <div className="relative flex size-24 shrink-0 items-center justify-center rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-1 sm:size-36 lg:size-40">
+    <div className="relative flex size-24 shrink-0 items-center justify-center rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-1 sm:row-span-5 sm:size-36 lg:size-40">
       {safeAvatarUrl ? (
         <Image
           src={safeAvatarUrl}
