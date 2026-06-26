@@ -72,6 +72,93 @@ function formatMetric(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "0";
 }
 
+function hasPositiveMetric(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+type DetailStatData = {
+  icon: typeof BedDouble;
+  value: string;
+};
+
+function compactDetailStats(
+  stats: Array<DetailStatData | null>,
+): DetailStatData[] {
+  return stats.filter((item): item is DetailStatData => Boolean(item));
+}
+
+function listingDetailStats(listing: ListingDetailData) {
+  if (listing.propertyCategory === "commercial") {
+    return compactDetailStats([
+      hasPositiveMetric(listing.grossLettableArea)
+        ? {
+            icon: Ruler,
+            value: `${formatMetric(listing.grossLettableArea)}m² GLA`,
+          }
+        : {
+            icon: Ruler,
+            value: `${formatMetric(listing.floorSize)}m² floor`,
+          },
+      hasPositiveMetric(listing.parking)
+        ? {
+            icon: ParkingCircle,
+            value: `${formatMetric(listing.parking)} parking`,
+          }
+        : null,
+      hasPositiveMetric(listing.loadingBays)
+        ? {
+            icon: Car,
+            value: `${formatMetric(listing.loadingBays)} loading bays`,
+          }
+        : null,
+      hasPositiveMetric(listing.erfSize)
+        ? {
+            icon: Trees,
+            value: `${formatMetric(listing.erfSize)}m² erf`,
+          }
+        : null,
+    ]);
+  }
+
+  if (listing.propertyCategory === "land" || listing.propertyCategory === "farm") {
+    return compactDetailStats([
+      hasPositiveMetric(listing.landSizeHectares)
+        ? {
+            icon: Trees,
+            value: `${formatMetric(listing.landSizeHectares)} ha`,
+          }
+        : null,
+      hasPositiveMetric(listing.erfSize)
+        ? {
+            icon: Trees,
+            value: `${formatMetric(listing.erfSize)}m² land`,
+          }
+        : null,
+      hasPositiveMetric(listing.floorSize)
+        ? {
+            icon: Ruler,
+            value: `${formatMetric(listing.floorSize)}m² floor`,
+          }
+        : null,
+      hasPositiveMetric(listing.parking)
+        ? {
+            icon: ParkingCircle,
+            value: `${formatMetric(listing.parking)} parking`,
+          }
+        : null,
+    ]);
+  }
+
+  return [
+    { icon: BedDouble, value: `${formatMetric(listing.bedrooms)} beds` },
+    { icon: Bath, value: `${formatMetric(listing.bathrooms)} baths` },
+    { icon: Car, value: `${formatMetric(listing.garages)} garages` },
+    { icon: ParkingCircle, value: `${formatMetric(listing.parking)} parking` },
+    { icon: Ruler, value: `${formatMetric(listing.floorSize)}m² floor` },
+    { icon: Trees, value: `${formatMetric(listing.erfSize)}m² erf` },
+  ];
+}
+
 function formatDate(value: string) {
   if (!value) return "Dates not set";
 
@@ -190,13 +277,13 @@ function OfferStrengthInsight({
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-wide text-primary">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
             Offer strength
           </p>
-          <p className="mt-1 text-sm font-black">{strength}</p>
+          <p className="mt-1 text-sm font-semibold">{strength}</p>
         </div>
         {deltaLabel ? (
-          <span className="rounded-full bg-background px-2.5 py-1 text-[11px] font-black text-muted-foreground">
+          <span className="rounded-full bg-background px-2.5 py-1 text-[11px] font-normal text-muted-foreground">
             {deltaLabel}
           </span>
         ) : null}
@@ -208,13 +295,13 @@ function OfferStrengthInsight({
             style={{ left: `${score}%` }}
           />
         </div>
-        <div className="mt-2 flex justify-between text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+        <div className="mt-2 flex justify-between text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           <span>Cold</span>
           <span>Medium</span>
           <span>Hot</span>
         </div>
       </div>
-      <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
+      <p className="mt-2 text-xs font-normal leading-5 text-muted-foreground">
         {statsLabel}
       </p>
     </div>
@@ -255,7 +342,7 @@ function DetailStat({
   value: string;
 }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-black text-foreground">
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-foreground">
       <Icon className="size-5 shrink-0 text-muted-foreground" />
       <span>{value}</span>
     </span>
@@ -265,7 +352,7 @@ function DetailStat({
 function ListingOfferCountPill({ countLabel }: { countLabel: string }) {
   return (
     <span
-      className="inline-flex h-9 items-center gap-2 rounded-full border border-border bg-background/90 px-3 text-sm font-black shadow-sm backdrop-blur"
+      className="inline-flex h-9 items-center gap-2 rounded-full border border-border bg-background/90 px-3 text-sm font-semibold shadow-sm backdrop-blur"
       title="Offers made on this listing"
     >
       <HandCoins className="size-4" />
@@ -513,7 +600,7 @@ function BuyerAvatar({
       className={cn(
         sizeClass,
         textClass,
-        "grid shrink-0 place-items-center rounded-full bg-primary font-black text-primary-foreground",
+        "grid shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground",
         className,
       )}
     >
@@ -540,8 +627,8 @@ function IntentViewerRow({
         ) : null}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-black sm:text-sm">{buyer.name}</p>
-        <p className="mt-0.5 truncate text-[11px] font-semibold text-muted-foreground sm:text-xs">
+        <p className="truncate text-xs font-semibold sm:text-sm">{buyer.name}</p>
+        <p className="mt-0.5 truncate text-[11px] font-normal text-muted-foreground sm:text-xs">
           Viewed {buyer.viewCount} {buyer.viewCount === 1 ? "time" : "times"}
           <span className="px-1.5">•</span>
           Last seen {relativeLiveTime(buyer.lastSeenAt)}
@@ -580,8 +667,8 @@ function BuyerActivityStat({
         <Icon className="size-3.5 sm:size-4" />
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-xs font-black sm:text-sm">{value}</span>
-        <span className="mt-0.5 block truncate text-[11px] font-semibold text-muted-foreground sm:text-xs">
+        <span className="block truncate text-xs font-semibold sm:text-sm">{value}</span>
+        <span className="mt-0.5 block truncate text-[11px] font-normal text-muted-foreground sm:text-xs">
           {label}
         </span>
       </span>
@@ -596,20 +683,20 @@ function ActivityFeedRow({ activity }: { activity: LiveIntentActivity }) {
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr),auto] gap-x-2 gap-y-1 border-t border-border py-1.5 text-xs first:border-t-0 sm:flex sm:items-center sm:gap-3">
       <p className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap leading-none sm:shrink-0">
-        <span className="min-w-0 truncate font-black">{buyer.name}</span>
+        <span className="min-w-0 truncate font-semibold">{buyer.name}</span>
         <span
           className={cn(
-            "inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase leading-none",
+            "inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase leading-none",
             badge.className,
           )}
         >
           {badge.label}
         </span>
       </p>
-      <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-semibold leading-none text-muted-foreground sm:order-3">
+      <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-normal leading-none text-muted-foreground sm:order-3">
         {relativeLiveTime(activity.createdAt)}
       </span>
-      <p className="col-span-2 min-w-0 truncate whitespace-nowrap font-semibold leading-none text-muted-foreground sm:col-span-1 sm:flex sm:flex-1">
+      <p className="col-span-2 min-w-0 truncate whitespace-nowrap font-normal leading-none text-muted-foreground sm:col-span-1 sm:flex sm:flex-1">
         <span className="min-w-0 truncate text-muted-foreground">
           {liveActivityLabel(activity)}
         </span>
@@ -631,18 +718,18 @@ function LockedOwnerLiveIntentPanel() {
           <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-5">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
                   <span className="size-2.5 rounded-full bg-primary shadow-[0_0_12px_rgba(123,92,255,0.7)] sm:size-3" />
                   Buyer activity
                 </span>
-                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
+                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
                   Live
                 </span>
               </div>
-              <h2 className="mt-2 text-lg font-black tracking-tight sm:mt-3 sm:text-3xl">
+              <h2 className="mt-2 text-lg font-semibold tracking-tight sm:mt-3 sm:text-3xl">
                 Buyer intent is being captured
               </h2>
-              <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-black text-emerald-600 sm:mt-2 sm:gap-2 sm:text-sm">
+              <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-emerald-600 sm:mt-2 sm:gap-2 sm:text-sm">
                 <TrendingUp className="size-3.5 sm:size-4" />
                 <span className="min-w-0 truncate">Unlock to see who is serious</span>
               </p>
@@ -650,8 +737,8 @@ function LockedOwnerLiveIntentPanel() {
             <div className="flex items-center gap-2 sm:gap-3">
               <Eye className="size-4 text-muted-foreground sm:size-5" />
               <div>
-                <p className="text-[11px] font-black sm:text-sm">Live listing views</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                <p className="text-[11px] font-semibold sm:text-sm">Live listing views</p>
+                <p className="mt-0.5 text-[11px] font-normal text-muted-foreground sm:text-xs">
                   Buyer activity
                 </p>
               </div>
@@ -666,15 +753,15 @@ function LockedOwnerLiveIntentPanel() {
                     <Flame className="size-3.5 shrink-0 sm:size-5" />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="text-xs font-black uppercase tracking-wide text-rose-600 sm:text-sm">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600 sm:text-sm">
                       High intent
                     </h3>
-                    <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                    <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
                       Serious buyers showing strong interest
                     </p>
                   </div>
                 </div>
-                <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-rose-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+                <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-rose-500 text-[11px] font-semibold text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
                   ?
                 </span>
               </div>
@@ -685,12 +772,12 @@ function LockedOwnerLiveIntentPanel() {
                     className="flex min-w-0 items-center justify-between gap-3 border-b border-border/70 px-3 py-3 last:border-b-0"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black">{row.label}</p>
-                      <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
+                      <p className="truncate text-sm font-semibold">{row.label}</p>
+                      <p className="mt-0.5 truncate text-xs font-normal text-muted-foreground">
                         {row.meta}
                       </p>
                     </div>
-                    <span className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-black text-primary-foreground">
+                    <span className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground">
                       Chat
                     </span>
                   </div>
@@ -705,19 +792,19 @@ function LockedOwnerLiveIntentPanel() {
                     <Eye className="size-3.5 shrink-0 sm:size-5" />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="text-xs font-black uppercase tracking-wide text-blue-600 sm:text-sm">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-blue-600 sm:text-sm">
                       Low intent
                     </h3>
-                    <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                    <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
                       Browsing and exploring
                     </p>
                   </div>
                 </div>
-                <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-blue-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+                <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-blue-500 text-[11px] font-semibold text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
                   ?
                 </span>
               </div>
-              <div className="rounded-lg border border-blue-100 bg-card p-3 text-xs font-semibold leading-5 text-muted-foreground sm:p-4 sm:text-sm">
+              <div className="rounded-lg border border-blue-100 bg-card p-3 text-xs font-normal leading-5 text-muted-foreground sm:p-4 sm:text-sm">
                 First-time active buyers will appear here once unlocked.
               </div>
             </div>
@@ -729,8 +816,8 @@ function LockedOwnerLiveIntentPanel() {
             <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
               <Lock className="size-5" />
             </span>
-            <h3 className="mt-3 text-lg font-black">Unlock buyer activity</h3>
-            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+            <h3 className="mt-3 text-lg font-semibold">Unlock buyer activity</h3>
+            <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
               Keep publishing listings for free. Upgrade when you want to see
               active buyers, returning viewers, and AI-assisted intent signals.
             </p>
@@ -789,21 +876,21 @@ function OwnerLiveIntentPanel({
         <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-5">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
                 <span className="size-2.5 rounded-full bg-primary shadow-[0_0_12px_rgba(123,92,255,0.7)] sm:size-3" />
                 Buyer activity
               </span>
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
                 Live
               </span>
             </div>
-            <h2 className="mt-2 text-lg font-black tracking-tight sm:mt-3 sm:text-3xl">
+            <h2 className="mt-2 text-lg font-semibold tracking-tight sm:mt-3 sm:text-3xl">
               {intent.activeViewerCount} active{" "}
               {intent.activeViewerCount === 1 ? "viewer" : "viewers"}
             </h2>
             <p
               className={cn(
-                "mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-black sm:mt-2 sm:gap-2 sm:text-sm",
+                "mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-semibold sm:mt-2 sm:gap-2 sm:text-sm",
                 trend.toneClass,
               )}
             >
@@ -816,15 +903,15 @@ function OwnerLiveIntentPanel({
             <div className="flex items-center gap-2 sm:gap-3">
               <Eye className="size-4 text-muted-foreground sm:size-5" />
               <div>
-                <p className="text-[11px] font-black sm:text-sm">{totalViews24h} total views</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                <p className="text-[11px] font-semibold sm:text-sm">{totalViews24h} total views</p>
+                <p className="mt-0.5 text-[11px] font-normal text-muted-foreground sm:text-xs">
                   Last 24 hours
                 </p>
               </div>
             </div>
             <Link
               href={`/listings/${listingId}/activity`}
-              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-border bg-card px-3 text-[11px] font-black text-primary transition-colors hover:bg-primary/10 sm:h-9 sm:text-xs"
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-border bg-card px-3 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10 sm:h-9 sm:text-xs"
             >
               View all
               <ArrowRight className="size-3 sm:size-3.5" />
@@ -840,7 +927,7 @@ function OwnerLiveIntentPanel({
                   />
                 ))}
                 {extraBuyerCount ? (
-                  <span className="-ml-3 grid size-10 place-items-center rounded-full border-2 border-card bg-primary/10 text-xs font-black text-primary">
+                  <span className="-ml-3 grid size-10 place-items-center rounded-full border-2 border-card bg-primary/10 text-xs font-semibold text-primary">
                     +{extraBuyerCount}
                   </span>
                 ) : null}
@@ -857,15 +944,15 @@ function OwnerLiveIntentPanel({
                   <Flame className="size-3.5 shrink-0 sm:size-5" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-xs font-black uppercase tracking-wide text-rose-600 sm:text-sm">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600 sm:text-sm">
                     High intent
                   </h3>
-                  <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                  <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
                     Serious buyers showing strong interest
                   </p>
                 </div>
               </div>
-              <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-rose-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+              <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-rose-500 text-[11px] font-semibold text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
                 {highIntentBuyers.length}
               </span>
             </div>
@@ -885,14 +972,14 @@ function OwnerLiveIntentPanel({
                   </div>
                 ))
               ) : (
-                <p className="p-3 text-xs font-semibold text-muted-foreground sm:p-4 sm:text-sm">
+                <p className="p-3 text-xs font-normal text-muted-foreground sm:p-4 sm:text-sm">
                   Repeat active buyers will appear here.
                 </p>
               )}
               {highIntentBuyers.length > visibleHighIntentBuyers.length ? (
                 <Link
                   href={`/listings/${listingId}/activity`}
-                  className="flex items-center justify-center gap-1 border-t border-rose-100 px-3 py-2 text-xs font-black text-rose-600 transition hover:bg-rose-50"
+                  className="flex items-center justify-center gap-1 border-t border-rose-100 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
                 >
                   View all {highIntentBuyers.length}
                   <ArrowRight className="size-3" />
@@ -909,15 +996,15 @@ function OwnerLiveIntentPanel({
                   <Eye className="size-3.5 shrink-0 sm:size-5" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-xs font-black uppercase tracking-wide text-blue-600 sm:text-sm">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-blue-600 sm:text-sm">
                     Low intent
                   </h3>
-                  <p className="mt-0.5 text-xs font-semibold leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
+                  <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
                     Browsing and exploring
                   </p>
                 </div>
               </div>
-              <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-blue-500 text-[11px] font-black text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
+              <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-blue-500 text-[11px] font-semibold text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
                 {lowIntentBuyers.length}
               </span>
             </div>
@@ -937,14 +1024,14 @@ function OwnerLiveIntentPanel({
                   </div>
                 ))
               ) : (
-                <p className="p-3 text-xs font-semibold leading-5 text-muted-foreground sm:p-4 sm:text-sm">
+                <p className="p-3 text-xs font-normal leading-5 text-muted-foreground sm:p-4 sm:text-sm">
                   First-time active buyers will appear here.
                 </p>
               )}
               {lowIntentBuyers.length > visibleLowIntentBuyers.length ? (
                 <Link
                   href={`/listings/${listingId}/activity`}
-                  className="flex items-center justify-center gap-1 border-t border-blue-100 px-3 py-2 text-xs font-black text-blue-600 transition hover:bg-blue-50"
+                  className="flex items-center justify-center gap-1 border-t border-blue-100 px-3 py-2 text-xs font-semibold text-blue-600 transition hover:bg-blue-50"
                 >
                   View all {lowIntentBuyers.length}
                   <ArrowRight className="size-3" />
@@ -977,12 +1064,12 @@ function OwnerLiveIntentPanel({
 
         <div className="mt-3 min-w-0 rounded-lg border border-border p-2.5 sm:mt-4 sm:p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[10px] font-black uppercase tracking-wide text-primary sm:text-xs">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wide text-primary sm:text-xs">
               Recent activity feed
             </h3>
             <Link
               href={`/listings/${listingId}/activity`}
-              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-primary hover:underline sm:text-xs"
+              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-primary hover:underline sm:text-xs"
             >
               View all
               <ArrowRight className="size-3 sm:size-3.5" />
@@ -996,14 +1083,14 @@ function OwnerLiveIntentPanel({
               />
             ))
           ) : (
-            <p className="border-t border-border py-2 text-xs font-semibold text-muted-foreground">
+            <p className="border-t border-border py-2 text-xs font-normal text-muted-foreground">
               Active buyer activity will appear here.
             </p>
           )}
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border bg-muted/15 px-4 py-3 text-xs font-semibold text-muted-foreground sm:px-6">
+      <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border bg-muted/15 px-4 py-3 text-xs font-normal text-muted-foreground sm:px-6">
         <span className="inline-flex min-w-0 items-start gap-2">
           <Lock className="mt-0.5 size-4 shrink-0" />
           <span className="min-w-0">
@@ -1017,7 +1104,7 @@ function OwnerLiveIntentPanel({
 
 function ListingMetaPanel({ listing }: { listing: ListingDetailData }) {
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-card p-4 text-sm font-bold text-muted-foreground shadow-sm">
+    <div className="grid gap-2 rounded-lg border border-border bg-card p-4 text-sm font-normal text-muted-foreground shadow-sm">
       <p className="flex items-center gap-2">
         <Home className="size-4" />
         {listing.propertyTypeLabel}
@@ -1054,11 +1141,11 @@ function DetailDataTable({
             <tr key={item.label} className="transition hover:bg-muted/35">
               <th
                 scope="row"
-                className="w-[46%] px-4 py-3 align-top text-xs font-black uppercase tracking-wide text-muted-foreground sm:w-1/3 sm:px-5"
+                className="w-[46%] px-4 py-3 align-top text-xs font-normal uppercase tracking-wide text-muted-foreground sm:w-1/3 sm:px-5"
               >
                 {item.label}
               </th>
-              <td className="break-words px-4 py-3 align-top font-black sm:px-5">
+              <td className="break-words px-4 py-3 align-top font-semibold sm:px-5">
                 {item.value}
               </td>
             </tr>
@@ -1117,10 +1204,10 @@ function BondCalculatorDialog({
         <Dialog.Content className="fixed inset-x-3 top-1/2 z-[91] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-4 text-foreground shadow-2xl focus-visible:outline-none sm:mx-auto sm:max-w-3xl sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-lg font-semibold">
                 Bond calculator
               </Dialog.Title>
-              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+              <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
                 Estimate repayments using this listing&apos;s price.
               </Dialog.Description>
             </div>
@@ -1135,16 +1222,16 @@ function BondCalculatorDialog({
             <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
               <div className="grid gap-4">
                 <label className="grid gap-2">
-                  <span className="text-sm font-black">Purchase price</span>
-                  <div className="flex h-11 items-center rounded-md border border-border bg-muted px-3 text-sm font-black">
+                  <span className="text-sm font-semibold">Purchase price</span>
+                  <div className="flex h-11 items-center rounded-md border border-border bg-muted px-3 text-sm font-semibold">
                     {formatPriceCents(askingPriceCents)}
                   </div>
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-black">Deposit</span>
+                  <span className="text-sm font-semibold">Deposit</span>
                   <div className="flex h-11 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary/25">
-                    <span className="text-sm font-black text-primary">
+                    <span className="text-sm font-semibold text-primary">
                       {formatPriceCents(0).replace(/[0-9.,\s]+/g, "").trim() ||
                         "R"}
                     </span>
@@ -1160,7 +1247,7 @@ function BondCalculatorDialog({
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-black">Interest rate</span>
+                  <span className="text-sm font-semibold">Interest rate</span>
                   <div className="flex h-11 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary/25">
                     <input
                       type="number"
@@ -1176,7 +1263,7 @@ function BondCalculatorDialog({
                 </label>
 
                 <label className="grid gap-3">
-                  <span className="flex items-center justify-between gap-3 text-sm font-black">
+                  <span className="flex items-center justify-between gap-3 text-sm font-semibold">
                     Loan term
                     <span className="text-primary">{loanTermYears} years</span>
                   </span>
@@ -1197,10 +1284,10 @@ function BondCalculatorDialog({
 
             <div className="grid content-start gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
               <div>
-                <p className="text-sm font-bold text-muted-foreground">
+                <p className="text-sm font-normal text-muted-foreground">
                   Monthly repayment
                 </p>
-                <p className="mt-1 text-2xl font-black text-primary">
+                <p className="mt-1 text-2xl font-semibold text-primary">
                   {formatPriceCents(monthlyRepaymentCents)}
                 </p>
               </div>
@@ -1209,7 +1296,7 @@ function BondCalculatorDialog({
                 <span className="text-muted-foreground">
                   Once-off costs estimate
                 </span>
-                <span className="font-black">
+                <span className="font-semibold">
                   {onceOffCostsCents
                     ? formatPriceCents(onceOffCostsCents)
                     : "Not supplied"}
@@ -1219,12 +1306,12 @@ function BondCalculatorDialog({
                 <span className="text-muted-foreground">
                   Suggested gross monthly income
                 </span>
-                <span className="font-black">
+                <span className="font-semibold">
                   {formatPriceCents(minimumIncomeCents)}
                 </span>
               </div>
               {buyerIncentive ? (
-                <div className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-black uppercase tracking-wide text-primary">
+                <div className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary">
                   {buyerIncentive}
                 </div>
               ) : null}
@@ -1298,10 +1385,10 @@ function MakeOfferDialog({
         <Dialog.Content className="fixed inset-x-3 top-1/2 z-[91] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-4 text-foreground shadow-2xl focus-visible:outline-none sm:mx-auto sm:max-w-lg sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-lg font-semibold">
                 Make an offer
               </Dialog.Title>
-              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+              <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
                 Your offer will start a direct conversation with the agent and
                 attach this listing.
               </Dialog.Description>
@@ -1315,16 +1402,16 @@ function MakeOfferDialog({
 
           <div className="mt-5 grid gap-4">
             <div className="rounded-lg border border-border bg-card p-3 text-card-foreground">
-              <p className="line-clamp-2 text-sm font-black">{listing.title}</p>
-              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              <p className="line-clamp-2 text-sm font-semibold">{listing.title}</p>
+              <p className="mt-1 text-xs font-normal text-muted-foreground">
                 {listing.location || listing.city || "Listing"}
               </p>
             </div>
 
             <label className="grid gap-2">
-              <span className="text-sm font-black">Offer amount</span>
+              <span className="text-sm font-semibold">Offer amount</span>
               <div className="flex h-12 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary/25">
-                <span className="text-sm font-black text-primary">
+                <span className="text-sm font-semibold text-primary">
                   {currencyPrefix}
                 </span>
                 <input
@@ -1345,7 +1432,7 @@ function MakeOfferDialog({
             />
 
             <label className="grid gap-2">
-              <span className="text-sm font-black">Message</span>
+              <span className="text-sm font-semibold">Message</span>
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
@@ -1409,7 +1496,7 @@ function SendListingMessageButton({
       <Button
         type="button"
         disabled={pending}
-        className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.25)] hover:opacity-95"
+        className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-semibold text-white shadow-[0_14px_30px_rgba(123,92,255,0.25)] hover:opacity-95"
         onClick={() => {
           setError("");
           startTransition(async () => {
@@ -1493,7 +1580,7 @@ function AgentProfileCard({
         aria-hidden={locked ? true : undefined}
       >
         <div className="flex items-start gap-4">
-          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-sm font-black text-primary ring-4 ring-primary/10">
+          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-sm font-semibold text-primary ring-4 ring-primary/10">
             {listing.agent.avatarUrl ? (
               <Image
                 src={listing.agent.avatarUrl}
@@ -1508,7 +1595,7 @@ function AgentProfileCard({
           </div>
           <div className="min-w-0 flex-1 pt-1">
             <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-lg font-black">{listing.agent.name}</p>
+              <p className="truncate text-lg font-semibold">{listing.agent.name}</p>
               <span
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded-full [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 ring-2 ring-background"
                 title="Verified Homzie agent"
@@ -1516,13 +1603,13 @@ function AgentProfileCard({
                 <BadgeCheck className="size-3.5" />
               </span>
             </div>
-            <p className="truncate text-xs font-bold text-muted-foreground">
+            <p className="truncate text-xs font-normal text-muted-foreground">
               {listing.agent.username
                 ? `@${listing.agent.username}`
                 : "Homzie agent"}
             </p>
             {listing.agent.location ? (
-              <p className="mt-2 truncate text-xs font-bold text-muted-foreground">
+              <p className="mt-2 truncate text-xs font-normal text-muted-foreground">
                 {listing.agent.location}
               </p>
             ) : null}
@@ -1544,7 +1631,7 @@ function AgentProfileCard({
         listing.agent.contactPhone ||
         listing.agent.whatsappNumber ? (
           <div className="mt-4">
-            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Contact agent
             </p>
             <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
@@ -1600,7 +1687,7 @@ function AgentProfileCard({
         ) : null}
         {actionsDisabled ? (
           <div className="mt-5 grid gap-2">
-            <Button className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-black text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]" disabled>
+            <Button className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-semibold text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]" disabled>
               <Send className="size-4" />
               Send message
             </Button>
@@ -1630,8 +1717,8 @@ function AgentProfileCard({
             <span className="mx-auto grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
               <Eye className="size-5" />
             </span>
-            <p className="mt-3 text-sm font-black">Create an account to reveal</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+            <p className="mt-3 text-sm font-semibold">Create an account to reveal</p>
+            <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
               Sign up to view agent details and contact this listing owner.
             </p>
             <Button asChild className="mt-4 h-10 w-full">
@@ -1719,6 +1806,7 @@ export function ListingDetailPage({
   const agentHref = listing.agent.username
     ? `/users/${listing.agent.username}`
     : "/agents";
+  const detailStats = listingDetailStats(listing);
   const ownershipCosts = [
     {
       label: "Local taxes",
@@ -1977,18 +2065,18 @@ export function ListingDetailPage({
                     <Upload className="size-10" />
                   </div>
                 )}
-                <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
+                <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide">
                   {listing.isUnavailableForViewer
                     ? listing.statusLabel
                     : listing.listingTypeLabel}
                 </span>
                 {listing.buyerIncentive && canUseListingActions ? (
-                  <span className="absolute bottom-4 left-4 max-w-[calc(100%-2rem)] truncate rounded-full bg-primary px-3 py-1.5 text-xs font-black uppercase tracking-wide text-primary-foreground shadow-lg">
+                  <span className="absolute bottom-4 left-4 max-w-[calc(100%-2rem)] truncate rounded-full bg-primary px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-lg">
                     {listing.buyerIncentive}
                   </span>
                 ) : null}
                 {activeMediaIsVideo ? (
-                  <span className="absolute right-4 bottom-4 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
+                  <span className="absolute right-4 bottom-4 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
                     <Play className="size-3 fill-current" />
                     Video
                   </span>
@@ -2072,15 +2160,15 @@ export function ListingDetailPage({
             <section className="mt-8">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-black uppercase tracking-wide text-primary">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                     {listing.isUnavailableForViewer
                       ? listing.statusLabel
                       : listing.propertyTypeLabel}
                   </p>
-                  <h1 className="mt-2 max-w-4xl text-2xl font-black leading-tight sm:text-3xl">
+                  <h1 className="mt-2 max-w-4xl text-2xl font-semibold leading-tight sm:text-3xl">
                     {listing.title}
                   </h1>
-                  <p className="mt-3 flex items-start gap-2 text-sm font-bold text-muted-foreground">
+                  <p className="mt-3 flex items-start gap-2 text-sm font-normal text-muted-foreground">
                     <MapPin className="mt-0.5 size-4 shrink-0" />
                     {listing.location || "Location not set"}
                   </p>
@@ -2093,25 +2181,26 @@ export function ListingDetailPage({
             </section>
 
             <section className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <DetailStat icon={BedDouble} value={`${formatMetric(listing.bedrooms)} beds`} />
-              <DetailStat icon={Bath} value={`${formatMetric(listing.bathrooms)} baths`} />
-              <DetailStat icon={Car} value={`${formatMetric(listing.garages)} garages`} />
-              <DetailStat icon={ParkingCircle} value={`${formatMetric(listing.parking)} parking`} />
-              <DetailStat icon={Ruler} value={`${formatMetric(listing.floorSize)}m² floor`} />
-              <DetailStat icon={Trees} value={`${formatMetric(listing.erfSize)}m² erf`} />
+              {detailStats.map((stat) => (
+                <DetailStat
+                  key={stat.value}
+                  icon={stat.icon}
+                  value={stat.value}
+                />
+              ))}
             </section>
 
             {listing.isUnavailableForViewer ? (
               <section className="mt-6 rounded-lg border border-border bg-muted/60 p-5 text-foreground shadow-sm">
-                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
                   Listing {listing.statusLabel.toLowerCase()}
                 </p>
-                <h2 className="mt-1 text-xl font-black">
+                <h2 className="mt-1 text-xl font-semibold">
                   {listing.status === "reserved"
                     ? "This listing is reserved."
                     : "This listing is no longer active."}
                 </h2>
-                <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                   {listing.status === "reserved"
                     ? "A buyer has paid the reservation amount. Buyer actions are disabled while the agent and agency confirm the deal."
                     : "The agent has removed, archived, or completed this listing. Listing actions are disabled. If it is saved, you can still remove it using the bookmark action above."}
@@ -2121,12 +2210,12 @@ export function ListingDetailPage({
 
             {listing.features.length ? (
               <section className="mt-8">
-                <h2 className="text-xl font-black">Features</h2>
+                <h2 className="text-xl font-semibold">Features</h2>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {listing.features.map((feature) => (
                     <span
                       key={feature}
-                      className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-black text-primary"
+                      className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
                     >
                       {featureHashtag(feature)}
                     </span>
@@ -2151,7 +2240,7 @@ export function ListingDetailPage({
             ) : null}
 
             <section className="mt-8">
-              <h2 className="text-xl font-black">Description</h2>
+              <h2 className="text-xl font-semibold">Description</h2>
               <div className="mt-4 rounded-lg border border-border bg-card p-5 text-card-foreground">
                 <ListingDescription value={listing.description} />
               </div>
@@ -2160,8 +2249,8 @@ export function ListingDetailPage({
             {ownershipCosts.length ? (
               <section className="mt-8">
                 <div>
-                  <h2 className="text-xl font-black">Ownership costs</h2>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                  <h2 className="text-xl font-semibold">Ownership costs</h2>
+                  <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                     Local running costs and estimates added by the agent.
                   </p>
                 </div>
@@ -2171,7 +2260,7 @@ export function ListingDetailPage({
 
             {availabilityDetails.length ? (
               <section className="mt-8">
-                <h2 className="text-xl font-black">Availability and rules</h2>
+                <h2 className="text-xl font-semibold">Availability and rules</h2>
                 <DetailDataTable items={availabilityDetails} />
               </section>
             ) : null}
@@ -2186,13 +2275,13 @@ export function ListingDetailPage({
                         <Calculator className="size-5" />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-wide text-primary">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                           Buying tools
                         </p>
-                        <h2 className="mt-1 text-xl font-black">
+                        <h2 className="mt-1 text-xl font-semibold">
                           Bond calculator
                         </h2>
-                        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                        <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                           Estimate the repayment, once-off costs and income guide for this listing.
                         </p>
                       </div>
@@ -2206,7 +2295,7 @@ export function ListingDetailPage({
                         formatPriceCents={formatPriceCents}
                         triggerClassName="w-full border-transparent [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 hover:opacity-95 sm:w-auto"
                       />
-                      <p className="mt-2 text-center text-[11px] font-bold text-muted-foreground sm:text-right">
+                      <p className="mt-2 text-center text-[11px] font-normal text-muted-foreground sm:text-right">
                         Quick estimate only
                       </p>
                     </div>
@@ -2219,15 +2308,15 @@ export function ListingDetailPage({
           <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
             <div className="hidden rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm lg:block">
               {listing.priceQualifier ? (
-                <p className="text-xs font-black uppercase tracking-wide text-primary">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                   {listing.priceQualifier}
                 </p>
               ) : null}
-              <p className={listing.priceQualifier ? "mt-1 text-3xl font-black" : "text-3xl font-black"}>
+              <p className={listing.priceQualifier ? "mt-1 text-3xl font-semibold" : "text-3xl font-semibold"}>
                 {price}
               </p>
               {showReducedPrice ? (
-                <p className="mt-1 text-sm font-black text-red-600">
+                <p className="mt-1 text-sm font-semibold text-red-600">
                   Reduced from{" "}
                   <span className="text-muted-foreground line-through">
                     {formatPriceCents(Number(listing.previousAskingPriceCents))}
@@ -2235,7 +2324,7 @@ export function ListingDetailPage({
                 </p>
               ) : null}
               {listing.buyerIncentive && canUseListingActions ? (
-                <p className="mt-4 inline-flex rounded-full bg-primary px-3 py-1.5 text-xs font-black uppercase tracking-wide text-primary-foreground">
+                <p className="mt-4 inline-flex rounded-full bg-primary px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground">
                   {listing.buyerIncentive}
                 </p>
               ) : null}
@@ -2251,19 +2340,21 @@ export function ListingDetailPage({
               onAction={recordListingAction}
             />
 
-            <div className="rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">
-              <div className="flex items-start gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                  <MandateIcon className="size-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-black">{listing.mandateTypeLabel}</p>
-                  <p className="mt-1 text-xs font-bold leading-5 text-muted-foreground">
-                    {mandateDates(listing.mandateStartDate, listing.mandateEndDate)}
-                  </p>
+            {listing.mandateVisible ? (
+              <div className="rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                    <MandateIcon className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">{listing.mandateTypeLabel}</p>
+                    <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
+                      {mandateDates(listing.mandateStartDate, listing.mandateEndDate)}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
 
             <div className="hidden lg:block">
               <ListingMetaPanel listing={listing} />
@@ -2277,15 +2368,15 @@ export function ListingDetailPage({
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               {listing.priceQualifier ? (
-                <p className="truncate text-[10px] font-black uppercase tracking-wide text-primary">
+                <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-primary">
                   {listing.priceQualifier}
                 </p>
               ) : null}
-              <p className="truncate text-lg font-black">
+              <p className="truncate text-lg font-semibold">
                 {price}
               </p>
               {showReducedPrice ? (
-                <p className="truncate text-xs font-black text-red-600">
+                <p className="truncate text-xs font-semibold text-red-600">
                   Reduced from{" "}
                   <span className="text-muted-foreground line-through">
                     {formatPriceCents(Number(listing.previousAskingPriceCents))}
@@ -2293,7 +2384,7 @@ export function ListingDetailPage({
                 </p>
               ) : null}
               {listing.buyerIncentive && canUseListingActions ? (
-                <p className="mt-1 truncate text-[10px] font-black uppercase tracking-wide text-primary">
+                <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-primary">
                   {listing.buyerIncentive}
                 </p>
               ) : null}

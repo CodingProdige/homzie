@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient, type RedisClientType } from "redis";
 import { redirect } from "next/navigation";
@@ -45,9 +45,13 @@ import {
   mandateTypeOptions,
   propertyCategoryOptions,
   propertyTypeOptions,
-  type PropertyType,
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
+import {
+  getListingPublishIssues,
+  mandateOptionsForListingType,
+  plainListingDescription,
+} from "@/modules/listings/listing-validation";
 import {
   calculateReservationFees,
   getStoredReservationSettings,
@@ -81,47 +85,6 @@ const listingVideoTypes: Record<string, string> = {
   "video/quicktime": "mov",
   "video/webm": "webm",
 };
-const residentialPropertyTypes = new Set<PropertyType | string>([
-  "apartment",
-  "cluster_home",
-  "duet",
-  "development_unit",
-  "estate_home",
-  "flatlet",
-  "free_standing_house",
-  "guest_house",
-  "retirement_unit",
-  "room",
-  "student_accommodation",
-  "townhouse",
-]);
-const landOnlyPropertyTypes = new Set<PropertyType | string>([
-  "agricultural_land",
-  "development_land",
-  "development_project",
-  "farm",
-  "game_farm",
-  "lifestyle_farm",
-  "small_holding",
-  "vacant_land",
-  "wine_farm",
-]);
-const commercialPropertyTypes = new Set<PropertyType | string>([
-  "business_premises",
-  "commercial_development",
-  "commercial_property",
-  "factory",
-  "guest_house",
-  "hospitality",
-  "industrial",
-  "medical_suite",
-  "mixed_use",
-  "office",
-  "restaurant",
-  "retail",
-  "showroom",
-  "warehouse",
-]);
 
 const listingTypeValues = listingTypeOptions.map((option) => option.value) as [
   string,
@@ -226,8 +189,8 @@ const listingSchema = z.object({
   propertyCategory: z.enum(propertyCategoryValues),
   propertyType: z.enum(propertyTypeValues),
   province: z.string().trim().max(120).optional(),
-  ratesAndTaxes: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   publishIntent: z.enum(["draft", "published"]),
+  listingReference: z.string().trim().max(80).optional(),
   reservationAmount: z.coerce
     .number()
     .finite()
@@ -238,7 +201,11 @@ const listingSchema = z.object({
   rentalYield: z.coerce.number().finite().min(0).max(100).optional(),
   servitudes: z.string().trim().max(180).optional(),
   shortLetAllowed: z.enum(["", "yes", "no"]).optional(),
+  storeys: z.coerce.number().int().min(0).max(200).optional(),
+  streetName: z.string().trim().max(160).optional(),
+  streetNumber: z.string().trim().max(20).optional(),
   suburb: z.string().trim().max(120).optional(),
+  postalCode: z.string().trim().max(20).optional(),
   titleDeedStatus: z.string().trim().max(80).optional(),
   title: z.string().trim().min(4).max(maxListingTitleLength),
   transferCostsEstimate: z.coerce
@@ -248,7 +215,12 @@ const listingSchema = z.object({
     .max(10_000_000_000)
     .optional(),
   unitCount: z.coerce.number().int().min(0).max(100_000).optional(),
+  unitNumber: z.string().trim().max(40).optional(),
   contactVisibility: z.enum(["show", "hide_details"]).optional(),
+  mandateVisibility: z.enum(["show", "hide"]).optional(),
+  occupancyVisibility: z.enum(["show", "hide"]).optional(),
+  previousPriceVisibility: z.enum(["show", "hide"]).optional(),
+  reservationVisibility: z.enum(["show", "hide"]).optional(),
   utilitiesEstimate: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   waterRights: z.string().trim().max(80).optional(),
   zoning: z.string().trim().max(80).optional(),
@@ -342,6 +314,8 @@ function parseListingFormData(formData: FormData) {
     .slice(0, maxListingFeatures);
   const publishIntent = String(formData.get("publishIntent") || "draft");
   const mandateType = String(formData.get("mandateType") || "");
+  const listingType = String(formData.get("listingType") || "");
+  const allowedMandateTypes = mandateOptionsForListingType(listingType);
   const parsed = listingSchema.safeParse({
     addressVisibility: formData.get("addressVisibility") || "area",
     askingPrice: numberOrUndefined(formData.get("askingPrice")),
@@ -366,7 +340,7 @@ function parseListingFormData(formData: FormData) {
     landSizeHectares: decimalOrUndefined(formData.get("landSizeHectares")),
     leaseExpiryDate: formData.get("leaseExpiryDate"),
     listingVisibility: formData.get("listingVisibility") || "public",
-    listingType: formData.get("listingType"),
+    listingType,
     location:
       String(formData.get("location") || "").trim() ||
       (publishIntent === "draft" ? "Location not set" : ""),
@@ -374,9 +348,9 @@ function parseListingFormData(formData: FormData) {
     loadingBays: numberOrUndefined(formData.get("loadingBays")),
     mandateEndDate: formData.get("mandateEndDate"),
     mandateStartDate: formData.get("mandateStartDate"),
-    mandateType: (mandateTypeValues as readonly string[]).includes(mandateType)
+    mandateType: allowedMandateTypes.includes(mandateType)
       ? mandateType
-      : "open",
+      : allowedMandateTypes[0] || "open",
     communityFees: numberOrUndefined(formData.get("communityFees")),
     occupancyStatus: formData.get("occupancyStatus") || "",
     ownershipType: formData.get("ownershipType") || "",
@@ -389,21 +363,30 @@ function parseListingFormData(formData: FormData) {
     propertyCategory: formData.get("propertyCategory"),
     propertyType: formData.get("propertyType"),
     province: formData.get("province"),
-    ratesAndTaxes: numberOrUndefined(formData.get("ratesAndTaxes")),
     publishIntent,
+    listingReference: formData.get("listingReference"),
     reservationAmount: numberOrUndefined(formData.get("reservationAmount")),
     reservationEnabled: formData.get("reservationEnabled") === "on",
     rentalYield: decimalOrUndefined(formData.get("rentalYield")),
     servitudes: formData.get("servitudes"),
     shortLetAllowed: formData.get("shortLetAllowed") || "",
+    storeys: numberOrUndefined(formData.get("storeys")),
+    streetName: formData.get("streetName"),
+    streetNumber: formData.get("streetNumber"),
     suburb: formData.get("suburb"),
+    postalCode: formData.get("postalCode"),
     title:
       String(formData.get("title") || "").trim() ||
       (publishIntent === "draft" ? "Untitled listing" : ""),
     titleDeedStatus: formData.get("titleDeedStatus") || "",
     transferCostsEstimate: numberOrUndefined(formData.get("transferCostsEstimate")),
     unitCount: numberOrUndefined(formData.get("unitCount")),
+    unitNumber: formData.get("unitNumber"),
     contactVisibility: formData.get("contactVisibility") || "show",
+    mandateVisibility: formData.get("mandateVisibility") || "show",
+    occupancyVisibility: formData.get("occupancyVisibility") || "show",
+    previousPriceVisibility: formData.get("previousPriceVisibility") || "show",
+    reservationVisibility: formData.get("reservationVisibility") || "show",
     utilitiesEstimate: numberOrUndefined(formData.get("utilitiesEstimate")),
     waterRights: formData.get("waterRights") || "",
     zoning: formData.get("zoning") || "",
@@ -436,6 +419,10 @@ function parseGooglePlaceData(value: string | undefined) {
   } catch {
     return null;
   }
+}
+
+function formRequiresLocationConfirmation(formData: FormData) {
+  return String(formData.get("requiresLocationConfirmation") || "") === "true";
 }
 
 function listingDetailsObject(value: unknown): Record<string, unknown> {
@@ -487,79 +474,79 @@ function listingCoverImagePath(
   return media.find((item) => item.type.startsWith("image/"))?.path || null;
 }
 
+type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+type PropertyIdentityInput = {
+  city: string | null;
+  country: string | null;
+  googlePlaceData: unknown;
+  googlePlaceId: string | null;
+  normalizedAddress: string;
+  propertyType: string;
+  province: string | null;
+  suburb: string | null;
+};
+
+async function findOrCreatePropertyIdentity(
+  executor: DbExecutor,
+  input: PropertyIdentityInput,
+) {
+  const normalizedAddress = input.normalizedAddress.trim().toLowerCase();
+  const googlePlaceId = input.googlePlaceId?.trim() || null;
+
+  const [inserted] = await executor
+    .insert(propertyIdentities)
+    .values({
+      city: input.city,
+      country: input.country,
+      googlePlaceData: input.googlePlaceData,
+      googlePlaceId,
+      normalizedAddress,
+      province: input.province,
+      suburb: input.suburb,
+      propertyType: input.propertyType,
+    })
+    .onConflictDoNothing()
+    .returning({ id: propertyIdentities.id });
+
+  if (inserted?.id) return inserted.id;
+
+  const fallbackCondition = googlePlaceId
+    ? eq(propertyIdentities.googlePlaceId, googlePlaceId)
+    : normalizedAddress
+      ? and(
+          eq(propertyIdentities.normalizedAddress, normalizedAddress),
+          eq(propertyIdentities.propertyType, input.propertyType),
+        )
+      : null;
+
+  if (!fallbackCondition) return null;
+
+  const [existing] = await executor
+    .select({ id: propertyIdentities.id })
+    .from(propertyIdentities)
+    .where(fallbackCondition)
+    .limit(1);
+
+  return existing?.id || null;
+}
+
 function assertListingCanPublish(
   data: z.infer<typeof listingSchema>,
   description: string,
   mediaCount: number,
+  options: { requiresLocationConfirmation?: boolean } = {},
 ) {
   if (data.publishIntent !== "published") return;
 
-  const issues: string[] = [];
-  const descriptionText = plainListingDescription(description);
-
-  if (!data.listingType) {
-    issues.push("Choose whether the listing is for sale or rent.");
-  }
-
-  if (!data.propertyType) {
-    issues.push("Choose the property type.");
-  }
-
-  if (data.title === "Untitled listing" || data.title.trim().length < 4) {
-    issues.push("Add a listing title.");
-  }
-
-  if (data.location === "Location not set" || data.location.trim().length < 2) {
-    issues.push("Add the property location.");
-  }
-
-  if (!data.city || !data.province || !data.country) {
-    issues.push("Add the city, province, and country.");
-  }
-
-  if (descriptionText.length < 40) {
-    issues.push("Add a fuller property description.");
-  }
-
-  const hasBedroomCount =
-    typeof data.bedrooms === "number" && Number.isFinite(data.bedrooms);
-  const hasBathroomCount =
-    typeof data.bathrooms === "number" && Number.isFinite(data.bathrooms);
-  const hasFloorSize =
-    typeof data.floorSize === "number" &&
-    Number.isFinite(data.floorSize) &&
-    data.floorSize > 0;
-  const hasErfSize =
-    typeof data.erfSize === "number" &&
-    Number.isFinite(data.erfSize) &&
-    data.erfSize > 0;
-
-  if (
-    residentialPropertyTypes.has(data.propertyType) &&
-    (!hasBedroomCount || !hasBathroomCount || !hasFloorSize)
-  ) {
-    issues.push("Add bedrooms, bathrooms, and floor size.");
-  }
-
-  if (commercialPropertyTypes.has(data.propertyType) && !hasFloorSize) {
-    issues.push("Add the floor size.");
-  }
-
-  if (landOnlyPropertyTypes.has(data.propertyType) && !hasErfSize) {
-    issues.push("Add the erf size.");
-  }
-
-  if (
-    typeof data.askingPrice !== "number" ||
-    !Number.isFinite(data.askingPrice) ||
-    data.askingPrice <= 0
-  ) {
-    issues.push("Set the asking price.");
-  }
-
-  if (mediaCount < 1) {
-    issues.push("Upload at least one listing photo or video.");
-  }
+  const issues = getListingPublishIssues(
+    {
+      ...data,
+      description,
+    },
+    mediaCount,
+    options,
+  ).map((issue) => issue.message);
 
   if (issues.length) {
     throw new Error(`Listing incomplete: ${issues.join(" ")}`);
@@ -1561,12 +1548,14 @@ export async function createListing(formData: FormData) {
     0,
   );
 
-  let media: Awaited<ReturnType<typeof storeListingMedia>>;
+  let uploadedMedia: Awaited<ReturnType<typeof storeListingMedia>> = [];
+  let media: StoredListingMedia[] = [];
 
   try {
+    uploadedMedia = await storeListingMedia(mediaFiles);
     media = [
       ...parseExistingListingMedia(formData.get("existingMedia")),
-      ...(await storeListingMedia(mediaFiles)),
+      ...uploadedMedia,
     ].slice(0, maxListingMediaItems);
   } catch (error) {
     console.error("[listings] createListing media upload failed", {
@@ -1579,10 +1568,16 @@ export async function createListing(formData: FormData) {
     redirect("/listings/new?listingError=media-upload");
   }
   try {
-    assertListingCanPublish(data, description, media.length);
+    assertListingCanPublish(data, description, media.length, {
+      requiresLocationConfirmation: formRequiresLocationConfirmation(formData),
+    });
   } catch (error) {
     console.warn("[listings] createListing publish validation failed", {
       error,
+      userId: session.user.id,
+    });
+    await cleanupStoredListingMedia(uploadedMedia, {
+      stage: "create-publish-validation",
       userId: session.user.id,
     });
     redirect("/listings/new?listingError=publish-validation");
@@ -1594,6 +1589,10 @@ export async function createListing(formData: FormData) {
   } catch (error) {
     console.error("[listings] createListing reservation validation failed", {
       error,
+      userId: session.user.id,
+    });
+    await cleanupStoredListingMedia(uploadedMedia, {
+      stage: "create-reservation-validation",
       userId: session.user.id,
     });
     redirect("/listings/new?listingError=reservation-validation");
@@ -1619,8 +1618,6 @@ export async function createListing(formData: FormData) {
     typeof data.communityFees === "number"
       ? Math.round(data.communityFees * 100)
       : null;
-  const ratesAndTaxesCents =
-    typeof data.ratesAndTaxes === "number" ? Math.round(data.ratesAndTaxes * 100) : null;
   const utilitiesEstimateCents =
     typeof data.utilitiesEstimate === "number"
       ? Math.round(data.utilitiesEstimate * 100)
@@ -1639,102 +1636,130 @@ export async function createListing(formData: FormData) {
     qualifier: data.priceQualifier,
   });
   const googlePlaceData = parseGooglePlaceData(data.googlePlaceData);
-  const [identity] = await db
-    .insert(propertyIdentities)
-    .values({
-      city: data.city || null,
-      country: data.country || null,
-      googlePlaceData,
-      googlePlaceId: data.googlePlaceId || null,
-      normalizedAddress: data.location.toLowerCase(),
-      province: data.province || null,
-      suburb: data.suburb || null,
-      propertyType: data.propertyType,
-    })
-    .onConflictDoNothing()
-    .returning({ id: propertyIdentities.id });
+  let listing: { id: string };
 
-  const [listing] = await db
-    .insert(propertyListings)
-    .values({
-      agentProfileId: agentProfile?.id || null,
-      askingPriceCents,
-      coverImageUrl,
-      description: description || null,
-      details: {
-        addressVisibility: data.addressVisibility || "area",
-        availableFrom: data.availableFrom || null,
-        bathrooms: data.bathrooms ?? null,
-        bedrooms: data.bedrooms ?? null,
-        buyerIncentive: data.buyerIncentive || null,
-        communityFeesCents,
-        developerName: data.developerName || null,
-        erfSize: data.erfSize ?? null,
-        estateName: data.estateName || null,
-        floorSize: data.floorSize ?? null,
-        furnishedStatus: data.furnishedStatus || null,
-        garages: data.garages ?? null,
-        grossLettableArea: data.grossLettableArea ?? null,
-        googlePlaceData,
-        googlePlaceId: data.googlePlaceId || null,
-        insuranceEstimateCents,
-        landSizeHectares: data.landSizeHectares ?? null,
-        leaseExpiryDate: data.leaseExpiryDate || null,
-        listingVisibility: data.listingVisibility || "public",
-        localTaxesCents,
-        loadingBays: data.loadingBays ?? null,
+  try {
+    listing = await db.transaction(async (tx) => {
+      const propertyIdentityId = await findOrCreatePropertyIdentity(tx, {
         city: data.city || null,
         country: data.country || null,
-        occupancyStatus: data.occupancyStatus || null,
-        ownershipType: data.ownershipType || null,
-        outbuildings: data.outbuildings || null,
-        parking: data.parking ?? null,
-        petsAllowed: data.petsAllowed || null,
-        powerSupply: data.powerSupply || null,
-        previousAskingPriceCents,
-        priceQualifier: data.priceQualifier || null,
-        propertyCategory: data.propertyCategory,
+        googlePlaceData,
+        googlePlaceId: data.googlePlaceId || null,
+        normalizedAddress: data.location,
         province: data.province || null,
-        ratesAndTaxesCents,
-        rentalYield: data.rentalYield ?? null,
-        servitudes: data.servitudes || null,
-        shortLetAllowed: data.shortLetAllowed || null,
         suburb: data.suburb || null,
-        titleDeedStatus: data.titleDeedStatus || null,
-        transferCostsEstimateCents,
-        unitCount: data.unitCount ?? null,
-        contactVisibility: data.contactVisibility || "show",
-        utilitiesEstimateCents,
-        waterRights: data.waterRights || null,
-        zoning: data.zoning || null,
-      },
-      features: data.features || [],
-      listedAt: data.publishIntent === "published" ? new Date() : undefined,
-      listingType: data.listingType,
-      location: data.location,
-      mandateEndDate: parseDate(data.mandateEndDate),
-      mandateStartDate: parseDate(data.mandateStartDate),
-      mandateType: data.mandateType,
-      media,
-      priceLabel,
-      propertyIdentityId: identity?.id || null,
-      propertyType: data.propertyType,
-      ...reservationFields,
-      status: data.publishIntent,
-      title: data.title,
-      userId: session.user.id,
-    })
-    .returning({ id: propertyListings.id });
+        propertyType: data.propertyType,
+      });
 
-  await db.insert(propertyListingStatusHistory).values({
-    listingId: listing.id,
-    reason:
-      data.publishIntent === "published"
-        ? "Listing created and published."
-        : "Listing saved as draft.",
-    toStatus: data.publishIntent,
-    userId: session.user.id,
-  });
+      const [createdListing] = await tx
+        .insert(propertyListings)
+        .values({
+          agentProfileId: agentProfile?.id || null,
+          askingPriceCents,
+          coverImageUrl,
+          description: description || null,
+          details: {
+            addressVisibility: data.addressVisibility || "area",
+            availableFrom: data.availableFrom || null,
+            bathrooms: data.bathrooms ?? null,
+            bedrooms: data.bedrooms ?? null,
+            buyerIncentive: data.buyerIncentive || null,
+            communityFeesCents,
+            developerName: data.developerName || null,
+            erfSize: data.erfSize ?? null,
+            estateName: data.estateName || null,
+            floorSize: data.floorSize ?? null,
+            furnishedStatus: data.furnishedStatus || null,
+            garages: data.garages ?? null,
+            grossLettableArea: data.grossLettableArea ?? null,
+            googlePlaceData,
+            googlePlaceId: data.googlePlaceId || null,
+            insuranceEstimateCents,
+            landSizeHectares: data.landSizeHectares ?? null,
+            leaseExpiryDate: data.leaseExpiryDate || null,
+            listingVisibility: data.listingVisibility || "public",
+            localTaxesCents,
+            loadingBays: data.loadingBays ?? null,
+            city: data.city || null,
+            country: data.country || null,
+            occupancyStatus: data.occupancyStatus || null,
+            ownershipType: data.ownershipType || null,
+            outbuildings: data.outbuildings || null,
+            parking: data.parking ?? null,
+            petsAllowed: data.petsAllowed || null,
+            postalCode: data.postalCode || null,
+            powerSupply: data.powerSupply || null,
+            previousAskingPriceCents,
+            priceQualifier: data.priceQualifier || null,
+            propertyCategory: data.propertyCategory,
+            province: data.province || null,
+            rentalYield: data.rentalYield ?? null,
+            servitudes: data.servitudes || null,
+            shortLetAllowed: data.shortLetAllowed || null,
+            streetName: data.streetName || null,
+            streetNumber: data.streetNumber || null,
+            suburb: data.suburb || null,
+            listingReference: data.listingReference || null,
+            storeys: data.storeys ?? null,
+            titleDeedStatus: data.titleDeedStatus || null,
+            transferCostsEstimateCents,
+            unitCount: data.unitCount ?? null,
+            unitNumber: data.unitNumber || null,
+            contactVisibility: data.contactVisibility || "show",
+            mandateVisibility: data.mandateVisibility || "show",
+            occupancyVisibility: data.occupancyVisibility || "show",
+            previousPriceVisibility: data.previousPriceVisibility || "show",
+            reservationVisibility: data.reservationVisibility || "show",
+            utilitiesEstimateCents,
+            waterRights: data.waterRights || null,
+            zoning: data.zoning || null,
+          },
+          features: data.features || [],
+          listedAt: data.publishIntent === "published" ? new Date() : undefined,
+          listingType: data.listingType,
+          location: data.location,
+          mandateEndDate: parseDate(data.mandateEndDate),
+          mandateStartDate: parseDate(data.mandateStartDate),
+          mandateType: data.mandateType,
+          media,
+          priceLabel,
+          propertyIdentityId,
+          propertyType: data.propertyType,
+          ...reservationFields,
+          status: data.publishIntent,
+          title: data.title,
+          userId: session.user.id,
+        })
+        .returning({ id: propertyListings.id });
+
+      if (!createdListing) {
+        throw new Error("Listing insert did not return a listing id.");
+      }
+
+      await tx.insert(propertyListingStatusHistory).values({
+        listingId: createdListing.id,
+        reason:
+          data.publishIntent === "published"
+            ? "Listing created and published."
+            : "Listing saved as draft.",
+        toStatus: data.publishIntent,
+        userId: session.user.id,
+      });
+
+      return createdListing;
+    });
+  } catch (error) {
+    console.error("[listings] createListing database save failed", {
+      error,
+      mediaCount: media.length,
+      userId: session.user.id,
+    });
+    await cleanupStoredListingMedia(uploadedMedia, {
+      stage: "create-save-failed",
+      userId: session.user.id,
+    });
+    redirect("/listings/new?listingError=save-failed");
+  }
 
   if (data.publishIntent === "published") {
     await recordHashtagUsage({
@@ -1821,7 +1846,7 @@ export async function updateListing(formData: FormData) {
     0,
   );
 
-  let uploadedMedia: Awaited<ReturnType<typeof storeListingMedia>>;
+  let uploadedMedia: Awaited<ReturnType<typeof storeListingMedia>> = [];
 
   try {
     uploadedMedia = await storeListingMedia(mediaFiles);
@@ -1887,11 +1912,20 @@ export async function updateListing(formData: FormData) {
       },
       description,
       media.length,
+      {
+        requiresLocationConfirmation:
+          canChangePropertyIdentity && formRequiresLocationConfirmation(formData),
+      },
     );
   } catch (error) {
     console.warn("[listings] updateListing publish validation failed", {
       error,
       listingId: listingId.data,
+      userId: session.user.id,
+    });
+    await cleanupStoredListingMedia(uploadedMedia, {
+      listingId: listingId.data,
+      stage: "update-publish-validation",
       userId: session.user.id,
     });
     redirect(`/listings/${listingId.data}/edit?listingError=publish-validation`);
@@ -1904,6 +1938,11 @@ export async function updateListing(formData: FormData) {
     console.error("[listings] updateListing reservation validation failed", {
       error,
       listingId: listingId.data,
+      userId: session.user.id,
+    });
+    await cleanupStoredListingMedia(uploadedMedia, {
+      listingId: listingId.data,
+      stage: "update-reservation-validation",
       userId: session.user.id,
     });
     redirect(`/listings/${listingId.data}/edit?listingError=reservation-validation`);
@@ -1929,8 +1968,6 @@ export async function updateListing(formData: FormData) {
     typeof data.communityFees === "number"
       ? Math.round(data.communityFees * 100)
       : null;
-  const ratesAndTaxesCents =
-    typeof data.ratesAndTaxes === "number" ? Math.round(data.ratesAndTaxes * 100) : null;
   const utilitiesEstimateCents =
     typeof data.utilitiesEstimate === "number"
       ? Math.round(data.utilitiesEstimate * 100)
@@ -1951,122 +1988,131 @@ export async function updateListing(formData: FormData) {
   const nextStatus =
     existingListing.status === "reserved" ? "reserved" : data.publishIntent;
   try {
-    const [identity] = canChangePropertyIdentity
-      ? await db
-          .insert(propertyIdentities)
-          .values({
+    await db.transaction(async (tx) => {
+      const propertyIdentityId = canChangePropertyIdentity
+        ? await findOrCreatePropertyIdentity(tx, {
             city: locationFields.city,
             country: locationFields.country,
             googlePlaceData,
             googlePlaceId: locationFields.googlePlaceId,
-            normalizedAddress: locationFields.location.toLowerCase(),
+            normalizedAddress: locationFields.location,
             province: locationFields.province,
             suburb: locationFields.suburb,
             propertyType: data.propertyType,
           })
-          .onConflictDoNothing()
-          .returning({ id: propertyIdentities.id })
-      : [{ id: existingListing.propertyIdentityId }];
+        : existingListing.propertyIdentityId;
 
-    await db
-      .update(propertyListings)
-      .set({
-        agentProfileId: agentProfile?.id || null,
-        askingPriceCents,
-        coverImageUrl,
-        description: description || null,
-        details: {
-          addressVisibility: data.addressVisibility || "area",
-          availableFrom: data.availableFrom || null,
-          bathrooms: data.bathrooms ?? null,
-          bedrooms: data.bedrooms ?? null,
-          buyerIncentive: data.buyerIncentive || null,
-          communityFeesCents,
-          developerName: data.developerName || null,
-          erfSize: data.erfSize ?? null,
-          estateName: data.estateName || null,
-          floorSize: data.floorSize ?? null,
-          furnishedStatus: data.furnishedStatus || null,
-          garages: data.garages ?? null,
-          grossLettableArea: data.grossLettableArea ?? null,
-          googlePlaceData: locationFields.googlePlaceData,
-          googlePlaceId: locationFields.googlePlaceId,
-          insuranceEstimateCents,
-          landSizeHectares: data.landSizeHectares ?? null,
-          leaseExpiryDate: data.leaseExpiryDate || null,
-          listingVisibility: data.listingVisibility || "public",
-          city: locationFields.city,
-          country: locationFields.country,
-          localTaxesCents,
-          loadingBays: data.loadingBays ?? null,
-          occupancyStatus: data.occupancyStatus || null,
-          ownershipType: data.ownershipType || null,
-          outbuildings: data.outbuildings || null,
-          parking: data.parking ?? null,
-          petsAllowed: data.petsAllowed || null,
-          powerSupply: data.powerSupply || null,
-          previousAskingPriceCents,
-          priceQualifier: data.priceQualifier || null,
-          propertyCategory: data.propertyCategory,
-          province: locationFields.province,
-          ratesAndTaxesCents,
-          rentalYield: data.rentalYield ?? null,
-          servitudes: data.servitudes || null,
-          shortLetAllowed: data.shortLetAllowed || null,
-          suburb: locationFields.suburb,
-          titleDeedStatus: data.titleDeedStatus || null,
-          transferCostsEstimateCents,
-          unitCount: data.unitCount ?? null,
-          contactVisibility: data.contactVisibility || "show",
-          utilitiesEstimateCents,
-          waterRights: data.waterRights || null,
-          zoning: data.zoning || null,
-        },
-        features: data.features || [],
-        listedAt:
-          data.publishIntent === "published" &&
-          existingListing.status !== "published"
-            ? new Date()
-            : existingListing.listedAt,
-        listingType: data.listingType,
-        location: locationFields.location,
-        mandateEndDate: parseDate(data.mandateEndDate),
-        mandateStartDate: parseDate(data.mandateStartDate),
-        mandateType: data.mandateType,
-        media,
-        priceLabel,
-        propertyIdentityId: canChangePropertyIdentity
-          ? identity?.id || existingListing.propertyIdentityId || null
-          : existingListing.propertyIdentityId,
-        propertyType: data.propertyType,
-        ...reservationFields,
-        status: nextStatus,
-        title: data.title,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(propertyListings.id, listingId.data),
-          eq(propertyListings.userId, session.user.id),
-        ),
-      );
+      await tx
+        .update(propertyListings)
+        .set({
+          agentProfileId: agentProfile?.id || null,
+          askingPriceCents,
+          coverImageUrl,
+          description: description || null,
+          details: {
+            addressVisibility: data.addressVisibility || "area",
+            availableFrom: data.availableFrom || null,
+            bathrooms: data.bathrooms ?? null,
+            bedrooms: data.bedrooms ?? null,
+            buyerIncentive: data.buyerIncentive || null,
+            communityFeesCents,
+            developerName: data.developerName || null,
+            erfSize: data.erfSize ?? null,
+            estateName: data.estateName || null,
+            floorSize: data.floorSize ?? null,
+            furnishedStatus: data.furnishedStatus || null,
+            garages: data.garages ?? null,
+            grossLettableArea: data.grossLettableArea ?? null,
+            googlePlaceData: locationFields.googlePlaceData,
+            googlePlaceId: locationFields.googlePlaceId,
+            insuranceEstimateCents,
+            landSizeHectares: data.landSizeHectares ?? null,
+            leaseExpiryDate: data.leaseExpiryDate || null,
+            listingVisibility: data.listingVisibility || "public",
+            city: locationFields.city,
+            country: locationFields.country,
+            localTaxesCents,
+            loadingBays: data.loadingBays ?? null,
+            occupancyStatus: data.occupancyStatus || null,
+            ownershipType: data.ownershipType || null,
+            outbuildings: data.outbuildings || null,
+            parking: data.parking ?? null,
+            petsAllowed: data.petsAllowed || null,
+            postalCode: data.postalCode || null,
+            powerSupply: data.powerSupply || null,
+            previousAskingPriceCents,
+            priceQualifier: data.priceQualifier || null,
+            listingReference: data.listingReference || null,
+            propertyCategory: data.propertyCategory,
+            province: locationFields.province,
+            rentalYield: data.rentalYield ?? null,
+            servitudes: data.servitudes || null,
+            shortLetAllowed: data.shortLetAllowed || null,
+            streetName: data.streetName || null,
+            streetNumber: data.streetNumber || null,
+            suburb: locationFields.suburb,
+            titleDeedStatus: data.titleDeedStatus || null,
+            transferCostsEstimateCents,
+            unitCount: data.unitCount ?? null,
+            unitNumber: data.unitNumber || null,
+            contactVisibility: data.contactVisibility || "show",
+            mandateVisibility: data.mandateVisibility || "show",
+            occupancyVisibility: data.occupancyVisibility || "show",
+            previousPriceVisibility: data.previousPriceVisibility || "show",
+            reservationVisibility: data.reservationVisibility || "show",
+            utilitiesEstimateCents,
+            waterRights: data.waterRights || null,
+            zoning: data.zoning || null,
+          },
+          features: data.features || [],
+          listedAt:
+            data.publishIntent === "published" &&
+            existingListing.status !== "published"
+              ? new Date()
+              : existingListing.listedAt,
+          listingType: data.listingType,
+          location: locationFields.location,
+          mandateEndDate: parseDate(data.mandateEndDate),
+          mandateStartDate: parseDate(data.mandateStartDate),
+          mandateType: data.mandateType,
+          media,
+          priceLabel,
+          propertyIdentityId: propertyIdentityId || existingListing.propertyIdentityId || null,
+          propertyType: data.propertyType,
+          ...reservationFields,
+          status: nextStatus,
+          title: data.title,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(propertyListings.id, listingId.data),
+            eq(propertyListings.userId, session.user.id),
+          ),
+        );
 
-    await db.insert(propertyListingStatusHistory).values({
-      listingId: listingId.data,
-      reason:
-        existingListing.status === nextStatus
-          ? "Listing details updated."
-          : nextStatus === "published"
-            ? "Listing updated and published."
-            : "Listing updated and saved as draft.",
-      toStatus: nextStatus,
-      userId: session.user.id,
+      await tx.insert(propertyListingStatusHistory).values({
+        listingId: listingId.data,
+        reason:
+          existingListing.status === nextStatus
+            ? "Listing details updated."
+            : nextStatus === "published"
+              ? "Listing updated and published."
+              : "Listing updated and saved as draft.",
+        toStatus: nextStatus,
+        userId: session.user.id,
+      });
     });
   } catch (error) {
     console.error("[listings] updateListing database save failed", {
       error,
       listingId: listingId.data,
       mediaCount: media.length,
+      userId: session.user.id,
+    });
+    await cleanupStoredListingMedia(uploadedMedia, {
+      listingId: listingId.data,
+      stage: "update-save-failed",
       userId: session.user.id,
     });
     redirect(`/listings/${listingId.data}/edit?listingError=save-failed`);
@@ -3622,18 +3668,6 @@ function normalizeDescriptionTag(tagName: string) {
   return "";
 }
 
-function plainListingDescription(value: string) {
-  return value
-    .replace(/<\/?(p|br|li|ul|ol)[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 async function notifyFollowersAboutPublishedListing({
   listingId,
   ownerUserId,
@@ -3770,6 +3804,32 @@ function parseExistingListingMedia(value: FormDataEntryValue | null) {
   } catch {
     return [];
   }
+}
+
+async function cleanupStoredListingMedia(
+  media: StoredListingMedia[],
+  context: Record<string, unknown>,
+) {
+  await Promise.all(
+    media.map(async (item) => {
+      if (!isSafeMediaPath(item.path)) return;
+
+      try {
+        await unlink(
+          path.join(
+            /*turbopackIgnore: true*/ getMediaStorageRoot(),
+            item.path,
+          ),
+        );
+      } catch (error) {
+        console.warn("[listings] cleanup stored media failed", {
+          ...context,
+          error,
+          mediaPath: item.path,
+        });
+      }
+    }),
+  );
 }
 
 async function storeListingMedia(values: FormDataEntryValue[]) {

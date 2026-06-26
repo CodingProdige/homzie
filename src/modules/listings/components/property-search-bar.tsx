@@ -275,7 +275,7 @@ function SearchSelect({
         <button
           type="button"
           className={cn(
-            "flex h-12 min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-black text-foreground shadow-sm transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            "flex h-12 min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
             className,
           )}
         >
@@ -352,7 +352,7 @@ function MultiSearchSelect({
         <button
           type="button"
           className={cn(
-            "flex h-12 min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-black text-foreground shadow-sm transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            "flex h-12 min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
             className,
           )}
         >
@@ -416,7 +416,7 @@ function FieldSelect({
   value: string;
 }) {
   return (
-    <label className="grid gap-1.5 text-xs font-black">
+    <label className="grid gap-1.5 text-xs font-semibold">
       <span>{label}</span>
       <SearchSelect
         label="Any"
@@ -831,7 +831,7 @@ export function PropertySearchBar({
           <SlidersHorizontal className="size-4" />
           {isHero ? "More filters" : "Filters"}
           {modalFilterCount ? (
-            <span className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black leading-5 text-primary-foreground">
+            <span className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground">
               {modalFilterCount}
             </span>
           ) : null}
@@ -841,7 +841,7 @@ export function PropertySearchBar({
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/45 backdrop-blur-sm" />
         <Dialog.Content className="fixed inset-x-3 top-1/2 z-[101] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl outline-none sm:mx-auto sm:max-w-2xl">
           <div className="flex items-center justify-between border-b border-border p-4">
-            <Dialog.Title className="text-base font-black">Filters</Dialog.Title>
+            <Dialog.Title className="text-base font-semibold">Filters</Dialog.Title>
             <Dialog.Close asChild>
               <Button type="button" size="icon" variant="ghost" aria-label="Close">
                 <X className="size-5" />
@@ -906,14 +906,14 @@ export function PropertySearchBar({
               />
             </div>
             <fieldset className="mt-5 grid gap-2">
-              <legend className="text-xs font-black">Features</legend>
+              <legend className="text-xs font-semibold">Features</legend>
               <div className="flex flex-wrap gap-2">
                 {featureOptions.map((feature) => (
                   <button
                     key={feature}
                     type="button"
                     className={cn(
-                      "rounded-full border border-border bg-muted/45 px-3 py-2 text-xs font-black transition hover:border-primary hover:text-primary",
+                      "rounded-full border border-border bg-muted/45 px-3 py-2 text-xs font-semibold transition hover:border-primary hover:text-primary",
                       features.has(feature) &&
                         "border-primary bg-primary/10 text-primary",
                     )}
@@ -968,7 +968,7 @@ export function PropertySearchBar({
       {areas.map((area) => (
         <span
           key={area}
-          className="inline-flex max-w-full items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-black text-primary"
+          className="inline-flex max-w-full items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary"
         >
           <span className="max-w-36 truncate">{area}</span>
           <button
@@ -998,7 +998,7 @@ export function PropertySearchBar({
               : "Search country, city or suburb"
         }
         className={cn(
-          "min-w-32 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground",
+          "min-w-32 flex-1 bg-transparent text-sm font-normal outline-none placeholder:text-muted-foreground",
           isHero && "text-base",
         )}
       />
@@ -1014,7 +1014,7 @@ export function PropertySearchBar({
                   onClick={() => addArea(area)}
                 >
                   <span>{area}</span>
-                  <span className="text-xs font-black text-muted-foreground">Area</span>
+                  <span className="text-xs font-normal text-muted-foreground">Area</span>
                 </button>
               ))}
             </>
@@ -1031,19 +1031,19 @@ export function PropertySearchBar({
                 <span className="block truncate">
                   {placeRegionLabel(place)}
                 </span>
-                <span className="block truncate text-xs font-semibold text-muted-foreground">
+                <span className="block truncate text-xs font-normal text-muted-foreground">
                   {place.structured_formatting?.secondary_text || "Google Places"}
                 </span>
               </span>
             </button>
           ))}
           {placesStatus === "loading" ? (
-            <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="px-3 py-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Searching places
             </p>
           ) : null}
           {placePredictions.length ? (
-            <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+            <p className="px-3 pb-1 pt-2 text-right text-[9px] font-normal uppercase tracking-[0.35em] text-muted-foreground">
               Powered by Google
             </p>
           ) : null}
@@ -1053,7 +1053,7 @@ export function PropertySearchBar({
             onClick={() => addArea(areaQuery)}
           >
             <span>Add &quot;{areaQuery.trim()}&quot;</span>
-            <span className="text-xs font-black text-muted-foreground">Custom</span>
+            <span className="text-xs font-normal text-muted-foreground">Custom</span>
           </button>
         </div>
       ) : null}
@@ -1115,7 +1115,7 @@ export function PropertySearchBar({
 
         <div
           aria-live="polite"
-          className="mb-4 flex items-center justify-center text-center text-xs font-black text-muted-foreground sm:text-sm"
+          className="mb-4 flex items-center justify-center text-center text-xs font-normal text-muted-foreground sm:text-sm"
         >
           {typeof liveResultCount === "number" ? (
             <span>
@@ -1267,7 +1267,7 @@ export function PropertySearchBar({
           {areas.map((area) => (
             <span
               key={area}
-              className="inline-flex max-w-full items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-black text-primary"
+              className="inline-flex max-w-full items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary"
             >
               <span className="max-w-36 truncate">{area}</span>
               <button
@@ -1296,7 +1296,7 @@ export function PropertySearchBar({
                   ? "Search city, town, region or country"
                   : "Search country, city or suburb"
             }
-            className="min-w-32 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
+            className="min-w-32 flex-1 bg-transparent text-sm font-normal outline-none placeholder:text-muted-foreground"
           />
           {areaQuery.trim() ? (
             <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[80] max-h-72 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl">
@@ -1310,7 +1310,7 @@ export function PropertySearchBar({
                       onClick={() => addArea(area)}
                     >
                       <span>{area}</span>
-                      <span className="text-xs font-black text-muted-foreground">
+                      <span className="text-xs font-normal text-muted-foreground">
                         Area
                       </span>
                     </button>
@@ -1329,19 +1329,19 @@ export function PropertySearchBar({
                     <span className="block truncate">
                       {placeRegionLabel(place)}
                     </span>
-                    <span className="block truncate text-xs font-semibold text-muted-foreground">
+                    <span className="block truncate text-xs font-normal text-muted-foreground">
                       {place.structured_formatting?.secondary_text || "Google Places"}
                     </span>
                   </span>
                 </button>
               ))}
               {placesStatus === "loading" ? (
-                <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                <p className="px-3 py-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
                   Searching places
                 </p>
               ) : null}
               {placePredictions.length ? (
-                <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+                <p className="px-3 pb-1 pt-2 text-right text-[9px] font-normal uppercase tracking-[0.35em] text-muted-foreground">
                   Powered by Google
                 </p>
               ) : null}
@@ -1351,7 +1351,7 @@ export function PropertySearchBar({
                 onClick={() => addArea(areaQuery)}
               >
                 <span>Add &quot;{areaQuery.trim()}&quot;</span>
-                <span className="text-xs font-black text-muted-foreground">
+                <span className="text-xs font-normal text-muted-foreground">
                   Custom
                 </span>
               </button>
@@ -1417,7 +1417,7 @@ export function PropertySearchBar({
               <SlidersHorizontal className="size-4" />
               Filters
               {modalFilterCount ? (
-                <span className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black leading-5 text-primary-foreground">
+                <span className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground">
                   {modalFilterCount}
                 </span>
               ) : null}
@@ -1427,7 +1427,7 @@ export function PropertySearchBar({
             <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/45 backdrop-blur-sm" />
             <Dialog.Content className="fixed inset-x-3 top-1/2 z-[101] max-h-[calc(100dvh-1.5rem)] -translate-y-1/2 overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl outline-none sm:mx-auto sm:max-w-2xl">
               <div className="flex items-center justify-between border-b border-border p-4">
-                <Dialog.Title className="text-base font-black">Filters</Dialog.Title>
+                <Dialog.Title className="text-base font-semibold">Filters</Dialog.Title>
                 <Dialog.Close asChild>
                   <Button type="button" size="icon" variant="ghost" aria-label="Close">
                     <X className="size-5" />
@@ -1492,14 +1492,14 @@ export function PropertySearchBar({
                   />
                 </div>
                 <fieldset className="mt-5 grid gap-2">
-                  <legend className="text-xs font-black">Features</legend>
+                  <legend className="text-xs font-semibold">Features</legend>
                   <div className="flex flex-wrap gap-2">
                     {featureOptions.map((feature) => (
                       <button
                         key={feature}
                         type="button"
                         className={cn(
-                          "rounded-full border border-border bg-muted/45 px-3 py-2 text-xs font-black transition hover:border-primary hover:text-primary",
+                          "rounded-full border border-border bg-muted/45 px-3 py-2 text-xs font-semibold transition hover:border-primary hover:text-primary",
                           features.has(feature) &&
                             "border-primary bg-primary/10 text-primary",
                         )}
@@ -1543,7 +1543,7 @@ export function PropertySearchBar({
 
       <div
         className={cn(
-          "mt-2 flex flex-wrap gap-2 px-1 text-xs font-semibold text-muted-foreground",
+          "mt-2 flex flex-wrap gap-2 px-1 text-xs font-normal text-muted-foreground",
           isHero && "sr-only",
         )}
       >

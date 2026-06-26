@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -15,6 +15,7 @@ import {
   propertyTypeOptions,
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
+import { publicListingLocation } from "@/modules/listings/listing-validation";
 
 export type DiscoverListingFilters = {
   area?: string[] | string;
@@ -58,6 +59,10 @@ type DiscoverListingOptions = {
 };
 
 const visibleListingStatuses = ["published"] as const;
+
+function publicListingVisibilityFilter() {
+  return sql`coalesce(${propertyListings.details}->>'listingVisibility', 'public') = 'public'`;
+}
 
 function cleanParam(value?: string) {
   return typeof value === "string" ? value.trim().slice(0, 80) : "";
@@ -234,14 +239,22 @@ export function discoverListingHeading(filters: DiscoverListingFilters = {}) {
 }
 
 function discoverWhere(filters: ReturnType<typeof normalizeDiscoverListingFilters>) {
-  const areaFilters = filters.areas.flatMap((area) => [
-    ilike(propertyListings.location, `%${area}%`),
-    sql`${propertyListings.details}->>'suburb' ilike ${`%${area}%`}`,
-    sql`${propertyListings.details}->>'city' ilike ${`%${area}%`}`,
-  ]);
+  const areaFilters = filters.areas
+    .map((area) =>
+      or(
+        sql`${propertyListings.details}->>'suburb' ilike ${`%${area}%`}`,
+        sql`${propertyListings.details}->>'city' ilike ${`%${area}%`}`,
+        sql`${propertyListings.details}->>'province' ilike ${`%${area}%`}`,
+        sql`${propertyListings.details}->>'country' ilike ${`%${area}%`}`,
+        sql`coalesce(${propertyListings.details}->>'addressVisibility', 'area') = 'exact'
+          and ${propertyListings.location} ilike ${`%${area}%`}`,
+      ),
+    )
+    .filter((filter): filter is SQL => Boolean(filter));
 
   return [
     inArray(propertyListings.status, visibleListingStatuses),
+    publicListingVisibilityFilter(),
     filters.listingTypes.length
       ? inArray(propertyListings.listingType, filters.listingTypes)
       : undefined,
@@ -251,8 +264,9 @@ function discoverWhere(filters: ReturnType<typeof normalizeDiscoverListingFilter
     areaFilters.length ? or(...areaFilters) : undefined,
     !filters.areas.length && filters.countryName
       ? or(
-          ilike(propertyListings.location, `%${filters.countryName}%`),
           sql`${propertyListings.details}->>'country' ilike ${`%${filters.countryName}%`}`,
+          sql`coalesce(${propertyListings.details}->>'addressVisibility', 'area') = 'exact'
+            and ${propertyListings.location} ilike ${`%${filters.countryName}%`}`,
         )
       : undefined,
     filters.minPrice
@@ -325,7 +339,18 @@ function listingAreaName(location: string | null, details: unknown) {
 
   if (explicitArea) return explicitArea;
 
-  const locationParts = (location || "")
+  const publicLocation = publicListingLocation({
+    addressVisibility: cleanParam(parsedDetails.addressVisibility as string),
+    city: cleanParam(parsedDetails.city as string),
+    country: cleanParam(parsedDetails.country as string),
+    location,
+    province:
+      cleanParam(parsedDetails.province as string) ||
+      cleanParam(parsedDetails.state as string) ||
+      cleanParam(parsedDetails.region as string),
+    suburb: cleanParam(parsedDetails.suburb as string),
+  });
+  const locationParts = publicLocation
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
@@ -333,7 +358,7 @@ function listingAreaName(location: string | null, details: unknown) {
   if (locationParts.length >= 4) return locationParts[1];
   if (locationParts.length >= 2) return locationParts[0];
 
-  return location || "";
+  return publicLocation || "";
 }
 
 function sortedNumberStrings(values: Array<number | null>) {
@@ -353,10 +378,12 @@ export async function getDiscoverListingFilterOptions({
 } = {}): Promise<ListingFilterOptions> {
   const filters = [
     inArray(propertyListings.status, visibleListingStatuses),
+    publicListingVisibilityFilter(),
     countryName
       ? or(
-          ilike(propertyListings.location, `%${countryName}%`),
           sql`${propertyListings.details}->>'country' ilike ${`%${countryName}%`}`,
+          sql`coalesce(${propertyListings.details}->>'addressVisibility', 'area') = 'exact'
+            and ${propertyListings.location} ilike ${`%${countryName}%`}`,
         )
       : undefined,
   ].filter((filter): filter is SQL => Boolean(filter));
@@ -530,6 +557,17 @@ export async function getDiscoverListings({
 
       const unavailableLabel =
         listing.status === "published" ? "" : "No longer available";
+      const publicLocation = publicListingLocation({
+        addressVisibility: cleanParam(details.addressVisibility as string),
+        city: cleanParam(details.city as string),
+        country: cleanParam(details.country as string),
+        location: listing.location,
+        province:
+          cleanParam(details.province as string) ||
+          cleanParam(details.state as string) ||
+          cleanParam(details.region as string),
+        suburb: cleanParam(details.suburb as string),
+      });
 
       return {
         agencyBrand: agencyBrands.get(listing.userId) || null,
@@ -547,6 +585,7 @@ export async function getDiscoverListings({
         features: stringArray(listing.features).slice(0, 10),
         floorSize: numberValue(details.floorSize),
         garages: numberValue(details.garages),
+        grossLettableArea: numberValue(details.grossLettableArea),
         href: buildListingPath({
           bedrooms: numberValue(details.bedrooms),
           city: cleanParam(details.city as string),
@@ -564,6 +603,7 @@ export async function getDiscoverListings({
         }),
         id: listing.id,
         imageUrls,
+        landSizeHectares: numberValue(details.landSizeHectares),
         likedByViewer: Boolean(viewerLike),
         likeCount,
         likeCountLabel: formatCompactCount(likeCount),
@@ -573,14 +613,17 @@ export async function getDiscoverListings({
           listing.listingType,
           listing.listingType,
         ),
-        location: listing.location,
+        location: publicLocation,
         mandateEndDate: listing.mandateEndDate?.toISOString().slice(0, 10),
         mandateStartDate: listing.mandateStartDate?.toISOString().slice(0, 10),
         mandateType: listing.mandateType,
+        loadingBays: numberValue(details.loadingBays),
         parking: numberValue(details.parking),
         previousPriceCents: numberValue(details.previousAskingPriceCents),
         priceCents: listing.askingPriceCents,
         priceLabel: listing.priceLabel,
+        propertyCategory:
+          typeof details.propertyCategory === "string" ? details.propertyCategory : null,
         propertyTypeLabel: optionLabel(
           propertyTypeOptions,
           listing.propertyType,

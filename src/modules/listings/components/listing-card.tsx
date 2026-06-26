@@ -16,6 +16,7 @@ import {
   Bookmark,
   Car,
   Heart,
+  Lock,
   ParkingCircle,
   Play,
   Ruler,
@@ -49,9 +50,11 @@ export type ListingCardData = {
   floorSize?: number | string | null;
   footerText?: string;
   garages?: number | string | null;
+  grossLettableArea?: number | string | null;
   href?: string;
   id?: string;
   imageUrls?: string[];
+  landSizeHectares?: number | string | null;
   videoUrls?: string[];
   likedByViewer?: boolean;
   likeCount?: number;
@@ -62,12 +65,15 @@ export type ListingCardData = {
   mandateEndDate?: string | null;
   mandateStartDate?: string | null;
   mandateType?: string | null;
+  loadingBays?: number | string | null;
   parking?: number | string | null;
   previousPriceCents?: number | null;
   priceCents?: number | null;
   priceLabel?: string | null;
   pricePrefix?: string | null;
+  propertyCategory?: string | null;
   propertyTypeLabel: string;
+  isPrivate?: boolean;
   isPromoted?: boolean;
   savedByViewer?: boolean;
   saveCount?: number;
@@ -100,6 +106,117 @@ function formatMandateDates(startDate?: string | null, endDate?: string | null) 
 
 function formatMetric(value: ListingCardData["bedrooms"]) {
   return value || "0";
+}
+
+function hasMetricValue(value: ListingCardData["bedrooms"]) {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+
+  const parsed = Number(String(value || "").trim());
+
+  return Number.isFinite(parsed) && parsed > 0;
+}
+
+type ListingCardStatData = {
+  icon: typeof BedDouble;
+  value: string;
+};
+
+function compactStats(
+  stats: Array<ListingCardStatData | null>,
+): ListingCardStatData[] {
+  return stats.filter((item): item is ListingCardStatData => Boolean(item));
+}
+
+function listingCardStats(listing: ListingCardData) {
+  const category = String(listing.propertyCategory || "").toLowerCase();
+
+  if (category === "commercial") {
+    return compactStats([
+      hasMetricValue(listing.grossLettableArea)
+        ? {
+            icon: Ruler,
+            value: `${formatMetric(listing.grossLettableArea)}m² GLA`,
+          }
+        : {
+            icon: Ruler,
+            value: `${formatMetric(listing.floorSize)}m² floor`,
+          },
+      hasMetricValue(listing.parking)
+        ? {
+            icon: ParkingCircle,
+            value: `${formatMetric(listing.parking)} parking`,
+          }
+        : null,
+      hasMetricValue(listing.loadingBays)
+        ? {
+            icon: Car,
+            value: `${formatMetric(listing.loadingBays)} loading bays`,
+          }
+        : null,
+      hasMetricValue(listing.erfSize)
+        ? {
+            icon: Trees,
+            value: `${formatMetric(listing.erfSize)}m² erf`,
+          }
+        : null,
+    ]);
+  }
+
+  if (category === "land" || category === "farm") {
+    return compactStats([
+      hasMetricValue(listing.landSizeHectares)
+        ? {
+            icon: Trees,
+            value: `${formatMetric(listing.landSizeHectares)} ha`,
+          }
+        : null,
+      hasMetricValue(listing.erfSize)
+        ? {
+            icon: Trees,
+            value: `${formatMetric(listing.erfSize)}m² land`,
+          }
+        : null,
+      hasMetricValue(listing.floorSize)
+        ? {
+            icon: Ruler,
+            value: `${formatMetric(listing.floorSize)}m² floor`,
+          }
+        : null,
+      hasMetricValue(listing.parking)
+        ? {
+            icon: ParkingCircle,
+            value: `${formatMetric(listing.parking)} parking`,
+          }
+        : null,
+    ]);
+  }
+
+  return [
+    {
+      icon: BedDouble,
+      value: `${formatMetric(listing.bedrooms)} bedrooms`,
+    },
+    {
+      icon: Bath,
+      value: `${formatMetric(listing.bathrooms)} bathrooms`,
+    },
+    {
+      icon: Car,
+      value: `${formatMetric(listing.garages)} garages`,
+    },
+    {
+      icon: ParkingCircle,
+      value: `${formatMetric(listing.parking)} parking`,
+    },
+    {
+      icon: Ruler,
+      value: `${formatMetric(listing.floorSize)}m² floor`,
+    },
+    {
+      icon: Trees,
+      value: `${formatMetric(listing.erfSize)}m² erf`,
+    },
+  ];
 }
 
 function ListingCardStat({
@@ -169,7 +286,7 @@ export function ListingSaveButton({
       disabled={pending}
       className={cn(
         plain
-          ? "h-auto gap-1.5 rounded-none bg-transparent p-0 text-sm font-black shadow-none hover:bg-transparent hover:text-primary"
+          ? "h-auto gap-1.5 rounded-none bg-transparent p-0 text-sm font-medium shadow-none hover:bg-transparent hover:text-primary"
           : showLabel
             ? "h-9"
             : label
@@ -263,7 +380,7 @@ export function ListingLikeButton({
       disabled={pending}
       className={cn(
         plain
-          ? "h-auto gap-1.5 rounded-none bg-transparent p-0 text-sm font-black shadow-none hover:bg-transparent hover:text-brand-pink"
+          ? "h-auto gap-1.5 rounded-none bg-transparent p-0 text-sm font-medium shadow-none hover:bg-transparent hover:text-brand-pink"
           : showLabel
             ? "h-9"
             : label
@@ -361,6 +478,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   const statusLabel = listing.statusLabel || "Reserved";
   const isUnavailableButNotReserved = listing.unavailable && !isReserved;
   const locationFlag = countryFlagFromLocation(listing.location);
+  const stats = listingCardStats(listing);
 
   function trackCardAction(actionType: "card_click" | "hover") {
     if (!listing.id || isUnavailableButNotReserved) return;
@@ -487,24 +605,24 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
               playsInline
               preload="metadata"
             />
-            <span className="absolute left-3 bottom-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
+            <span className="absolute left-3 bottom-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
               <Play className="size-3 fill-current" />
               Video
             </span>
           </>
         ) : null}
         <div className="absolute left-3 top-3 flex flex-col items-start gap-1.5">
-          <span className="rounded-full bg-background/90 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-foreground">
+          <span className="rounded-full bg-background/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground">
             {listing.listingTypeLabel}
           </span>
           {isReserved ? (
-            <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-sm">
+            <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-sm">
               {statusLabel}
             </span>
           ) : null}
         </div>
         {listing.buyerIncentive ? (
-          <span className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-primary px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-lg">
+          <span className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-primary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-lg">
             {listing.buyerIncentive}
           </span>
         ) : null}
@@ -523,8 +641,8 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
           />
         ) : null}
         {isUnavailableButNotReserved ? (
-          <div className="absolute inset-x-3 bottom-3 rounded-md bg-background/95 p-3 text-xs font-bold text-foreground shadow-lg backdrop-blur">
-            <p className="font-black">{unavailableLabel}</p>
+          <div className="absolute inset-x-3 bottom-3 rounded-md bg-background/95 p-3 text-xs shadow-lg backdrop-blur">
+            <p className="font-medium text-foreground">{unavailableLabel}</p>
             <p className="mt-1 text-muted-foreground">
               This listing is not currently available.
             </p>
@@ -550,96 +668,93 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         ) : null}
       </div>
       <div className="p-4">
+        {listing.isPrivate ? (
+          <p className="mb-1.5 text-[10px] font-normal uppercase tracking-widest text-muted-foreground/60">
+            Profile &amp; private links only
+          </p>
+        ) : null}
         {listing.isPromoted ? (
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+          <p className="mb-1.5 text-[10px] font-normal uppercase tracking-widest text-muted-foreground/60">
             Promoted
           </p>
         ) : null}
-        <p className="text-xs font-black uppercase tracking-wide text-primary">
+        <p className="text-xs font-semibold uppercase tracking-wide text-primary">
           {listing.propertyTypeLabel}
         </p>
-        <h3 className="mt-1 line-clamp-2 text-lg font-black">
+        <h3 className="mt-1 line-clamp-2 text-base font-semibold">
           {listing.title || "Your listing title"}
         </h3>
-        <p className="mt-1 line-clamp-2 text-sm font-bold text-muted-foreground">
+        <p className="mt-1 line-clamp-2 text-sm font-normal text-muted-foreground">
           {locationFlag ? <span className="mr-1.5">{locationFlag}</span> : null}
           {listing.location || "Location not set"}
         </p>
         {listing.pricePrefix ? (
-          <p className="mt-4 text-xs font-black uppercase tracking-wide text-primary">
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-primary">
             {listing.pricePrefix}
           </p>
         ) : null}
-        <p className={listing.pricePrefix ? "mt-1 text-2xl font-black" : "mt-4 text-2xl font-black"}>
+        <p className={listing.pricePrefix ? "mt-1 text-xl font-semibold" : "mt-4 text-xl font-semibold"}>
           {price}
         </p>
         {showReducedPrice ? (
-          <p className="mt-1 text-xs font-black text-red-600">
+          <p className="mt-1 text-xs font-medium text-red-600">
             Reduced from{" "}
             <span className="text-muted-foreground line-through">
               {formatPriceCents(Number(listing.previousPriceCents))}
             </span>
           </p>
         ) : null}
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-xs font-black text-muted-foreground">
-          <ListingCardStat
-            icon={BedDouble}
-            value={`${formatMetric(listing.bedrooms)} beds`}
-          />
-          <ListingCardStat
-            icon={Bath}
-            value={`${formatMetric(listing.bathrooms)} baths`}
-          />
-          <ListingCardStat
-            icon={Car}
-            value={`${formatMetric(listing.garages)} garages`}
-          />
-          <ListingCardStat
-            icon={ParkingCircle}
-            value={`${formatMetric(listing.parking)} parking`}
-          />
-          <ListingCardStat
-            icon={Ruler}
-            value={`${formatMetric(listing.floorSize)}m² floor`}
-          />
-          <ListingCardStat
-            icon={Trees}
-            value={`${formatMetric(listing.erfSize)}m² erf`}
-          />
-        </div>
+        {stats.length ? (
+          <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-xs font-normal text-muted-foreground">
+            {stats.map((stat) => (
+              <ListingCardStat
+                key={stat.value}
+                icon={stat.icon}
+                value={stat.value}
+              />
+            ))}
+          </div>
+        ) : null}
         {visibleFeatures.length ? (
           <div className="mt-4 flex flex-wrap gap-1.5">
             {visibleFeatures.map((feature) => (
               <span
                 key={feature}
-                className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-black text-primary"
+                className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary"
               >
                 {featureHashtag(feature)}
               </span>
             ))}
             {hiddenFeatureCount ? (
-              <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-black text-muted-foreground">
+              <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-normal text-muted-foreground">
                 +{hiddenFeatureCount} more
               </span>
             ) : null}
           </div>
         ) : null}
-        <div className="mt-4 flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-xs font-bold text-muted-foreground">
+        {listing.mandateType !== null ? (
+          <div className="mt-4 flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-xs font-normal text-muted-foreground">
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-background text-primary">
-            <MandateIcon className="size-3.5" />
-          </span>
-          <div className="min-w-0">
-            <p className="font-black text-foreground">{mandateOption.label}</p>
-            <p className="mt-0.5">
-              {formatMandateDates(
-                listing.mandateStartDate,
-                listing.mandateEndDate,
-              )}
-            </p>
+              <MandateIcon className="size-3.5" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground">{mandateOption.label}</p>
+              <p className="mt-0.5">
+                {formatMandateDates(
+                  listing.mandateStartDate,
+                  listing.mandateEndDate,
+                )}
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-4 flex items-center gap-2 rounded-md border border-border/50 px-3 py-2 text-xs font-normal text-muted-foreground/60">
+            <Lock className="size-3 shrink-0" />
+            <span>Mandate details kept private</span>
+          </div>
+        )}
         {listing.footerText ? (
-          <p className="mt-4 text-xs font-semibold text-muted-foreground">
+          <p className="mt-4 text-xs font-normal text-muted-foreground">
             {listing.footerText}
           </p>
         ) : null}

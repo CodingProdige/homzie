@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { CreateListingPage } from "@/modules/listings/components/create-listing-page";
+import { getListingStrengthBenchmark } from "@/modules/listings/server/listing-strength-benchmark";
 
 type NewListingPageProps = {
   searchParams?: Promise<{
@@ -33,10 +34,16 @@ export default async function NewListingPage({ searchParams }: NewListingPagePro
     redirect("/onboarding/username");
   }
 
+  const listingStrengthBenchmark = await getListingStrengthBenchmark({
+    listingType: "sale",
+    propertyType: "free_standing_house",
+  });
+
   return (
     <CreateListingPage
       duplicateListingId={query.duplicateListing}
       listingError={query.listingError}
+      listingStrengthBenchmark={listingStrengthBenchmark}
       profilePath={`/users/${user.username}`}
       publishedListingId={query.listingPublished}
     />

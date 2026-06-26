@@ -49,7 +49,7 @@ export function ListingPreviewCard({
             {listing.location}
           </p>
         ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-muted-foreground">
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-normal text-muted-foreground">
           {listing.priceLabel ? <span>{listing.priceLabel}</span> : null}
           {listing.status ? (
             <span className="rounded-full bg-muted px-2 py-1 capitalize text-foreground/75">

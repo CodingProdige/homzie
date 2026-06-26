@@ -137,20 +137,24 @@ type ProfileListing = {
   features: string[];
   floorSize: number;
   garages: number;
+  grossLettableArea: number;
   href?: string;
   id: string;
   imageUrls: string[];
+  landSizeHectares: number;
   likedByViewer?: boolean;
   likeCount: number;
   likeCountLabel: string;
   listingType: string;
   location: string | null;
+  loadingBays: number;
   mandateEndDate: string;
   mandateStartDate: string;
-  mandateType: string;
+  mandateType: string | null;
   parking: number;
   priceLabel: string | null;
   previousAskingPriceCents: number;
+  propertyCategory: string | null;
   propertyType: string;
   savedByViewer?: boolean;
   saveCount: number;
@@ -614,7 +618,7 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
             </p>
           ) : null}
           {profile.location ? (
-            <p className="max-w-full truncate text-xs font-bold text-muted-foreground sm:text-sm">
+            <p className="max-w-full truncate text-xs font-normal text-muted-foreground sm:text-sm">
               {profile.location}
             </p>
           ) : null}
@@ -630,7 +634,7 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
             )}
             aria-hidden={profile.viewerSignedIn ? undefined : true}
           >
-            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Contact agent
             </p>
             <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
@@ -745,7 +749,7 @@ function ConnectionAvatar({ connection }: { connection: ProfileConnection }) {
           className="size-full rounded-full border-2 border-background object-cover"
         />
       ) : (
-        <span className="grid size-full place-items-center rounded-full border-2 border-background bg-brand-midnight text-xs font-black">
+        <span className="grid size-full place-items-center rounded-full border-2 border-background bg-brand-midnight text-xs font-semibold">
           {initialsFromName(connection.name) || "H"}
         </span>
       )}
@@ -842,10 +846,10 @@ function ProfileConnectionsDialog({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] flex max-h-[min(34rem,calc(100dvh-2rem))] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-border p-4">
             <div className="min-w-0">
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-lg font-semibold">
                 {profileName}
               </Dialog.Title>
-              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+              <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
                 View followers and following.
               </Dialog.Description>
             </div>
@@ -865,7 +869,7 @@ function ProfileConnectionsDialog({
                 key={item.tab}
                 type="button"
                 className={cn(
-                  "border-b-2 px-4 py-3 text-sm font-black transition-colors",
+                  "border-b-2 px-4 py-3 text-sm font-semibold transition-colors",
                   activeTab === item.tab
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground",
@@ -897,8 +901,8 @@ function ProfileConnectionsDialog({
                     href={`/users/${connection.username}`}
                     className="min-w-0 flex-1"
                   >
-                    <p className="truncate text-sm font-black">{connection.name}</p>
-                    <p className="truncate text-xs font-semibold text-muted-foreground">
+                    <p className="truncate text-sm font-semibold">{connection.name}</p>
+                    <p className="truncate text-xs font-normal text-muted-foreground">
                       @{connection.username}
                     </p>
                     {connection.bio ? (
@@ -908,7 +912,7 @@ function ProfileConnectionsDialog({
                     ) : null}
                   </Link>
                   {connection.isViewer ? (
-                    <span className="rounded-full bg-muted px-3 py-1 text-xs font-black text-muted-foreground">
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs font-normal text-muted-foreground">
                       You
                     </span>
                   ) : (
@@ -928,10 +932,10 @@ function ProfileConnectionsDialog({
               <div className="grid min-h-44 place-items-center px-6 text-center">
                 <div>
                   <UsersRound className="mx-auto size-8 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-black">
+                  <p className="mt-3 text-sm font-semibold">
                     No {activeTab} yet
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                  <p className="mt-1 text-xs font-normal text-muted-foreground">
                     People will appear here as profiles connect.
                   </p>
                 </div>
@@ -1070,11 +1074,11 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
             <LockKeyhole className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Agent performance
             </p>
-            <p className="mt-1 text-sm font-black">Performance private</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+            <p className="mt-1 text-sm font-semibold">Performance private</p>
+            <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
               This agent has chosen not to publish sales performance publicly.
             </p>
           </div>
@@ -1094,12 +1098,12 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
           <Trophy className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">
+          <p className="text-[9px] font-normal uppercase tracking-wide text-muted-foreground">
             Agent performance
           </p>
           <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
-            <p className="text-base font-black leading-none">{profile.agentStats.winRateLabel}</p>
-            <p className="truncate text-xs font-semibold text-muted-foreground">
+            <p className="text-base font-semibold leading-none">{profile.agentStats.winRateLabel}</p>
+            <p className="truncate text-xs font-normal text-muted-foreground">
               win rate · {profile.agentStats.soldThisYearLabel} sold this year
             </p>
           </div>
@@ -1117,12 +1121,12 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
           <Trophy className="size-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+          <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
             Agent performance
           </p>
           <div className="mt-1 flex min-w-0 items-baseline gap-2">
-            <p className="text-lg font-black leading-none">{profile.agentStats.winRateLabel}</p>
-            <p className="truncate text-xs font-semibold text-muted-foreground">
+            <p className="text-lg font-semibold leading-none">{profile.agentStats.winRateLabel}</p>
+            <p className="truncate text-xs font-normal text-muted-foreground">
               win rate · {profile.agentStats.soldThisYearLabel} sold this year
             </p>
           </div>
@@ -1161,7 +1165,7 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
 
       <Link
         href={`/users/${profile.username}/performance`}
-        className="flex h-11 items-center justify-between border-t border-border px-4 text-sm font-black text-primary transition-colors hover:bg-primary/5"
+        className="flex h-11 items-center justify-between border-t border-border px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
       >
         See performance breakdown
         <ChevronRight className="size-4" />
@@ -1173,10 +1177,10 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
           <Dialog.Content className="fixed inset-x-4 top-1/2 z-[91] max-h-[calc(100dvh-2rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-white p-4 text-brand-black shadow-2xl sm:hidden">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <Dialog.Title className="text-lg font-black">
+                <Dialog.Title className="text-lg font-semibold">
                   Agent performance
                 </Dialog.Title>
-                <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+                <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
                   {profile.agentStats.winRateLabel} win rate ·{" "}
                   {profile.agentStats.soldThisYearLabel} sold this year
                 </Dialog.Description>
@@ -1244,17 +1248,17 @@ function PerformanceStatsGrid({
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:size-10">
                 <Icon className="size-4 sm:size-5" />
               </span>
-              <p className="min-w-0 flex-1 text-[10px] font-black uppercase tracking-wide text-muted-foreground sm:text-[11px] lg:flex-none">
+              <p className="min-w-0 flex-1 text-[10px] font-normal uppercase tracking-wide text-muted-foreground sm:text-[11px] lg:flex-none">
                 {stat.label}
               </p>
-              <p className="min-w-0 truncate text-base font-black sm:text-lg lg:text-2xl">
+              <p className="min-w-0 truncate text-base font-semibold sm:text-lg lg:text-2xl">
                 {stat.value}
               </p>
             </div>
           );
         })}
       </div>
-      <div className="rounded-lg bg-primary/5 px-3 py-3 text-xs font-semibold text-muted-foreground lg:mt-2">
+      <div className="rounded-lg bg-primary/5 px-3 py-3 text-xs font-normal text-muted-foreground lg:mt-2">
         <p>{completedMandatesLabel}</p>
         <p className="mt-1">
           {avgDaysToSellLabel === "No sales yet"
@@ -1348,18 +1352,18 @@ function AgentBrandCta() {
           </div>
           <div className="absolute right-16 top-9 w-[280px] overflow-hidden rounded-lg border border-white/20 bg-white text-brand-black shadow-2xl">
             <div className="border-b border-border bg-[linear-gradient(135deg,#f4f0ff,#ffe8f5)] p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
                 Buyer activity
               </p>
-              <p className="mt-1 text-2xl font-black">Intent is locked</p>
+              <p className="mt-1 text-2xl font-semibold">Intent is locked</p>
               <div className="mt-4 space-y-2 blur-[2px]">
                 {["Sarah Parker", "James M.", "Lindiwe N."].map((name, index) => (
                   <div
                     key={name}
                     className="flex items-center justify-between rounded-md bg-white/85 px-3 py-2 shadow-sm"
                   >
-                    <span className="text-xs font-black">{name}</span>
-                    <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-black text-primary">
+                    <span className="text-xs font-semibold">{name}</span>
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
                       {index === 0 ? "High" : "Live"}
                     </span>
                   </div>
@@ -1373,7 +1377,7 @@ function AgentBrandCta() {
             </div>
             <div className="p-4">
               <div className="rounded-lg border border-border bg-muted/40 p-3">
-                <p className="text-xs font-black">AI summary</p>
+                <p className="text-xs font-semibold">AI summary</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   Upgrade to see which buyers are serious and what they did.
                 </p>
@@ -1444,7 +1448,7 @@ function ProfileTabs({
                 {showCount ? (
                   <span
                     className={cn(
-                      "absolute -right-2.5 -top-2 grid min-w-4 place-items-center rounded-full border border-background px-1 py-0.5 text-[9px] font-black leading-none shadow-sm",
+                      "absolute -right-2.5 -top-2 grid min-w-4 place-items-center rounded-full border border-background px-1 py-0.5 text-[9px] font-semibold leading-none shadow-sm",
                       isActive
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground",
@@ -1510,9 +1514,11 @@ function ProfileListingCard({
     features: listing.features,
     floorSize: listing.floorSize,
     garages: listing.garages,
+    grossLettableArea: listing.grossLettableArea,
     href: listing.href || `/listings/${listing.id}`,
     id: listing.id,
     imageUrls: listing.imageUrls,
+    landSizeHectares: listing.landSizeHectares,
     likedByViewer: listing.likedByViewer,
     likeCount: listing.likeCount,
     likeCountLabel: listing.likeCountLabel,
@@ -1522,10 +1528,12 @@ function ProfileListingCard({
     mandateEndDate: listing.mandateEndDate,
     mandateStartDate: listing.mandateStartDate,
     mandateType: listing.mandateType,
+    loadingBays: listing.loadingBays,
     parking: listing.parking,
     previousPriceCents: listing.previousAskingPriceCents,
     priceCents: listing.askingPriceCents,
     priceLabel: listing.priceLabel,
+    propertyCategory: listing.propertyCategory,
     propertyTypeLabel: listingTypeLabel(listing.propertyType),
     savedByViewer: savedByViewer || listing.savedByViewer,
     saveCount: listing.saveCount,
@@ -1611,7 +1619,7 @@ function ProfileTabPanel({
         <div className="space-y-8">
           {savedReels.length ? (
             <div>
-              <h2 className="mb-4 text-base font-black">Saved reels</h2>
+              <h2 className="mb-4 text-base font-semibold">Saved reels</h2>
               <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
                 {savedReels.map((reel) => (
                   <ProfileReelCard
@@ -1626,7 +1634,7 @@ function ProfileTabPanel({
           ) : null}
           {savedListings.length ? (
             <div>
-              <h2 className="mb-4 text-base font-black">Saved listings</h2>
+              <h2 className="mb-4 text-base font-semibold">Saved listings</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {savedListings.map((listing) => (
                   <ProfileListingCard

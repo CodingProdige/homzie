@@ -392,7 +392,7 @@ export default async function ListingActivityPage({
       <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-20 sm:px-6 lg:px-8 lg:pt-28">
         <Link
           href={backHref}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
+          className="inline-flex items-center gap-2 text-sm font-normal text-muted-foreground transition-colors hover:text-primary"
         >
           <ArrowLeft className="size-4" />
           {backLabel}
@@ -433,7 +433,7 @@ export default async function ListingActivityPage({
                   Clear all
                 </Button>
               </form>
-              <p className="text-xs font-semibold text-muted-foreground">
+              <p className="text-xs font-normal text-muted-foreground">
                 Page {safeCurrentPage} of {totalPages}
               </p>
             </div>

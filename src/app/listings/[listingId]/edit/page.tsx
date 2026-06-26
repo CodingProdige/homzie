@@ -13,6 +13,7 @@ import {
   getOwnedListingDetail,
   type ListingDetailData,
 } from "@/modules/listings/server/listing-data";
+import { getListingStrengthBenchmark } from "@/modules/listings/server/listing-strength-benchmark";
 import {
   listingTypeOptions,
   mandateTypeOptions,
@@ -111,6 +112,7 @@ function draftFromListing(listing: ListingDetailData): Partial<ListingDraft> {
     insuranceEstimate: centsToInput(listing.insuranceEstimateCents),
     landSizeHectares: numberToInput(listing.landSizeHectares),
     leaseExpiryDate: listing.leaseExpiryDate,
+    listingReference: listing.listingReference,
     listingVisibility: listing.listingVisibility,
     listingType: listingTypeValue(listing.listingType),
     location: listing.location || "",
@@ -130,18 +132,26 @@ function draftFromListing(listing: ListingDetailData): Partial<ListingDraft> {
     propertyCategory: propertyCategoryValue(listing.propertyCategory, propertyType),
     propertyType,
     province: listing.province,
-    ratesAndTaxes: centsToInput(listing.ratesAndTaxesCents),
     reservationAmount: centsToInput(listing.reservationAmountCents),
     reservationEnabled: listing.reservationEnabled,
     rentalYield: numberToInput(listing.rentalYield),
     servitudes: listing.servitudes,
     shortLetAllowed: listing.shortLetAllowed,
+    storeys: numberToInput(listing.storeys),
+    postalCode: listing.postalCode,
+    streetName: listing.streetName,
+    streetNumber: listing.streetNumber,
     suburb: listing.suburb,
     titleDeedStatus: listing.titleDeedStatus,
     title: listing.title,
     transferCostsEstimate: centsToInput(listing.transferCostsEstimateCents),
     unitCount: numberToInput(listing.unitCount),
+    unitNumber: listing.unitNumber,
     contactVisibility: listing.contactVisibility,
+    mandateVisibility: listing.mandateVisibility,
+    occupancyVisibility: listing.occupancyVisibility,
+    previousPriceVisibility: listing.previousPriceVisibility,
+    reservationVisibility: listing.reservationVisibility,
     utilitiesEstimate: centsToInput(listing.utilitiesEstimateCents),
     waterRights: listing.waterRights,
     zoning: listing.zoning,
@@ -179,6 +189,12 @@ export default async function EditListingPage({
     notFound();
   }
 
+  const listingStrengthBenchmark = await getListingStrengthBenchmark({
+    excludeListingId: listing.id,
+    listingType: listingTypeValue(listing.listingType),
+    propertyType: propertyTypeValue(listing.propertyType),
+  });
+
   return (
     <CreateListingPage
       initialCoverIndex={Math.max(
@@ -197,6 +213,7 @@ export default async function EditListingPage({
       initialPublishIntent={listing.status === "draft" ? "draft" : "published"}
       listingId={listing.id}
       listingError={query.listingError}
+      listingStrengthBenchmark={listingStrengthBenchmark}
       listingUpdateFeedback={listingUpdateFeedback(query.listingUpdated)}
       mode="edit"
       profilePath={`/users/${user.username}`}

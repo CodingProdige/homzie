@@ -26,6 +26,7 @@ import { getAgentPerformanceStats } from "@/modules/agents/performance";
 import { UserProfilePage as UserProfile } from "@/modules/users/components/user-profile-page";
 import { toPublicMediaUrl } from "@/media/paths";
 import { buildListingPath } from "@/modules/listings/seo";
+import { publicListingLocation } from "@/modules/listings/listing-validation";
 import {
   formatSeoTitle,
   getStoredSeoSettings,
@@ -424,6 +425,24 @@ async function getProfileListings({
   return rows.map((listing) => {
     const details = listingDetails(listing.details);
     const unavailable = listing.status !== "published";
+    const addressVisibility =
+      typeof details.addressVisibility === "string" ? details.addressVisibility : "area";
+    const city = typeof details.city === "string" ? details.city : "";
+    const country = typeof details.country === "string" ? details.country : "";
+    const province =
+      (typeof details.province === "string" ? details.province : "") ||
+      (typeof details.state === "string" ? details.state : "") ||
+      (typeof details.region === "string" ? details.region : "");
+    const suburb = typeof details.suburb === "string" ? details.suburb : "";
+    const displayLocation = publicListingLocation({
+      addressVisibility,
+      city,
+      country,
+      isOwner,
+      location: listing.location,
+      province,
+      suburb,
+    });
 
     return {
       askingPriceCents: listing.askingPriceCents,
@@ -437,34 +456,36 @@ async function getProfileListings({
       features: listingStringArray(listing.features).slice(0, 10),
       floorSize: listingNumber(details.floorSize),
       garages: listingNumber(details.garages),
+      grossLettableArea: listingNumber(details.grossLettableArea),
       href: buildListingPath({
         bedrooms: listingNumber(details.bedrooms),
-        city: typeof details.city === "string" ? details.city : "",
-        country: typeof details.country === "string" ? details.country : "",
+        city,
+        country,
         id: listing.id,
         listingType: listing.listingType,
-        location: listing.location,
+        location: displayLocation,
         propertyType: listing.propertyType,
-        province:
-          (typeof details.province === "string" ? details.province : "") ||
-          (typeof details.state === "string" ? details.state : "") ||
-          (typeof details.region === "string" ? details.region : ""),
-        suburb: typeof details.suburb === "string" ? details.suburb : "",
+        province,
+        suburb,
         title: listing.title,
       }),
       id: listing.id,
       imageUrls: listingMediaUrls(listing.media, "image"),
+      landSizeHectares: listingNumber(details.landSizeHectares),
       listingType: listing.listingType,
       likedByViewer: listing.likedByViewer,
       likeCount: listing.likeCount,
       likeCountLabel: formatCompactCount(listing.likeCount),
-      location: listing.location,
-      mandateEndDate: listing.mandateEndDate?.toISOString().slice(0, 10) || "",
-      mandateStartDate: listing.mandateStartDate?.toISOString().slice(0, 10) || "",
-      mandateType: listing.mandateType,
+      location: displayLocation,
+      mandateEndDate: (!isOwner && details.mandateVisibility === "hide") ? "" : listing.mandateEndDate?.toISOString().slice(0, 10) || "",
+      mandateStartDate: (!isOwner && details.mandateVisibility === "hide") ? "" : listing.mandateStartDate?.toISOString().slice(0, 10) || "",
+      mandateType: (!isOwner && details.mandateVisibility === "hide") ? null : listing.mandateType,
+      loadingBays: listingNumber(details.loadingBays),
       parking: listingNumber(details.parking),
       priceLabel: listing.priceLabel,
-      previousAskingPriceCents: listingNumber(details.previousAskingPriceCents),
+      previousAskingPriceCents: (!isOwner && details.previousPriceVisibility === "hide") ? 0 : listingNumber(details.previousAskingPriceCents),
+      propertyCategory:
+        typeof details.propertyCategory === "string" ? details.propertyCategory : null,
       propertyType: listing.propertyType,
       savedByViewer: listing.savedByViewer,
       saveCount: listing.saveCount,
@@ -548,6 +569,25 @@ async function getSavedListings({
   return rows.map((listing) => {
     const details = listingDetails(listing.details);
     const unavailable = listing.status !== "published";
+    const isListingOwner = listing.userId === viewerUserId;
+    const addressVisibility =
+      typeof details.addressVisibility === "string" ? details.addressVisibility : "area";
+    const city = typeof details.city === "string" ? details.city : "";
+    const country = typeof details.country === "string" ? details.country : "";
+    const province =
+      (typeof details.province === "string" ? details.province : "") ||
+      (typeof details.state === "string" ? details.state : "") ||
+      (typeof details.region === "string" ? details.region : "");
+    const suburb = typeof details.suburb === "string" ? details.suburb : "";
+    const displayLocation = publicListingLocation({
+      addressVisibility,
+      city,
+      country,
+      isOwner: isListingOwner,
+      location: listing.location,
+      province,
+      suburb,
+    });
 
     return {
       askingPriceCents: listing.askingPriceCents,
@@ -561,34 +601,36 @@ async function getSavedListings({
       features: listingStringArray(listing.features).slice(0, 10),
       floorSize: listingNumber(details.floorSize),
       garages: listingNumber(details.garages),
+      grossLettableArea: listingNumber(details.grossLettableArea),
       href: buildListingPath({
         bedrooms: listingNumber(details.bedrooms),
-        city: typeof details.city === "string" ? details.city : "",
-        country: typeof details.country === "string" ? details.country : "",
+        city,
+        country,
         id: listing.id,
         listingType: listing.listingType,
-        location: listing.location,
+        location: displayLocation,
         propertyType: listing.propertyType,
-        province:
-          (typeof details.province === "string" ? details.province : "") ||
-          (typeof details.state === "string" ? details.state : "") ||
-          (typeof details.region === "string" ? details.region : ""),
-        suburb: typeof details.suburb === "string" ? details.suburb : "",
+        province,
+        suburb,
         title: listing.title,
       }),
       id: listing.id,
       imageUrls: listingMediaUrls(listing.media, "image"),
+      landSizeHectares: listingNumber(details.landSizeHectares),
       listingType: listing.listingType,
       likedByViewer: listing.likedByViewer,
       likeCount: listing.likeCount,
       likeCountLabel: formatCompactCount(listing.likeCount),
-      location: listing.location,
-      mandateEndDate: listing.mandateEndDate?.toISOString().slice(0, 10) || "",
-      mandateStartDate: listing.mandateStartDate?.toISOString().slice(0, 10) || "",
-      mandateType: listing.mandateType,
+      location: displayLocation,
+      mandateEndDate: details.mandateVisibility === "hide" ? "" : listing.mandateEndDate?.toISOString().slice(0, 10) || "",
+      mandateStartDate: details.mandateVisibility === "hide" ? "" : listing.mandateStartDate?.toISOString().slice(0, 10) || "",
+      mandateType: details.mandateVisibility === "hide" ? null : listing.mandateType,
+      loadingBays: listingNumber(details.loadingBays),
       parking: listingNumber(details.parking),
       priceLabel: listing.priceLabel,
-      previousAskingPriceCents: listingNumber(details.previousAskingPriceCents),
+      previousAskingPriceCents: details.previousPriceVisibility === "hide" ? 0 : listingNumber(details.previousAskingPriceCents),
+      propertyCategory:
+        typeof details.propertyCategory === "string" ? details.propertyCategory : null,
       propertyType: listing.propertyType,
       savedByViewer: listing.savedByViewer,
       saveCount: listing.saveCount,

@@ -117,7 +117,7 @@ function SelectField({
     options.find((option) => option.value === value) || options[0];
 
   return (
-    <label className="grid gap-1.5 text-xs font-black">
+    <label className="grid gap-1.5 text-xs font-semibold">
       <span>{label}</span>
       <input ref={inputRef} type="hidden" name={name} defaultValue={value || ""} />
       <DropdownMenu.Root>
@@ -209,7 +209,7 @@ function MultiSelectField({
   }
 
   return (
-    <label className="grid gap-1.5 text-xs font-black">
+    <label className="grid gap-1.5 text-xs font-semibold">
       <span>{label}</span>
       <span ref={(node) => void (formRef.current = node?.closest("form") || null)}>
         {selectedValues.map((value) => (
@@ -396,12 +396,12 @@ function FiltersFields({
       </div>
 
       <fieldset className="grid gap-2">
-        <legend className="text-xs font-black">Features</legend>
+        <legend className="text-xs font-semibold">Features</legend>
         <div className="flex flex-wrap gap-2">
           {featureOptions.map((feature) => (
             <label
               key={feature}
-              className="cursor-pointer rounded-full border border-border bg-muted/45 px-3 py-2 text-xs font-black has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary"
+              className="cursor-pointer rounded-full border border-border bg-muted/45 px-3 py-2 text-xs font-semibold has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary"
             >
               <input
                 type="checkbox"
@@ -431,8 +431,8 @@ export function ListingFilters({
       <Dialog.Root>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-black">Filters</p>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <p className="text-sm font-semibold">Filters</p>
+            <p className="text-xs font-normal text-muted-foreground">
               Refine properties by type, price and details.
             </p>
           </div>
@@ -448,8 +448,8 @@ export function ListingFilters({
           <Dialog.Content className="fixed inset-x-0 bottom-0 z-[91] max-h-[88dvh] overflow-y-auto rounded-t-lg border border-border bg-background p-4 text-foreground shadow-2xl outline-none">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <Dialog.Title className="text-lg font-black">Filters</Dialog.Title>
-                <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+                <Dialog.Title className="text-lg font-semibold">Filters</Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
                   Refine properties by type, price and listing details.
                 </Dialog.Description>
               </div>
@@ -493,8 +493,8 @@ export function ListingFiltersSidebar({
         className="sticky top-24 grid max-h-[calc(100dvh-7rem)] gap-4 overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm"
       >
         <div>
-          <p className="text-sm font-black">Filters</p>
-          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+          <p className="text-sm font-semibold">Filters</p>
+          <p className="mt-1 text-xs font-normal text-muted-foreground">
             Refine properties by type, price and details.
           </p>
         </div>

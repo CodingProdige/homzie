@@ -32,6 +32,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleDollarSign,
+  Eye,
   Grip,
   House,
   ImagePlus,
@@ -79,6 +80,21 @@ import {
   type PropertyCategory,
   type PropertyType,
 } from "@/modules/listings/options";
+import {
+  commercialPropertyTypes,
+  getListingStrength,
+  getListingPublishIssues as getPublishIssues,
+  getListingReadinessItems,
+  hasCompleteListingLocation,
+  isListingStepComplete,
+  landOnlyPropertyTypes,
+  mandateOptionsForListingType,
+  residentialPropertyTypes,
+  type ListingPublishIssue as PublishIssue,
+  type ListingReadinessItem as ReadinessItem,
+  type ListingStrength,
+  type ListingStrengthBenchmark,
+} from "@/modules/listings/listing-validation";
 
 type GoogleAutocompletePrediction = {
   description: string;
@@ -192,7 +208,9 @@ export type ListingDraft = {
   googlePlaceId: string;
   googlePlaceData: string;
   insuranceEstimate: string;
+  landSizeHectares: string;
   leaseExpiryDate: string;
+  listingReference: string;
   listingVisibility: string;
   listingType: ListingType;
   location: string;
@@ -213,20 +231,27 @@ export type ListingDraft = {
   propertyCategory: PropertyCategory;
   propertyType: PropertyType;
   province: string;
-  ratesAndTaxes: string;
   reservationAmount: string;
   reservationEnabled: boolean;
   rentalYield: string;
   servitudes: string;
   shortLetAllowed: string;
-  landSizeHectares: string;
+  storeys: string;
   titleDeedStatus: string;
+  streetName: string;
+  streetNumber: string;
   suburb: string;
   title: string;
+  postalCode: string;
   transferCostsEstimate: string;
   unitCount: string;
+  unitNumber: string;
   waterRights: string;
   contactVisibility: string;
+  mandateVisibility: string;
+  occupancyVisibility: string;
+  previousPriceVisibility: string;
+  reservationVisibility: string;
   utilitiesEstimate: string;
   zoning: string;
 };
@@ -239,48 +264,6 @@ export type ListingFormInitialMedia = {
   type?: string;
 };
 
-const residentialPropertyTypes = new Set<PropertyType | string>([
-  "apartment",
-  "cluster_home",
-  "duet",
-  "development_unit",
-  "estate_home",
-  "flatlet",
-  "free_standing_house",
-  "guest_house",
-  "retirement_unit",
-  "room",
-  "student_accommodation",
-  "townhouse",
-]);
-const landOnlyPropertyTypes = new Set<PropertyType | string>([
-  "agricultural_land",
-  "development_land",
-  "development_project",
-  "farm",
-  "game_farm",
-  "lifestyle_farm",
-  "small_holding",
-  "vacant_land",
-  "wine_farm",
-]);
-const commercialPropertyTypes = new Set<PropertyType | string>([
-  "business_premises",
-  "commercial_development",
-  "commercial_property",
-  "factory",
-  "guest_house",
-  "hospitality",
-  "industrial",
-  "medical_suite",
-  "mixed_use",
-  "office",
-  "restaurant",
-  "retail",
-  "showroom",
-  "warehouse",
-]);
-
 const steps = [
   { icon: Sparkles, label: "Type" },
   { icon: MapPin, label: "Location" },
@@ -288,6 +271,7 @@ const steps = [
   { icon: CircleDollarSign, label: "Pricing" },
   { icon: Camera, label: "Media" },
   { icon: ShieldCheck, label: "Mandate" },
+  { icon: Eye, label: "Visibility" },
   { icon: BadgeCheck, label: "Preview" },
 ];
 const googleMapsScriptId = "homzie-google-maps-places";
@@ -357,6 +341,10 @@ const contactVisibilityOptions = [
   { label: "Show agent contact actions", value: "show" },
   { label: "Hide direct contact details", value: "hide_details" },
 ];
+const fieldVisibilityOptions = [
+  { label: "Visible to public", value: "show" },
+  { label: "Hidden from public", value: "hide" },
+];
 const powerSupplyOptions = [
   { label: "Not specified", value: "" },
   { label: "Single phase", value: "single_phase" },
@@ -366,18 +354,6 @@ const powerSupplyOptions = [
 const listingAutosavePrefix = "homzie:listings:autosave";
 const listingAutosaveDbName = "homzie-listing-autosave";
 const listingAutosaveStoreName = "listing-form-media";
-
-type PublishIssue = {
-  message: string;
-  step: number;
-};
-
-type ReadinessItem = {
-  description: string;
-  isComplete: boolean;
-  label: string;
-  step: number;
-};
 
 type MediaUploadState = {
   active: boolean;
@@ -404,7 +380,10 @@ type ImportedLocationSuggestion = {
   parts: {
     city: string;
     country: string;
+    postalCode: string;
     province: string;
+    streetName: string;
+    streetNumber: string;
     suburb: string;
   };
   place: GooglePlaceDetails | null;
@@ -435,7 +414,9 @@ const initialDraft: ListingDraft = {
   googlePlaceId: "",
   googlePlaceData: "",
   insuranceEstimate: "",
+  landSizeHectares: "",
   leaseExpiryDate: "",
+  listingReference: "",
   listingVisibility: "public",
   listingType: "sale",
   location: "",
@@ -456,20 +437,27 @@ const initialDraft: ListingDraft = {
   propertyCategory: "residential",
   propertyType: "free_standing_house",
   province: "",
-  ratesAndTaxes: "",
   reservationAmount: "",
   reservationEnabled: false,
   rentalYield: "",
   servitudes: "",
   shortLetAllowed: "",
-  landSizeHectares: "",
+  storeys: "",
   titleDeedStatus: "",
+  streetName: "",
+  streetNumber: "",
   suburb: "",
   title: "",
+  postalCode: "",
   transferCostsEstimate: "",
   unitCount: "",
+  unitNumber: "",
   waterRights: "",
   contactVisibility: "show",
+  mandateVisibility: "show",
+  occupancyVisibility: "show",
+  previousPriceVisibility: "show",
+  reservationVisibility: "show",
   utilitiesEstimate: "",
   zoning: "",
 };
@@ -586,7 +574,7 @@ function RequiredAsterisk() {
   return (
     <span
       aria-hidden="true"
-      className="ml-1 text-base font-black leading-none text-destructive"
+      className="ml-1 text-base font-semibold leading-none text-destructive"
       title="Required"
     >
       *
@@ -622,21 +610,21 @@ function ListingDropdown<T extends string>({
   return (
     <div className="min-w-0">
       {hideLabel ? null : (
-        <p className="inline-flex items-center text-sm font-black">
+        <p className="inline-flex items-center text-sm font-medium">
           {label}
           {required ? <RequiredAsterisk /> : null}
         </p>
       )}
       {!hideLabel && description ? (
-        <p className="mt-1 text-xs font-bold leading-5 text-muted-foreground">
+        <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
           {description}
         </p>
       ) : null}
-      <DropdownMenu.Root>
+      <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="mt-2 flex h-12 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-black outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/25"
+            className="mt-2 flex h-12 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-normal outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/25"
           >
             <span className="min-w-0 truncate">{selected?.label || "Select"}</span>
             <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
@@ -652,7 +640,7 @@ function ListingDropdown<T extends string>({
               <DropdownMenu.Item
                 key={option.value}
                 className={cn(
-                  "flex cursor-pointer items-start justify-between gap-3 rounded-md px-3 py-2.5 text-sm font-black outline-none transition-colors focus:bg-primary/10 focus:text-primary",
+                  "flex cursor-pointer items-start justify-between gap-3 rounded-md px-3 py-2.5 text-sm font-normal outline-none transition-colors focus:bg-primary/10 focus:text-primary",
                   option.value === value && "bg-primary/10 text-primary",
                 )}
                 onSelect={() => onChange(option.value)}
@@ -660,7 +648,7 @@ function ListingDropdown<T extends string>({
                 <span className="min-w-0">
                   <span className="block truncate">{option.label}</span>
                   {option.description ? (
-                    <span className="mt-0.5 block line-clamp-2 text-xs font-semibold leading-4 text-muted-foreground">
+                    <span className="mt-0.5 block line-clamp-2 text-xs font-normal leading-4 text-muted-foreground">
                       {option.description}
                     </span>
                   ) : null}
@@ -761,218 +749,6 @@ async function clearAutosavedMedia(key: string) {
       resolve();
     };
   });
-}
-
-function getPublishIssues(
-  draft: ListingDraft,
-  mediaCount: number,
-  options: { requiresLocationConfirmation?: boolean } = {},
-) {
-  const issues: PublishIssue[] = [];
-
-  if (!draft.listingType) {
-    issues.push({ message: "Choose whether this listing is for sale or rent.", step: 0 });
-  }
-
-  if (!draft.propertyCategory) {
-    issues.push({ message: "Choose the property category.", step: 0 });
-  }
-
-  if (!draft.propertyType) {
-    issues.push({ message: "Choose the property type.", step: 0 });
-  }
-
-  if (draft.title.trim().length < 4) {
-    issues.push({ message: "Add a listing title.", step: 2 });
-  }
-
-  if (draft.location.trim().length < 2) {
-    issues.push({ message: "Add the property location.", step: 1 });
-  }
-
-  if (!draft.city.trim() || !draft.province.trim() || !draft.country.trim()) {
-    issues.push({ message: "Add city, province, and country.", step: 1 });
-  }
-
-  if (options.requiresLocationConfirmation) {
-    issues.push({ message: "Confirm the imported property location.", step: 1 });
-  }
-
-  if (richTextToPlainText(draft.description).length < 40) {
-    issues.push({ message: "Add a fuller property description.", step: 2 });
-  }
-
-  const hasBedroomCount = draft.bedrooms.trim() !== "";
-  const hasBathroomCount = draft.bathrooms.trim() !== "";
-  const hasFloorSize = Number(draft.floorSize) > 0;
-  const hasErfSize = Number(draft.erfSize) > 0;
-
-  if (
-    residentialPropertyTypes.has(draft.propertyType) &&
-    (!hasBedroomCount || !hasBathroomCount || !hasFloorSize)
-  ) {
-    issues.push({ message: "Add bedrooms, bathrooms, and floor size.", step: 2 });
-  }
-
-  if (commercialPropertyTypes.has(draft.propertyType) && !hasFloorSize) {
-    issues.push({ message: "Add the floor size.", step: 2 });
-  }
-
-  if (landOnlyPropertyTypes.has(draft.propertyType) && !hasErfSize) {
-    issues.push({ message: "Add the erf size.", step: 2 });
-  }
-
-  const askingPrice = Number(draft.askingPrice);
-
-  if (!draft.askingPrice || !Number.isFinite(askingPrice) || askingPrice <= 0) {
-    issues.push({ message: "Set the asking price.", step: 3 });
-  }
-
-  if (mediaCount < 1) {
-    issues.push({ message: "Upload at least one listing photo or video.", step: 4 });
-  }
-
-  return issues;
-}
-
-function getListingReadinessItems(
-  draft: ListingDraft,
-  mediaCount: number,
-  options: { requiresLocationConfirmation?: boolean } = {},
-): ReadinessItem[] {
-  const hasBedroomCount = draft.bedrooms.trim() !== "";
-  const hasBathroomCount = draft.bathrooms.trim() !== "";
-  const hasFloorSize = Number(draft.floorSize) > 0;
-  const hasErfSize = Number(draft.erfSize) > 0;
-  const hasRequiredFacts =
-    (residentialPropertyTypes.has(draft.propertyType) &&
-      hasBedroomCount &&
-      hasBathroomCount &&
-      hasFloorSize) ||
-    (commercialPropertyTypes.has(draft.propertyType) && hasFloorSize) ||
-    (landOnlyPropertyTypes.has(draft.propertyType) && hasErfSize) ||
-    (!residentialPropertyTypes.has(draft.propertyType) &&
-      !commercialPropertyTypes.has(draft.propertyType) &&
-      !landOnlyPropertyTypes.has(draft.propertyType));
-  const askingPrice = Number(draft.askingPrice);
-
-  return [
-    {
-      description: "Intent, category, and subtype selected.",
-      isComplete: Boolean(draft.listingType && draft.propertyCategory && draft.propertyType),
-      label: "Listing structure",
-      step: 0,
-    },
-    {
-      description: "Address area and Google location confirmation ready.",
-      isComplete:
-        hasCompleteListingLocation(draft) && !options.requiresLocationConfirmation,
-      label: "Location",
-      step: 1,
-    },
-    {
-      description: "Title and full description are ready.",
-      isComplete:
-        draft.title.trim().length >= 4 &&
-        richTextToPlainText(draft.description).length >= 40,
-      label: "Title and description",
-      step: 2,
-    },
-    {
-      description: "Core facts match the selected property type.",
-      isComplete: hasRequiredFacts,
-      label: "Required property facts",
-      step: 2,
-    },
-    {
-      description: "Asking price can be shown clearly.",
-      isComplete:
-        Boolean(draft.askingPrice) && Number.isFinite(askingPrice) && askingPrice > 0,
-      label: "Pricing",
-      step: 3,
-    },
-    {
-      description: "At least one image or video is attached.",
-      isComplete: mediaCount > 0,
-      label: "Media",
-      step: 4,
-    },
-    {
-      description: "Mandate type is selected.",
-      isComplete: Boolean(draft.mandateType),
-      label: "Mandate",
-      step: 5,
-    },
-    {
-      description: "Public visibility, address, and contact posture are set.",
-      isComplete: Boolean(
-        draft.listingVisibility &&
-          draft.addressVisibility &&
-          draft.contactVisibility,
-      ),
-      label: "Visibility",
-      step: 6,
-    },
-  ];
-}
-
-function hasCompleteListingLocation(draft: ListingDraft) {
-  return Boolean(
-    draft.location.trim().length >= 2 &&
-      draft.location.trim() !== "Location not set" &&
-      draft.city.trim() &&
-      draft.province.trim() &&
-      draft.country.trim(),
-  );
-}
-
-function isListingStepComplete(
-  stepIndex: number,
-  draft: ListingDraft,
-  mediaCount: number,
-  options: { requiresLocationConfirmation?: boolean } = {},
-) {
-  switch (stepIndex) {
-    case 0:
-      return Boolean(draft.listingType && draft.propertyCategory && draft.propertyType);
-    case 1:
-      return (
-        hasCompleteListingLocation(draft) &&
-        !options.requiresLocationConfirmation
-      );
-    case 2: {
-      const hasBedroomCount = draft.bedrooms.trim() !== "";
-      const hasBathroomCount = draft.bathrooms.trim() !== "";
-      const hasFloorSize = Number(draft.floorSize) > 0;
-      const hasErfSize = Number(draft.erfSize) > 0;
-      const hasRequiredDetails =
-        (residentialPropertyTypes.has(draft.propertyType) &&
-          hasBedroomCount &&
-          hasBathroomCount &&
-          hasFloorSize) ||
-        (commercialPropertyTypes.has(draft.propertyType) && hasFloorSize) ||
-        (landOnlyPropertyTypes.has(draft.propertyType) && hasErfSize) ||
-        (!residentialPropertyTypes.has(draft.propertyType) &&
-          !commercialPropertyTypes.has(draft.propertyType) &&
-          !landOnlyPropertyTypes.has(draft.propertyType));
-
-      return Boolean(
-        draft.title.trim().length >= 4 &&
-          richTextToPlainText(draft.description).length >= 40 &&
-          hasRequiredDetails,
-      );
-    }
-    case 3:
-      return Boolean(draft.askingPrice && Number(draft.askingPrice) > 0);
-    case 4:
-      return mediaCount > 0;
-    case 5:
-      return Boolean(draft.mandateType);
-    case 6:
-      return getPublishIssues(draft, mediaCount, options).length === 0;
-    default:
-      return false;
-  }
 }
 
 function loadGooglePlaces() {
@@ -1094,10 +870,6 @@ function normalizeFeatureInput(value: string) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxFeatureLength);
-}
-
-function featureHashtag(value: string) {
-  return `#${value.replace(/\s+/g, "")}`;
 }
 
 function SubmitButtons({
@@ -1329,25 +1101,25 @@ function ListingPublishProgress({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-black">
+              <p className="text-sm font-medium">
                 {isUploadingMedia
                   ? "Uploading listing media"
                   : mode === "edit"
                     ? "Updating listing"
                     : "Publishing listing"}
               </p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+              <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
                 Keep this page open while Homzie processes the listing.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-primary">
+              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
                 {mediaCount} media
               </span>
-              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
                 {imageCount} images
               </span>
-              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
                 {videoCount} videos
               </span>
             </div>
@@ -1360,7 +1132,7 @@ function ListingPublishProgress({
             />
           </div>
           {uploadCount > 10 ? (
-            <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
+            <p className="mt-2 text-xs font-normal leading-5 text-muted-foreground">
               Larger media sets are uploaded before the listing is saved, so
               this still completes from one button press.
             </p>
@@ -1375,7 +1147,7 @@ function ListingPublishProgress({
                 <div
                   key={step}
                   className={cn(
-                    "flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-bold text-muted-foreground",
+                    "flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-normal text-muted-foreground",
                     isActive && "border-primary/35 text-primary",
                     isDone && "text-foreground",
                   )}
@@ -1438,10 +1210,10 @@ function ArchiveListingDialog({
               <CircleAlert className="size-5" />
             </span>
             <div className="min-w-0">
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-base font-semibold">
                 Archive this listing?
               </Dialog.Title>
-              <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              <Dialog.Description className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                 This will not delete the listing. It will be archived and no
                 longer publicly visible. Archiving does not affect performance
                 stats, and removing a listing to alter recorded performance is
@@ -1504,10 +1276,10 @@ function PublishRequirementsDialog({
               <CircleAlert className="size-5" />
             </span>
             <div className="min-w-0">
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-base font-semibold">
                 Finish these items before publishing
               </Dialog.Title>
-              <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              <Dialog.Description className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                 Your draft is saved, but Homzie needs these public-facing basics
                 before the listing can go live.
               </Dialog.Description>
@@ -1523,8 +1295,8 @@ function PublishRequirementsDialog({
                 onClick={() => onGoToStep(group.step)}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-black">{group.label}</p>
-                  <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  <p className="text-sm font-medium">{group.label}</p>
+                  <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
                     {group.issues.length} missing
                   </span>
                 </div>
@@ -1532,7 +1304,7 @@ function PublishRequirementsDialog({
                   {group.issues.map((issue) => (
                     <li
                       key={issue.message}
-                      className="flex gap-2 text-xs font-bold leading-5 text-muted-foreground"
+                      className="flex gap-2 text-xs font-normal leading-5 text-muted-foreground"
                     >
                       <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
                       <span>{issue.message}</span>
@@ -1565,48 +1337,57 @@ function PublishRequirementsDialog({
   );
 }
 
-function ListingReadinessPanel({
+function ListingStrengthPanel({
   items,
   onGoToStep,
-  percent,
+  strength,
 }: {
   items: ReadinessItem[];
   onGoToStep: (step: number) => void;
-  percent: number;
+  strength: ListingStrength;
 }) {
   const missingItems = items.filter((item) => !item.isComplete);
+  const isStrong = strength.percent >= 90;
+  const isGood = strength.percent >= 75;
 
   return (
     <section className="mt-5 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[0.65rem] font-black uppercase tracking-[0.24em] text-primary">
-            Listing readiness
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.24em] text-primary">
+            Listing strength
           </p>
-          <p className="mt-1 text-sm font-semibold leading-5 text-muted-foreground">
-            {missingItems.length
-              ? `Still missing ${missingItems
-                  .slice(0, 3)
-                  .map((item) => item.label.toLowerCase())
-                  .join(", ")}${missingItems.length > 3 ? " and more" : ""}.`
-              : "All required publishing basics are ready."}
+          <p className="mt-1 text-sm font-normal leading-5 text-muted-foreground">
+            {strength.comparison}
           </p>
+          {missingItems.length ? (
+            <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
+              Improve{" "}
+              {missingItems
+                .slice(0, 3)
+                .map((item) => item.label.toLowerCase())
+                .join(", ")}
+              {missingItems.length > 3 ? " and more" : ""}.
+            </p>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <span
             className={cn(
-              "inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black",
-              missingItems.length
-                ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+              "inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold",
+              isStrong
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                : isGood
+                  ? "bg-primary/10 text-primary"
+                  : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
             )}
           >
-            {missingItems.length ? (
-              <CircleAlert className="size-3.5" />
-            ) : (
+            {isStrong ? (
               <CheckCircle2 className="size-3.5" />
+            ) : (
+              <Sparkles className="size-3.5" />
             )}
-            {percent}% ready
+            {strength.label} · {strength.percent}%
           </span>
           {missingItems[0] ? (
             <Button
@@ -1615,7 +1396,7 @@ function ListingReadinessPanel({
               variant="outline"
               onClick={() => onGoToStep(missingItems[0].step)}
             >
-              Fix next
+              Improve next
               <ArrowRight className="size-3.5" />
             </Button>
           ) : null}
@@ -1625,7 +1406,7 @@ function ListingReadinessPanel({
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
         <span
           className="block h-full rounded-full bg-[image:var(--homzie-gradient)] transition-[width] duration-500"
-          style={{ width: `${percent}%` }}
+          style={{ width: `${strength.percent}%` }}
         />
       </div>
     </section>
@@ -1646,8 +1427,8 @@ function ListingPublishSuccess({
           <div className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-100 text-emerald-600">
             <CheckCircle2 className="size-8 stroke-[2.8]" />
           </div>
-          <h1 className="mt-5 text-2xl font-black">Listing published</h1>
-          <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+          <h1 className="mt-5 text-xl font-semibold">Listing published</h1>
+          <p className="mx-auto mt-2 max-w-md text-sm font-normal leading-6 text-muted-foreground">
             Your listing is live on your Homzie profile and ready to be linked
             to reels.
           </p>
@@ -1679,8 +1460,8 @@ function ListingDuplicateWarning({
           <div className="mx-auto grid size-16 place-items-center rounded-full bg-amber-100 text-amber-600">
             <CircleAlert className="size-8 stroke-[2.8]" />
           </div>
-          <h1 className="mt-5 text-2xl font-black">Listing already exists</h1>
-          <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+          <h1 className="mt-5 text-xl font-semibold">Listing already exists</h1>
+          <p className="mx-auto mt-2 max-w-md text-sm font-normal leading-6 text-muted-foreground">
             This profile already has an active listing for that property. Open
             the existing listing instead of creating a duplicate.
           </p>
@@ -1924,7 +1705,7 @@ function ListingCostInput({
   value: string;
 }) {
   return (
-    <label className="block text-sm font-black">
+    <label className="block text-sm font-medium">
       <span className="inline-flex items-center gap-1.5">
         {label} ({currency})
         {description ? (
@@ -1944,7 +1725,7 @@ function ListingCostInput({
           )
         }
         placeholder={placeholder || "Optional"}
-        className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+        className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
       />
     </label>
   );
@@ -1965,7 +1746,7 @@ function ListingSelect({
 }) {
   return (
     <div>
-      <span className="inline-flex items-center gap-1.5 text-sm font-black">
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium">
         {label}
         {description ? (
           <AnalyticsInfoPopover title={label} description={description} />
@@ -2016,7 +1797,7 @@ function DateInput({
         type="date"
         onClick={openPicker}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full cursor-pointer rounded-md border border-border bg-background px-4 pr-14 text-sm font-semibold outline-none transition-colors [color-scheme:light] focus:border-primary dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
+        className="h-12 w-full cursor-pointer rounded-md border border-border bg-background px-4 pr-14 text-sm font-normal outline-none transition-colors [color-scheme:light] focus:border-primary dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
       />
       <span className="pointer-events-none absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md bg-primary/10 text-primary">
         <CalendarDays className="size-4" />
@@ -2066,9 +1847,12 @@ function placeLocationParts(place: GooglePlaceDetails, fallback: string) {
       addressComponent(place, "administrative_area_level_2") ||
       fallbackParts.city,
     country: addressComponent(place, "country") || fallbackParts.country,
+    postalCode: addressComponent(place, "postal_code"),
     province:
       addressComponent(place, "administrative_area_level_1") ||
       fallbackParts.province,
+    streetName: addressComponent(place, "route"),
+    streetNumber: addressComponent(place, "street_number"),
     suburb:
       addressComponent(place, "sublocality") ||
       addressComponent(place, "sublocality_level_1") ||
@@ -2236,13 +2020,13 @@ function ImportListingFromLinkPanel({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
         <div className="min-w-0 flex-1">
           <label
-            className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-primary"
+            className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary"
             htmlFor="listing-import-url"
           >
             <Link2 className="size-3.5" />
             Import from link
           </label>
-          <p className="mt-1 text-sm font-semibold leading-5 text-muted-foreground">
+          <p className="mt-1 text-sm font-normal leading-5 text-muted-foreground">
             Paste a listing URL to prefill the form. Review fields before publishing.
           </p>
           <input
@@ -2252,7 +2036,7 @@ function ImportListingFromLinkPanel({
             onChange={(event) => setUrl(event.target.value)}
             onKeyDown={handleImportKeyDown}
             placeholder="https://example.com/property/..."
-            className="mt-3 h-11 w-full min-w-0 rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+            className="mt-3 h-11 w-full min-w-0 rounded-md border border-border bg-background px-4 text-sm font-normal text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
             disabled={isPending}
           />
         </div>
@@ -2277,7 +2061,7 @@ function ImportListingFromLinkPanel({
       </div>
 
       {message || summary ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-normal text-muted-foreground">
           {message ? <span>{message}</span> : null}
           {summary ? (
             <span className="rounded-full bg-muted px-2.5 py-1">
@@ -2309,6 +2093,7 @@ export function CreateListingPage({
   duplicateListingId,
   listingId,
   listingError,
+  listingStrengthBenchmark,
   listingUpdateFeedback,
   mode = "create",
   profilePath,
@@ -2321,6 +2106,7 @@ export function CreateListingPage({
   duplicateListingId?: string;
   listingId?: string;
   listingError?: string;
+  listingStrengthBenchmark?: ListingStrengthBenchmark | null;
   listingUpdateFeedback?: "draft" | "published" | "updated";
   mode?: "create" | "edit";
   profilePath: string;
@@ -2416,11 +2202,14 @@ export function CreateListingPage({
       }),
     [draft, media.length, requiresLocationConfirmation],
   );
-  const readinessPercent = useMemo(() => {
-    const completedCount = readinessItems.filter((item) => item.isComplete).length;
-
-    return Math.round((completedCount / readinessItems.length) * 100);
-  }, [readinessItems]);
+  const listingStrength = useMemo(
+    () =>
+      getListingStrength(draft, media.length, {
+        benchmark: listingStrengthBenchmark,
+        requiresLocationConfirmation,
+      }),
+    [draft, listingStrengthBenchmark, media.length, requiresLocationConfirmation],
+  );
   const uploadMedia = media.filter((item) => item.file);
   const uploadMediaCount = uploadMedia.length;
   const isUploadingMedia = mediaUploadState.active;
@@ -2920,7 +2709,6 @@ export function CreateListingPage({
           ? error.message
           : "Homzie could not upload that listing media. Please try again.",
       );
-      setPublishRequirementsOpen(true);
     }
   }
 
@@ -2958,7 +2746,7 @@ export function CreateListingPage({
       return;
     }
 
-    const issues = getPublishIssues(draft, media.length);
+    const issues = publishIssues;
 
     if (!issues.length) {
       setPublishMessage("");
@@ -3038,6 +2826,11 @@ export function CreateListingPage({
               })),
           )}
         />
+        <input
+          type="hidden"
+          name="requiresLocationConfirmation"
+          value={requiresLocationConfirmation ? "true" : "false"}
+        />
         {listingError ? (
           <div className="mx-auto mt-24 w-full max-w-6xl px-4 sm:px-6 lg:px-8">
             <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
@@ -3076,7 +2869,10 @@ export function CreateListingPage({
         <input type="hidden" name="insuranceEstimate" value={draft.insuranceEstimate} />
         <input type="hidden" name="leaseExpiryDate" value={draft.leaseExpiryDate} />
         <input type="hidden" name="listingVisibility" value={draft.listingVisibility} />
+        <input type="hidden" name="streetName" value={draft.streetName} />
+        <input type="hidden" name="streetNumber" value={draft.streetNumber} />
         <input type="hidden" name="suburb" value={draft.suburb} />
+        <input type="hidden" name="postalCode" value={draft.postalCode} />
         <input type="hidden" name="province" value={draft.province} />
         <input type="hidden" name="googlePlaceId" value={draft.googlePlaceId} />
         <input type="hidden" name="googlePlaceData" value={draft.googlePlaceData} />
@@ -3106,12 +2902,13 @@ export function CreateListingPage({
         <input type="hidden" name="priceQualifier" value={draft.priceQualifier} />
         <input type="hidden" name="propertyCategory" value={draft.propertyCategory} />
         <input type="hidden" name="propertyType" value={draft.propertyType} />
-        <input type="hidden" name="ratesAndTaxes" value={draft.ratesAndTaxes} />
-        <input type="hidden" name="reservationAmount" value="" />
+        <input type="hidden" name="reservationAmount" value={draft.reservationAmount} />
+        <input type="hidden" name="reservationEnabled" value={draft.reservationEnabled ? "on" : ""} />
         <input type="hidden" name="rentalYield" value={draft.rentalYield} />
         <input type="hidden" name="servitudes" value={draft.servitudes} />
         <input type="hidden" name="shortLetAllowed" value={draft.shortLetAllowed} />
         <input type="hidden" name="landSizeHectares" value={draft.landSizeHectares} />
+        <input type="hidden" name="storeys" value={draft.storeys} />
         <input type="hidden" name="titleDeedStatus" value={draft.titleDeedStatus} />
         <input type="hidden" name="title" value={draft.title} />
         <input
@@ -3120,9 +2917,15 @@ export function CreateListingPage({
           value={draft.transferCostsEstimate}
         />
         <input type="hidden" name="unitCount" value={draft.unitCount} />
+        <input type="hidden" name="unitNumber" value={draft.unitNumber} />
         <input type="hidden" name="waterRights" value={draft.waterRights} />
         <input type="hidden" name="contactVisibility" value={draft.contactVisibility} />
+        <input type="hidden" name="mandateVisibility" value={draft.mandateVisibility} />
+        <input type="hidden" name="occupancyVisibility" value={draft.occupancyVisibility} />
+        <input type="hidden" name="previousPriceVisibility" value={draft.previousPriceVisibility} />
+        <input type="hidden" name="reservationVisibility" value={draft.reservationVisibility} />
         <input type="hidden" name="utilitiesEstimate" value={draft.utilitiesEstimate} />
+        <input type="hidden" name="listingReference" value={draft.listingReference} />
         <input type="hidden" name="zoning" value={draft.zoning} />
         <button
           id={`${formId}-save-draft`}
@@ -3288,7 +3091,7 @@ export function CreateListingPage({
             <Link
               href={backHref}
               replace
-              className="inline-flex w-fit items-center gap-3 text-sm font-medium text-foreground transition-colors hover:text-primary"
+              className="inline-flex w-fit items-center gap-2 text-sm font-normal text-muted-foreground transition-colors hover:text-primary"
             >
               <ArrowLeft className="size-4" />
               Back
@@ -3324,7 +3127,7 @@ export function CreateListingPage({
               <div className="flex items-start gap-2">
                 <CircleAlert className="mt-0.5 size-4 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm font-black">
+                  <p className="text-sm font-medium">
                     Listing is not ready to publish yet
                   </p>
                   <p className="mt-1 text-xs font-semibold leading-5">
@@ -3342,7 +3145,7 @@ export function CreateListingPage({
                     <button
                       key={issue.message}
                       type="button"
-                      className="rounded-full border border-amber-500/30 bg-background px-3 py-1 text-[11px] font-black text-foreground transition hover:border-primary/40 hover:text-primary"
+                      className="rounded-full border border-amber-500/30 bg-background px-3 py-1 text-[11px] font-semibold text-foreground transition hover:border-primary/40 hover:text-primary"
                       onClick={() => goToPublishIssueStep(issue.step)}
                     >
                       {issue.message}
@@ -3351,7 +3154,7 @@ export function CreateListingPage({
                   {publishIssues.length > 3 ? (
                     <button
                       type="button"
-                      className="rounded-full border border-amber-500/30 bg-background px-3 py-1 text-[11px] font-black text-foreground transition hover:border-primary/40 hover:text-primary"
+                      className="rounded-full border border-amber-500/30 bg-background px-3 py-1 text-[11px] font-semibold text-foreground transition hover:border-primary/40 hover:text-primary"
                       onClick={() => setPublishRequirementsOpen(true)}
                     >
                       View all {publishIssues.length}
@@ -3377,20 +3180,20 @@ export function CreateListingPage({
               summary={importSummary}
             />
           ) : null}
-          <ListingReadinessPanel
+          <ListingStrengthPanel
             items={readinessItems}
             onGoToStep={goToPublishIssueStep}
-            percent={readinessPercent}
+            strength={listingStrength}
           />
 
           <Dialog.Root open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
             <Dialog.Portal>
               <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm" />
               <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl outline-none">
-                <Dialog.Title className="text-base font-black">
+                <Dialog.Title className="text-base font-semibold">
                   Reset listing form?
                 </Dialog.Title>
-                <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                <Dialog.Description className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                   This clears your current listing changes and removes autosaved
                   progress from this browser.
                 </Dialog.Description>
@@ -3446,7 +3249,7 @@ export function CreateListingPage({
                         key={step.label}
                         type="button"
                         className={cn(
-                          "flex h-11 min-w-[9rem] shrink-0 items-center gap-2 rounded-md px-3 text-sm font-black text-muted-foreground transition-colors hover:bg-muted lg:min-w-0 lg:w-full",
+                          "flex h-11 min-w-[9rem] shrink-0 items-center gap-2 rounded-md px-3 text-sm font-normal text-muted-foreground transition-colors hover:bg-muted lg:min-w-0 lg:w-full",
                           isActive && "bg-primary/10 text-primary",
                           isComplete && !isActive && "text-foreground",
                           hasPublishIssue &&
@@ -3504,10 +3307,10 @@ export function CreateListingPage({
             <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm">
               {activeStep === steps.length - 1 ? null : (
                 <div className="border-b border-border px-5 py-4">
-                  <h1 className="text-xl font-black">
+                  <h1 className="text-base font-semibold">
                     {mode === "edit" ? "Edit listing" : "Create listing"}
                   </h1>
-                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                  <p className="mt-1 text-sm font-normal text-muted-foreground">
                     {mode === "edit"
                       ? "Update listing details while keeping the current listing status."
                       : "Build a structured property listing that can be linked to reels and tracked in agent performance."}
@@ -3557,6 +3360,9 @@ export function CreateListingPage({
                   <MandateStep draft={draft} setDraft={setDraft} />
                 ) : null}
                 {activeStep === 6 ? (
+                  <VisibilityStep draft={draft} setDraft={setDraft} />
+                ) : null}
+                {activeStep === 7 ? (
                   <PreviewStep
                     activeListingType={activeListingType?.label || "Listing"}
                     activePropertyType={activePropertyType?.label || "Property"}
@@ -3677,7 +3483,7 @@ function ListingTypeStep({
   return (
     <div className="space-y-7">
       <div>
-        <h2 className="inline-flex items-center text-lg font-black">
+        <h2 className="inline-flex items-center text-base font-semibold">
           What are you listing?
           <RequiredAsterisk />
         </h2>
@@ -3718,11 +3524,11 @@ function ListingTypeStep({
       </div>
 
       <div className="border-t border-border pt-4">
-        <p className="text-xs font-black uppercase tracking-[0.24em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">
           Selected structure
         </p>
-        <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-          <span className="font-black text-foreground">
+        <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
+          <span className="font-semibold text-foreground">
             {activeCategory?.label || "Property"} /{" "}
             {activeSubtype?.label || "Subtype"}
           </span>{" "}
@@ -3862,12 +3668,17 @@ function LocationStep({
     };
   }, [isLocked, query]);
 
-  function updateAddressPart(key: "city" | "country" | "province" | "suburb", value: string) {
-    setDraft((current) => ({
-      ...current,
-      [key]: value,
-      googlePlaceData: current.googlePlaceId ? current.googlePlaceData : "",
-    }));
+  function updateAddressPart(
+    key: "city" | "country" | "postalCode" | "province" | "streetName" | "streetNumber" | "suburb",
+    value: string,
+  ) {
+    setDraft((current) => {
+      if (current.googlePlaceId) return { ...current, [key]: value };
+      const next = { ...current, [key]: value };
+      const street = [next.streetNumber.trim(), next.streetName.trim()].filter(Boolean).join(" ");
+      const composed = [street, next.suburb.trim(), next.city.trim(), next.province.trim(), next.country.trim()].filter(Boolean).join(", ");
+      return { ...next, googlePlaceData: "", location: composed || current.location };
+    });
   }
 
   function applyLocationSelection({
@@ -3876,7 +3687,6 @@ function LocationStep({
     parts,
     place,
   }: ImportedLocationSuggestion) {
-    setQuery(option.description);
     setPredictions([]);
     onImportedLocationResolved?.();
     setDraft((current) => ({
@@ -3886,7 +3696,10 @@ function LocationStep({
       googlePlaceId: option.place_id,
       googlePlaceData: serializablePlaceData(place, option),
       location: formattedAddress,
+      postalCode: parts.postalCode ?? current.postalCode,
       province: parts.province,
+      streetName: parts.streetName ?? current.streetName,
+      streetNumber: parts.streetNumber ?? current.streetNumber,
       suburb: parts.suburb,
     }));
   }
@@ -3913,8 +3726,8 @@ function LocationStep({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-black">Location</h2>
-        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+        <h2 className="text-base font-semibold">Location</h2>
+        <p className="mt-1 text-sm font-normal text-muted-foreground">
           {isRepairMode
             ? "This published listing has incomplete location data. Fix the missing fields to relock the location after saving."
             : isLocked
@@ -3923,7 +3736,7 @@ function LocationStep({
         </p>
       </div>
       {isRepairMode ? (
-        <p className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs font-black text-amber-700 dark:text-amber-300">
+        <p className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
           Location repair mode is active. Complete the address details, then save
           the listing to lock this section again.
         </p>
@@ -3932,25 +3745,25 @@ function LocationStep({
         <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[0.68rem] font-black uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">
                 Confirm imported location
               </p>
-              <h3 className="mt-2 text-base font-black">
+              <h3 className="mt-2 text-base font-semibold">
                 This address was imported and still needs your confirmation.
               </h3>
-              <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+              <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                 Pick the Google Places match below, or search manually before
                 publishing.
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-amber-500/15 px-3 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+            <span className="shrink-0 rounded-full bg-amber-500/15 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
               Action needed
             </span>
           </div>
 
           <div className="mt-4 rounded-md border border-border bg-background p-3">
             {isResolvingImportedLocation ? (
-              <p className="flex items-center gap-2 text-sm font-black text-muted-foreground">
+              <p className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
                 <LoaderCircle className="size-4 animate-spin text-primary" />
                 Looking for the best Google match
               </p>
@@ -3963,11 +3776,11 @@ function LocationStep({
                 >
                   <MapPin className="mt-1 size-4 shrink-0 text-primary" />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-black">
+                    <span className="block truncate text-sm font-medium">
                       {importedSuggestion.option.structured_formatting?.main_text ||
                         importedSuggestion.option.description}
                     </span>
-                    <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
+                    <span className="mt-1 block truncate text-xs font-normal text-muted-foreground">
                       {importedSuggestion.formattedAddress}
                     </span>
                   </span>
@@ -3982,7 +3795,7 @@ function LocationStep({
                 </Button>
               </div>
             ) : (
-              <p className="text-sm font-semibold leading-6 text-muted-foreground">
+              <p className="text-sm font-normal leading-6 text-muted-foreground">
                 {importedSuggestionError ||
                   "No Google match has been selected yet. Search below and choose the correct location."}
               </p>
@@ -3990,7 +3803,7 @@ function LocationStep({
           </div>
         </div>
       ) : null}
-      <div className="block text-sm font-black">
+      <div className="block text-sm font-medium">
         <span className="inline-flex items-center">
           Property location
           <RequiredAsterisk />
@@ -4015,13 +3828,13 @@ function LocationStep({
             }));
           }}
           placeholder="Start typing an address, city, or country"
-          className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+          className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
           disabled={isLocked}
           required
         />
       </div>
       {placesError ? (
-        <p className="rounded-md bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+        <p className="rounded-md bg-muted px-3 py-2 text-xs font-normal text-muted-foreground">
           {placesError}
         </p>
       ) : null}
@@ -4036,21 +3849,21 @@ function LocationStep({
             >
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
               <span>
-                <span className="block text-sm font-black">
+                <span className="block text-sm font-medium">
                   {option.structured_formatting?.main_text || option.description}
                 </span>
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-xs font-normal text-muted-foreground">
                   {option.structured_formatting?.secondary_text || "Google Places"}
                 </span>
               </span>
             </button>
           ))}
           {isSearching ? (
-            <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="px-3 py-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Searching places
             </p>
           ) : null}
-          <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+          <p className="px-3 pb-1 pt-2 text-right text-[9px] font-normal uppercase tracking-[0.35em] text-muted-foreground">
             Powered by Google
           </p>
         </div>
@@ -4058,97 +3871,126 @@ function LocationStep({
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-black">
-              {draft.googlePlaceId ? "Selected location" : "Address details"}
-            </h3>
-            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-medium">Address details</h3>
+            <p className="mt-1 text-xs font-normal text-muted-foreground">
               {draft.googlePlaceId
-                ? "This is the structured location Homzie will use for matching, search, and buyer activity."
-                : "If Google cannot find the exact property, enter these manually."}
+                ? "Populated from Google — edit any field if needed."
+                : "Enter the full address manually."}
             </p>
           </div>
           {draft.googlePlaceId ? (
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-primary">
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Google matched
             </span>
           ) : (
-            <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+            <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
               Manual entry
             </span>
           )}
         </div>
-        {draft.googlePlaceId ? (
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            {[
-              ["Suburb", draft.suburb || "Not detected"],
-              ["City", draft.city || "Not detected"],
-              ["Province", draft.province || "Not detected"],
-              ["Country", draft.country || "Not detected"],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-md bg-muted/50 px-3 py-2">
-                <dt className="text-[0.65rem] font-black uppercase tracking-wide text-muted-foreground">
-                  {label}
-                </dt>
-                <dd className="mt-1 truncate font-black text-foreground" title={value}>
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground">
+            Street number
+            <input
+              value={draft.streetNumber}
+              onChange={(event) => updateAddressPart("streetNumber", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="42"
+            />
+          </label>
+          <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground">
+            <span className="inline-flex items-center">
+              Street name
+              {!draft.googlePlaceId ? <RequiredAsterisk /> : null}
+            </span>
+            <input
+              value={draft.streetName}
+              onChange={(event) => updateAddressPart("streetName", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="Main Road"
+            />
+          </label>
+          <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground">
+            <span className="inline-flex items-center">
               Suburb
-              <input
-                value={draft.suburb}
-                onChange={(event) => updateAddressPart("suburb", event.target.value)}
-                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-                disabled={isLocked}
-                placeholder="Denneburg"
-              />
-            </label>
-            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
-              <span className="inline-flex items-center">
-                City
-                <RequiredAsterisk />
-              </span>
-              <input
-                value={draft.city}
-                onChange={(event) => updateAddressPart("city", event.target.value)}
-                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-                disabled={isLocked}
-                placeholder="Paarl"
-              />
-            </label>
-            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
-              <span className="inline-flex items-center">
-                Province
-                <RequiredAsterisk />
-              </span>
-              <input
-                value={draft.province}
-                onChange={(event) => updateAddressPart("province", event.target.value)}
-                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-                disabled={isLocked}
-                placeholder="Western Cape"
-              />
-            </label>
-            <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
-              <span className="inline-flex items-center">
-                Country
-                <RequiredAsterisk />
-              </span>
-              <input
-                value={draft.country}
-                onChange={(event) => updateAddressPart("country", event.target.value)}
-                className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
-                disabled={isLocked}
-                placeholder="South Africa"
-              />
-            </label>
-          </div>
-        )}
+              {!draft.googlePlaceId ? <RequiredAsterisk /> : null}
+            </span>
+            <input
+              value={draft.suburb}
+              onChange={(event) => updateAddressPart("suburb", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="Denneburg"
+            />
+          </label>
+          <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground">
+            <span className="inline-flex items-center">
+              Postal code
+              {!draft.googlePlaceId ? <RequiredAsterisk /> : null}
+            </span>
+            <input
+              value={draft.postalCode}
+              onChange={(event) => updateAddressPart("postalCode", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="7530"
+            />
+          </label>
+          <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground">
+            <span className="inline-flex items-center">
+              City
+              <RequiredAsterisk />
+            </span>
+            <input
+              value={draft.city}
+              onChange={(event) => updateAddressPart("city", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="Paarl"
+            />
+          </label>
+          <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground">
+            <span className="inline-flex items-center">
+              Province / state
+              <RequiredAsterisk />
+            </span>
+            <input
+              value={draft.province}
+              onChange={(event) => updateAddressPart("province", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="Western Cape"
+            />
+          </label>
+          <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground sm:col-span-2">
+            <span className="inline-flex items-center">
+              Country
+              <RequiredAsterisk />
+            </span>
+            <input
+              value={draft.country}
+              onChange={(event) => updateAddressPart("country", event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal normal-case tracking-normal outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
+              disabled={isLocked}
+              placeholder="South Africa"
+            />
+          </label>
+        </div>
       </div>
+      <label className="block text-sm font-medium">
+        Unit / flat number
+        <input
+          value={draft.unitNumber}
+          maxLength={40}
+          onChange={(event) =>
+            updateDraft(setDraft, "unitNumber", event.target.value.slice(0, 40))
+          }
+          placeholder="e.g. Flat 4B, Unit 12 (leave blank for free-standing)"
+          className="mt-2 h-11 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
+        />
+      </label>
     </div>
   );
 }
@@ -4290,19 +4132,19 @@ function DetailsStep({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-black">Listing details</h2>
-        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+        <h2 className="text-base font-semibold">Listing details</h2>
+        <p className="mt-1 text-sm font-normal text-muted-foreground">
           Keep it scan-friendly. Buyers and renters should understand the listing
           in seconds.
         </p>
       </div>
-      <div className="block text-sm font-black">
+      <div className="block text-sm font-medium">
         <span className="flex items-center justify-between gap-3">
           <span className="inline-flex items-center">
             Listing title
             <RequiredAsterisk />
           </span>
-          <span className="text-xs font-black text-muted-foreground">
+          <span className="text-xs font-normal text-muted-foreground">
             {draft.title.length}/{maxTitleLength}
           </span>
         </span>
@@ -4314,13 +4156,13 @@ function DetailsStep({
             updateDraft(setDraft, "title", event.target.value.slice(0, maxTitleLength))
           }
           placeholder="Ultra modern family home in Paarl"
-          className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+          className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
           required
         />
         <span className="mt-2 flex flex-wrap items-center gap-2">
           <Button
             className={cn(
-              "ai-action-button h-10 rounded-md px-3 text-xs font-black disabled:opacity-45",
+              "ai-action-button h-10 rounded-md px-3 text-xs font-semibold disabled:opacity-45",
               isImprovingTitle && "is-processing disabled:opacity-100",
               isTitleCoolingDown &&
                 "bg-muted text-muted-foreground shadow-none hover:bg-muted disabled:opacity-100 [&_.ai-action-icon]:text-muted-foreground",
@@ -4362,13 +4204,13 @@ function DetailsStep({
           ) : null}
         </span>
       </div>
-      <div className="block text-sm font-black">
+      <div className="block text-sm font-medium">
         <span className="flex items-center justify-between gap-3">
           <span className="inline-flex items-center">
             Description
             <RequiredAsterisk />
           </span>
-          <span className="text-xs font-black text-muted-foreground">
+          <span className="text-xs font-normal text-muted-foreground">
             {descriptionText.length}/{maxDescriptionLength}
           </span>
         </span>
@@ -4382,7 +4224,7 @@ function DetailsStep({
         <span className="mt-2 flex flex-wrap items-center gap-2">
           <Button
             className={cn(
-              "ai-action-button h-10 rounded-md px-3 text-xs font-black disabled:opacity-45",
+              "ai-action-button h-10 rounded-md px-3 text-xs font-semibold disabled:opacity-45",
               isImprovingDescription && "is-processing disabled:opacity-100",
               isDescriptionCoolingDown &&
                 "bg-muted text-muted-foreground shadow-none hover:bg-muted disabled:opacity-100 [&_.ai-action-icon]:text-muted-foreground",
@@ -4427,11 +4269,11 @@ function DetailsStep({
         </span>
       </div>
       <div className="border-t border-border pt-5">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
           Core property facts
         </p>
       </div>
-      <div className="grid gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {(
           [
           ["bedrooms", "Bedrooms", "1"],
@@ -4446,7 +4288,7 @@ function DetailsStep({
             ]
           >
         ).map(([key, label, step]) => (
-          <label key={key} className="block text-sm font-black">
+          <label key={key} className="block text-sm font-medium">
             <span className="inline-flex items-center">
               {label}
               {(key === "bedrooms" || key === "bathrooms") &&
@@ -4469,13 +4311,13 @@ function DetailsStep({
                     : integerInputValue(event.target.value)),
                 )
               }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
         ))}
       </div>
-      <div className="grid gap-4">
-        <label className="block text-sm font-black">
+      <div className="grid grid-cols-2 gap-4">
+        <label className="block text-sm font-medium">
           <span className="inline-flex items-center">
             Floor size m²
             {residentialPropertyTypes.has(draft.propertyType) ||
@@ -4492,10 +4334,10 @@ function DetailsStep({
             onChange={(event) =>
               updateDraft(setDraft, "floorSize", decimalInputValue(event.target.value))
             }
-            className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
           />
         </label>
-        <label className="block text-sm font-black">
+        <label className="block text-sm font-medium">
           <span className="inline-flex items-center">
             Erf / land size m²
             {landOnlyPropertyTypes.has(draft.propertyType) ? (
@@ -4511,12 +4353,26 @@ function DetailsStep({
             onChange={(event) =>
               updateDraft(setDraft, "erfSize", decimalInputValue(event.target.value))
             }
-            className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
+          />
+        </label>
+        <label className="block text-sm font-medium">
+          Storeys
+          <input
+            name="storeys"
+            value={draft.storeys}
+            type="number"
+            min="0"
+            step="1"
+            onChange={(event) =>
+              updateDraft(setDraft, "storeys", integerInputValue(event.target.value))
+            }
+            className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
           />
         </label>
       </div>
       <div className="border-t border-border pt-5">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
           Legal and operating details
         </p>
         <div className="mt-4 grid gap-4">
@@ -4538,7 +4394,7 @@ function DetailsStep({
           options={zoningOptions}
           onChange={(value) => updateDraft(setDraft, "zoning", value)}
         />
-        <label className="block text-sm font-black">
+        <label className="block text-sm font-medium">
           Servitudes / restrictions
           <input
             value={draft.servitudes}
@@ -4547,18 +4403,18 @@ function DetailsStep({
               updateDraft(setDraft, "servitudes", event.target.value.slice(0, 180))
             }
             placeholder="Access servitude, HOA restrictions, water rights..."
-            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
           />
         </label>
         </div>
       </div>
       {isResidential ? (
         <div className="border-t border-border pt-5">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
           Residential context
         </p>
         <div className="mt-4 grid gap-4">
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Estate / complex name
             <input
               value={draft.estateName}
@@ -4566,33 +4422,7 @@ function DetailsStep({
               onChange={(event) =>
                 updateDraft(setDraft, "estateName", event.target.value.slice(0, 120))
               }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
-            />
-          </label>
-          <label className="block text-sm font-black">
-            Rates and taxes
-            <input
-              value={draft.ratesAndTaxes}
-              type="number"
-              min="0"
-              step="0.01"
-              onChange={(event) =>
-                updateDraft(setDraft, "ratesAndTaxes", decimalInputValue(event.target.value))
-              }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
-            />
-          </label>
-          <label className="block text-sm font-black">
-            Levies
-            <input
-              value={draft.communityFees}
-              type="number"
-              min="0"
-              step="0.01"
-              onChange={(event) =>
-                updateDraft(setDraft, "communityFees", decimalInputValue(event.target.value))
-              }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
         </div>
@@ -4600,7 +4430,7 @@ function DetailsStep({
       ) : null}
       {isCommercial ? (
         <div className="border-t border-border pt-5">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
           Commercial details
         </p>
         <div className="mt-4 grid gap-4">
@@ -4610,7 +4440,7 @@ function DetailsStep({
             options={occupancyStatusOptions}
             onChange={(value) => updateDraft(setDraft, "occupancyStatus", value)}
           />
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Gross lettable area m²
             <input
               value={draft.grossLettableArea}
@@ -4624,7 +4454,7 @@ function DetailsStep({
                   decimalInputValue(event.target.value),
                 )
               }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
           <ListingDropdown
@@ -4633,7 +4463,7 @@ function DetailsStep({
             options={powerSupplyOptions}
             onChange={(value) => updateDraft(setDraft, "powerSupply", value)}
           />
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Loading bays
             <input
               value={draft.loadingBays}
@@ -4643,10 +4473,10 @@ function DetailsStep({
               onChange={(event) =>
                 updateDraft(setDraft, "loadingBays", integerInputValue(event.target.value))
               }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Lease expiry
             <DateInput
               name="leaseExpiryDate"
@@ -4659,11 +4489,11 @@ function DetailsStep({
       ) : null}
       {isFarm ? (
         <div className="border-t border-border pt-5">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
           Farm and rural details
         </p>
         <div className="mt-4 grid gap-4">
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Land size hectares
             <input
               value={draft.landSizeHectares}
@@ -4677,7 +4507,7 @@ function DetailsStep({
                   decimalInputValue(event.target.value),
                 )
               }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
           <ListingDropdown
@@ -4686,7 +4516,7 @@ function DetailsStep({
             options={yesNoOptions}
             onChange={(value) => updateDraft(setDraft, "waterRights", value)}
           />
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Outbuildings / infrastructure
             <input
               value={draft.outbuildings}
@@ -4695,7 +4525,7 @@ function DetailsStep({
                 updateDraft(setDraft, "outbuildings", event.target.value.slice(0, 160))
               }
               placeholder="Sheds, stables, cold rooms, staff housing..."
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
         </div>
@@ -4703,11 +4533,11 @@ function DetailsStep({
       ) : null}
       {isDevelopment ? (
         <div className="border-t border-border pt-5">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
           Development details
         </p>
         <div className="mt-4 grid gap-4">
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Developer name
             <input
               value={draft.developerName}
@@ -4715,10 +4545,10 @@ function DetailsStep({
               onChange={(event) =>
                 updateDraft(setDraft, "developerName", event.target.value.slice(0, 120))
               }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             Unit count
             <input
               value={draft.unitCount}
@@ -4728,13 +4558,13 @@ function DetailsStep({
               onChange={(event) =>
                 updateDraft(setDraft, "unitCount", integerInputValue(event.target.value))
               }
-              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
           <ListingDropdown
-            label="Show unit available"
+            label="Availability status"
             value={draft.occupancyStatus}
-            options={yesNoOptions}
+            options={occupancyStatusOptions}
             onChange={(value) => updateDraft(setDraft, "occupancyStatus", value)}
           />
         </div>
@@ -4742,8 +4572,8 @@ function DetailsStep({
       ) : null}
       <div className="border-t border-border pt-5">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-black">Features</p>
-          <p className="text-xs font-black text-muted-foreground">
+          <p className="text-sm font-medium">Features</p>
+          <p className="text-xs font-normal text-muted-foreground">
             {draft.features.length}/{maxListingFeatures}
           </p>
         </div>
@@ -4759,7 +4589,7 @@ function DetailsStep({
                 type="button"
                 disabled={!isSelected && !canAddFeature}
                 className={cn(
-                  "cursor-pointer rounded-full border border-border px-3 py-2 text-xs font-black transition-colors",
+                  "cursor-pointer rounded-full border border-border px-3 py-2 text-xs font-semibold transition-colors",
                   isSelected && "border-primary bg-primary/10 text-primary",
                   !isSelected &&
                     !canAddFeature &&
@@ -4786,7 +4616,7 @@ function DetailsStep({
                 }
               }}
               placeholder="Add custom feature"
-              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
           <Button
@@ -4798,23 +4628,9 @@ function DetailsStep({
             Add
           </Button>
         </div>
-        <p className="mt-1 text-xs font-bold text-muted-foreground">
+        <p className="mt-1 text-xs font-normal text-muted-foreground">
           {customFeature.length}/{maxFeatureLength} characters per feature
         </p>
-        {draft.features.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {draft.features.map((feature) => (
-              <button
-                key={feature}
-                type="button"
-                className="rounded-full bg-muted px-3 py-1.5 text-xs font-black text-muted-foreground transition-colors hover:text-destructive"
-                onClick={() => toggleFeature(feature)}
-              >
-                {featureHashtag(feature)}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -4850,8 +4666,8 @@ function PricingStep({
     <div className="space-y-6">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-lg font-black">Pricing</h2>
-          <p className="mt-1 text-sm font-semibold text-muted-foreground">
+          <h2 className="text-base font-semibold">Pricing</h2>
+          <p className="mt-1 text-sm font-normal text-muted-foreground">
             Enter the base price in ZAR. Preview and listing display follow the
             selected currency.
           </p>
@@ -4859,7 +4675,7 @@ function PricingStep({
         <CurrencySelector className="shrink-0 self-start" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm font-black">
+        <label className="block text-sm font-medium">
           <span className="inline-flex items-center">
             Asking price ({currency})
             <RequiredAsterisk />
@@ -4880,10 +4696,10 @@ function PricingStep({
               )
             }
             placeholder={askingPricePlaceholder}
-            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
           />
         </label>
-        <label className="block text-sm font-black">
+        <label className="block text-sm font-medium">
           <span className="inline-flex items-center gap-1.5">
             Previous price ({currency})
             <AnalyticsInfoPopover
@@ -4907,64 +4723,17 @@ function PricingStep({
               )
             }
             placeholder="Optional"
-            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
           />
         </label>
-        <label className="block text-sm font-black">
-          <span className="inline-flex items-center gap-1.5">
-            Price label
-            <AnalyticsInfoPopover
-              title="Price label"
-              description="Optional text shown before the price, such as From, Offers from, or Guide price."
-            />
-          </span>
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button
-                type="button"
-                className="mt-2 flex h-12 w-full items-center justify-between rounded-md border border-border bg-background px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-primary/45 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
-              >
-                <span>
-                  {priceQualifierOptions.find(
-                    (option) => option.value === draft.priceQualifier,
-                  )?.label || "No label"}
-                </span>
-                <ChevronDown className="size-4 text-muted-foreground" />
-              </button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content
-                align="start"
-                sideOffset={8}
-                className="z-[80] w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl shadow-black/20 outline-none"
-              >
-                {priceQualifierOptions.map((option) => {
-                  const isActive = option.value === draft.priceQualifier;
-
-                  return (
-                    <DropdownMenu.Item
-                      key={option.label}
-                      className={cn(
-                        "flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-3 text-sm font-bold outline-none transition-colors focus:bg-accent focus:text-accent-foreground",
-                        isActive &&
-                          "bg-primary text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                      )}
-                      onSelect={() =>
-                        updateDraft(setDraft, "priceQualifier", option.value)
-                      }
-                    >
-                      <span className="grid size-4 place-items-center">
-                        {isActive ? <Check className="size-3.5" /> : null}
-                      </span>
-                      {option.label}
-                    </DropdownMenu.Item>
-                  );
-                })}
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
-        </label>
-        <label className="block text-sm font-black sm:col-span-2">
+        <ListingDropdown
+          label="Price label"
+          description="Optional text shown before the price, such as From, Offers from, or Guide price."
+          value={draft.priceQualifier}
+          options={priceQualifierOptions}
+          onChange={(value) => updateDraft(setDraft, "priceQualifier", value)}
+        />
+        <label className="block text-sm font-medium sm:col-span-2">
           <span className="inline-flex items-center gap-1.5">
             Buyer incentive badge
             <AnalyticsInfoPopover
@@ -4979,12 +4748,12 @@ function PricingStep({
               updateDraft(setDraft, "buyerIncentive", event.target.value)
             }
             placeholder="No transfer duty"
-            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
           />
         </label>
       </div>
       {draft.listingType === "rental" ? (
-        <label className="block text-sm font-black">
+        <label className="block text-sm font-medium">
           Available from
           <DateInput
             name="availableFrom"
@@ -4994,8 +4763,8 @@ function PricingStep({
         </label>
       ) : null}
       <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
-        <h3 className="text-sm font-black">Ownership costs</h3>
-        <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+        <h3 className="text-sm font-medium">Ownership costs</h3>
+        <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
           Use local equivalents such as rates and taxes, levies, HOA, strata or
           building fees. These help buyers understand the real monthly cost.
         </p>
@@ -5052,12 +4821,12 @@ function PricingStep({
             setDraft={setDraft}
             value={draft.transferCostsEstimate}
           />
-          <label className="block text-sm font-black">
+          <label className="block text-sm font-medium">
             <span className="inline-flex items-center gap-1.5">
               Rental yield estimate (%)
               <AnalyticsInfoPopover
                 title="Rental yield estimate"
-                description="Estimated annual rental return as a percentage of the purchase price. Useful for investment-focused buyers."
+                description="Estimated annual rental return as a percentage of the purchase price for buyers comparing rental potential."
               />
             </span>
             <input
@@ -5070,16 +4839,16 @@ function PricingStep({
                 updateDraft(setDraft, "rentalYield", event.target.value)
               }
               placeholder="Optional"
-              className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+              className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
         </div>
       </div>
       <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
-        <h3 className="text-sm font-black">Availability and rules</h3>
+        <h3 className="text-sm font-medium">Availability and rules</h3>
         <div className="mt-4 grid gap-4">
           {draft.listingType !== "rental" ? (
-            <label className="block text-sm font-black">
+            <label className="block text-sm font-medium">
               <span className="inline-flex items-center gap-1.5">
                 Occupation / available date
               <AnalyticsInfoPopover
@@ -5094,36 +4863,40 @@ function PricingStep({
               />
             </label>
           ) : null}
-          <ListingSelect
-            description="Whether the property is offered with furniture included. Leave unspecified if this has not been confirmed."
-            draftKey="furnishedStatus"
-            label="Furnished"
-            setDraft={setDraft}
-            value={draft.furnishedStatus}
-          />
-          <ListingSelect
-            description="Whether pets are permitted by the owner, body corporate, HOA or applicable property rules."
-            draftKey="petsAllowed"
-            label="Pets allowed"
-            setDraft={setDraft}
-            value={draft.petsAllowed}
-          />
-          <ListingSelect
-            description="Whether the property can be used for short-term letting or holiday rentals where local rules allow it."
-            draftKey="shortLetAllowed"
-            label="Short-let allowed"
-            setDraft={setDraft}
-            value={draft.shortLetAllowed}
-          />
+          {draft.propertyCategory === "residential" || draft.propertyCategory === "development" ? (
+            <>
+              <ListingSelect
+                description="Whether the property is offered with furniture included. Leave unspecified if this has not been confirmed."
+                draftKey="furnishedStatus"
+                label="Furnished"
+                setDraft={setDraft}
+                value={draft.furnishedStatus}
+              />
+              <ListingSelect
+                description="Whether pets are permitted by the owner, body corporate, HOA or applicable property rules."
+                draftKey="petsAllowed"
+                label="Pets allowed"
+                setDraft={setDraft}
+                value={draft.petsAllowed}
+              />
+              <ListingSelect
+                description="Whether the property can be used for short-term letting or holiday rentals where local rules allow it."
+                draftKey="shortLetAllowed"
+                label="Short-let allowed"
+                setDraft={setDraft}
+                value={draft.shortLetAllowed}
+              />
+            </>
+          ) : null}
         </div>
       </div>
       <div className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
         {draft.priceQualifier ? (
-          <p className="text-xs font-black uppercase tracking-wide text-primary">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
             {draft.priceQualifier}
           </p>
         ) : null}
-        <p className={draft.priceQualifier ? "mt-1 text-2xl font-black" : "text-2xl font-black"}>
+        <p className={draft.priceQualifier ? "mt-1 text-2xl font-semibold" : "text-2xl font-semibold"}>
           {formatListingPrice(
             draft.askingPrice,
             draft.listingType,
@@ -5131,7 +4904,7 @@ function PricingStep({
           )}
         </p>
         {showReducedPrice ? (
-          <p className="mt-1 text-sm font-black text-red-600">
+          <p className="mt-1 text-sm font-medium text-red-600">
             Reduced from{" "}
             <span className="text-muted-foreground line-through">
               {formatListingPrice(
@@ -5169,20 +4942,20 @@ function MediaStep({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-black">Media</h2>
-        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+        <h2 className="text-base font-semibold">Media</h2>
+        <p className="mt-1 text-sm font-normal text-muted-foreground">
           Upload up to {maxListingMediaItems} photos or videos. Photos are optimized
           before saving. Videos are limited to 90 seconds and {maxListingVideoSizeMb}MB
           after optimization.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-primary">
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
             {media.length}/{maxListingMediaItems} total
           </span>
-          <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+          <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
             {imageCount} {imageCount === 1 ? "image" : "images"}
           </span>
-          <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+          <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
             {videoCount} {videoCount === 1 ? "video" : "videos"}
           </span>
         </div>
@@ -5193,11 +4966,11 @@ function MediaStep({
         onClick={onOpenFilePicker}
       >
         <ImagePlus className="size-8 text-primary" />
-        <span className="mt-3 inline-flex items-center text-sm font-black">
+        <span className="mt-3 inline-flex items-center text-sm font-medium">
           Upload listing media
           <RequiredAsterisk />
         </span>
-        <span className="mt-1 text-xs font-semibold text-muted-foreground">
+        <span className="mt-1 text-xs font-normal text-muted-foreground">
           Choose photos or video. Select a photo as the cover when possible.
         </span>
       </button>
@@ -5259,7 +5032,7 @@ function MediaStep({
                 <Grip className="size-3.5" aria-hidden="true" />
               </div>
               {coverIndex === index ? (
-                <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-[10px] font-black text-primary-foreground shadow-sm">
+                <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground shadow-sm">
                   Cover
                 </span>
               ) : (
@@ -5297,15 +5070,25 @@ function MandateStep({
   draft: ListingDraft;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
-  const selectedMandate = mandateTypeOptions.find(
+  const allowedMandateValues = mandateOptionsForListingType(draft.listingType);
+  const filteredMandateOptions = mandateTypeOptions.filter((o) =>
+    allowedMandateValues.includes(o.value),
+  );
+  const selectedMandate = filteredMandateOptions.find(
     (option) => option.value === draft.mandateType,
   );
+
+  useEffect(() => {
+    if (!filteredMandateOptions.length || selectedMandate) return;
+
+    updateDraft(setDraft, "mandateType", filteredMandateOptions[0].value);
+  }, [filteredMandateOptions, selectedMandate, setDraft]);
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-black">Mandate and status</h2>
-        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+        <h2 className="text-base font-semibold">Mandate and status</h2>
+        <p className="mt-1 text-sm font-normal text-muted-foreground">
           Mandate history feeds the performance system, so we store it clearly
           from the start.
         </p>
@@ -5315,7 +5098,7 @@ function MandateStep({
           label="Mandate type"
           required
           value={draft.mandateType}
-          options={mandateTypeOptions.map((option) => ({
+          options={filteredMandateOptions.map((option) => ({
             description: option.description,
             label: option.label,
             value: option.value,
@@ -5323,7 +5106,7 @@ function MandateStep({
           onChange={(value) => updateDraft(setDraft, "mandateType", value)}
         />
         {selectedMandate ? (
-          <div className="mt-3 flex items-start gap-3 rounded-lg border border-border bg-muted/25 p-4 text-sm font-semibold leading-6 text-muted-foreground">
+          <div className="mt-3 flex items-start gap-3 rounded-lg border border-border bg-muted/25 p-4 text-sm font-normal leading-6 text-muted-foreground">
             <AnalyticsInfoPopover
               title={selectedMandate.label}
               description={selectedMandate.description}
@@ -5334,7 +5117,7 @@ function MandateStep({
         ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm font-black">
+        <label className="block text-sm font-medium">
           Mandate start
           <DateInput
             name="mandateStartDate"
@@ -5342,7 +5125,7 @@ function MandateStep({
             onChange={(value) => updateDraft(setDraft, "mandateStartDate", value)}
           />
         </label>
-        <label className="block text-sm font-black">
+        <label className="block text-sm font-medium">
           Mandate end
           <DateInput
             name="mandateEndDate"
@@ -5351,7 +5134,77 @@ function MandateStep({
           />
         </label>
       </div>
-      <div className="rounded-lg border border-primary/15 bg-primary/5 p-4 text-sm font-semibold leading-6 text-muted-foreground">
+      <div className="border-t border-border pt-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+          Your reference
+        </p>
+        <label className="mt-4 block text-sm font-medium">
+          <span className="inline-flex items-center gap-1.5">
+            Listing reference
+            <AnalyticsInfoPopover
+              title="Listing reference"
+              description="Your own internal reference or CRM number for this listing. Only visible to you."
+            />
+          </span>
+          <input
+            value={draft.listingReference}
+            maxLength={80}
+            onChange={(event) =>
+              updateDraft(setDraft, "listingReference", event.target.value.slice(0, 80))
+            }
+            placeholder="e.g. REF-2024-001 or your CRM number"
+            className="mt-2 h-11 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
+          />
+        </label>
+      </div>
+      {draft.propertyCategory === "development" ? (
+      <div className="border-t border-border pt-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+          Reservation deposit
+        </p>
+        <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
+          Set a deposit amount buyers can place to reserve a unit in this development.
+          Reservation checkout activates when enabled by the platform.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-medium">
+            Reservation amount (ZAR)
+            <input
+              value={draft.reservationAmount}
+              type="number"
+              min="0"
+              step="100"
+              onChange={(event) =>
+                updateDraft(
+                  setDraft,
+                  "reservationAmount",
+                  decimalInputValue(event.target.value),
+                )
+              }
+              placeholder="e.g. 5000"
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-4 text-sm font-medium transition-colors hover:border-primary/40 sm:mt-6">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 shrink-0 accent-primary"
+              checked={draft.reservationEnabled}
+              onChange={(event) =>
+                updateDraft(setDraft, "reservationEnabled", event.target.checked)
+              }
+            />
+            <span>
+              Enable reservation
+              <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                Allow buyers to place a deposit to reserve this listing.
+              </span>
+            </span>
+          </label>
+        </div>
+      </div>
+      ) : null}
+      <div className="rounded-lg border border-primary/15 bg-primary/5 p-4 text-sm font-normal leading-6 text-muted-foreground">
         Listings cannot simply disappear from performance history after outcomes
         are recorded. Drafts stay private; published listings can be linked to
         reels and future sale outcomes.
@@ -5368,15 +5221,7 @@ function ListingVisibilityControls({
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
   return (
-    <section className="border-t border-border pt-5">
-      <div>
-        <h3 className="text-base font-black">Visibility settings</h3>
-        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
-          Decide how this listing appears once published. Drafts always stay
-          private until you publish them.
-        </p>
-      </div>
-      <div className="mt-4 grid gap-4">
+    <section className="grid gap-4">
         <ListingDropdown
           description="Choose whether this listing appears broadly or only through your profile and shared links."
           label="Listing visibility"
@@ -5398,8 +5243,57 @@ function ListingVisibilityControls({
           value={draft.contactVisibility}
           onChange={(value) => updateDraft(setDraft, "contactVisibility", value)}
         />
-      </div>
+        <ListingDropdown
+          description="Hide mandate type and expiry dates from the public card to prevent competitors from timing a poach."
+          label="Mandate visibility"
+          options={fieldVisibilityOptions}
+          value={draft.mandateVisibility}
+          onChange={(value) => updateDraft(setDraft, "mandateVisibility", value)}
+        />
+        <ListingDropdown
+          description="Hide the original asking price to protect the seller's negotiating position."
+          label="Previous price visibility"
+          options={fieldVisibilityOptions}
+          value={draft.previousPriceVisibility}
+          onChange={(value) => updateDraft(setDraft, "previousPriceVisibility", value)}
+        />
+        <ListingDropdown
+          description="Hide the occupation and availability date from the public listing to protect homeowner privacy."
+          label="Availability date visibility"
+          options={fieldVisibilityOptions}
+          value={draft.occupancyVisibility}
+          onChange={(value) => updateDraft(setDraft, "occupancyVisibility", value)}
+        />
+        {draft.propertyCategory === "development" ? (
+          <ListingDropdown
+            description="Hide the reservation deposit amount from buyers until they are engaged directly."
+            label="Reservation amount visibility"
+            options={fieldVisibilityOptions}
+            value={draft.reservationVisibility}
+            onChange={(value) => updateDraft(setDraft, "reservationVisibility", value)}
+          />
+        ) : null}
     </section>
+  );
+}
+
+function VisibilityStep({
+  draft,
+  setDraft,
+}: {
+  draft: ListingDraft;
+  setDraft: Dispatch<SetStateAction<ListingDraft>>;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold">Visibility settings</h2>
+        <p className="mt-1 text-sm font-normal text-muted-foreground">
+          Control what buyers and competitors can see on the public listing.
+        </p>
+      </div>
+      <ListingVisibilityControls draft={draft} setDraft={setDraft} />
+    </div>
   );
 }
 
@@ -5412,17 +5306,14 @@ function PreviewStep(props: {
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
   videoUrls?: string[];
 }) {
-  const { draft, setDraft } = props;
-
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-black">Preview and publish</h2>
-        <p className="mt-1 text-sm font-semibold text-muted-foreground">
-          Check the public-facing basics before publishing.
+        <h2 className="text-base font-semibold">Preview and publish</h2>
+        <p className="mt-1 text-sm font-normal text-muted-foreground">
+          Check how your listing will appear to buyers before publishing.
         </p>
       </div>
-      <ListingVisibilityControls draft={draft} setDraft={setDraft} />
       <ListingPreview {...props} profilePath="" />
     </div>
   );
@@ -5562,10 +5453,10 @@ function MobileListingPreviewDialog({
         <Dialog.Content className="fixed inset-x-3 bottom-3 z-50 max-h-[88dvh] overflow-y-auto rounded-2xl border border-border bg-background p-4 text-foreground shadow-2xl outline-none lg:hidden">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-base font-semibold">
                 Listing preview
               </Dialog.Title>
-              <Dialog.Description className="mt-1 text-xs font-semibold text-muted-foreground">
+              <Dialog.Description className="mt-1 text-xs font-normal text-muted-foreground">
                 Check how this listing card is shaping up.
               </Dialog.Description>
             </div>
@@ -5623,23 +5514,33 @@ function ListingPreview({
     floorSize: draft.floorSize,
     footerText: profilePath ? `Publishes to ${profilePath}` : undefined,
     garages: draft.garages,
+    grossLettableArea: draft.grossLettableArea,
+    isPrivate: draft.listingVisibility === "profile_private",
     imageUrls,
+    landSizeHectares: draft.landSizeHectares,
     listingType: draft.listingType,
     listingTypeLabel: activeListingType,
-    location: draft.location,
-    mandateEndDate: draft.mandateEndDate,
-    mandateStartDate: draft.mandateStartDate,
-    mandateType: draft.mandateType,
+    location:
+      draft.addressVisibility === "area"
+        ? [draft.suburb, draft.city, draft.country].filter(Boolean).join(", ") || draft.location
+        : draft.location,
+    mandateEndDate: draft.mandateVisibility === "hide" ? undefined : draft.mandateEndDate,
+    mandateStartDate: draft.mandateVisibility === "hide" ? undefined : draft.mandateStartDate,
+    mandateType: draft.mandateVisibility === "hide" ? null : draft.mandateType,
+    loadingBays: draft.loadingBays,
     parking: draft.parking,
     previousPriceCents:
-      Number.isFinite(previousPriceAmount) && previousPriceAmount > 0
-        ? Math.round(previousPriceAmount * 100)
-        : null,
+      draft.previousPriceVisibility === "hide"
+        ? null
+        : Number.isFinite(previousPriceAmount) && previousPriceAmount > 0
+          ? Math.round(previousPriceAmount * 100)
+          : null,
     priceCents:
       Number.isFinite(priceAmount) && priceAmount > 0
         ? Math.round(priceAmount * 100)
         : null,
     pricePrefix: draft.priceQualifier,
+    propertyCategory: draft.propertyCategory,
     propertyTypeLabel: activePropertyType,
     title: draft.title,
     videoUrls,

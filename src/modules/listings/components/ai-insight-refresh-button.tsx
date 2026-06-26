@@ -75,7 +75,7 @@ export function AiInsightRefreshButton({
         });
       }}
       className={cn(
-        "h-9 rounded-full border border-primary/35 bg-white px-3 text-xs font-black text-primary shadow-[0_0_0_3px_rgba(124,86,255,0.12)] transition-all hover:border-primary/60 hover:bg-primary/5 hover:shadow-[0_0_0_4px_rgba(124,86,255,0.16)] disabled:opacity-75",
+        "h-9 rounded-full border border-primary/35 bg-white px-3 text-xs font-semibold text-primary shadow-[0_0_0_3px_rgba(124,86,255,0.12)] transition-all hover:border-primary/60 hover:bg-primary/5 hover:shadow-[0_0_0_4px_rgba(124,86,255,0.16)] disabled:opacity-75",
         "whitespace-nowrap dark:bg-background",
       )}
       variant="outline"

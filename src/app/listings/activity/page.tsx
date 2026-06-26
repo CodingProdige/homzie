@@ -524,13 +524,13 @@ function AnalyticsStat({
         <Icon className="size-4" />
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-sm font-black text-foreground">
+        <span className="block truncate text-sm font-semibold text-foreground">
           {value}
         </span>
-        <span className="mt-0.5 block truncate text-xs font-semibold text-muted-foreground">
+        <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
           {label}
         </span>
-        <span className="mt-0.5 block truncate text-[11px] font-semibold text-muted-foreground/80">
+        <span className="mt-0.5 block truncate text-[11px] font-normal text-muted-foreground/80">
           {description}
         </span>
       </span>
@@ -628,7 +628,7 @@ function CountPill({
 }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
         tone === "red"
           ? "bg-red-50 text-red-600"
           : tone === "green"
@@ -662,7 +662,7 @@ function ListingActivityCell({ row }: { row: ListingActivityOverviewRow }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-black text-foreground">{row.title}</p>
+        <p className="truncate text-sm font-semibold text-foreground">{row.title}</p>
         {row.location ? (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {row.location}
@@ -684,7 +684,7 @@ function ListingActivityCell({ row }: { row: ListingActivityOverviewRow }) {
             value={row.activity_count}
           />
           {row.price_label ? (
-            <span className="truncate text-[11px] font-black text-muted-foreground">
+            <span className="truncate text-[11px] font-normal text-muted-foreground">
               {row.price_label}
             </span>
           ) : null}
@@ -711,7 +711,7 @@ function LockedListingActivityState({
         viewerUsername={viewerUsername}
       />
       <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-20 sm:px-6 lg:px-8 lg:pt-28">
-        <BackButton className="font-semibold text-muted-foreground hover:text-primary" />
+        <BackButton className="font-normal text-muted-foreground hover:text-primary" />
 
         <section className="mt-6 rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-start gap-4">
@@ -1257,11 +1257,11 @@ export default async function ListingActivityOverviewPage({
       key: "new",
       render: (row) =>
         row.unread_viewer_count > 0 ? (
-          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-500 px-2 py-1 text-[10px] font-black text-white">
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-500 px-2 py-1 text-[10px] font-semibold text-white">
             {row.unread_viewer_count}
           </span>
         ) : (
-          <span className="text-xs font-semibold text-muted-foreground">-</span>
+          <span className="text-xs font-normal text-muted-foreground">-</span>
         ),
     },
     {
@@ -1383,7 +1383,7 @@ export default async function ListingActivityOverviewPage({
                   Clear all
                 </Button>
               </form>
-              <p className="text-xs font-semibold text-muted-foreground">
+              <p className="text-xs font-normal text-muted-foreground">
                 Page {safeCurrentPage} of {totalPages}
               </p>
             </div>

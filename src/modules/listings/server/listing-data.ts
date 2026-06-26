@@ -17,6 +17,7 @@ import {
   type PropertyType,
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
+import { publicListingLocation } from "@/modules/listings/listing-validation";
 import {
   getEffectiveAgencyBrandsForUsers,
   type EffectiveAgencyBrand,
@@ -76,6 +77,7 @@ export type ListingDetailData = {
   insuranceEstimateCents: number | null;
   landSizeHectares: number | null;
   leaseExpiryDate: string;
+  listingReference: string;
   isOwner: boolean;
   isUnavailableForViewer: boolean;
   likedByViewer: boolean;
@@ -103,6 +105,11 @@ export type ListingDetailData = {
   mandateStartDate: string;
   mandateType: string;
   mandateTypeLabel: string;
+  mandateVisible: boolean;
+  mandateVisibility: string;
+  occupancyVisibility: string;
+  previousPriceVisibility: string;
+  reservationVisibility: string;
   media: ListingMediaItem[];
   occupancyStatus: string;
   ownershipType: string;
@@ -117,17 +124,21 @@ export type ListingDetailData = {
   propertyType: PropertyType | string;
   propertyTypeLabel: string;
   province: string;
-  ratesAndTaxesCents: number | null;
   rentalYield: number | null;
   servitudes: string;
   shortLetAllowed: string;
   status: string;
   statusLabel: string;
+  storeys: number | null;
+  postalCode: string;
+  streetName: string;
+  streetNumber: string;
   suburb: string;
   titleDeedStatus: string;
   title: string;
   transferCostsEstimateCents: number | null;
   unitCount: number | null;
+  unitNumber: string;
   updatedAt: string;
   contactVisibility: string;
   utilitiesEstimateCents: number | null;
@@ -468,7 +479,30 @@ async function mapListingRow(
     row.mandateType,
     row.mandateType,
   );
-  const reservationAmountCents = row.reservationAmountCents;
+  const isOwner = viewerState.isOwner;
+  const mandateHidden = !isOwner && stringValue(details.mandateVisibility) === "hide";
+  const prevPriceHidden = !isOwner && stringValue(details.previousPriceVisibility) === "hide";
+  const occupancyHidden = !isOwner && stringValue(details.occupancyVisibility) === "hide";
+  const reservationHidden = !isOwner && stringValue(details.reservationVisibility) === "hide";
+  const addressVisibility = stringValue(details.addressVisibility) || "area";
+  const canSeeExactAddress = isOwner || addressVisibility === "exact";
+  const city = stringValue(details.city);
+  const country = stringValue(details.country);
+  const province =
+    stringValue(details.province) ||
+    stringValue(details.state) ||
+    stringValue(details.region);
+  const suburb = stringValue(details.suburb);
+  const publicLocation = publicListingLocation({
+    addressVisibility,
+    city,
+    country,
+    isOwner,
+    location: row.location,
+    province,
+    suburb,
+  });
+  const reservationAmountCents = reservationHidden ? null : row.reservationAmountCents;
   const reservationFees =
     reservationAmountCents && reservationAmountCents > 0
       ? calculateReservationFees({
@@ -491,16 +525,16 @@ async function mapListingRow(
       username: row.agentUsername,
       whatsappNumber: row.agentPublicContactVisible ? row.agentWhatsappNumber : null,
     },
-    addressVisibility: stringValue(details.addressVisibility) || "area",
+    addressVisibility,
     askingPriceCents: row.askingPriceCents,
-    availableFrom: stringValue(details.availableFrom) || null,
+    availableFrom: occupancyHidden ? null : stringValue(details.availableFrom) || null,
     bathrooms: numberValue(details.bathrooms),
     bedrooms: numberValue(details.bedrooms),
     buyerIncentive: stringValue(details.buyerIncentive),
     canViewBuyerIntent: viewerState.canViewBuyerIntent,
-    city: stringValue(details.city),
+    city,
     communityFeesCents: numberValue(details.communityFeesCents),
-    country: stringValue(details.country),
+    country,
     coverImageUrl,
     developerName: stringValue(details.developerName),
     description: row.description,
@@ -511,28 +545,26 @@ async function mapListingRow(
     furnishedStatus: stringValue(details.furnishedStatus),
     garages: numberValue(details.garages),
     grossLettableArea: numberValue(details.grossLettableArea),
-    googlePlaceData: jsonStringValue(details.googlePlaceData),
-    googlePlaceId: stringValue(details.googlePlaceId),
+    googlePlaceData: canSeeExactAddress ? jsonStringValue(details.googlePlaceData) : "",
+    googlePlaceId: canSeeExactAddress ? stringValue(details.googlePlaceId) : "",
     href: buildListingPath({
       bedrooms: numberValue(details.bedrooms),
-      city: stringValue(details.city),
-      country: stringValue(details.country),
+      city,
+      country,
       id: row.id,
       listingType: row.listingType,
-      location: row.location,
+      location: publicLocation,
       propertyType: row.propertyType,
-      province:
-        stringValue(details.province) ||
-        stringValue(details.state) ||
-        stringValue(details.region),
-      suburb: stringValue(details.suburb),
+      province,
+      suburb,
       title: row.title,
     }),
     id: row.id,
     insuranceEstimateCents: numberValue(details.insuranceEstimateCents),
     landSizeHectares: numberValue(details.landSizeHectares),
     leaseExpiryDate: stringValue(details.leaseExpiryDate),
-    isOwner: viewerState.isOwner,
+    listingReference: stringValue(details.listingReference),
+    isOwner,
     isUnavailableForViewer: viewerState.isUnavailableForViewer,
     likedByViewer: viewerState.likedByViewer,
     likeCount: viewerState.likeCount,
@@ -557,13 +589,18 @@ async function mapListingRow(
     listingVisibility: stringValue(details.listingVisibility) || "public",
     listingType: row.listingType,
     listingTypeLabel,
-    location: row.location,
+    location: publicLocation,
     localTaxesCents: numberValue(details.localTaxesCents),
     loadingBays: numberValue(details.loadingBays),
     mandateEndDate: isoDate(row.mandateEndDate),
     mandateStartDate: isoDate(row.mandateStartDate),
     mandateType: row.mandateType,
     mandateTypeLabel,
+    mandateVisible: !mandateHidden,
+    mandateVisibility: stringValue(details.mandateVisibility) || "show",
+    occupancyVisibility: stringValue(details.occupancyVisibility) || "show",
+    previousPriceVisibility: stringValue(details.previousPriceVisibility) || "show",
+    reservationVisibility: stringValue(details.reservationVisibility) || "show",
     media,
     occupancyStatus: stringValue(details.occupancyStatus),
     ownershipType: stringValue(details.ownershipType),
@@ -571,27 +608,28 @@ async function mapListingRow(
     parking: numberValue(details.parking),
     petsAllowed: stringValue(details.petsAllowed),
     powerSupply: stringValue(details.powerSupply),
-    previousAskingPriceCents: numberValue(details.previousAskingPriceCents),
+    previousAskingPriceCents: prevPriceHidden ? null : numberValue(details.previousAskingPriceCents),
     priceLabel: row.priceLabel,
     priceQualifier: stringValue(details.priceQualifier),
     propertyCategory: stringValue(details.propertyCategory),
     propertyType: row.propertyType,
     propertyTypeLabel,
-    province:
-      stringValue(details.province) ||
-      stringValue(details.state) ||
-      stringValue(details.region),
-    ratesAndTaxesCents: numberValue(details.ratesAndTaxesCents),
+    province,
+    postalCode: canSeeExactAddress ? stringValue(details.postalCode) : "",
     rentalYield: numberValue(details.rentalYield),
     servitudes: stringValue(details.servitudes),
     shortLetAllowed: stringValue(details.shortLetAllowed),
     status: row.status,
     statusLabel: listingStatusLabel(row.status),
-    suburb: stringValue(details.suburb),
+    storeys: numberValue(details.storeys),
+    streetName: canSeeExactAddress ? stringValue(details.streetName) : "",
+    streetNumber: canSeeExactAddress ? stringValue(details.streetNumber) : "",
+    suburb,
     titleDeedStatus: stringValue(details.titleDeedStatus),
     title: row.title,
     transferCostsEstimateCents: numberValue(details.transferCostsEstimateCents),
     unitCount: numberValue(details.unitCount),
+    unitNumber: canSeeExactAddress ? stringValue(details.unitNumber) : "",
     updatedAt: row.updatedAt.toISOString(),
     contactVisibility: stringValue(details.contactVisibility) || "show",
     utilitiesEstimateCents: numberValue(details.utilitiesEstimateCents),
