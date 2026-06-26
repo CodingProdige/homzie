@@ -4836,7 +4836,11 @@ function PricingStep({
               max="100"
               step="0.1"
               onChange={(event) =>
-                updateDraft(setDraft, "rentalYield", event.target.value)
+                updateDraft(
+                  setDraft,
+                  "rentalYield",
+                  decimalInputValue(event.target.value),
+                )
               }
               placeholder="Optional"
               className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"

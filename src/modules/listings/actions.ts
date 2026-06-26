@@ -3492,13 +3492,18 @@ function decimalOrUndefined(value: FormDataEntryValue | null, decimalPlaces = 2)
 
   if (!stringValue) return undefined;
 
-  const [, decimals = ""] = stringValue.split(".");
+  const match = stringValue.match(/^([+-]?\d*\.)(\d+)$/);
 
-  if (decimals.length > decimalPlaces) {
-    throw new Error(`Use no more than ${decimalPlaces} decimal places.`);
+  if (!match) {
+    return stringValue;
   }
 
-  return stringValue;
+  const [, prefix, decimals] = match;
+  const precision = Math.max(0, decimalPlaces);
+
+  return decimals.length > precision
+    ? `${prefix}${decimals.slice(0, precision)}`
+    : stringValue;
 }
 
 async function checkAiActionCooldown(userId: string, action: string) {
