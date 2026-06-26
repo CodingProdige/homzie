@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   type ChangeEvent,
   type Dispatch,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
   type PointerEvent,
@@ -1634,6 +1635,64 @@ function formatFileSize(size: number) {
   return `${Math.max(1, Math.round(size / 1024))}KB`;
 }
 
+function movedMediaDestinationIndex(
+  length: number,
+  fromIndex: number,
+  insertIndex: number,
+) {
+  if (
+    fromIndex < 0 ||
+    fromIndex >= length ||
+    insertIndex < 0 ||
+    insertIndex > length
+  ) {
+    return null;
+  }
+
+  return insertIndex > fromIndex ? insertIndex - 1 : insertIndex;
+}
+
+function moveMediaItem<T>(items: T[], fromIndex: number, insertIndex: number) {
+  const destinationIndex = movedMediaDestinationIndex(
+    items.length,
+    fromIndex,
+    insertIndex,
+  );
+
+  if (destinationIndex === null || destinationIndex === fromIndex) {
+    return items;
+  }
+
+  const next = [...items];
+  const [movedItem] = next.splice(fromIndex, 1);
+  next.splice(destinationIndex, 0, movedItem);
+
+  return next;
+}
+
+function movedMediaIndex(
+  index: number,
+  length: number,
+  fromIndex: number,
+  insertIndex: number,
+) {
+  const destinationIndex = movedMediaDestinationIndex(
+    length,
+    fromIndex,
+    insertIndex,
+  );
+
+  if (destinationIndex === null || destinationIndex === fromIndex) {
+    return index;
+  }
+
+  const order = Array.from({ length }, (_, itemIndex) => itemIndex);
+  const [movedIndex] = order.splice(fromIndex, 1);
+  order.splice(destinationIndex, 0, movedIndex);
+
+  return order.indexOf(index);
+}
+
 function formatListingPrice(
   value: string,
   listingType: ListingType,
@@ -2598,42 +2657,18 @@ export function CreateListingPage({
     });
   }
 
-  function reorderMedia(fromIndex: number, toIndex: number) {
+  function reorderMedia(fromIndex: number, insertIndex: number) {
     setMedia((current) => {
-      if (
-        fromIndex === toIndex ||
-        fromIndex < 0 ||
-        toIndex < 0 ||
-        fromIndex >= current.length ||
-        toIndex >= current.length
-      ) {
-        return current;
-      }
+      const next = moveMediaItem(current, fromIndex, insertIndex);
 
-      const next = [...current];
-      const [movedItem] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, movedItem);
-      syncMediaFiles(next);
+      if (next !== current) {
+        syncMediaFiles(next);
+      }
 
       return next;
     });
     setCoverIndex((current) => {
-      if (
-        fromIndex === toIndex ||
-        fromIndex < 0 ||
-        toIndex < 0 ||
-        fromIndex >= media.length ||
-        toIndex >= media.length
-      ) {
-        return current;
-      }
-
-      if (current === fromIndex) return toIndex;
-
-      if (fromIndex < current && toIndex >= current) return current - 1;
-      if (fromIndex > current && toIndex <= current) return current + 1;
-
-      return current;
+      return movedMediaIndex(current, media.length, fromIndex, insertIndex);
     });
   }
 
@@ -5239,6 +5274,20 @@ function MediaGrid({
   setCoverIndex: (index: number) => void;
 }) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    index: number;
+    position: "before" | "after";
+  } | null>(null);
+
+  function dropPositionForEvent(event: DragEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    return event.clientX < rect.left + rect.width / 2 ? "before" : "after";
+  }
+
+  function insertIndexForDrop(index: number, position: "before" | "after") {
+    return position === "before" ? index : index + 1;
+  }
 
   return (
     <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3", gridClassName)}>
@@ -5259,19 +5308,41 @@ function MediaGrid({
           onDragOver={(event) => {
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
+            setDropTarget({
+              index,
+              position: dropPositionForEvent(event),
+            });
           }}
           onDrop={(event) => {
             event.preventDefault();
             const fromIndex = Number(event.dataTransfer.getData("text/plain"));
+            const position = dropPositionForEvent(event);
 
             if (Number.isFinite(fromIndex)) {
-              onReorder(fromIndex, index);
+              onReorder(fromIndex, insertIndexForDrop(index, position));
             }
 
             setDraggedIndex(null);
+            setDropTarget(null);
           }}
-          onDragEnd={() => setDraggedIndex(null)}
+          onDragLeave={() => {
+            setDropTarget((current) =>
+              current?.index === index ? null : current,
+            );
+          }}
+          onDragEnd={() => {
+            setDraggedIndex(null);
+            setDropTarget(null);
+          }}
         >
+          {dropTarget?.index === index && draggedIndex !== index ? (
+            <span
+              className={cn(
+                "pointer-events-none absolute inset-y-2 z-20 w-1 rounded-full bg-primary shadow-lg shadow-primary/30",
+                dropTarget.position === "before" ? "left-1" : "right-1",
+              )}
+            />
+          ) : null}
           {isVideoMedia(item) ? (
             <div className="relative aspect-[4/3] w-full bg-black">
               <video
@@ -5294,7 +5365,10 @@ function MediaGrid({
               className="aspect-[4/3] w-full object-cover"
             />
           )}
-          <div className="absolute left-2 top-2 grid size-7 place-items-center rounded-full bg-background/90 text-foreground shadow-sm">
+          <div className="absolute left-2 top-2 inline-flex h-7 items-center gap-1 rounded-full bg-background/90 px-2 text-foreground shadow-sm">
+            <span className="min-w-3 text-center text-[10px] font-bold leading-none">
+              {index + 1}
+            </span>
             <Grip className="size-3.5" aria-hidden="true" />
           </div>
           {coverIndex === index ? (
