@@ -1716,7 +1716,7 @@ function ListingCostInput({
         value={formatEditableCurrencyValue(value, convertFromZarAmount)}
         type="number"
         min="0"
-        step="100"
+        step="0.01"
         onChange={(event) =>
           updateDraft(
             setDraft,
@@ -4684,7 +4684,7 @@ function PricingStep({
             value={askingPriceValue}
             type="number"
             min="0"
-            step="1000"
+            step="0.01"
             onChange={(event) =>
               updateDraft(
                 setDraft,
@@ -4711,7 +4711,7 @@ function PricingStep({
             value={previousAskingPriceValue}
             type="number"
             min="0"
-            step="1000"
+            step="0.01"
             onChange={(event) =>
               updateDraft(
                 setDraft,
@@ -4834,7 +4834,7 @@ function PricingStep({
               type="number"
               min="0"
               max="100"
-              step="0.1"
+              step="0.01"
               onChange={(event) =>
                 updateDraft(
                   setDraft,
@@ -5177,7 +5177,7 @@ function MandateStep({
               value={draft.reservationAmount}
               type="number"
               min="0"
-              step="100"
+              step="0.01"
               onChange={(event) =>
                 updateDraft(
                   setDraft,
