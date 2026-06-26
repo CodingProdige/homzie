@@ -16,10 +16,14 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 async function subscribeToPush() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    throw new Error("This browser does not support push notifications.");
+  }
 
   const publicKey = await getWebPushPublicKeyAction();
-  if (!publicKey) return;
+  if (!publicKey) {
+    throw new Error("Browser notifications are not configured yet.");
+  }
 
   const registration = await navigator.serviceWorker.register("/sw.js");
   const existingSubscription = await registration.pushManager.getSubscription();
@@ -30,7 +34,11 @@ async function subscribeToPush() {
       userVisibleOnly: true,
     }));
 
-  await saveWebPushSubscriptionAction(subscription.toJSON());
+  const result = await saveWebPushSubscriptionAction(subscription.toJSON());
+
+  if (!result.ok) {
+    throw new Error("Could not save this browser for notifications.");
+  }
 }
 
 function onIdle(callback: () => void) {
@@ -52,7 +60,9 @@ export function PushNotificationBootstrap() {
     }
 
     return onIdle(() => {
-      subscribeToPush();
+      void subscribeToPush().catch((error) => {
+        console.warn("[push] could not refresh browser subscription", error);
+      });
     });
   }, []);
 

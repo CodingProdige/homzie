@@ -16,7 +16,9 @@ export function EnableNotificationsButton() {
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  if (permission === "unsupported" || permission === "granted") return null;
+  if (permission === "unsupported") return null;
+
+  const isGranted = permission === "granted";
 
   return (
     <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -46,13 +48,15 @@ export function EnableNotificationsButton() {
         ) : (
           <Bell className="size-4" />
         )}
-        Enable browser notifications
+        {isGranted ? "Refresh browser alerts" : "Enable browser notifications"}
       </Button>
-      <p className="max-w-md text-xs font-semibold text-muted-foreground">
+      <p className="max-w-md text-xs font-normal text-muted-foreground">
         {permission === "denied"
           ? "Notifications are blocked in your browser settings."
           : error ||
-            "Optional: get alerts for calls and important activity when Homzie is not open."}
+            (isGranted
+              ? "Alerts are enabled for this browser. Refresh if this device stops receiving them."
+              : "Optional: get alerts for calls and important activity when Homzie is not open.")}
       </p>
     </div>
   );

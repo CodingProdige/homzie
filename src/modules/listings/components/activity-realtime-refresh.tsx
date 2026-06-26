@@ -16,7 +16,7 @@ type ActivityRealtimeRefreshProps = {
 export function ActivityRealtimeRefresh({
   className,
   clearSearchParams = [],
-  intervalMs = 8000,
+  intervalMs = 5000,
 }: ActivityRealtimeRefreshProps) {
   const pathname = usePathname();
   const router = useRouter();

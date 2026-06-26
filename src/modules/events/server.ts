@@ -212,6 +212,12 @@ function eventMessage(row: EventRow) {
     return `${actor} contacted you${title ? ` about ${title}` : " about a listing"}.`;
   }
 
+  if (row.event_type === "listing.buyer_activity") {
+    const reason = optionalString(row.metadata?.reason) || "New buyer activity";
+
+    return `${reason}${title ? ` on ${title}` : ""}.`;
+  }
+
   if (row.event_type === "listing.views.milestone") {
     return `${title || "Your listing"} reached ${count?.toLocaleString() || "a new"} views.`;
   }

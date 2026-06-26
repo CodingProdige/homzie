@@ -2949,6 +2949,15 @@ try {
     ON agency_activity_events (created_at)
   `;
 
+  await sql`
+    UPDATE email_templates
+    SET enabled = true
+    WHERE key IN (
+      'listing.buyer_intent.repeat_view',
+      'listing.buyer_intent.active_viewers'
+    )
+  `;
+
   console.log("Database migration completed.");
 } finally {
   await sql.end();

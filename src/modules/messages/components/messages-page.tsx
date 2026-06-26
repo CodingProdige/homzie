@@ -118,7 +118,7 @@ function UserAvatar({
           className="size-full rounded-full border-2 border-background object-cover"
         />
       ) : (
-        <span className="grid size-full place-items-center rounded-full border-2 border-background bg-brand-midnight text-xs font-black">
+        <span className="grid size-full place-items-center rounded-full border-2 border-background bg-brand-midnight text-xs font-semibold">
           {initials(name)}
         </span>
       )}
@@ -464,6 +464,22 @@ export function MessagesPage({
   }, [refreshConversation]);
 
   useEffect(() => {
+    function refreshIfVisible() {
+      if (document.visibilityState !== "visible") return;
+
+      const conversationId = activeConversationIdRef.current;
+
+      if (!conversationId) return;
+
+      refreshConversation(conversationId);
+    }
+
+    const interval = window.setInterval(refreshIfVisible, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [refreshConversation]);
+
+  useEffect(() => {
     const socket = socketRef.current;
     if (!socket || !activeConversationId) return;
 
@@ -769,10 +785,10 @@ export function MessagesPage({
         >
           <div className="flex h-16 items-center justify-between border-b border-border px-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 Messages
               </p>
-              <h1 className="text-lg font-black">{viewer.username || viewer.name}</h1>
+              <h1 className="text-lg font-semibold">{viewer.username || viewer.name}</h1>
             </div>
             <Button
               type="button"
@@ -801,7 +817,7 @@ export function MessagesPage({
               >
                 {item.label}
                 {item.count ? (
-                  <span className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground">
+                  <span className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground">
                     {item.count}
                   </span>
                 ) : null}
@@ -810,7 +826,7 @@ export function MessagesPage({
           </div>
 
           <div className="p-4">
-            <label className="flex h-11 items-center gap-2 rounded-full bg-muted px-4 text-sm font-semibold text-muted-foreground">
+            <label className="flex h-11 items-center gap-2 rounded-full bg-muted px-4 text-sm font-normal text-muted-foreground">
               <Search className="size-4" />
               <input
                 value={query}
@@ -840,20 +856,20 @@ export function MessagesPage({
                     <UserAvatar user={participant} />
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center justify-between gap-2">
-                        <span className="truncate text-sm font-black">
+                        <span className="truncate text-sm font-semibold">
                           {conversationTitle(conversation)}
                         </span>
-                        <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                        <span className="shrink-0 text-xs font-normal text-muted-foreground">
                           {formatTime(conversation.lastMessageAt)}
                         </span>
                       </span>
-                      <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-semibold text-muted-foreground">
+                      <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-normal text-muted-foreground">
                         {conversation.muted ? <Bell className="size-3" /> : null}
                         <span className="truncate">{conversation.lastMessagePreview}</span>
                       </span>
                     </span>
                     {conversation.unreadCount ? (
-                      <span className="grid size-5 place-items-center rounded-full bg-primary text-[10px] font-black text-primary-foreground">
+                      <span className="grid size-5 place-items-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                         {conversation.unreadCount}
                       </span>
                     ) : null}
@@ -861,7 +877,7 @@ export function MessagesPage({
                 );
               })
             ) : (
-              <div className="px-4 py-8 text-center text-sm font-semibold text-muted-foreground">
+              <div className="px-4 py-8 text-center text-sm font-normal text-muted-foreground">
                 No conversations yet.
               </div>
             )}
@@ -930,10 +946,10 @@ export function MessagesPage({
                     </Button>
                     <UserAvatar className="size-10" user={activeParticipant} />
                     <div className="min-w-0">
-                      <h2 className="truncate text-sm font-black">
+                      <h2 className="truncate text-sm font-semibold">
                         {conversationTitle(activeConversation)}
                       </h2>
-                      <p className="truncate text-xs font-semibold text-muted-foreground">
+                      <p className="truncate text-xs font-normal text-muted-foreground">
                         {activeParticipantOnline
                           ? "Online"
                           : activeParticipant?.username
@@ -956,7 +972,7 @@ export function MessagesPage({
 
                 {activeConversation.inbox === "requests" ? (
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-primary/5 px-4 py-3">
-                    <p className="text-sm font-semibold text-muted-foreground">
+                    <p className="text-sm font-normal text-muted-foreground">
                       This message is waiting in Requests.
                     </p>
                     <div className="flex items-center gap-2">
@@ -1047,7 +1063,7 @@ export function MessagesPage({
                             ) : null}
                             <div
                               className={cn(
-                                "mt-1 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground",
+                                "mt-1 flex items-center gap-1 text-[11px] font-normal text-muted-foreground",
                                 mine && "justify-end",
                               )}
                             >
@@ -1059,7 +1075,7 @@ export function MessagesPage({
                       );
                     })}
                     {someoneTyping ? (
-                      <div className="ml-10 text-xs font-bold text-muted-foreground">
+                      <div className="ml-10 text-xs font-normal text-muted-foreground">
                         Typing...
                       </div>
                     ) : null}
@@ -1113,7 +1129,7 @@ export function MessagesPage({
                     {recording ? (
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         <span className="size-2 shrink-0 animate-pulse rounded-full bg-destructive" />
-                        <span className="w-10 text-xs font-black tabular-nums text-destructive">
+                        <span className="w-10 text-xs font-semibold tabular-nums text-destructive">
                           {formatDuration(recordingSeconds)}
                         </span>
                         <div className="flex h-8 min-w-0 flex-1 items-center gap-1 overflow-hidden">
@@ -1158,7 +1174,7 @@ export function MessagesPage({
                             />
                           ))}
                         </div>
-                        <span className="w-10 text-xs font-black tabular-nums text-muted-foreground">
+                        <span className="w-10 text-xs font-normal tabular-nums text-muted-foreground">
                           {formatDuration(voicePreview.durationSeconds)}
                         </span>
                       </div>
@@ -1297,8 +1313,8 @@ function EmptyMessagesState({ onNewMessage }: { onNewMessage: () => void }) {
         <span className="mx-auto grid size-20 place-items-center rounded-full border-2 border-border text-muted-foreground">
           <MessageCircle className="size-9" />
         </span>
-        <h2 className="mt-5 text-xl font-black">Your messages</h2>
-        <p className="mt-2 text-sm font-semibold text-muted-foreground">
+        <h2 className="mt-5 text-xl font-semibold">Your messages</h2>
+        <p className="mt-2 text-sm font-normal text-muted-foreground">
           Send a message to start a conversation.
         </p>
         <Button className="mt-5" onClick={onNewMessage}>
@@ -1369,10 +1385,10 @@ function AttachmentBubble({
         />
       ) : null}
       <div className="p-3 text-left">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           Listing
         </p>
-        <p className="mt-1 line-clamp-2 text-sm font-black">
+        <p className="mt-1 line-clamp-2 text-sm font-semibold">
           {attachment.title || "Shared listing"}
         </p>
       </div>
@@ -1420,20 +1436,20 @@ function OfferBubble({
         />
       ) : null}
       <div className="p-4">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           Property offer
         </p>
-        <p className="mt-1 text-lg font-black">
+        <p className="mt-1 text-lg font-semibold">
           {offerLabel(offer.amountCents, offer.currency)}
         </p>
         {listing?.title ? (
-          <p className="mt-1 line-clamp-2 text-sm font-semibold text-muted-foreground">
+          <p className="mt-1 line-clamp-2 text-sm font-normal text-muted-foreground">
             {listing.title}
           </p>
         ) : null}
         <span
           className={cn(
-            "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black capitalize",
+            "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize",
             statusClassName,
           )}
         >
@@ -1443,7 +1459,7 @@ function OfferBubble({
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Button
               type="button"
-              className="h-10 rounded-md border-transparent bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700"
+              className="h-10 rounded-md border-transparent bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
               disabled={pending}
               onClick={() => onRespond?.(offer.id, "accepted")}
             >
@@ -1452,7 +1468,7 @@ function OfferBubble({
             <Button
               type="button"
               variant="outline"
-              className="h-10 rounded-md text-xs font-black text-destructive hover:text-destructive"
+              className="h-10 rounded-md text-xs font-semibold text-destructive hover:text-destructive"
               disabled={pending}
               onClick={() => onRespond?.(offer.id, "declined")}
             >
@@ -1488,7 +1504,7 @@ function DetailsPanel({
         <Button variant="ghost" size="icon" aria-label="Back" onClick={onBack}>
           <ArrowLeft className="size-5" />
         </Button>
-        <h2 className="text-lg font-black">Details</h2>
+        <h2 className="text-lg font-semibold">Details</h2>
       </header>
       <div className="border-b border-border p-4">
         <button
@@ -1516,13 +1532,13 @@ function DetailsPanel({
         </button>
       </div>
       <div className="flex-1 p-4">
-        <p className="text-sm font-black">Members</p>
+        <p className="text-sm font-semibold">Members</p>
         {participant ? (
           <div className="mt-4 flex items-center gap-3">
             <UserAvatar user={participant} />
             <div>
-              <p className="text-sm font-black">{participant.name}</p>
-              <p className="text-xs font-semibold text-muted-foreground">
+              <p className="text-sm font-semibold">{participant.name}</p>
+              <p className="text-xs font-normal text-muted-foreground">
                 {participant.username ? `@${participant.username}` : "Homzie user"}
               </p>
             </div>
@@ -1595,13 +1611,13 @@ function NewMessageDialog({
       <div className="flex max-h-[min(42rem,90vh)] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl">
         <header className="flex h-14 items-center justify-between border-b border-border px-4">
           <span />
-          <h2 className="text-base font-black">New message</h2>
+          <h2 className="text-base font-semibold">New message</h2>
           <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
             <X className="size-5" />
           </Button>
         </header>
         <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-          <span className="text-sm font-black">To:</span>
+          <span className="text-sm font-semibold">To:</span>
           <input
             value={query}
             autoFocus
@@ -1611,7 +1627,7 @@ function NewMessageDialog({
           />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <p className="px-4 py-3 text-sm font-black">Suggested</p>
+          <p className="px-4 py-3 text-sm font-semibold">Suggested</p>
           {results.length ? (
             results.map((user) => (
               <button
@@ -1625,8 +1641,8 @@ function NewMessageDialog({
               >
                 <UserAvatar user={user} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-black">{user.name}</span>
-                  <span className="block truncate text-xs font-semibold text-muted-foreground">
+                  <span className="block truncate text-sm font-semibold">{user.name}</span>
+                  <span className="block truncate text-xs font-normal text-muted-foreground">
                     @{user.username}
                   </span>
                 </span>
@@ -1641,7 +1657,7 @@ function NewMessageDialog({
               </button>
             ))
           ) : (
-            <div className="px-4 py-8 text-center text-sm font-semibold text-muted-foreground">
+            <div className="px-4 py-8 text-center text-sm font-normal text-muted-foreground">
               Search for a user or agent to start chatting.
             </div>
           )}
@@ -1678,8 +1694,8 @@ function ReportDialog({
       <div className="w-full max-w-md rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-black">Report conversation</h2>
-            <p className="mt-1 text-sm font-semibold text-muted-foreground">
+            <h2 className="text-lg font-semibold">Report conversation</h2>
+            <p className="mt-1 text-sm font-normal text-muted-foreground">
               Tell us what happened with {participant?.name || "this chat"}.
             </p>
           </div>
@@ -1687,7 +1703,7 @@ function ReportDialog({
             <X className="size-5" />
           </Button>
         </div>
-        <label className="mt-5 block text-sm font-black">
+        <label className="mt-5 block text-sm font-semibold">
           Reason
           <select
             value={reason}
@@ -1701,7 +1717,7 @@ function ReportDialog({
             <option>Other</option>
           </select>
         </label>
-        <label className="mt-4 block text-sm font-black">
+        <label className="mt-4 block text-sm font-semibold">
           Details
           <textarea
             value={details}

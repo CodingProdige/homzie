@@ -265,6 +265,22 @@ const listingActionTypeSchema = z.enum([
   "share",
   "whatsapp_agent",
 ]);
+const buyerActivityNotificationActionLabels: Partial<
+  Record<z.infer<typeof listingActionTypeSchema>, string>
+> = {
+  bond_calculator: "A buyer used the bond calculator",
+  call_agent: "A buyer tapped call agent",
+  contact_agent: "A buyer opened contact options",
+  email_agent: "A buyer tapped email agent",
+  media_video_play: "A buyer played a listing video",
+  place_offer: "A buyer started an offer",
+  reserve_now: "A buyer started a reservation",
+  share: "A buyer shared your listing",
+  whatsapp_agent: "A buyer tapped WhatsApp agent",
+};
+const signedInContactNotificationActionTypes = new Set<
+  z.infer<typeof listingActionTypeSchema>
+>(["call_agent", "contact_agent", "email_agent", "whatsapp_agent"]);
 const listingViewEventSchema = z.object({
   listingId: listingIdSchema,
   source: listingAnalyticsSourceSchema,
@@ -3469,6 +3485,32 @@ export async function trackListingAction(input: unknown) {
       metadata: {
         actionType: parsed.data.actionType,
         listingTitle: listing.title,
+        source: parsed.data.source || "listing_detail",
+      },
+      userId: listing.userId,
+    });
+  }
+
+  const buyerActivityLabel =
+    buyerActivityNotificationActionLabels[parsed.data.actionType];
+  const contactActionAlreadyNotified =
+    Boolean(viewerUserId) &&
+    signedInContactNotificationActionTypes.has(parsed.data.actionType);
+
+  if (buyerActivityLabel && !contactActionAlreadyNotified) {
+    const viewerKey = viewerUserId || parsed.data.viewerSessionId;
+
+    await createUserEventOnce({
+      actorUserId: viewerUserId,
+      dedupeKey: `listing:${listing.id}:buyer-activity:${parsed.data.actionType}:${viewerKey}`,
+      entityId: listing.id,
+      entityType: "listing",
+      eventType: "listing.buyer_activity",
+      listingId: listing.id,
+      metadata: {
+        actionType: parsed.data.actionType,
+        listingTitle: listing.title,
+        reason: buyerActivityLabel,
         source: parsed.data.source || "listing_detail",
       },
       userId: listing.userId,

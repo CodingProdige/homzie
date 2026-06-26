@@ -15,16 +15,20 @@ export function ListingBuyerActivityCountBadge({
     let alive = true;
 
     async function refreshCount() {
+      if (document.visibilityState !== "visible") return;
+
       const nextCount = await getUnreadListingBuyerActivityCountAction();
       if (alive) setCount(nextCount);
     }
 
     refreshCount();
-    const interval = window.setInterval(refreshCount, 20_000);
+    const interval = window.setInterval(refreshCount, 5000);
+    document.addEventListener("visibilitychange", refreshCount);
 
     return () => {
       alive = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshCount);
     };
   }, []);
 

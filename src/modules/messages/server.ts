@@ -637,6 +637,35 @@ export async function markConversationRead(
 ) {
   await assertConversationMember(conversationId, readerUserId);
 
+  const [readState] = await sql<{
+    last_read_at: Date | string | null;
+    latest_incoming_at: Date | string | null;
+  }[]>`
+    SELECT
+      cp.last_read_at,
+      max(m.created_at) AS latest_incoming_at
+    FROM conversation_participants cp
+    LEFT JOIN messages m
+      ON m.conversation_id = cp.conversation_id
+      AND m.sender_user_id IS DISTINCT FROM ${readerUserId}
+      AND m.deleted_at IS NULL
+    WHERE cp.conversation_id = ${conversationId}
+      AND cp.user_id = ${readerUserId}
+      AND cp.deleted_at IS NULL
+    GROUP BY cp.last_read_at
+    LIMIT 1
+  `;
+  const latestIncomingAt = readState?.latest_incoming_at
+    ? new Date(readState.latest_incoming_at).getTime()
+    : null;
+  const lastReadAt = readState?.last_read_at
+    ? new Date(readState.last_read_at).getTime()
+    : null;
+
+  if (!latestIncomingAt || (lastReadAt && lastReadAt >= latestIncomingAt)) {
+    return;
+  }
+
   const readAt = new Date();
   const readAtIso = readAt.toISOString();
 

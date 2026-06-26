@@ -212,6 +212,18 @@ export const notificationRegistry = [
     template: "{{actor.name}} contacted you about {{listing.title}}.",
   },
   {
+    category: "Buyer intent",
+    defaultEmailEnabled: true,
+    defaultPushEnabled: true,
+    emailTemplateKey: "listing.buyer_activity",
+    eventType: "listing.buyer_activity",
+    label: "Buyer activity",
+    preferenceCategory: "listingActivity",
+    pushBody: "{{event.reason}} on {{listing.title}}.",
+    pushTitle: "New buyer activity",
+    template: "{{event.reason}} on {{listing.title}}.",
+  },
+  {
     category: "Listings",
     defaultEmailEnabled: true,
     defaultPushEnabled: true,
@@ -225,7 +237,7 @@ export const notificationRegistry = [
   },
   {
     category: "Buyer intent",
-    defaultEmailEnabled: false,
+    defaultEmailEnabled: true,
     defaultPushEnabled: true,
     emailTemplateKey: "listing.buyer_intent.repeat_view",
     eventType: "listing.buyer_intent.repeat_view",
@@ -238,7 +250,7 @@ export const notificationRegistry = [
   },
   {
     category: "Buyer intent",
-    defaultEmailEnabled: false,
+    defaultEmailEnabled: true,
     defaultPushEnabled: true,
     emailTemplateKey: "listing.buyer_intent.active_viewers",
     eventType: "listing.buyer_intent.active_viewers",
