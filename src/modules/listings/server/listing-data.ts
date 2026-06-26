@@ -49,6 +49,7 @@ export type ListingDetailData = {
     username: string | null;
     whatsappNumber: string | null;
   };
+  addressVisibility: string;
   askingPriceCents: number | null;
   availableFrom: string | null;
   bathrooms: number | null;
@@ -59,17 +60,22 @@ export type ListingDetailData = {
   communityFeesCents: number | null;
   country: string;
   coverImageUrl: string | null;
+  developerName: string;
   description: string | null;
   erfSize: number | null;
+  estateName: string;
   features: string[];
   floorSize: number | null;
   furnishedStatus: string;
   garages: number | null;
+  grossLettableArea: number | null;
   googlePlaceData: string;
   googlePlaceId: string;
   href: string;
   id: string;
   insuranceEstimateCents: number | null;
+  landSizeHectares: number | null;
+  leaseExpiryDate: string;
   isOwner: boolean;
   isUnavailableForViewer: boolean;
   likedByViewer: boolean;
@@ -87,32 +93,46 @@ export type ListingDetailData = {
   saveCount: number;
   saveCountLabel: string;
   listedAt: string;
+  listingVisibility: string;
   listingType: ListingType | string;
   listingTypeLabel: string;
   location: string | null;
   localTaxesCents: number | null;
+  loadingBays: number | null;
   mandateEndDate: string;
   mandateStartDate: string;
   mandateType: string;
   mandateTypeLabel: string;
   media: ListingMediaItem[];
+  occupancyStatus: string;
+  ownershipType: string;
+  outbuildings: string;
   parking: number | null;
   petsAllowed: string;
+  powerSupply: string;
   previousAskingPriceCents: number | null;
   priceLabel: string | null;
   priceQualifier: string;
+  propertyCategory: string;
   propertyType: PropertyType | string;
   propertyTypeLabel: string;
   province: string;
+  ratesAndTaxesCents: number | null;
   rentalYield: number | null;
+  servitudes: string;
   shortLetAllowed: string;
   status: string;
   statusLabel: string;
   suburb: string;
+  titleDeedStatus: string;
   title: string;
   transferCostsEstimateCents: number | null;
+  unitCount: number | null;
   updatedAt: string;
+  contactVisibility: string;
   utilitiesEstimateCents: number | null;
+  waterRights: string;
+  zoning: string;
 };
 
 type ListingRow = Awaited<ReturnType<typeof getListingRow>>;
@@ -471,6 +491,7 @@ async function mapListingRow(
       username: row.agentUsername,
       whatsappNumber: row.agentPublicContactVisible ? row.agentWhatsappNumber : null,
     },
+    addressVisibility: stringValue(details.addressVisibility) || "area",
     askingPriceCents: row.askingPriceCents,
     availableFrom: stringValue(details.availableFrom) || null,
     bathrooms: numberValue(details.bathrooms),
@@ -481,12 +502,15 @@ async function mapListingRow(
     communityFeesCents: numberValue(details.communityFeesCents),
     country: stringValue(details.country),
     coverImageUrl,
+    developerName: stringValue(details.developerName),
     description: row.description,
     erfSize: numberValue(details.erfSize),
+    estateName: stringValue(details.estateName),
     features: stringArray(row.features).slice(0, 10),
     floorSize: numberValue(details.floorSize),
     furnishedStatus: stringValue(details.furnishedStatus),
     garages: numberValue(details.garages),
+    grossLettableArea: numberValue(details.grossLettableArea),
     googlePlaceData: jsonStringValue(details.googlePlaceData),
     googlePlaceId: stringValue(details.googlePlaceId),
     href: buildListingPath({
@@ -506,6 +530,8 @@ async function mapListingRow(
     }),
     id: row.id,
     insuranceEstimateCents: numberValue(details.insuranceEstimateCents),
+    landSizeHectares: numberValue(details.landSizeHectares),
+    leaseExpiryDate: stringValue(details.leaseExpiryDate),
     isOwner: viewerState.isOwner,
     isUnavailableForViewer: viewerState.isUnavailableForViewer,
     likedByViewer: viewerState.likedByViewer,
@@ -528,34 +554,48 @@ async function mapListingRow(
     saveCount: viewerState.saveCount,
     saveCountLabel: formatCompactCount(viewerState.saveCount),
     listedAt: row.listedAt.toISOString(),
+    listingVisibility: stringValue(details.listingVisibility) || "public",
     listingType: row.listingType,
     listingTypeLabel,
     location: row.location,
     localTaxesCents: numberValue(details.localTaxesCents),
+    loadingBays: numberValue(details.loadingBays),
     mandateEndDate: isoDate(row.mandateEndDate),
     mandateStartDate: isoDate(row.mandateStartDate),
     mandateType: row.mandateType,
     mandateTypeLabel,
     media,
+    occupancyStatus: stringValue(details.occupancyStatus),
+    ownershipType: stringValue(details.ownershipType),
+    outbuildings: stringValue(details.outbuildings),
     parking: numberValue(details.parking),
     petsAllowed: stringValue(details.petsAllowed),
+    powerSupply: stringValue(details.powerSupply),
     previousAskingPriceCents: numberValue(details.previousAskingPriceCents),
     priceLabel: row.priceLabel,
     priceQualifier: stringValue(details.priceQualifier),
+    propertyCategory: stringValue(details.propertyCategory),
     propertyType: row.propertyType,
     propertyTypeLabel,
     province:
       stringValue(details.province) ||
       stringValue(details.state) ||
       stringValue(details.region),
+    ratesAndTaxesCents: numberValue(details.ratesAndTaxesCents),
     rentalYield: numberValue(details.rentalYield),
+    servitudes: stringValue(details.servitudes),
     shortLetAllowed: stringValue(details.shortLetAllowed),
     status: row.status,
     statusLabel: listingStatusLabel(row.status),
     suburb: stringValue(details.suburb),
+    titleDeedStatus: stringValue(details.titleDeedStatus),
     title: row.title,
     transferCostsEstimateCents: numberValue(details.transferCostsEstimateCents),
+    unitCount: numberValue(details.unitCount),
     updatedAt: row.updatedAt.toISOString(),
+    contactVisibility: stringValue(details.contactVisibility) || "show",
     utilitiesEstimateCents: numberValue(details.utilitiesEstimateCents),
+    waterRights: stringValue(details.waterRights),
+    zoning: stringValue(details.zoning),
   };
 }

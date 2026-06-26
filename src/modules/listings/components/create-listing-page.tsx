@@ -72,9 +72,11 @@ import {
   featureOptions,
   listingTypeOptions,
   mandateTypeOptions,
+  propertyCategoryOptions,
   propertyTypeOptions,
   type ListingType,
   type MandateType,
+  type PropertyCategory,
   type PropertyType,
 } from "@/modules/listings/options";
 
@@ -170,6 +172,7 @@ type ListingAutosaveState = {
 };
 
 export type ListingDraft = {
+  addressVisibility: string;
   askingPrice: string;
   availableFrom: string;
   bathrooms: string;
@@ -177,36 +180,55 @@ export type ListingDraft = {
   buyerIncentive: string;
   city: string;
   country: string;
+  developerName: string;
   description: string;
   erfSize: string;
+  estateName: string;
   features: string[];
   floorSize: string;
   furnishedStatus: string;
   garages: string;
+  grossLettableArea: string;
   googlePlaceId: string;
   googlePlaceData: string;
   insuranceEstimate: string;
+  leaseExpiryDate: string;
+  listingVisibility: string;
   listingType: ListingType;
   location: string;
   localTaxes: string;
+  loadingBays: string;
   mandateEndDate: string;
   mandateStartDate: string;
   mandateType: string;
   communityFees: string;
+  occupancyStatus: string;
+  ownershipType: string;
+  outbuildings: string;
   parking: string;
   petsAllowed: string;
+  powerSupply: string;
   previousAskingPrice: string;
   priceQualifier: string;
+  propertyCategory: PropertyCategory;
   propertyType: PropertyType;
   province: string;
+  ratesAndTaxes: string;
   reservationAmount: string;
   reservationEnabled: boolean;
   rentalYield: string;
+  servitudes: string;
   shortLetAllowed: string;
+  landSizeHectares: string;
+  titleDeedStatus: string;
   suburb: string;
   title: string;
   transferCostsEstimate: string;
+  unitCount: string;
+  waterRights: string;
+  contactVisibility: string;
   utilitiesEstimate: string;
+  zoning: string;
 };
 
 export type ListingFormInitialMedia = {
@@ -219,19 +241,43 @@ export type ListingFormInitialMedia = {
 
 const residentialPropertyTypes = new Set<PropertyType | string>([
   "apartment",
+  "cluster_home",
+  "duet",
   "development_unit",
   "estate_home",
+  "flatlet",
   "free_standing_house",
+  "guest_house",
+  "retirement_unit",
+  "room",
+  "student_accommodation",
   "townhouse",
 ]);
 const landOnlyPropertyTypes = new Set<PropertyType | string>([
+  "agricultural_land",
+  "development_land",
   "development_project",
+  "farm",
+  "game_farm",
+  "lifestyle_farm",
+  "small_holding",
   "vacant_land",
+  "wine_farm",
 ]);
 const commercialPropertyTypes = new Set<PropertyType | string>([
+  "business_premises",
+  "commercial_development",
+  "commercial_property",
+  "factory",
+  "guest_house",
+  "hospitality",
   "industrial",
+  "medical_suite",
+  "mixed_use",
   "office",
+  "restaurant",
   "retail",
+  "showroom",
   "warehouse",
 ]);
 
@@ -263,12 +309,73 @@ const priceQualifierOptions = [
   { label: "Guide price", value: "Guide price" },
   { label: "Negotiable", value: "Negotiable" },
 ];
+const ownershipTypeOptions = [
+  { label: "Not specified", value: "" },
+  { label: "Freehold", value: "freehold" },
+  { label: "Sectional title", value: "sectional_title" },
+  { label: "Share block", value: "share_block" },
+  { label: "Leasehold", value: "leasehold" },
+  { label: "Permission to occupy", value: "permission_to_occupy" },
+];
+const titleDeedStatusOptions = [
+  { label: "Not specified", value: "" },
+  { label: "Available", value: "available" },
+  { label: "Pending transfer", value: "pending_transfer" },
+  { label: "Bond registered", value: "bond_registered" },
+  { label: "Unknown", value: "unknown" },
+];
+const zoningOptions = [
+  { label: "Not specified", value: "" },
+  { label: "Residential", value: "residential" },
+  { label: "Commercial", value: "commercial" },
+  { label: "Industrial", value: "industrial" },
+  { label: "Agricultural", value: "agricultural" },
+  { label: "Mixed use", value: "mixed_use" },
+  { label: "Development", value: "development" },
+];
+const occupancyStatusOptions = [
+  { label: "Not specified", value: "" },
+  { label: "Vacant", value: "vacant" },
+  { label: "Owner occupied", value: "owner_occupied" },
+  { label: "Tenanted", value: "tenanted" },
+  { label: "Partly tenanted", value: "partly_tenanted" },
+];
+const yesNoOptions = [
+  { label: "Not specified", value: "" },
+  { label: "Yes", value: "yes" },
+  { label: "No", value: "no" },
+];
+const listingVisibilityOptions = [
+  { label: "Public search and profile", value: "public" },
+  { label: "Profile and private links only", value: "profile_private" },
+];
+const addressVisibilityOptions = [
+  { label: "Show area only", value: "area" },
+  { label: "Show exact address", value: "exact" },
+];
+const contactVisibilityOptions = [
+  { label: "Show agent contact actions", value: "show" },
+  { label: "Hide direct contact details", value: "hide_details" },
+];
+const powerSupplyOptions = [
+  { label: "Not specified", value: "" },
+  { label: "Single phase", value: "single_phase" },
+  { label: "Three phase", value: "three_phase" },
+  { label: "Solar / backup included", value: "solar_backup" },
+];
 const listingAutosavePrefix = "homzie:listings:autosave";
 const listingAutosaveDbName = "homzie-listing-autosave";
 const listingAutosaveStoreName = "listing-form-media";
 
 type PublishIssue = {
   message: string;
+  step: number;
+};
+
+type ReadinessItem = {
+  description: string;
+  isComplete: boolean;
+  label: string;
   step: number;
 };
 
@@ -308,6 +415,7 @@ type ImportListingActionResult = Awaited<
 >;
 
 const initialDraft: ListingDraft = {
+  addressVisibility: "area",
   askingPrice: "",
   availableFrom: "",
   bathrooms: "",
@@ -315,36 +423,55 @@ const initialDraft: ListingDraft = {
   buyerIncentive: "",
   city: "",
   country: "",
+  developerName: "",
   description: "",
   erfSize: "",
+  estateName: "",
   features: [],
   floorSize: "",
   furnishedStatus: "",
   garages: "",
+  grossLettableArea: "",
   googlePlaceId: "",
   googlePlaceData: "",
   insuranceEstimate: "",
+  leaseExpiryDate: "",
+  listingVisibility: "public",
   listingType: "sale",
   location: "",
   localTaxes: "",
+  loadingBays: "",
   mandateEndDate: "",
   mandateStartDate: "",
   mandateType: "open",
   communityFees: "",
+  occupancyStatus: "",
+  ownershipType: "",
+  outbuildings: "",
   parking: "",
   petsAllowed: "",
+  powerSupply: "",
   previousAskingPrice: "",
   priceQualifier: "",
+  propertyCategory: "residential",
   propertyType: "free_standing_house",
   province: "",
+  ratesAndTaxes: "",
   reservationAmount: "",
   reservationEnabled: false,
   rentalYield: "",
+  servitudes: "",
   shortLetAllowed: "",
+  landSizeHectares: "",
+  titleDeedStatus: "",
   suburb: "",
   title: "",
   transferCostsEstimate: "",
+  unitCount: "",
+  waterRights: "",
+  contactVisibility: "show",
   utilitiesEstimate: "",
+  zoning: "",
 };
 
 function mandateTypeValue(value: string): MandateType {
@@ -353,13 +480,39 @@ function mandateTypeValue(value: string): MandateType {
     : "open";
 }
 
+function propertyCategoryValue(value: string): PropertyCategory {
+  return propertyCategoryOptions.some((option) => option.value === value)
+    ? (value as PropertyCategory)
+    : "residential";
+}
+
+function categoryForPropertyType(value: string): PropertyCategory {
+  return (
+    propertyTypeOptions.find((option) => option.value === value)?.category ||
+    "residential"
+  );
+}
+
+function propertyTypeValue(value: string): PropertyType {
+  return propertyTypeOptions.some((option) => option.value === value)
+    ? (value as PropertyType)
+    : "free_standing_house";
+}
+
 function buildInitialDraft(value?: Partial<ListingDraft>) {
   const draft = { ...initialDraft, ...value };
+  const propertyType = propertyTypeValue(draft.propertyType);
+  const inferredCategory = categoryForPropertyType(propertyType);
 
   return {
     ...draft,
     features: draft.features.slice(0, maxListingFeatures).map(normalizeFeatureInput),
     mandateType: mandateTypeValue(draft.mandateType),
+    propertyCategory:
+      draft.propertyCategory && draft.propertyCategory === inferredCategory
+        ? propertyCategoryValue(draft.propertyCategory)
+        : inferredCategory,
+    propertyType,
   };
 }
 
@@ -438,6 +591,89 @@ function RequiredAsterisk() {
     >
       *
     </span>
+  );
+}
+
+type ListingDropdownOption<T extends string> = {
+  description?: string;
+  label: string;
+  value: T;
+};
+
+function ListingDropdown<T extends string>({
+  description,
+  hideLabel = false,
+  label,
+  onChange,
+  options,
+  required = false,
+  value,
+}: {
+  description?: string;
+  hideLabel?: boolean;
+  label: string;
+  onChange: (value: T) => void;
+  options: readonly ListingDropdownOption<T>[];
+  required?: boolean;
+  value: T;
+}) {
+  const selected = options.find((option) => option.value === value) || options[0];
+
+  return (
+    <div className="min-w-0">
+      {hideLabel ? null : (
+        <p className="inline-flex items-center text-sm font-black">
+          {label}
+          {required ? <RequiredAsterisk /> : null}
+        </p>
+      )}
+      {!hideLabel && description ? (
+        <p className="mt-1 text-xs font-bold leading-5 text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            className="mt-2 flex h-12 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-background px-4 text-left text-sm font-black outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/25"
+          >
+            <span className="min-w-0 truncate">{selected?.label || "Select"}</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="start"
+            sideOffset={6}
+            className="z-[90] max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl shadow-black/20 outline-none"
+          >
+            {options.map((option) => (
+              <DropdownMenu.Item
+                key={option.value}
+                className={cn(
+                  "flex cursor-pointer items-start justify-between gap-3 rounded-md px-3 py-2.5 text-sm font-black outline-none transition-colors focus:bg-primary/10 focus:text-primary",
+                  option.value === value && "bg-primary/10 text-primary",
+                )}
+                onSelect={() => onChange(option.value)}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate">{option.label}</span>
+                  {option.description ? (
+                    <span className="mt-0.5 block line-clamp-2 text-xs font-semibold leading-4 text-muted-foreground">
+                      {option.description}
+                    </span>
+                  ) : null}
+                </span>
+                {option.value === value ? (
+                  <Check className="size-4 shrink-0" />
+                ) : null}
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </div>
   );
 }
 
@@ -538,6 +774,10 @@ function getPublishIssues(
     issues.push({ message: "Choose whether this listing is for sale or rent.", step: 0 });
   }
 
+  if (!draft.propertyCategory) {
+    issues.push({ message: "Choose the property category.", step: 0 });
+  }
+
   if (!draft.propertyType) {
     issues.push({ message: "Choose the property type.", step: 0 });
   }
@@ -595,6 +835,87 @@ function getPublishIssues(
   return issues;
 }
 
+function getListingReadinessItems(
+  draft: ListingDraft,
+  mediaCount: number,
+  options: { requiresLocationConfirmation?: boolean } = {},
+): ReadinessItem[] {
+  const hasBedroomCount = draft.bedrooms.trim() !== "";
+  const hasBathroomCount = draft.bathrooms.trim() !== "";
+  const hasFloorSize = Number(draft.floorSize) > 0;
+  const hasErfSize = Number(draft.erfSize) > 0;
+  const hasRequiredFacts =
+    (residentialPropertyTypes.has(draft.propertyType) &&
+      hasBedroomCount &&
+      hasBathroomCount &&
+      hasFloorSize) ||
+    (commercialPropertyTypes.has(draft.propertyType) && hasFloorSize) ||
+    (landOnlyPropertyTypes.has(draft.propertyType) && hasErfSize) ||
+    (!residentialPropertyTypes.has(draft.propertyType) &&
+      !commercialPropertyTypes.has(draft.propertyType) &&
+      !landOnlyPropertyTypes.has(draft.propertyType));
+  const askingPrice = Number(draft.askingPrice);
+
+  return [
+    {
+      description: "Intent, category, and subtype selected.",
+      isComplete: Boolean(draft.listingType && draft.propertyCategory && draft.propertyType),
+      label: "Listing structure",
+      step: 0,
+    },
+    {
+      description: "Address area and Google location confirmation ready.",
+      isComplete:
+        hasCompleteListingLocation(draft) && !options.requiresLocationConfirmation,
+      label: "Location",
+      step: 1,
+    },
+    {
+      description: "Title and full description are ready.",
+      isComplete:
+        draft.title.trim().length >= 4 &&
+        richTextToPlainText(draft.description).length >= 40,
+      label: "Title and description",
+      step: 2,
+    },
+    {
+      description: "Core facts match the selected property type.",
+      isComplete: hasRequiredFacts,
+      label: "Required property facts",
+      step: 2,
+    },
+    {
+      description: "Asking price can be shown clearly.",
+      isComplete:
+        Boolean(draft.askingPrice) && Number.isFinite(askingPrice) && askingPrice > 0,
+      label: "Pricing",
+      step: 3,
+    },
+    {
+      description: "At least one image or video is attached.",
+      isComplete: mediaCount > 0,
+      label: "Media",
+      step: 4,
+    },
+    {
+      description: "Mandate type is selected.",
+      isComplete: Boolean(draft.mandateType),
+      label: "Mandate",
+      step: 5,
+    },
+    {
+      description: "Public visibility, address, and contact posture are set.",
+      isComplete: Boolean(
+        draft.listingVisibility &&
+          draft.addressVisibility &&
+          draft.contactVisibility,
+      ),
+      label: "Visibility",
+      step: 6,
+    },
+  ];
+}
+
 function hasCompleteListingLocation(draft: ListingDraft) {
   return Boolean(
     draft.location.trim().length >= 2 &&
@@ -613,7 +934,7 @@ function isListingStepComplete(
 ) {
   switch (stepIndex) {
     case 0:
-      return Boolean(draft.listingType && draft.propertyType);
+      return Boolean(draft.listingType && draft.propertyCategory && draft.propertyType);
     case 1:
       return (
         hasCompleteListingLocation(draft) &&
@@ -1244,6 +1565,73 @@ function PublishRequirementsDialog({
   );
 }
 
+function ListingReadinessPanel({
+  items,
+  onGoToStep,
+  percent,
+}: {
+  items: ReadinessItem[];
+  onGoToStep: (step: number) => void;
+  percent: number;
+}) {
+  const missingItems = items.filter((item) => !item.isComplete);
+
+  return (
+    <section className="mt-5 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[0.65rem] font-black uppercase tracking-[0.24em] text-primary">
+            Listing readiness
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-5 text-muted-foreground">
+            {missingItems.length
+              ? `Still missing ${missingItems
+                  .slice(0, 3)
+                  .map((item) => item.label.toLowerCase())
+                  .join(", ")}${missingItems.length > 3 ? " and more" : ""}.`
+              : "All required publishing basics are ready."}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <span
+            className={cn(
+              "inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black",
+              missingItems.length
+                ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+            )}
+          >
+            {missingItems.length ? (
+              <CircleAlert className="size-3.5" />
+            ) : (
+              <CheckCircle2 className="size-3.5" />
+            )}
+            {percent}% ready
+          </span>
+          {missingItems[0] ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onGoToStep(missingItems[0].step)}
+            >
+              Fix next
+              <ArrowRight className="size-3.5" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+        <span
+          className="block h-full rounded-full bg-[image:var(--homzie-gradient)] transition-[width] duration-500"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </section>
+  );
+}
+
 function ListingPublishSuccess({
   createAnotherPath,
   listingPath,
@@ -1514,12 +1902,6 @@ function isReducedPrice(askingPrice: string, previousAskingPrice: string) {
   );
 }
 
-const listingBooleanOptions = [
-  { label: "Not specified", value: "" },
-  { label: "Yes", value: "yes" },
-  { label: "No", value: "no" },
-];
-
 function ListingCostInput({
   convertFromZarAmount,
   convertToZarAmount,
@@ -1582,25 +1964,21 @@ function ListingSelect({
   value: string;
 }) {
   return (
-    <label className="block text-sm font-black">
-      <span className="inline-flex items-center gap-1.5">
+    <div>
+      <span className="inline-flex items-center gap-1.5 text-sm font-black">
         {label}
         {description ? (
           <AnalyticsInfoPopover title={label} description={description} />
         ) : null}
       </span>
-      <select
+      <ListingDropdown
+        hideLabel
+        label={label}
+        options={yesNoOptions}
         value={value}
-        onChange={(event) => updateDraft(setDraft, draftKey, event.target.value)}
-        className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
-      >
-        {listingBooleanOptions.map((option) => (
-          <option key={option.value || "empty"} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={(nextValue) => updateDraft(setDraft, draftKey, nextValue)}
+      />
+    </div>
   );
 }
 
@@ -1854,99 +2232,71 @@ function ImportListingFromLinkPanel({
   }
 
   return (
-    <section className="mt-5 overflow-hidden rounded-xl border border-white/10 bg-[#101123] text-white shadow-sm">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="min-w-0 p-5 sm:p-6">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-violet-100">
+    <section className="mt-5 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="min-w-0 flex-1">
+          <label
+            className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-primary"
+            htmlFor="listing-import-url"
+          >
             <Link2 className="size-3.5" />
             Import from link
-          </div>
-          <h2 className="mt-4 max-w-2xl text-2xl font-black tracking-tight sm:text-3xl">
-            Paste a property link and start from an editable draft.
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/70">
-            Homzie will pull the title, price, location clues, listing details,
-            description, and usable images where the source page exposes them.
+          </label>
+          <p className="mt-1 text-sm font-semibold leading-5 text-muted-foreground">
+            Paste a listing URL to prefill the form. Review fields before publishing.
           </p>
-
-          <div
-            className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
-          >
-            <label className="sr-only" htmlFor="listing-import-url">
-              Listing URL
-            </label>
-            <input
-              id="listing-import-url"
-              type="url"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              onKeyDown={handleImportKeyDown}
-              placeholder="https://example.com/property/..."
-              className="h-12 min-w-0 rounded-lg border border-white/15 bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
-              disabled={isPending}
-            />
-            <Button
-              type="button"
-              className="h-12 whitespace-nowrap"
-              disabled={isPending}
-              onClick={importDraft}
-            >
-              {isPending ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Importing
-                </>
-              ) : (
-                <>
-                  <Link2 className="size-4" />
-                  Import draft
-                </>
-              )}
-            </Button>
-          </div>
-
-          {message ? (
-            <p className="mt-3 text-xs font-bold text-violet-100">{message}</p>
-          ) : null}
+          <input
+            id="listing-import-url"
+            type="url"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            onKeyDown={handleImportKeyDown}
+            placeholder="https://example.com/property/..."
+            className="mt-3 h-11 w-full min-w-0 rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+            disabled={isPending}
+          />
         </div>
-
-        <div className="border-t border-white/10 bg-white/[0.04] p-5 sm:p-6 lg:border-l lg:border-t-0">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-white/45">
-            Import rules
-          </p>
-          <ul className="mt-4 space-y-3 text-sm font-semibold leading-6 text-white/75">
-            <li>Review every imported field before publishing.</li>
-            <li>Only import listings and media you are authorised to use.</li>
-            <li>Some portals hide data, so missing fields can be completed manually.</li>
-          </ul>
-          {summary ? (
-            <div className="mt-5 rounded-lg border border-white/10 bg-white/10 p-4 text-sm">
-              <p className="truncate font-black" title={summary.sourceUrl}>
-                Imported from {summary.sourceUrl}
-              </p>
-              <p className="mt-2 text-xs font-bold text-white/65">
-                {summary.importedImageCount ?? 0} of{" "}
-                {summary.foundImageCount ?? 0} image candidates imported.
-                {summary.skippedExistingImageCount
-                  ? ` ${summary.skippedExistingImageCount} already attached.`
-                  : ""}
-              </p>
-              {summary.warnings.length ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {summary.warnings.slice(0, 3).map((warning) => (
-                    <span
-                      key={warning}
-                      className="rounded-full bg-white/10 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.08em] text-white/70"
-                    >
-                      {warning}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+        <Button
+          type="button"
+          className="h-11 whitespace-nowrap lg:mb-0"
+          disabled={isPending}
+          onClick={importDraft}
+        >
+          {isPending ? (
+            <>
+              <LoaderCircle className="size-4 animate-spin" />
+              Importing
+            </>
+          ) : (
+            <>
+              <Link2 className="size-4" />
+              Import draft
+            </>
+          )}
+        </Button>
       </div>
+
+      {message || summary ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-muted-foreground">
+          {message ? <span>{message}</span> : null}
+          {summary ? (
+            <span className="rounded-full bg-muted px-2.5 py-1">
+              {(summary.importedImageCount ?? 0).toLocaleString()} images imported
+              {summary.skippedExistingImageCount
+                ? `, ${summary.skippedExistingImageCount.toLocaleString()} already attached`
+                : ""}
+            </span>
+          ) : null}
+          {summary?.warnings.slice(0, 2).map((warning) => (
+            <span
+              key={warning}
+              className="rounded-full bg-amber-500/10 px-2.5 py-1 text-amber-700 dark:text-amber-300"
+            >
+              {warning}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -2027,12 +2377,25 @@ export function CreateListingPage({
   const activePropertyType = propertyTypeOptions.find(
     (option) => option.value === draft.propertyType,
   );
-  const availablePropertyTypes = useMemo(
+  const availablePropertyCategories = useMemo(
     () =>
-      propertyTypeOptions.filter((option) =>
-        (option.listingTypes as readonly ListingType[]).includes(draft.listingType),
+      propertyCategoryOptions.filter((category) =>
+        propertyTypeOptions.some(
+          (option) =>
+            option.category === category.value &&
+            (option.listingTypes as readonly ListingType[]).includes(draft.listingType),
+        ),
       ),
     [draft.listingType],
+  );
+  const availablePropertyTypes = useMemo(
+    () =>
+      propertyTypeOptions.filter(
+        (option) =>
+          option.category === draft.propertyCategory &&
+          (option.listingTypes as readonly ListingType[]).includes(draft.listingType),
+      ),
+    [draft.listingType, draft.propertyCategory],
   );
   const requiresLocationConfirmation = Boolean(
     importedLocationCandidate &&
@@ -2046,6 +2409,18 @@ export function CreateListingPage({
       }),
     [draft, media.length, requiresLocationConfirmation],
   );
+  const readinessItems = useMemo(
+    () =>
+      getListingReadinessItems(draft, media.length, {
+        requiresLocationConfirmation,
+      }),
+    [draft, media.length, requiresLocationConfirmation],
+  );
+  const readinessPercent = useMemo(() => {
+    const completedCount = readinessItems.filter((item) => item.isComplete).length;
+
+    return Math.round((completedCount / readinessItems.length) * 100);
+  }, [readinessItems]);
   const uploadMedia = media.filter((item) => item.file);
   const uploadMediaCount = uploadMedia.length;
   const isUploadingMedia = mediaUploadState.active;
@@ -2083,11 +2458,30 @@ export function CreateListingPage({
 
   useEffect(() => {
     if (
+      !availablePropertyCategories.some(
+        (option) => option.value === draft.propertyCategory,
+      )
+    ) {
+      const nextCategory = availablePropertyCategories[0]?.value || "residential";
+      updateDraft(setDraft, "propertyCategory", nextCategory);
+      return;
+    }
+
+    if (
       !availablePropertyTypes.some((option) => option.value === draft.propertyType)
     ) {
-      updateDraft(setDraft, "propertyType", availablePropertyTypes[0].value);
+      const nextPropertyType = availablePropertyTypes[0]?.value;
+
+      if (nextPropertyType) {
+        updateDraft(setDraft, "propertyType", nextPropertyType);
+      }
     }
-  }, [availablePropertyTypes, draft.propertyType]);
+  }, [
+    availablePropertyCategories,
+    availablePropertyTypes,
+    draft.propertyCategory,
+    draft.propertyType,
+  ]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -2660,6 +3054,7 @@ export function CreateListingPage({
           </div>
         ) : null}
         <input type="hidden" name="coverIndex" value={coverIndex} />
+        <input type="hidden" name="addressVisibility" value={draft.addressVisibility} />
         <input type="hidden" name="askingPrice" value={draft.askingPrice} />
         <input type="hidden" name="availableFrom" value={draft.availableFrom} />
         <input type="hidden" name="bathrooms" value={draft.bathrooms} />
@@ -2667,15 +3062,20 @@ export function CreateListingPage({
         <input type="hidden" name="buyerIncentive" value={draft.buyerIncentive} />
         <input type="hidden" name="city" value={draft.city} />
         <input type="hidden" name="country" value={draft.country} />
+        <input type="hidden" name="developerName" value={draft.developerName} />
         <input type="hidden" name="description" value={draft.description} />
         <input type="hidden" name="erfSize" value={draft.erfSize} />
+        <input type="hidden" name="estateName" value={draft.estateName} />
         {draft.features.map((feature) => (
           <input key={feature} type="hidden" name="features" value={feature} />
         ))}
         <input type="hidden" name="floorSize" value={draft.floorSize} />
         <input type="hidden" name="furnishedStatus" value={draft.furnishedStatus} />
         <input type="hidden" name="garages" value={draft.garages} />
+        <input type="hidden" name="grossLettableArea" value={draft.grossLettableArea} />
         <input type="hidden" name="insuranceEstimate" value={draft.insuranceEstimate} />
+        <input type="hidden" name="leaseExpiryDate" value={draft.leaseExpiryDate} />
+        <input type="hidden" name="listingVisibility" value={draft.listingVisibility} />
         <input type="hidden" name="suburb" value={draft.suburb} />
         <input type="hidden" name="province" value={draft.province} />
         <input type="hidden" name="googlePlaceId" value={draft.googlePlaceId} />
@@ -2683,6 +3083,7 @@ export function CreateListingPage({
         <input type="hidden" name="listingType" value={draft.listingType} />
         <input type="hidden" name="location" value={draft.location} />
         <input type="hidden" name="localTaxes" value={draft.localTaxes} />
+        <input type="hidden" name="loadingBays" value={draft.loadingBays} />
         <input type="hidden" name="mandateEndDate" value={draft.mandateEndDate} />
         <input
           type="hidden"
@@ -2691,25 +3092,38 @@ export function CreateListingPage({
         />
         <input type="hidden" name="mandateType" value={draft.mandateType} />
         <input type="hidden" name="communityFees" value={draft.communityFees} />
+        <input type="hidden" name="occupancyStatus" value={draft.occupancyStatus} />
+        <input type="hidden" name="ownershipType" value={draft.ownershipType} />
+        <input type="hidden" name="outbuildings" value={draft.outbuildings} />
         <input type="hidden" name="parking" value={draft.parking} />
         <input type="hidden" name="petsAllowed" value={draft.petsAllowed} />
+        <input type="hidden" name="powerSupply" value={draft.powerSupply} />
         <input
           type="hidden"
           name="previousAskingPrice"
           value={draft.previousAskingPrice}
         />
         <input type="hidden" name="priceQualifier" value={draft.priceQualifier} />
+        <input type="hidden" name="propertyCategory" value={draft.propertyCategory} />
         <input type="hidden" name="propertyType" value={draft.propertyType} />
+        <input type="hidden" name="ratesAndTaxes" value={draft.ratesAndTaxes} />
         <input type="hidden" name="reservationAmount" value="" />
         <input type="hidden" name="rentalYield" value={draft.rentalYield} />
+        <input type="hidden" name="servitudes" value={draft.servitudes} />
         <input type="hidden" name="shortLetAllowed" value={draft.shortLetAllowed} />
+        <input type="hidden" name="landSizeHectares" value={draft.landSizeHectares} />
+        <input type="hidden" name="titleDeedStatus" value={draft.titleDeedStatus} />
         <input type="hidden" name="title" value={draft.title} />
         <input
           type="hidden"
           name="transferCostsEstimate"
           value={draft.transferCostsEstimate}
         />
+        <input type="hidden" name="unitCount" value={draft.unitCount} />
+        <input type="hidden" name="waterRights" value={draft.waterRights} />
+        <input type="hidden" name="contactVisibility" value={draft.contactVisibility} />
         <input type="hidden" name="utilitiesEstimate" value={draft.utilitiesEstimate} />
+        <input type="hidden" name="zoning" value={draft.zoning} />
         <button
           id={`${formId}-save-draft`}
           className="hidden"
@@ -2906,9 +3320,46 @@ export function CreateListingPage({
             videoCount={videoCount}
           />
           {publishMessage ? (
-            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-700 dark:text-amber-300">
-              {publishMessage}
-            </p>
+            <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200">
+              <div className="flex items-start gap-2">
+                <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-black">
+                    Listing is not ready to publish yet
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5">
+                    {publishIssues.length
+                      ? `${publishIssues.length} required item${
+                          publishIssues.length === 1 ? "" : "s"
+                        } still need attention. Jump straight to the missing fields below.`
+                      : publishMessage}
+                  </p>
+                </div>
+              </div>
+              {publishIssues.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {publishIssues.slice(0, 3).map((issue) => (
+                    <button
+                      key={issue.message}
+                      type="button"
+                      className="rounded-full border border-amber-500/30 bg-background px-3 py-1 text-[11px] font-black text-foreground transition hover:border-primary/40 hover:text-primary"
+                      onClick={() => goToPublishIssueStep(issue.step)}
+                    >
+                      {issue.message}
+                    </button>
+                  ))}
+                  {publishIssues.length > 3 ? (
+                    <button
+                      type="button"
+                      className="rounded-full border border-amber-500/30 bg-background px-3 py-1 text-[11px] font-black text-foreground transition hover:border-primary/40 hover:text-primary"
+                      onClick={() => setPublishRequirementsOpen(true)}
+                    >
+                      View all {publishIssues.length}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           ) : null}
           {listingUpdateFeedback ? (
             <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300">
@@ -2926,6 +3377,11 @@ export function CreateListingPage({
               summary={importSummary}
             />
           ) : null}
+          <ListingReadinessPanel
+            items={readinessItems}
+            onGoToStep={goToPublishIssueStep}
+            percent={readinessPercent}
+          />
 
           <Dialog.Root open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
             <Dialog.Portal>
@@ -3062,6 +3518,7 @@ export function CreateListingPage({
               <div className="min-h-[32rem] min-w-0 p-4 sm:p-6">
                 {activeStep === 0 ? (
                   <ListingTypeStep
+                    availablePropertyCategories={availablePropertyCategories}
                     availablePropertyTypes={availablePropertyTypes}
                     draft={draft}
                     setDraft={setDraft}
@@ -3106,6 +3563,7 @@ export function CreateListingPage({
                     cover={previewCover}
                     draft={draft}
                     imageUrls={previewImageUrls}
+                    setDraft={setDraft}
                     videoUrls={previewVideoUrls}
                   />
                 ) : null}
@@ -3199,14 +3657,23 @@ export function CreateListingPage({
 }
 
 function ListingTypeStep({
+  availablePropertyCategories,
   availablePropertyTypes,
   draft,
   setDraft,
 }: {
+  availablePropertyCategories: typeof propertyCategoryOptions[number][];
   availablePropertyTypes: typeof propertyTypeOptions[number][];
   draft: ListingDraft;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
+  const activeCategory = propertyCategoryOptions.find(
+    (option) => option.value === draft.propertyCategory,
+  );
+  const activeSubtype = propertyTypeOptions.find(
+    (option) => option.value === draft.propertyType,
+  );
+
   return (
     <div className="space-y-7">
       <div>
@@ -3214,66 +3681,55 @@ function ListingTypeStep({
           What are you listing?
           <RequiredAsterisk />
         </h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {listingTypeOptions.map((option) => {
-            const Icon = option.icon;
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className={cn(
-                  "rounded-lg border border-border p-4 text-left transition-colors hover:border-primary",
-                  draft.listingType === option.value &&
-                    "border-primary bg-primary/10 ring-1 ring-primary",
-                )}
-                onClick={() => updateDraft(setDraft, "listingType", option.value)}
-              >
-                <Icon className="size-5 text-primary" />
-                <span className="mt-3 block text-sm font-black">{option.label}</span>
-                <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">
-                  {option.description}
-                </span>
-              </button>
-            );
-          })}
+        <div className="mt-4 grid gap-4">
+          <ListingDropdown
+            label="Listing intent"
+            required
+            value={draft.listingType}
+            options={listingTypeOptions.map((option) => ({
+              description: option.description,
+              label: option.label,
+              value: option.value,
+            }))}
+            onChange={(value) => updateDraft(setDraft, "listingType", value)}
+          />
+          <ListingDropdown
+            label="Property category"
+            required
+            value={draft.propertyCategory}
+            options={availablePropertyCategories.map((option) => ({
+              description: option.description,
+              label: option.label,
+              value: option.value,
+            }))}
+            onChange={(value) => updateDraft(setDraft, "propertyCategory", value)}
+          />
+          <ListingDropdown
+            label="Property subtype"
+            required
+            value={draft.propertyType}
+            options={availablePropertyTypes.map((option) => ({
+              label: option.label,
+              value: option.value,
+            }))}
+            onChange={(value) => updateDraft(setDraft, "propertyType", value)}
+          />
         </div>
       </div>
 
-      <div>
-        <h2 className="inline-flex items-center text-lg font-black">
-          Property type
-          <RequiredAsterisk />
-        </h2>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {availablePropertyTypes.map((option) => {
-            const Icon = option.icon;
-
-            return (
-              <label
-                key={option.value}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-3 text-sm font-black transition-colors",
-                  draft.propertyType === option.value &&
-                    "border-primary bg-primary/10 text-primary",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="propertyType"
-                  value={option.value}
-                  checked={draft.propertyType === option.value}
-                  onChange={() => updateDraft(setDraft, "propertyType", option.value)}
-                  className="sr-only"
-                />
-                <Icon className="size-4" />
-                {option.label}
-              </label>
-            );
-          })}
-        </div>
+      <div className="border-t border-border pt-4">
+        <p className="text-xs font-black uppercase tracking-[0.24em] text-primary">
+          Selected structure
+        </p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+          <span className="font-black text-foreground">
+            {activeCategory?.label || "Property"} /{" "}
+            {activeSubtype?.label || "Subtype"}
+          </span>{" "}
+          will tailor the next steps to the right property data, pricing context,
+          and mandate details.
+        </p>
       </div>
-
     </div>
   );
 }
@@ -3715,6 +4171,10 @@ function DetailsStep({
   const isTitleCoolingDown = titleCooldownSeconds > 0;
   const isDescriptionCoolingDown = descriptionCooldownSeconds > 0;
   const canAddFeature = draft.features.length < maxListingFeatures;
+  const isCommercial = commercialPropertyTypes.has(draft.propertyType);
+  const isFarm = draft.propertyCategory === "farm";
+  const isDevelopment = draft.propertyCategory === "development";
+  const isResidential = draft.propertyCategory === "residential";
 
   function toggleFeature(feature: string) {
     const normalizedFeature = normalizeFeatureInput(feature);
@@ -3966,7 +4426,12 @@ function DetailsStep({
           ) : null}
         </span>
       </div>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="border-t border-border pt-5">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+          Core property facts
+        </p>
+      </div>
+      <div className="grid gap-4">
         {(
           [
           ["bedrooms", "Bedrooms", "1"],
@@ -4009,7 +4474,7 @@ function DetailsStep({
           </label>
         ))}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4">
         <label className="block text-sm font-black">
           <span className="inline-flex items-center">
             Floor size m²
@@ -4050,7 +4515,232 @@ function DetailsStep({
           />
         </label>
       </div>
-      <div>
+      <div className="border-t border-border pt-5">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+          Legal and operating details
+        </p>
+        <div className="mt-4 grid gap-4">
+        <ListingDropdown
+          label="Ownership"
+          value={draft.ownershipType}
+          options={ownershipTypeOptions}
+          onChange={(value) => updateDraft(setDraft, "ownershipType", value)}
+        />
+        <ListingDropdown
+          label="Title deed status"
+          value={draft.titleDeedStatus}
+          options={titleDeedStatusOptions}
+          onChange={(value) => updateDraft(setDraft, "titleDeedStatus", value)}
+        />
+        <ListingDropdown
+          label="Zoning"
+          value={draft.zoning}
+          options={zoningOptions}
+          onChange={(value) => updateDraft(setDraft, "zoning", value)}
+        />
+        <label className="block text-sm font-black">
+          Servitudes / restrictions
+          <input
+            value={draft.servitudes}
+            maxLength={180}
+            onChange={(event) =>
+              updateDraft(setDraft, "servitudes", event.target.value.slice(0, 180))
+            }
+            placeholder="Access servitude, HOA restrictions, water rights..."
+            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-semibold outline-none transition-colors focus:border-primary"
+          />
+        </label>
+        </div>
+      </div>
+      {isResidential ? (
+        <div className="border-t border-border pt-5">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+          Residential context
+        </p>
+        <div className="mt-4 grid gap-4">
+          <label className="block text-sm font-black">
+            Estate / complex name
+            <input
+              value={draft.estateName}
+              maxLength={120}
+              onChange={(event) =>
+                updateDraft(setDraft, "estateName", event.target.value.slice(0, 120))
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <label className="block text-sm font-black">
+            Rates and taxes
+            <input
+              value={draft.ratesAndTaxes}
+              type="number"
+              min="0"
+              step="0.01"
+              onChange={(event) =>
+                updateDraft(setDraft, "ratesAndTaxes", decimalInputValue(event.target.value))
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <label className="block text-sm font-black">
+            Levies
+            <input
+              value={draft.communityFees}
+              type="number"
+              min="0"
+              step="0.01"
+              onChange={(event) =>
+                updateDraft(setDraft, "communityFees", decimalInputValue(event.target.value))
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+        </div>
+        </div>
+      ) : null}
+      {isCommercial ? (
+        <div className="border-t border-border pt-5">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+          Commercial details
+        </p>
+        <div className="mt-4 grid gap-4">
+          <ListingDropdown
+            label="Occupancy"
+            value={draft.occupancyStatus}
+            options={occupancyStatusOptions}
+            onChange={(value) => updateDraft(setDraft, "occupancyStatus", value)}
+          />
+          <label className="block text-sm font-black">
+            Gross lettable area m²
+            <input
+              value={draft.grossLettableArea}
+              type="number"
+              min="0"
+              step="0.01"
+              onChange={(event) =>
+                updateDraft(
+                  setDraft,
+                  "grossLettableArea",
+                  decimalInputValue(event.target.value),
+                )
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <ListingDropdown
+            label="Power supply"
+            value={draft.powerSupply}
+            options={powerSupplyOptions}
+            onChange={(value) => updateDraft(setDraft, "powerSupply", value)}
+          />
+          <label className="block text-sm font-black">
+            Loading bays
+            <input
+              value={draft.loadingBays}
+              type="number"
+              min="0"
+              step="1"
+              onChange={(event) =>
+                updateDraft(setDraft, "loadingBays", integerInputValue(event.target.value))
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <label className="block text-sm font-black">
+            Lease expiry
+            <DateInput
+              name="leaseExpiryDate"
+              value={draft.leaseExpiryDate}
+              onChange={(value) => updateDraft(setDraft, "leaseExpiryDate", value)}
+            />
+          </label>
+        </div>
+        </div>
+      ) : null}
+      {isFarm ? (
+        <div className="border-t border-border pt-5">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+          Farm and rural details
+        </p>
+        <div className="mt-4 grid gap-4">
+          <label className="block text-sm font-black">
+            Land size hectares
+            <input
+              value={draft.landSizeHectares}
+              type="number"
+              min="0"
+              step="0.01"
+              onChange={(event) =>
+                updateDraft(
+                  setDraft,
+                  "landSizeHectares",
+                  decimalInputValue(event.target.value),
+                )
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <ListingDropdown
+            label="Water rights"
+            value={draft.waterRights}
+            options={yesNoOptions}
+            onChange={(value) => updateDraft(setDraft, "waterRights", value)}
+          />
+          <label className="block text-sm font-black">
+            Outbuildings / infrastructure
+            <input
+              value={draft.outbuildings}
+              maxLength={160}
+              onChange={(event) =>
+                updateDraft(setDraft, "outbuildings", event.target.value.slice(0, 160))
+              }
+              placeholder="Sheds, stables, cold rooms, staff housing..."
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+        </div>
+        </div>
+      ) : null}
+      {isDevelopment ? (
+        <div className="border-t border-border pt-5">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+          Development details
+        </p>
+        <div className="mt-4 grid gap-4">
+          <label className="block text-sm font-black">
+            Developer name
+            <input
+              value={draft.developerName}
+              maxLength={120}
+              onChange={(event) =>
+                updateDraft(setDraft, "developerName", event.target.value.slice(0, 120))
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <label className="block text-sm font-black">
+            Unit count
+            <input
+              value={draft.unitCount}
+              type="number"
+              min="0"
+              step="1"
+              onChange={(event) =>
+                updateDraft(setDraft, "unitCount", integerInputValue(event.target.value))
+              }
+              className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold outline-none transition-colors focus:border-primary"
+            />
+          </label>
+          <ListingDropdown
+            label="Show unit available"
+            value={draft.occupancyStatus}
+            options={yesNoOptions}
+            onChange={(value) => updateDraft(setDraft, "occupancyStatus", value)}
+          />
+        </div>
+        </div>
+      ) : null}
+      <div className="border-t border-border pt-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-black">Features</p>
           <p className="text-xs font-black text-muted-foreground">
@@ -4607,6 +5297,10 @@ function MandateStep({
   draft: ListingDraft;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
+  const selectedMandate = mandateTypeOptions.find(
+    (option) => option.value === draft.mandateType,
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -4617,47 +5311,27 @@ function MandateStep({
         </p>
       </div>
       <div>
-        <p className="text-sm font-black">Mandate type</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {mandateTypeOptions.map((option) => {
-            const Icon = option.icon;
-
-            return (
-              <label
-                key={option.value}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-3 text-sm font-black transition-colors",
-                  draft.mandateType === option.value &&
-                    "border-primary bg-primary/10 text-primary",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="mandateType"
-                  value={option.value}
-                  checked={draft.mandateType === option.value}
-                  onChange={() => updateDraft(setDraft, "mandateType", option.value)}
-                  className="sr-only"
-                />
-                <span
-                  className={cn(
-                    "grid size-8 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground",
-                    draft.mandateType === option.value &&
-                      "border-primary/30 bg-background text-primary",
-                  )}
-                >
-                  <Icon className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1">{option.label}</span>
-                <AnalyticsInfoPopover
-                  title={option.label}
-                  description={option.description}
-                  className="shrink-0"
-                />
-              </label>
-            );
-          })}
-        </div>
+        <ListingDropdown
+          label="Mandate type"
+          required
+          value={draft.mandateType}
+          options={mandateTypeOptions.map((option) => ({
+            description: option.description,
+            label: option.label,
+            value: option.value,
+          }))}
+          onChange={(value) => updateDraft(setDraft, "mandateType", value)}
+        />
+        {selectedMandate ? (
+          <div className="mt-3 flex items-start gap-3 rounded-lg border border-border bg-muted/25 p-4 text-sm font-semibold leading-6 text-muted-foreground">
+            <AnalyticsInfoPopover
+              title={selectedMandate.label}
+              description={selectedMandate.description}
+              className="mt-0.5 shrink-0"
+            />
+            <p>{selectedMandate.description}</p>
+          </div>
+        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-black">
@@ -4686,14 +5360,60 @@ function MandateStep({
   );
 }
 
+function ListingVisibilityControls({
+  draft,
+  setDraft,
+}: {
+  draft: ListingDraft;
+  setDraft: Dispatch<SetStateAction<ListingDraft>>;
+}) {
+  return (
+    <section className="border-t border-border pt-5">
+      <div>
+        <h3 className="text-base font-black">Visibility settings</h3>
+        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+          Decide how this listing appears once published. Drafts always stay
+          private until you publish them.
+        </p>
+      </div>
+      <div className="mt-4 grid gap-4">
+        <ListingDropdown
+          description="Choose whether this listing appears broadly or only through your profile and shared links."
+          label="Listing visibility"
+          options={listingVisibilityOptions}
+          value={draft.listingVisibility}
+          onChange={(value) => updateDraft(setDraft, "listingVisibility", value)}
+        />
+        <ListingDropdown
+          description="Show exact addresses only when you are comfortable exposing them publicly."
+          label="Address visibility"
+          options={addressVisibilityOptions}
+          value={draft.addressVisibility}
+          onChange={(value) => updateDraft(setDraft, "addressVisibility", value)}
+        />
+        <ListingDropdown
+          description="Contact actions can stay visible while direct email and phone details are hidden."
+          label="Contact visibility"
+          options={contactVisibilityOptions}
+          value={draft.contactVisibility}
+          onChange={(value) => updateDraft(setDraft, "contactVisibility", value)}
+        />
+      </div>
+    </section>
+  );
+}
+
 function PreviewStep(props: {
   activeListingType: string;
   activePropertyType: string;
   cover?: string;
   draft: ListingDraft;
   imageUrls?: string[];
+  setDraft: Dispatch<SetStateAction<ListingDraft>>;
   videoUrls?: string[];
 }) {
+  const { draft, setDraft } = props;
+
   return (
     <div className="space-y-6">
       <div>
@@ -4702,6 +5422,7 @@ function PreviewStep(props: {
           Check the public-facing basics before publishing.
         </p>
       </div>
+      <ListingVisibilityControls draft={draft} setDraft={setDraft} />
       <ListingPreview {...props} profilePath="" />
     </div>
   );

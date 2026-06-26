@@ -43,6 +43,7 @@ import {
 import {
   listingTypeOptions,
   mandateTypeOptions,
+  propertyCategoryOptions,
   propertyTypeOptions,
   type PropertyType,
 } from "@/modules/listings/options";
@@ -82,19 +83,43 @@ const listingVideoTypes: Record<string, string> = {
 };
 const residentialPropertyTypes = new Set<PropertyType | string>([
   "apartment",
+  "cluster_home",
+  "duet",
   "development_unit",
   "estate_home",
+  "flatlet",
   "free_standing_house",
+  "guest_house",
+  "retirement_unit",
+  "room",
+  "student_accommodation",
   "townhouse",
 ]);
 const landOnlyPropertyTypes = new Set<PropertyType | string>([
+  "agricultural_land",
+  "development_land",
   "development_project",
+  "farm",
+  "game_farm",
+  "lifestyle_farm",
+  "small_holding",
   "vacant_land",
+  "wine_farm",
 ]);
 const commercialPropertyTypes = new Set<PropertyType | string>([
+  "business_premises",
+  "commercial_development",
+  "commercial_property",
+  "factory",
+  "guest_house",
+  "hospitality",
   "industrial",
+  "medical_suite",
+  "mixed_use",
   "office",
+  "restaurant",
   "retail",
+  "showroom",
   "warehouse",
 ]);
 
@@ -103,6 +128,10 @@ const listingTypeValues = listingTypeOptions.map((option) => option.value) as [
   ...string[],
 ];
 const propertyTypeValues = propertyTypeOptions.map((option) => option.value) as [
+  string,
+  ...string[],
+];
+const propertyCategoryValues = propertyCategoryOptions.map((option) => option.value) as [
   string,
   ...string[],
 ];
@@ -150,6 +179,7 @@ function viewMilestoneForCount(count: number) {
 }
 
 const listingSchema = z.object({
+  addressVisibility: z.enum(["area", "exact"]).optional(),
   askingPrice: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   availableFrom: z.string().trim().max(32).optional(),
   bathrooms: z.coerce.number().min(0).max(99).optional(),
@@ -157,24 +187,35 @@ const listingSchema = z.object({
   buyerIncentive: z.string().trim().max(40).optional(),
   city: z.string().trim().max(120).optional(),
   country: z.string().trim().max(120).optional(),
+  developerName: z.string().trim().max(120).optional(),
   description: z.string().trim().max(10_000).optional(),
   erfSize: z.coerce.number().min(0).max(10_000_000).optional(),
+  estateName: z.string().trim().max(120).optional(),
   features: z.array(z.string()).optional(),
   floorSize: z.coerce.number().min(0).max(10_000_000).optional(),
   furnishedStatus: z.enum(["", "yes", "no"]).optional(),
   garages: z.coerce.number().int().min(0).max(99).optional(),
+  grossLettableArea: z.coerce.number().min(0).max(10_000_000).optional(),
   googlePlaceId: z.string().trim().max(180).optional(),
   googlePlaceData: z.string().trim().max(10_000).optional(),
   insuranceEstimate: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
+  landSizeHectares: z.coerce.number().min(0).max(10_000_000).optional(),
+  leaseExpiryDate: z.string().trim().max(32).optional(),
+  listingVisibility: z.enum(["public", "profile_private"]).optional(),
   listingType: z.enum(listingTypeValues),
   location: z.string().trim().min(2).max(240),
   localTaxes: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
+  loadingBays: z.coerce.number().int().min(0).max(999).optional(),
   mandateEndDate: z.string().trim().max(32).optional(),
   mandateStartDate: z.string().trim().max(32).optional(),
   mandateType: z.enum(mandateTypeValues),
   communityFees: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
+  occupancyStatus: z.string().trim().max(80).optional(),
+  ownershipType: z.string().trim().max(80).optional(),
+  outbuildings: z.string().trim().max(160).optional(),
   parking: z.coerce.number().int().min(0).max(99).optional(),
   petsAllowed: z.enum(["", "yes", "no"]).optional(),
+  powerSupply: z.string().trim().max(80).optional(),
   previousAskingPrice: z.coerce
     .number()
     .finite()
@@ -182,8 +223,10 @@ const listingSchema = z.object({
     .max(10_000_000_000)
     .optional(),
   priceQualifier: z.string().trim().max(40).optional(),
+  propertyCategory: z.enum(propertyCategoryValues),
   propertyType: z.enum(propertyTypeValues),
   province: z.string().trim().max(120).optional(),
+  ratesAndTaxes: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   publishIntent: z.enum(["draft", "published"]),
   reservationAmount: z.coerce
     .number()
@@ -193,8 +236,10 @@ const listingSchema = z.object({
     .optional(),
   reservationEnabled: z.boolean().optional(),
   rentalYield: z.coerce.number().finite().min(0).max(100).optional(),
+  servitudes: z.string().trim().max(180).optional(),
   shortLetAllowed: z.enum(["", "yes", "no"]).optional(),
   suburb: z.string().trim().max(120).optional(),
+  titleDeedStatus: z.string().trim().max(80).optional(),
   title: z.string().trim().min(4).max(maxListingTitleLength),
   transferCostsEstimate: z.coerce
     .number()
@@ -202,7 +247,11 @@ const listingSchema = z.object({
     .min(0)
     .max(10_000_000_000)
     .optional(),
+  unitCount: z.coerce.number().int().min(0).max(100_000).optional(),
+  contactVisibility: z.enum(["show", "hide_details"]).optional(),
   utilitiesEstimate: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
+  waterRights: z.string().trim().max(80).optional(),
+  zoning: z.string().trim().max(80).optional(),
 });
 const listingIdSchema = z.uuid();
 const listingAnalyticsSourceSchema = z
@@ -270,13 +319,18 @@ const listingImportAiSchema = z.object({
   bedrooms: z.coerce.number().int().min(0).max(99).optional(),
   description: z.string().trim().max(10_000).optional(),
   erfSize: z.coerce.number().min(0).max(10_000_000).optional(),
+  estateName: z.string().trim().max(120).optional(),
   features: z.array(z.string().trim().min(1).max(80)).max(maxListingFeatures).optional(),
   floorSize: z.coerce.number().min(0).max(10_000_000).optional(),
   garages: z.coerce.number().int().min(0).max(99).optional(),
+  grossLettableArea: z.coerce.number().min(0).max(10_000_000).optional(),
+  landSizeHectares: z.coerce.number().min(0).max(10_000_000).optional(),
   listingType: z.enum(listingTypeValues).optional(),
   parking: z.coerce.number().int().min(0).max(99).optional(),
   propertyType: z.enum(propertyTypeValues).optional(),
+  servitudes: z.string().trim().max(180).optional(),
   title: z.string().trim().max(maxListingTitleLength).optional(),
+  zoning: z.string().trim().max(80).optional(),
 });
 
 function parseListingFormData(formData: FormData) {
@@ -289,6 +343,7 @@ function parseListingFormData(formData: FormData) {
   const publishIntent = String(formData.get("publishIntent") || "draft");
   const mandateType = String(formData.get("mandateType") || "");
   const parsed = listingSchema.safeParse({
+    addressVisibility: formData.get("addressVisibility") || "area",
     askingPrice: numberOrUndefined(formData.get("askingPrice")),
     availableFrom: formData.get("availableFrom"),
     bathrooms: decimalOrUndefined(formData.get("bathrooms")),
@@ -296,43 +351,62 @@ function parseListingFormData(formData: FormData) {
     buyerIncentive: formData.get("buyerIncentive"),
     city: formData.get("city"),
     country: formData.get("country"),
+    developerName: formData.get("developerName"),
     description: formData.get("description"),
     erfSize: decimalOrUndefined(formData.get("erfSize")),
+    estateName: formData.get("estateName"),
     features: Array.from(new Set(rawFeatures)),
     floorSize: decimalOrUndefined(formData.get("floorSize")),
     furnishedStatus: formData.get("furnishedStatus") || "",
     garages: numberOrUndefined(formData.get("garages")),
+    grossLettableArea: decimalOrUndefined(formData.get("grossLettableArea")),
     googlePlaceId: formData.get("googlePlaceId"),
     googlePlaceData: formData.get("googlePlaceData"),
     insuranceEstimate: numberOrUndefined(formData.get("insuranceEstimate")),
+    landSizeHectares: decimalOrUndefined(formData.get("landSizeHectares")),
+    leaseExpiryDate: formData.get("leaseExpiryDate"),
+    listingVisibility: formData.get("listingVisibility") || "public",
     listingType: formData.get("listingType"),
     location:
       String(formData.get("location") || "").trim() ||
       (publishIntent === "draft" ? "Location not set" : ""),
     localTaxes: numberOrUndefined(formData.get("localTaxes")),
+    loadingBays: numberOrUndefined(formData.get("loadingBays")),
     mandateEndDate: formData.get("mandateEndDate"),
     mandateStartDate: formData.get("mandateStartDate"),
     mandateType: (mandateTypeValues as readonly string[]).includes(mandateType)
       ? mandateType
       : "open",
     communityFees: numberOrUndefined(formData.get("communityFees")),
+    occupancyStatus: formData.get("occupancyStatus") || "",
+    ownershipType: formData.get("ownershipType") || "",
+    outbuildings: formData.get("outbuildings"),
     parking: numberOrUndefined(formData.get("parking")),
     petsAllowed: formData.get("petsAllowed") || "",
+    powerSupply: formData.get("powerSupply") || "",
     previousAskingPrice: numberOrUndefined(formData.get("previousAskingPrice")),
     priceQualifier: formData.get("priceQualifier"),
+    propertyCategory: formData.get("propertyCategory"),
     propertyType: formData.get("propertyType"),
     province: formData.get("province"),
+    ratesAndTaxes: numberOrUndefined(formData.get("ratesAndTaxes")),
     publishIntent,
     reservationAmount: numberOrUndefined(formData.get("reservationAmount")),
     reservationEnabled: formData.get("reservationEnabled") === "on",
     rentalYield: decimalOrUndefined(formData.get("rentalYield")),
+    servitudes: formData.get("servitudes"),
     shortLetAllowed: formData.get("shortLetAllowed") || "",
     suburb: formData.get("suburb"),
     title:
       String(formData.get("title") || "").trim() ||
       (publishIntent === "draft" ? "Untitled listing" : ""),
+    titleDeedStatus: formData.get("titleDeedStatus") || "",
     transferCostsEstimate: numberOrUndefined(formData.get("transferCostsEstimate")),
+    unitCount: numberOrUndefined(formData.get("unitCount")),
+    contactVisibility: formData.get("contactVisibility") || "show",
     utilitiesEstimate: numberOrUndefined(formData.get("utilitiesEstimate")),
+    waterRights: formData.get("waterRights") || "",
+    zoning: formData.get("zoning") || "",
   });
 
   if (!parsed.success) {
@@ -841,7 +915,7 @@ function inferListingType(text: string) {
     return "development" as const;
   }
 
-  if (/\b(commercial|office|retail|industrial|warehouse)\b/.test(normalized)) {
+  if (/\b(commercial|office|retail|industrial|warehouse|factory|showroom|medical suite|restaurant|business premises)\b/.test(normalized)) {
     return "commercial" as const;
   }
 
@@ -851,16 +925,39 @@ function inferListingType(text: string) {
 function inferPropertyType(text: string) {
   const normalized = text.toLowerCase();
 
+  if (/\b(small holding|smallholding)\b/.test(normalized)) return "small_holding" as const;
+  if (/\b(wine farm|vineyard)\b/.test(normalized)) return "wine_farm" as const;
+  if (/\b(game farm)\b/.test(normalized)) return "game_farm" as const;
+  if (/\b(lifestyle farm)\b/.test(normalized)) return "lifestyle_farm" as const;
+  if (/\bfarm\b/.test(normalized)) return "farm" as const;
+  if (/\b(commercial development)\b/.test(normalized)) return "commercial_development" as const;
+  if (/\b(business premises|business property)\b/.test(normalized)) return "business_premises" as const;
+  if (/\b(hotel|lodge|guest lodge|hospitality)\b/.test(normalized)) return "hospitality" as const;
+  if (/\bmixed[-\s]?use\b/.test(normalized)) return "mixed_use" as const;
+  if (/\bmedical (suite|rooms|practice)|consulting rooms\b/.test(normalized)) return "medical_suite" as const;
+  if (/\brestaurant|food premises|coffee shop|takeaway\b/.test(normalized)) return "restaurant" as const;
+  if (/\bshowroom\b/.test(normalized)) return "showroom" as const;
+  if (/\boffice\b/.test(normalized)) return "office" as const;
+  if (/\bretail|shop\b/.test(normalized)) return "retail" as const;
+  if (/\bfactory\b/.test(normalized)) return "factory" as const;
+  if (/\bindustrial\b/.test(normalized)) return "industrial" as const;
+  if (/\bwarehouse\b/.test(normalized)) return "warehouse" as const;
+  if (/\bcommercial\b/.test(normalized)) return "commercial_property" as const;
+  if (/\b(agricultural land)\b/.test(normalized)) return "agricultural_land" as const;
+  if (/\b(development land)\b/.test(normalized)) return "development_land" as const;
   if (/\b(apartment|flat)\b/.test(normalized)) return "apartment" as const;
+  if (/\b(flatlet|garden cottage)\b/.test(normalized)) return "flatlet" as const;
+  if (/\b(student accommodation|student housing)\b/.test(normalized)) return "student_accommodation" as const;
+  if (/\b(room to rent|room\b)\b/.test(normalized)) return "room" as const;
   if (/\b(townhouse|town house)\b/.test(normalized)) return "townhouse" as const;
+  if (/\b(duet)\b/.test(normalized)) return "duet" as const;
+  if (/\b(cluster)\b/.test(normalized)) return "cluster_home" as const;
+  if (/\b(retirement)\b/.test(normalized)) return "retirement_unit" as const;
+  if (/\b(guest house|guesthouse)\b/.test(normalized)) return "guest_house" as const;
   if (/\b(estate)\b/.test(normalized)) return "estate_home" as const;
   if (/\b(vacant land|plot|stand)\b/.test(normalized)) return "vacant_land" as const;
   if (/\b(development project)\b/.test(normalized)) return "development_project" as const;
   if (/\b(development unit)\b/.test(normalized)) return "development_unit" as const;
-  if (/\boffice\b/.test(normalized)) return "office" as const;
-  if (/\bretail\b/.test(normalized)) return "retail" as const;
-  if (/\bindustrial\b/.test(normalized)) return "industrial" as const;
-  if (/\bwarehouse\b/.test(normalized)) return "warehouse" as const;
 
   return "free_standing_house" as const;
 }
@@ -949,16 +1046,21 @@ type ImportedDraft = {
   country: string;
   description: string;
   erfSize: string;
+  estateName: string;
   features: string[];
   floorSize: string;
   garages: string;
+  grossLettableArea: string;
+  landSizeHectares: string;
   listingType: (typeof listingTypeOptions)[number]["value"];
   location: string;
   parking: string;
   propertyType: (typeof propertyTypeOptions)[number]["value"];
   province: string;
+  servitudes: string;
   suburb: string;
   title: string;
+  zoning: string;
 };
 
 function responseOutputText(result: {
@@ -1003,6 +1105,7 @@ function mergeImportedDraft(
     bedrooms: typeof aiDraft.bedrooms === "number" ? String(Math.round(aiDraft.bedrooms)) : base.bedrooms,
     description: aiDraft.description ? importedDescriptionHtml(aiDraft.description) : base.description,
     erfSize: typeof aiDraft.erfSize === "number" && aiDraft.erfSize > 0 ? String(aiDraft.erfSize) : base.erfSize,
+    estateName: aiDraft.estateName || base.estateName,
     features: aiDraft.features?.length
       ? aiDraft.features.map(normalizeImportedFeature).filter(Boolean).slice(0, maxListingFeatures)
       : base.features,
@@ -1011,10 +1114,20 @@ function mergeImportedDraft(
         ? String(aiDraft.floorSize)
         : base.floorSize,
     garages: typeof aiDraft.garages === "number" ? String(Math.round(aiDraft.garages)) : base.garages,
+    grossLettableArea:
+      typeof aiDraft.grossLettableArea === "number" && aiDraft.grossLettableArea > 0
+        ? String(aiDraft.grossLettableArea)
+        : base.grossLettableArea,
+    landSizeHectares:
+      typeof aiDraft.landSizeHectares === "number" && aiDraft.landSizeHectares > 0
+        ? String(aiDraft.landSizeHectares)
+        : base.landSizeHectares,
     listingType: (aiDraft.listingType || base.listingType) as ImportedDraft["listingType"],
     parking: typeof aiDraft.parking === "number" ? String(Math.round(aiDraft.parking)) : base.parking,
     propertyType: (aiDraft.propertyType || base.propertyType) as ImportedDraft["propertyType"],
+    servitudes: aiDraft.servitudes || base.servitudes,
     title: aiDraft.title ? cleanListingTitle(aiDraft.title) : base.title,
+    zoning: aiDraft.zoning || base.zoning,
   };
 }
 
@@ -1045,10 +1158,11 @@ async function mapImportedListingWithAi(input: {
                   "Extract structured data from this South African property listing page.",
                   "Use only facts explicitly present in the evidence. Do not invent.",
                   "Return strict JSON only, with these optional keys:",
-                  "title, listingType, propertyType, askingPrice, bedrooms, bathrooms, garages, parking, floorSize, erfSize, features, description.",
+                  "title, listingType, propertyType, askingPrice, bedrooms, bathrooms, garages, parking, floorSize, erfSize, grossLettableArea, landSizeHectares, estateName, zoning, servitudes, features, description.",
                   "",
                   "Rules:",
                   "- listingType must be sale, rental, development, or commercial.",
+                  `- propertyType must be one of: ${propertyTypeValues.join(", ")}.`,
                   "- If the evidence says 'for sale' or has a bond calculator, prefer sale unless there is clear rental/monthly rent language.",
                   "- Only use rental when the page clearly says to rent, rental, lease, per month, /month, p/m, or monthly rental.",
                   "- askingPrice must be a number in ZAR, without cents or separators.",
@@ -1323,6 +1437,23 @@ export async function importListingDraftFromUrl(
     const erfSize =
       firstTextNumber(structuredText, /(?:erf|land size|plot size|stand size)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m²|sqm|sq m|square metres?)/i) ||
       firstTextNumber(structuredText, /(\d+(?:[,.]\d+)?)\s*(?:m²|sqm|sq m|square metres?)\D{0,24}(?:erf|plot|stand|land)/i);
+    const grossLettableArea =
+      firstTextNumber(structuredText, /(?:gla|gross lettable area)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m²|sqm|sq m|square metres?)/i) ||
+      "";
+    const landSizeHectares =
+      firstTextNumber(structuredText, /(?:land size|farm size|extent)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:ha|hectares?)/i) ||
+      firstTextNumber(structuredText, /(\d+(?:[,.]\d+)?)\s*(?:ha|hectares?)\D{0,24}(?:farm|land|extent)/i);
+    const zoning =
+      firstString(
+        structuredText.match(/\b(residential|commercial|industrial|agricultural|mixed use|development)\s+zoning\b/i)?.[1],
+        structuredText.match(/\bzoned\s+(residential|commercial|industrial|agricultural|mixed use|development)\b/i)?.[1],
+      )
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+    const servitudes =
+      firstString(
+        textLines.find((line) => /\b(servitude|restriction|water rights?|rights registered)\b/i.test(line)),
+      ).slice(0, 180);
     const location =
       jsonLdAddress.location ||
       firstString(metaContent(html, "og:locality"), metaContent(html, "place:location:latitude")) ||
@@ -1335,16 +1466,21 @@ export async function importListingDraftFromUrl(
       country: jsonLdAddress.country,
       description: importedDescriptionHtml(descriptionSource),
       erfSize,
+      estateName: "",
       features: extractFeaturesFromText(visibleText),
       floorSize,
       garages,
+      grossLettableArea,
+      landSizeHectares,
       listingType,
       location,
       parking,
       propertyType,
       province: jsonLdAddress.province,
+      servitudes,
       suburb: jsonLdAddress.suburb,
       title,
+      zoning,
     };
     const aiMapped = await mapImportedListingWithAi({
       baseDraft,
@@ -1483,6 +1619,8 @@ export async function createListing(formData: FormData) {
     typeof data.communityFees === "number"
       ? Math.round(data.communityFees * 100)
       : null;
+  const ratesAndTaxesCents =
+    typeof data.ratesAndTaxes === "number" ? Math.round(data.ratesAndTaxes * 100) : null;
   const utilitiesEstimateCents =
     typeof data.utilitiesEstimate === "number"
       ? Math.round(data.utilitiesEstimate * 100)
@@ -1524,31 +1662,51 @@ export async function createListing(formData: FormData) {
       coverImageUrl,
       description: description || null,
       details: {
+        addressVisibility: data.addressVisibility || "area",
         availableFrom: data.availableFrom || null,
         bathrooms: data.bathrooms ?? null,
         bedrooms: data.bedrooms ?? null,
         buyerIncentive: data.buyerIncentive || null,
         communityFeesCents,
+        developerName: data.developerName || null,
         erfSize: data.erfSize ?? null,
+        estateName: data.estateName || null,
         floorSize: data.floorSize ?? null,
         furnishedStatus: data.furnishedStatus || null,
         garages: data.garages ?? null,
+        grossLettableArea: data.grossLettableArea ?? null,
         googlePlaceData,
         googlePlaceId: data.googlePlaceId || null,
         insuranceEstimateCents,
+        landSizeHectares: data.landSizeHectares ?? null,
+        leaseExpiryDate: data.leaseExpiryDate || null,
+        listingVisibility: data.listingVisibility || "public",
         localTaxesCents,
+        loadingBays: data.loadingBays ?? null,
         city: data.city || null,
         country: data.country || null,
+        occupancyStatus: data.occupancyStatus || null,
+        ownershipType: data.ownershipType || null,
+        outbuildings: data.outbuildings || null,
         parking: data.parking ?? null,
         petsAllowed: data.petsAllowed || null,
+        powerSupply: data.powerSupply || null,
         previousAskingPriceCents,
         priceQualifier: data.priceQualifier || null,
+        propertyCategory: data.propertyCategory,
         province: data.province || null,
+        ratesAndTaxesCents,
         rentalYield: data.rentalYield ?? null,
+        servitudes: data.servitudes || null,
         shortLetAllowed: data.shortLetAllowed || null,
         suburb: data.suburb || null,
+        titleDeedStatus: data.titleDeedStatus || null,
         transferCostsEstimateCents,
+        unitCount: data.unitCount ?? null,
+        contactVisibility: data.contactVisibility || "show",
         utilitiesEstimateCents,
+        waterRights: data.waterRights || null,
+        zoning: data.zoning || null,
       },
       features: data.features || [],
       listedAt: data.publishIntent === "published" ? new Date() : undefined,
@@ -1771,6 +1929,8 @@ export async function updateListing(formData: FormData) {
     typeof data.communityFees === "number"
       ? Math.round(data.communityFees * 100)
       : null;
+  const ratesAndTaxesCents =
+    typeof data.ratesAndTaxes === "number" ? Math.round(data.ratesAndTaxes * 100) : null;
   const utilitiesEstimateCents =
     typeof data.utilitiesEstimate === "number"
       ? Math.round(data.utilitiesEstimate * 100)
@@ -1816,31 +1976,51 @@ export async function updateListing(formData: FormData) {
         coverImageUrl,
         description: description || null,
         details: {
+          addressVisibility: data.addressVisibility || "area",
           availableFrom: data.availableFrom || null,
           bathrooms: data.bathrooms ?? null,
           bedrooms: data.bedrooms ?? null,
           buyerIncentive: data.buyerIncentive || null,
           communityFeesCents,
+          developerName: data.developerName || null,
           erfSize: data.erfSize ?? null,
+          estateName: data.estateName || null,
           floorSize: data.floorSize ?? null,
           furnishedStatus: data.furnishedStatus || null,
           garages: data.garages ?? null,
+          grossLettableArea: data.grossLettableArea ?? null,
           googlePlaceData: locationFields.googlePlaceData,
           googlePlaceId: locationFields.googlePlaceId,
           insuranceEstimateCents,
+          landSizeHectares: data.landSizeHectares ?? null,
+          leaseExpiryDate: data.leaseExpiryDate || null,
+          listingVisibility: data.listingVisibility || "public",
           city: locationFields.city,
           country: locationFields.country,
           localTaxesCents,
+          loadingBays: data.loadingBays ?? null,
+          occupancyStatus: data.occupancyStatus || null,
+          ownershipType: data.ownershipType || null,
+          outbuildings: data.outbuildings || null,
           parking: data.parking ?? null,
           petsAllowed: data.petsAllowed || null,
+          powerSupply: data.powerSupply || null,
           previousAskingPriceCents,
           priceQualifier: data.priceQualifier || null,
+          propertyCategory: data.propertyCategory,
           province: locationFields.province,
+          ratesAndTaxesCents,
           rentalYield: data.rentalYield ?? null,
+          servitudes: data.servitudes || null,
           shortLetAllowed: data.shortLetAllowed || null,
           suburb: locationFields.suburb,
+          titleDeedStatus: data.titleDeedStatus || null,
           transferCostsEstimateCents,
+          unitCount: data.unitCount ?? null,
+          contactVisibility: data.contactVisibility || "show",
           utilitiesEstimateCents,
+          waterRights: data.waterRights || null,
+          zoning: data.zoning || null,
         },
         features: data.features || [],
         listedAt:
