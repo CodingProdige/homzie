@@ -461,6 +461,43 @@ export const propertyListings = pgTable(
   ],
 );
 
+export const errorLogs = pgTable(
+  "error_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    source: text("source").notNull().default("server_action"),
+    route: text("route"),
+    action: text("action"),
+    stage: text("stage"),
+    severity: text("severity").notNull().default("error"),
+    status: text("status").notNull().default("unread"),
+    pinned: boolean("pinned").notNull().default(false),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    username: text("username"),
+    listingId: uuid("listing_id").references(() => propertyListings.id, {
+      onDelete: "set null",
+    }),
+    message: text("message").notNull(),
+    digest: text("digest"),
+    stack: text("stack"),
+    metadata: jsonb("metadata").notNull().default({}),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("error_logs_source_idx").on(table.source),
+    index("error_logs_action_idx").on(table.action),
+    index("error_logs_stage_idx").on(table.stage),
+    index("error_logs_severity_idx").on(table.severity),
+    index("error_logs_status_idx").on(table.status),
+    index("error_logs_pinned_idx").on(table.pinned),
+    index("error_logs_user_id_idx").on(table.userId),
+    index("error_logs_listing_id_idx").on(table.listingId),
+    index("error_logs_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const listingReservations = pgTable(
   "listing_reservations",
   {
@@ -1949,6 +1986,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     relationName: "agencyOwnershipTransferRecipient",
   }),
   subscriptions: many(subscriptions),
+  errorLogs: many(errorLogs),
   propertyIdentities: many(propertyIdentities),
   propertyListings: many(propertyListings),
   propertySaleClaims: many(propertySaleClaims),
@@ -2178,6 +2216,7 @@ export const propertyListingsRelations = relations(propertyListings, ({ one, man
     fields: [propertyListings.propertyIdentityId],
     references: [propertyIdentities.id],
   }),
+  errorLogs: many(errorLogs),
   saleClaim: one(propertySaleClaims),
   statusHistory: many(propertyListingStatusHistory),
   saves: many(listingSaves),
@@ -2186,6 +2225,17 @@ export const propertyListingsRelations = relations(propertyListings, ({ one, man
   presenceSessions: many(listingPresenceSessions),
   viewEvents: many(listingViewEvents),
   reels: many(reels),
+}));
+
+export const errorLogsRelations = relations(errorLogs, ({ one }) => ({
+  listing: one(propertyListings, {
+    fields: [errorLogs.listingId],
+    references: [propertyListings.id],
+  }),
+  user: one(users, {
+    fields: [errorLogs.userId],
+    references: [users.id],
+  }),
 }));
 
 export const propertySaleClaimsRelations = relations(propertySaleClaims, ({ one }) => ({
@@ -2493,6 +2543,8 @@ export type NewNotificationSurfaceTemplate =
   typeof notificationSurfaceTemplates.$inferInsert;
 export type EmailDeliveryLog = typeof emailDeliveryLogs.$inferSelect;
 export type NewEmailDeliveryLog = typeof emailDeliveryLogs.$inferInsert;
+export type ErrorLog = typeof errorLogs.$inferSelect;
+export type NewErrorLog = typeof errorLogs.$inferInsert;
 export type AdCampaign = typeof adCampaigns.$inferSelect;
 export type NewAdCampaign = typeof adCampaigns.$inferInsert;
 export type Reel = typeof reels.$inferSelect;

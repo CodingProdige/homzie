@@ -63,13 +63,20 @@ import {
 } from "@/modules/messages/actions";
 import { ChatNowButton } from "@/modules/messages/components/chat-now-button";
 import { ReportContentButton } from "@/modules/moderation/report-content-button";
+import {
+  formatBathroomCount,
+  formatPlainNumber,
+  parseListingNumberInput,
+} from "@/modules/listings/numeric-values";
 
 function featureHashtag(value: string) {
   return `#${value.replace(/\s+/g, "")}`;
 }
 
 function formatMetric(value: number | null | undefined) {
-  return typeof value === "number" && Number.isFinite(value) ? String(value) : "0";
+  const parsed = parseListingNumberInput(value);
+
+  return parsed !== null && parsed > 0 ? formatPlainNumber(parsed, 2) : "0";
 }
 
 function hasPositiveMetric(value: number | null | undefined) {
@@ -151,7 +158,7 @@ function listingDetailStats(listing: ListingDetailData) {
 
   return [
     { icon: BedDouble, value: `${formatMetric(listing.bedrooms)} beds` },
-    { icon: Bath, value: `${formatMetric(listing.bathrooms)} baths` },
+    { icon: Bath, value: `${formatBathroomCount(listing.bathrooms)} baths` },
     { icon: Car, value: `${formatMetric(listing.garages)} garages` },
     { icon: ParkingCircle, value: `${formatMetric(listing.parking)} parking` },
     { icon: Ruler, value: `${formatMetric(listing.floorSize)}m² floor` },

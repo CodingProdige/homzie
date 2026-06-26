@@ -40,6 +40,7 @@ import {
   extractHashtags,
   recordHashtagUsage,
 } from "@/modules/hashtags/server";
+import { captureErrorLog } from "@/modules/error-logs/server";
 import {
   listingTypeOptions,
   mandateTypeOptions,
@@ -52,6 +53,12 @@ import {
   mandateOptionsForListingType,
   plainListingDescription,
 } from "@/modules/listings/listing-validation";
+import {
+  formatPlainNumber,
+  isHalfStepNumber,
+  normalizeListingNumberInput,
+  roundBathroomCount,
+} from "@/modules/listings/numeric-values";
 import {
   calculateReservationFees,
   getStoredReservationSettings,
@@ -145,7 +152,14 @@ const listingSchema = z.object({
   addressVisibility: z.enum(["area", "exact"]).optional(),
   askingPrice: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   availableFrom: z.string().trim().max(32).optional(),
-  bathrooms: z.coerce.number().min(0).max(99).optional(),
+  bathrooms: z.coerce
+    .number()
+    .min(0)
+    .max(99)
+    .refine(isHalfStepNumber, {
+      message: "Bathrooms must use 0.5 increments.",
+    })
+    .optional(),
   bedrooms: z.coerce.number().int().min(0).max(99).optional(),
   buyerIncentive: z.string().trim().max(40).optional(),
   city: z.string().trim().max(120).optional(),
@@ -320,7 +334,7 @@ function parseListingFormData(formData: FormData) {
     addressVisibility: formData.get("addressVisibility") || "area",
     askingPrice: numberOrUndefined(formData.get("askingPrice")),
     availableFrom: formData.get("availableFrom"),
-    bathrooms: decimalOrUndefined(formData.get("bathrooms")),
+    bathrooms: numberOrUndefined(formData.get("bathrooms")),
     bedrooms: numberOrUndefined(formData.get("bedrooms")),
     buyerIncentive: formData.get("buyerIncentive"),
     city: formData.get("city"),
@@ -405,6 +419,103 @@ function parseListingFormData(formData: FormData) {
   }
 
   return { data: parsed.data, description };
+}
+
+function formStringPreview(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  return typeof value === "string" ? value.slice(0, 180) : null;
+}
+
+function formNumberPreview(formData: FormData, key: string) {
+  const value = Number(formStringPreview(formData, key));
+
+  return Number.isFinite(value) ? value : null;
+}
+
+function existingMediaCount(formData: FormData) {
+  const value = formData.get("existingMedia");
+
+  if (typeof value !== "string" || !value.trim()) return 0;
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return Array.isArray(parsed) ? parsed.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function mediaMetrics(formData: FormData) {
+  const mediaFiles = formData.getAll("mediaFiles");
+
+  return {
+    existingMediaCount: existingMediaCount(formData),
+    mediaPayloadBytes: mediaFiles.reduce(
+      (total, value) => total + (value instanceof File ? value.size : 0),
+      0,
+    ),
+    mediaUploadCount: mediaFiles.filter(
+      (value) => value instanceof File && value.size > 0,
+    ).length,
+  };
+}
+
+function listingActionMetadata(
+  formData: FormData,
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    ...mediaMetrics(formData),
+    addressVisibility: formStringPreview(formData, "addressVisibility"),
+    coverIndex: formNumberPreview(formData, "coverIndex"),
+    flow: "listing_create_edit",
+    listingType: formStringPreview(formData, "listingType"),
+    listingVisibility: formStringPreview(formData, "listingVisibility"),
+    mandateType: formStringPreview(formData, "mandateType"),
+    propertyCategory: formStringPreview(formData, "propertyCategory"),
+    propertyType: formStringPreview(formData, "propertyType"),
+    publishIntent: formStringPreview(formData, "publishIntent") || "draft",
+    reservationEnabled: formData.get("reservationEnabled") === "on",
+    ...extra,
+  };
+}
+
+async function captureListingActionError({
+  action,
+  error,
+  formData,
+  listingId,
+  metadata,
+  route,
+  severity = "error",
+  stage,
+  userId,
+  username,
+}: {
+  action: "create_listing" | "update_listing";
+  error: unknown;
+  formData: FormData;
+  listingId?: string | null;
+  metadata?: Record<string, unknown>;
+  route: string;
+  severity?: "warning" | "error" | "critical";
+  stage: string;
+  userId: string;
+  username?: string | null;
+}) {
+  await captureErrorLog({
+    action,
+    error,
+    listingId,
+    metadata: listingActionMetadata(formData, metadata),
+    route,
+    severity,
+    stage,
+    userId,
+    username,
+  });
 }
 
 function parseGooglePlaceData(value: string | undefined) {
@@ -1093,7 +1204,10 @@ function mergeImportedDraft(
   return {
     ...base,
     askingPrice: aiDraft.askingPrice ? String(Math.round(aiDraft.askingPrice)) : base.askingPrice,
-    bathrooms: typeof aiDraft.bathrooms === "number" ? String(aiDraft.bathrooms) : base.bathrooms,
+    bathrooms:
+      typeof aiDraft.bathrooms === "number"
+        ? formatPlainNumber(roundBathroomCount(aiDraft.bathrooms), 1)
+        : base.bathrooms,
     bedrooms: typeof aiDraft.bedrooms === "number" ? String(Math.round(aiDraft.bedrooms)) : base.bedrooms,
     description: aiDraft.description ? importedDescriptionHtml(aiDraft.description) : base.description,
     erfSize: typeof aiDraft.erfSize === "number" && aiDraft.erfSize > 0 ? String(aiDraft.erfSize) : base.erfSize,
@@ -1534,7 +1648,29 @@ export async function createListing(formData: FormData) {
   }
 
   const agentProfile = await getAgentProfileForUser(session.user.id);
-  const { data, description } = parseListingFormData(formData);
+  let parsedListing: ReturnType<typeof parseListingFormData>;
+
+  try {
+    parsedListing = parseListingFormData(formData);
+  } catch (error) {
+    console.error("[listings] createListing form parse failed", {
+      error,
+      userId: session.user.id,
+    });
+    await captureListingActionError({
+      action: "create_listing",
+      error,
+      formData,
+      route: "/listings/new",
+      severity: "warning",
+      stage: "create-parse-form",
+      userId: session.user.id,
+      username: user.username,
+    });
+    redirect("/listings/new?listingError=save-failed");
+  }
+
+  const { data, description } = parsedListing;
   const duplicateListing = await findDuplicateActiveListing({
     data,
     userId: session.user.id,
@@ -1570,6 +1706,18 @@ export async function createListing(formData: FormData) {
       storageRoot: getMediaStorageRoot(),
       userId: session.user.id,
     });
+    await captureListingActionError({
+      action: "create_listing",
+      error,
+      formData,
+      metadata: {
+        storageRoot: getMediaStorageRoot(),
+      },
+      route: "/listings/new",
+      stage: "create-media-upload",
+      userId: session.user.id,
+      username: user.username,
+    });
     redirect("/listings/new?listingError=media-upload");
   }
   try {
@@ -1595,6 +1743,15 @@ export async function createListing(formData: FormData) {
     console.error("[listings] createListing reservation validation failed", {
       error,
       userId: session.user.id,
+    });
+    await captureListingActionError({
+      action: "create_listing",
+      error,
+      formData,
+      route: "/listings/new",
+      stage: "create-reservation-validation",
+      userId: session.user.id,
+      username: user.username,
     });
     await cleanupStoredListingMedia(uploadedMedia, {
       stage: "create-reservation-validation",
@@ -1759,6 +1916,18 @@ export async function createListing(formData: FormData) {
       mediaCount: media.length,
       userId: session.user.id,
     });
+    await captureListingActionError({
+      action: "create_listing",
+      error,
+      formData,
+      metadata: {
+        finalMediaCount: media.length,
+      },
+      route: "/listings/new",
+      stage: "create-save-failed",
+      userId: session.user.id,
+      username: user.username,
+    });
     await cleanupStoredListingMedia(uploadedMedia, {
       stage: "create-save-failed",
       userId: session.user.id,
@@ -1798,6 +1967,15 @@ export async function updateListing(formData: FormData) {
   const listingId = z.string().uuid().safeParse(formData.get("listingId"));
 
   if (!listingId.success) {
+    await captureErrorLog({
+      action: "update_listing",
+      error: new Error("Listing ID is invalid."),
+      metadata: listingActionMetadata(formData),
+      route: "/listings/[listingId]/edit",
+      severity: "warning",
+      stage: "update-invalid-listing-id",
+      userId: session.user.id,
+    });
     throw new Error("Listing ID is invalid.");
   }
 
@@ -1841,7 +2019,31 @@ export async function updateListing(formData: FormData) {
   }
 
   const agentProfile = await getAgentProfileForUser(session.user.id);
-  const { data, description } = parseListingFormData(formData);
+  let parsedListing: ReturnType<typeof parseListingFormData>;
+
+  try {
+    parsedListing = parseListingFormData(formData);
+  } catch (error) {
+    console.error("[listings] updateListing form parse failed", {
+      error,
+      listingId: listingId.data,
+      userId: session.user.id,
+    });
+    await captureListingActionError({
+      action: "update_listing",
+      error,
+      formData,
+      listingId: listingId.data,
+      route: `/listings/${listingId.data}/edit`,
+      severity: "warning",
+      stage: "update-parse-form",
+      userId: session.user.id,
+      username: user.username,
+    });
+    redirect(`/listings/${listingId.data}/edit?listingError=save-failed`);
+  }
+
+  const { data, description } = parsedListing;
   const mediaFiles = formData.getAll("mediaFiles");
   const mediaUploadCount = mediaFiles.filter(
     (value) => value instanceof File && value.size > 0,
@@ -1863,6 +2065,19 @@ export async function updateListing(formData: FormData) {
       mediaPayloadBytes,
       storageRoot: getMediaStorageRoot(),
       userId: session.user.id,
+    });
+    await captureListingActionError({
+      action: "update_listing",
+      error,
+      formData,
+      listingId: listingId.data,
+      metadata: {
+        storageRoot: getMediaStorageRoot(),
+      },
+      route: `/listings/${listingId.data}/edit`,
+      stage: "update-media-upload",
+      userId: session.user.id,
+      username: user.username,
     });
     redirect(`/listings/${listingId.data}/edit?listingError=media-upload`);
   }
@@ -1944,6 +2159,16 @@ export async function updateListing(formData: FormData) {
       error,
       listingId: listingId.data,
       userId: session.user.id,
+    });
+    await captureListingActionError({
+      action: "update_listing",
+      error,
+      formData,
+      listingId: listingId.data,
+      route: `/listings/${listingId.data}/edit`,
+      stage: "update-reservation-validation",
+      userId: session.user.id,
+      username: user.username,
     });
     await cleanupStoredListingMedia(uploadedMedia, {
       listingId: listingId.data,
@@ -2114,6 +2339,19 @@ export async function updateListing(formData: FormData) {
       listingId: listingId.data,
       mediaCount: media.length,
       userId: session.user.id,
+    });
+    await captureListingActionError({
+      action: "update_listing",
+      error,
+      formData,
+      listingId: listingId.data,
+      metadata: {
+        finalMediaCount: media.length,
+      },
+      route: `/listings/${listingId.data}/edit`,
+      stage: "update-save-failed",
+      userId: session.user.id,
+      username: user.username,
     });
     await cleanupStoredListingMedia(uploadedMedia, {
       listingId: listingId.data,
@@ -3487,28 +3725,11 @@ export async function improveListingDescription(input: {
 }
 
 function numberOrUndefined(value: FormDataEntryValue | null) {
-  const stringValue = String(value || "").trim();
-
-  return stringValue ? stringValue : undefined;
+  return normalizeListingNumberInput(value, 2);
 }
 
 function decimalOrUndefined(value: FormDataEntryValue | null, decimalPlaces = 2) {
-  const stringValue = String(value || "").trim();
-
-  if (!stringValue) return undefined;
-
-  const match = stringValue.match(/^([+-]?\d*\.)(\d+)$/);
-
-  if (!match) {
-    return stringValue;
-  }
-
-  const [, prefix, decimals] = match;
-  const precision = Math.max(0, decimalPlaces);
-
-  return decimals.length > precision
-    ? `${prefix}${decimals.slice(0, precision)}`
-    : stringValue;
+  return normalizeListingNumberInput(value, decimalPlaces);
 }
 
 async function checkAiActionCooldown(userId: string, action: string) {

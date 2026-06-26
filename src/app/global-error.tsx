@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 
+import { reportClientErrorBoundary } from "@/modules/error-logs/client";
+
 export default function GlobalError({
   error,
   unstable_retry,
@@ -12,6 +14,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[global-error]", error);
+    void reportClientErrorBoundary({ boundary: "global", error });
   }, [error]);
 
   return (

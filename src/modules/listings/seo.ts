@@ -4,6 +4,11 @@ import {
   type ListingType,
   type PropertyType,
 } from "@/modules/listings/options";
+import {
+  formatBathroomCount,
+  formatPlainNumber,
+  parseListingNumberInput,
+} from "@/modules/listings/numeric-values";
 
 type ListingSeoInput = {
   bathrooms?: number | string | null;
@@ -92,9 +97,15 @@ function locationParts(value: string | null | undefined) {
 }
 
 function numberLabel(value: number | string | null | undefined) {
-  const parsed = typeof value === "number" ? value : Number(value || 0);
+  const parsed = parseListingNumberInput(value);
 
-  return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
+  return parsed !== null && parsed > 0 ? formatPlainNumber(parsed, 2) : "";
+}
+
+function bathroomLabel(value: number | string | null | undefined) {
+  const parsed = parseListingNumberInput(value);
+
+  return parsed !== null && parsed > 0 ? formatBathroomCount(parsed) : "";
 }
 
 function listingArea(listing: ListingSeoInput) {
@@ -172,7 +183,7 @@ export function buildListingSeoTitle(listing: ListingSeoInput) {
 
 export function buildListingSeoDescription(listing: ListingSeoInput) {
   const bedrooms = numberLabel(listing.bedrooms);
-  const bathrooms = numberLabel(listing.bathrooms);
+  const bathrooms = bathroomLabel(listing.bathrooms);
   const propertyType = cleanPropertyTypeLabel(listing.propertyType);
   const listingType = optionLabel(listingTypeOptions, listing.listingType).toLowerCase();
   const city = compactText(listing.city || "") || listingArea(listing);

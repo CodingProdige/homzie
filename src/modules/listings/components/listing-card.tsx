@@ -37,6 +37,11 @@ import { useCurrency } from "@/modules/currency/currency-provider";
 import { mandateTypeOptions, type ListingType } from "@/modules/listings/options";
 import { countryFlagFromLocation } from "@/modules/location/country-preference";
 import { getAnalyticsViewerSessionId } from "@/modules/analytics/browser-session";
+import {
+  formatBathroomCount,
+  formatPlainNumber,
+  parseListingNumberInput,
+} from "@/modules/listings/numeric-values";
 import type { EffectiveAgencyBrand } from "@/modules/agencies/server";
 
 export type ListingCardData = {
@@ -105,15 +110,15 @@ function formatMandateDates(startDate?: string | null, endDate?: string | null) 
 }
 
 function formatMetric(value: ListingCardData["bedrooms"]) {
-  return value || "0";
+  const parsed = parseListingNumberInput(value);
+
+  return parsed !== null && parsed > 0 ? formatPlainNumber(parsed, 2) : "0";
 }
 
 function hasMetricValue(value: ListingCardData["bedrooms"]) {
-  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  const parsed = parseListingNumberInput(value);
 
-  const parsed = Number(String(value || "").trim());
-
-  return Number.isFinite(parsed) && parsed > 0;
+  return parsed !== null && parsed > 0;
 }
 
 type ListingCardStatData = {
@@ -198,7 +203,7 @@ function listingCardStats(listing: ListingCardData) {
     },
     {
       icon: Bath,
-      value: `${formatMetric(listing.bathrooms)} bathrooms`,
+      value: `${formatBathroomCount(listing.bathrooms)} bathrooms`,
     },
     {
       icon: Car,

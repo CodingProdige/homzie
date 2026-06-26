@@ -32,6 +32,22 @@ async function getAdminUser(userId: string) {
   return admin;
 }
 
+async function getUnreadErrorLogCount() {
+  try {
+    const [row] = await sql<Array<{ count: number | string | null }>>`
+      SELECT count(*) AS count
+      FROM error_logs
+      WHERE status = 'unread'
+    `;
+
+    return Number(row?.count || 0);
+  } catch (error) {
+    console.warn("[admin] unread error log count unavailable", error);
+
+    return 0;
+  }
+}
+
 export default async function AdminLayout({
   children,
 }: {
@@ -49,5 +65,14 @@ export default async function AdminLayout({
     redirect("/");
   }
 
-  return <AdminShell adminEmail={admin.email}>{children}</AdminShell>;
+  const unreadErrorLogCount = await getUnreadErrorLogCount();
+
+  return (
+    <AdminShell
+      adminEmail={admin.email}
+      unreadErrorLogCount={unreadErrorLogCount}
+    >
+      {children}
+    </AdminShell>
+  );
 }

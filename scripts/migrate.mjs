@@ -2806,6 +2806,74 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS error_logs (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      source text NOT NULL DEFAULT 'server_action',
+      route text,
+      action text,
+      stage text,
+      severity text NOT NULL DEFAULT 'error',
+      status text NOT NULL DEFAULT 'unread',
+      pinned boolean NOT NULL DEFAULT false,
+      user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      username text,
+      listing_id uuid REFERENCES property_listings(id) ON DELETE SET NULL,
+      message text NOT NULL,
+      digest text,
+      stack text,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      read_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_source_idx
+    ON error_logs (source)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_action_idx
+    ON error_logs (action)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_stage_idx
+    ON error_logs (stage)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_severity_idx
+    ON error_logs (severity)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_status_idx
+    ON error_logs (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_pinned_idx
+    ON error_logs (pinned)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_user_id_idx
+    ON error_logs (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_listing_id_idx
+    ON error_logs (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS error_logs_created_at_idx
+    ON error_logs (created_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS music_tracks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       title text NOT NULL,

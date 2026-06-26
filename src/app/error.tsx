@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, Home, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { reportClientErrorBoundary } from "@/modules/error-logs/client";
 
 export default function AppError({
   error,
@@ -15,6 +16,7 @@ export default function AppError({
 }) {
   useEffect(() => {
     console.error("[app-error]", error);
+    void reportClientErrorBoundary({ boundary: "app", error });
   }, [error]);
 
   return (
@@ -24,18 +26,18 @@ export default function AppError({
           <div className="mx-auto grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
             <AlertTriangle className="size-8" />
           </div>
-          <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-primary">
+          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             Something went wrong
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-normal sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-semibold tracking-normal sm:text-4xl">
             Homzie could not finish loading this page
           </h1>
-          <p className="mt-4 text-sm font-semibold leading-7 text-muted-foreground sm:text-base">
+          <p className="mt-4 text-sm font-normal leading-7 text-muted-foreground sm:text-base">
             The request may have timed out or the server may have returned an
             unexpected response. Try again, or head back home and reopen the page.
           </p>
           {error.digest ? (
-            <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs font-bold text-muted-foreground">
+            <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs font-normal text-muted-foreground">
               Error reference: {error.digest}
             </p>
           ) : null}

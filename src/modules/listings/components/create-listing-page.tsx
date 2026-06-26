@@ -82,6 +82,13 @@ import {
   type PropertyType,
 } from "@/modules/listings/options";
 import {
+  formatGroupedMoney,
+  formatGroupedNumber,
+  formatPlainNumber,
+  parseListingNumberInput,
+  roundBathroomCount,
+} from "@/modules/listings/numeric-values";
+import {
   commercialPropertyTypes,
   getListingStrength,
   getListingPublishIssues as getPublishIssues,
@@ -860,7 +867,8 @@ function integerInputValue(value: string) {
 }
 
 function decimalInputValue(value: string, decimalPlaces = 2) {
-  const sanitized = value.replace(/[^\d.]/g, "");
+  const normalized = value.replace(",", ".");
+  const sanitized = normalized.replace(/[^\d.]/g, "");
   const [whole = "", ...decimalParts] = sanitized.split(".");
 
   if (!sanitized.includes(".")) {
@@ -868,6 +876,21 @@ function decimalInputValue(value: string, decimalPlaces = 2) {
   }
 
   return `${whole}.${decimalParts.join("").slice(0, decimalPlaces)}`;
+}
+
+function steppedDecimalInputValue(
+  value: string,
+  step: number,
+  decimalPlaces: number,
+) {
+  const parsed = parseListingNumberInput(value);
+
+  if (parsed === null) return "";
+
+  return formatPlainNumber(
+    step === 0.5 ? roundBathroomCount(parsed) : Math.round(parsed / step) * step,
+    decimalPlaces,
+  );
 }
 
 function normalizeFeatureInput(value: string) {
@@ -1711,34 +1734,127 @@ function formatEditableCurrencyValue(
   value: string,
   convertFromZarAmount: (amountZar: number) => number,
 ) {
-  if (!value) return "";
+  const amount = parseListingNumberInput(value);
 
-  const amount = Number(value);
-
-  if (!Number.isFinite(amount)) return "";
+  if (amount === null) return "";
 
   const converted = convertFromZarAmount(amount);
 
-  return Number.isInteger(converted)
-    ? String(converted)
-    : converted.toFixed(2).replace(/\.?0+$/, "");
+  return formatGroupedMoney(converted);
+}
+
+function inferMoneyEditingDecimalSeparator(value: string) {
+  const lastDotIndex = value.lastIndexOf(".");
+  const lastCommaIndex = value.lastIndexOf(",");
+
+  if (lastDotIndex >= 0 && lastCommaIndex >= 0) {
+    return lastDotIndex > lastCommaIndex ? "." : ",";
+  }
+
+  const separator =
+    lastDotIndex >= 0 ? "." : lastCommaIndex >= 0 ? "," : null;
+
+  if (!separator) return null;
+  if (value.endsWith(separator)) return separator;
+
+  const parts = value.split(separator);
+  const finalPart = parts[parts.length - 1] || "";
+
+  return finalPart.length > 0 && finalPart.length <= 2 ? separator : null;
+}
+
+function formatMoneyEditingValue(value: string) {
+  const cleaned = value.replace(/\s+/g, "").replace(/[^\d.,]/g, "");
+
+  if (!cleaned || !/\d/.test(cleaned)) return "";
+
+  const decimalSeparator = inferMoneyEditingDecimalSeparator(cleaned);
+
+  if (!decimalSeparator) {
+    const wholeDigits = cleaned.replace(/\D/g, "");
+
+    return wholeDigits ? formatGroupedNumber(Number(wholeDigits), 0) : "";
+  }
+
+  const decimalIndex = cleaned.lastIndexOf(decimalSeparator);
+  const wholeDigits = cleaned.slice(0, decimalIndex).replace(/\D/g, "");
+  const decimalDigits = cleaned
+    .slice(decimalIndex + 1)
+    .replace(/\D/g, "")
+    .slice(0, 2);
+  const wholeValue = wholeDigits ? Number(wholeDigits) : 0;
+
+  return `${formatGroupedNumber(wholeValue, 0)}.${decimalDigits}`;
 }
 
 function editableCurrencyToZarValue(
   value: string,
   convertToZarAmount: (amount: number) => number,
 ) {
-  if (!value) return "";
+  const amount = parseListingNumberInput(value);
 
-  const amount = Number(value);
+  if (amount === null) return "";
 
-  if (!Number.isFinite(amount)) return "";
+  return formatPlainNumber(convertToZarAmount(amount), 2);
+}
 
-  const converted = convertToZarAmount(amount);
+function CurrencyAmountInput({
+  className,
+  convertFromZarAmount,
+  convertToZarAmount,
+  onValueChange,
+  placeholder,
+  value,
+}: {
+  className?: string;
+  convertFromZarAmount: (amountZar: number) => number;
+  convertToZarAmount: (amount: number) => number;
+  onValueChange: (value: string) => void;
+  placeholder?: string;
+  value: string;
+}) {
+  const formattedValue = formatEditableCurrencyValue(value, convertFromZarAmount);
+  const [displayValue, setDisplayValue] = useState(formattedValue);
+  const focusedRef = useRef(false);
 
-  return Number.isInteger(converted)
-    ? String(converted)
-    : converted.toFixed(2).replace(/\.?0+$/, "");
+  useEffect(() => {
+    if (!focusedRef.current) {
+      setDisplayValue(formattedValue);
+    }
+  }, [formattedValue]);
+
+  return (
+    <input
+      value={displayValue}
+      type="text"
+      inputMode="decimal"
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
+      onChange={(event) => {
+        const nextDisplayValue = formatMoneyEditingValue(event.target.value);
+
+        setDisplayValue(nextDisplayValue);
+        onValueChange(editableCurrencyToZarValue(nextDisplayValue, convertToZarAmount));
+      }}
+      onBlur={() => {
+        focusedRef.current = false;
+
+        const amount = parseListingNumberInput(displayValue);
+
+        if (amount === null) {
+          setDisplayValue("");
+          onValueChange("");
+          return;
+        }
+
+        setDisplayValue(formatGroupedMoney(amount));
+        onValueChange(formatPlainNumber(convertToZarAmount(amount), 2));
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
 }
 
 function isReducedPrice(askingPrice: string, previousAskingPrice: string) {
@@ -1782,19 +1898,12 @@ function ListingCostInput({
           <AnalyticsInfoPopover title={label} description={description} />
         ) : null}
       </span>
-      <input
-        value={formatEditableCurrencyValue(value, convertFromZarAmount)}
-        type="number"
-        min="0"
-        step="0.01"
-        onChange={(event) =>
-          updateDraft(
-            setDraft,
-            draftKey,
-            editableCurrencyToZarValue(event.target.value, convertToZarAmount),
-          )
-        }
-        placeholder={placeholder || "Optional"}
+      <CurrencyAmountInput
+        value={value}
+        convertFromZarAmount={convertFromZarAmount}
+        convertToZarAmount={convertToZarAmount}
+        onValueChange={(nextValue) => updateDraft(setDraft, draftKey, nextValue)}
+        placeholder={placeholder || "0.00"}
         className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
       />
     </label>
@@ -4379,18 +4488,17 @@ function DetailsStep({
       <div className="grid grid-cols-2 gap-4">
         {(
           [
-          ["bedrooms", "Bedrooms", "1"],
-          ["bathrooms", "Bathrooms", "0.01"],
-          ["garages", "Garages", "1"],
-          ["parking", "Parking", "1"],
+          ["bedrooms", "Bedrooms"],
+          ["bathrooms", "Bathrooms"],
+          ["garages", "Garages"],
+          ["parking", "Parking"],
           ] satisfies Array<
             [
               "bedrooms" | "bathrooms" | "garages" | "parking",
               string,
-              string,
             ]
           >
-        ).map(([key, label, step]) => (
+        ).map(([key, label]) => (
           <label key={key} className="block text-sm font-medium">
             <span className="inline-flex items-center">
               {label}
@@ -4402,18 +4510,26 @@ function DetailsStep({
             <input
               name={key}
               value={draft[key]}
-              type="number"
-              min="0"
-              step={step}
+              type="text"
+              inputMode={key === "bathrooms" ? "decimal" : "numeric"}
               onChange={(event) =>
                 updateDraft(
                   setDraft,
                   key,
                   (key === "bathrooms"
-                    ? decimalInputValue(event.target.value)
+                    ? decimalInputValue(event.target.value, 1)
                     : integerInputValue(event.target.value)),
                 )
               }
+              onBlur={(event) => {
+                if (key !== "bathrooms") return;
+
+                updateDraft(
+                  setDraft,
+                  "bathrooms",
+                  steppedDecimalInputValue(event.target.value, 0.5, 1),
+                );
+              }}
               className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>
@@ -4431,9 +4547,8 @@ function DetailsStep({
           <input
             name="floorSize"
             value={draft.floorSize}
-            type="number"
-            min="0"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             onChange={(event) =>
               updateDraft(setDraft, "floorSize", decimalInputValue(event.target.value))
             }
@@ -4450,9 +4565,8 @@ function DetailsStep({
           <input
             name="erfSize"
             value={draft.erfSize}
-            type="number"
-            min="0"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             onChange={(event) =>
               updateDraft(setDraft, "erfSize", decimalInputValue(event.target.value))
             }
@@ -4464,9 +4578,8 @@ function DetailsStep({
           <input
             name="storeys"
             value={draft.storeys}
-            type="number"
-            min="0"
-            step="1"
+            type="text"
+            inputMode="numeric"
             onChange={(event) =>
               updateDraft(setDraft, "storeys", integerInputValue(event.target.value))
             }
@@ -4547,9 +4660,8 @@ function DetailsStep({
             Gross lettable area m²
             <input
               value={draft.grossLettableArea}
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               onChange={(event) =>
                 updateDraft(
                   setDraft,
@@ -4570,9 +4682,8 @@ function DetailsStep({
             Loading bays
             <input
               value={draft.loadingBays}
-              type="number"
-              min="0"
-              step="1"
+              type="text"
+              inputMode="numeric"
               onChange={(event) =>
                 updateDraft(setDraft, "loadingBays", integerInputValue(event.target.value))
               }
@@ -4600,9 +4711,8 @@ function DetailsStep({
             Land size hectares
             <input
               value={draft.landSizeHectares}
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               onChange={(event) =>
                 updateDraft(
                   setDraft,
@@ -4655,9 +4765,8 @@ function DetailsStep({
             Unit count
             <input
               value={draft.unitCount}
-              type="number"
-              min="0"
-              step="1"
+              type="text"
+              inputMode="numeric"
               onChange={(event) =>
                 updateDraft(setDraft, "unitCount", integerInputValue(event.target.value))
               }
@@ -4752,14 +4861,6 @@ function PricingStep({
     draft.askingPrice,
     draft.previousAskingPrice,
   );
-  const askingPriceValue = formatEditableCurrencyValue(
-    draft.askingPrice,
-    convertFromZarAmount,
-  );
-  const previousAskingPriceValue = formatEditableCurrencyValue(
-    draft.previousAskingPrice,
-    convertFromZarAmount,
-  );
   const askingPricePlaceholder = formatEditableCurrencyValue(
     draft.listingType === "rental" ? "25000" : "4500000",
     convertFromZarAmount,
@@ -4771,8 +4872,8 @@ function PricingStep({
         <div className="min-w-0">
           <h2 className="text-base font-semibold">Pricing</h2>
           <p className="mt-1 text-sm font-normal text-muted-foreground">
-            Enter the base price in ZAR. Preview and listing display follow the
-            selected currency.
+            Enter the amount buyers should see in the selected currency. Homzie
+            handles conversion and storage behind the scenes.
           </p>
         </div>
         <CurrencySelector className="shrink-0 self-start" />
@@ -4783,21 +4884,11 @@ function PricingStep({
             Asking price ({currency})
             <RequiredAsterisk />
           </span>
-          <input
-            value={askingPriceValue}
-            type="number"
-            min="0"
-            step="0.01"
-            onChange={(event) =>
-              updateDraft(
-                setDraft,
-                "askingPrice",
-                editableCurrencyToZarValue(
-                  event.target.value,
-                  convertToZarAmount,
-                ),
-              )
-            }
+          <CurrencyAmountInput
+            value={draft.askingPrice}
+            convertFromZarAmount={convertFromZarAmount}
+            convertToZarAmount={convertToZarAmount}
+            onValueChange={(value) => updateDraft(setDraft, "askingPrice", value)}
             placeholder={askingPricePlaceholder}
             className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
           />
@@ -4810,20 +4901,12 @@ function PricingStep({
               description="Use this when the listing has been reduced. It only appears as Reduced from when it is higher than the asking price."
             />
           </span>
-          <input
-            value={previousAskingPriceValue}
-            type="number"
-            min="0"
-            step="0.01"
-            onChange={(event) =>
-              updateDraft(
-                setDraft,
-                "previousAskingPrice",
-                editableCurrencyToZarValue(
-                  event.target.value,
-                  convertToZarAmount,
-                ),
-              )
+          <CurrencyAmountInput
+            value={draft.previousAskingPrice}
+            convertFromZarAmount={convertFromZarAmount}
+            convertToZarAmount={convertToZarAmount}
+            onValueChange={(value) =>
+              updateDraft(setDraft, "previousAskingPrice", value)
             }
             placeholder="Optional"
             className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
@@ -4879,7 +4962,7 @@ function PricingStep({
             description="Recurring local government or municipal charges associated with owning the property. In South Africa this is usually rates and taxes."
             draftKey="localTaxes"
             label="Local taxes"
-            placeholder="Rates, council or property tax"
+            placeholder="1,500.50"
             setDraft={setDraft}
             value={draft.localTaxes}
           />
@@ -4890,7 +4973,7 @@ function PricingStep({
             description="Recurring body corporate, HOA, estate, strata, levy or community charges paid by the owner or occupant."
             draftKey="communityFees"
             label="Community fees"
-            placeholder="Levies, HOA or strata"
+            placeholder="2,500"
             setDraft={setDraft}
             value={draft.communityFees}
           />
@@ -4934,10 +5017,8 @@ function PricingStep({
             </span>
             <input
               value={draft.rentalYield}
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               onChange={(event) =>
                 updateDraft(
                   setDraft,
@@ -5507,19 +5588,14 @@ function MandateStep({
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             Reservation amount (ZAR)
-            <input
+            <CurrencyAmountInput
               value={draft.reservationAmount}
-              type="number"
-              min="0"
-              step="0.01"
-              onChange={(event) =>
-                updateDraft(
-                  setDraft,
-                  "reservationAmount",
-                  decimalInputValue(event.target.value),
-                )
+              convertFromZarAmount={(amount) => amount}
+              convertToZarAmount={(amount) => amount}
+              onValueChange={(value) =>
+                updateDraft(setDraft, "reservationAmount", value)
               }
-              placeholder="e.g. 5000"
+              placeholder="5,000"
               className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
             />
           </label>

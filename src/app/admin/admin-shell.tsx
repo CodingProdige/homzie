@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   BarChart3,
+  Bug,
   Home,
   Mail,
   Menu,
@@ -27,16 +28,24 @@ import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 type AdminShellProps = {
   adminEmail: string;
   children: ReactNode;
+  unreadErrorLogCount?: number;
 };
 
 const adminNavItems: Array<{
   href: string;
   icon: LucideIcon;
   label: string;
+  showUnreadErrorLogCount?: boolean;
 }> = [
   { href: "/admin", icon: BarChart3, label: "Dashboard" },
   { href: "/admin/users", icon: UsersRound, label: "Users" },
   { href: "/admin/moderation", icon: AlertTriangle, label: "Moderation" },
+  {
+    href: "/admin/logs/error-logs",
+    icon: Bug,
+    label: "Error Logs",
+    showUnreadErrorLogCount: true,
+  },
   { href: "/admin/music", icon: Music, label: "Music Library" },
   { href: "/admin/email-templates", icon: Mail, label: "Email Templates" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
@@ -58,9 +67,11 @@ function AdminHomeButton({ compact = false }: { compact?: boolean }) {
 function AdminNav({
   onNavigate,
   pathname,
+  unreadErrorLogCount = 0,
 }: {
   onNavigate?: () => void;
   pathname: string;
+  unreadErrorLogCount?: number;
 }) {
   return (
     <nav className="space-y-1" aria-label="Admin pages">
@@ -70,6 +81,7 @@ function AdminNav({
           item.href === "/admin"
             ? pathname === "/admin"
             : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const count = item.showUnreadErrorLogCount ? unreadErrorLogCount : 0;
 
         return (
           <Link
@@ -78,13 +90,18 @@ function AdminNav({
             aria-current={isActive ? "page" : undefined}
             onClick={onNavigate}
             className={cn(
-              "flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-bold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none",
+              "flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none",
               isActive &&
                 "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus-visible:bg-primary/15 focus-visible:text-primary",
             )}
           >
             <Icon className="size-4 shrink-0" />
             <span className="truncate">{item.label}</span>
+            {count > 0 ? (
+              <span className="ml-auto inline-flex min-w-5 justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+                {count > 99 ? "99+" : count}
+              </span>
+            ) : null}
           </Link>
         );
       })}
@@ -95,17 +112,19 @@ function AdminNav({
 function AdminSidebar({
   adminEmail,
   pathname,
+  unreadErrorLogCount,
 }: {
   adminEmail: string;
   pathname: string;
+  unreadErrorLogCount: number;
 }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border bg-background px-4 py-5 lg:flex lg:flex-col">
       <Link href="/admin" className="flex items-center gap-3 px-2" aria-label="Admin dashboard">
         <HomzieLogo variant="mark" className="size-9" priority />
         <div className="min-w-0">
-          <p className="text-sm font-black leading-tight">Homzie Admin</p>
-          <p className="truncate text-xs font-semibold text-muted-foreground">
+          <p className="text-sm font-semibold leading-tight">Homzie Admin</p>
+          <p className="truncate text-xs font-normal text-muted-foreground">
             Operations
           </p>
         </div>
@@ -117,21 +136,24 @@ function AdminSidebar({
             <ShieldCheck className="size-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
               Admin clearance
             </p>
-            <p className="truncate text-xs font-black">{adminEmail}</p>
+            <p className="truncate text-xs font-semibold">{adminEmail}</p>
           </div>
         </div>
       </div>
 
       <div className="mt-6 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-        <AdminNav pathname={pathname} />
+        <AdminNav
+          pathname={pathname}
+          unreadErrorLogCount={unreadErrorLogCount}
+        />
       </div>
 
       <div className="space-y-4 border-t border-border pt-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-bold text-muted-foreground">Theme</span>
+          <span className="text-sm font-normal text-muted-foreground">Theme</span>
           <ThemeToggle />
         </div>
         <AdminHomeButton />
@@ -140,13 +162,21 @@ function AdminSidebar({
   );
 }
 
-export function AdminShell({ adminEmail, children }: AdminShellProps) {
+export function AdminShell({
+  adminEmail,
+  children,
+  unreadErrorLogCount = 0,
+}: AdminShellProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
-      <AdminSidebar adminEmail={adminEmail} pathname={pathname} />
+      <AdminSidebar
+        adminEmail={adminEmail}
+        pathname={pathname}
+        unreadErrorLogCount={unreadErrorLogCount}
+      />
 
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden">
@@ -160,7 +190,7 @@ export function AdminShell({ adminEmail, children }: AdminShellProps) {
               <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/35 backdrop-blur-[2px] lg:hidden" />
               <Dialog.Content className="fixed bottom-0 left-0 top-0 z-[90] flex w-[min(84vw,22rem)] flex-col border-r border-border bg-background text-foreground shadow-2xl outline-none lg:hidden">
                 <div className="flex h-16 items-center justify-between border-b border-border px-4">
-                  <Dialog.Title className="text-base font-black">
+                  <Dialog.Title className="text-base font-semibold">
                     Admin menu
                   </Dialog.Title>
                   <Dialog.Description className="sr-only">
@@ -178,22 +208,23 @@ export function AdminShell({ adminEmail, children }: AdminShellProps) {
                       <ShieldCheck className="size-4" />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
                         Admin clearance
                       </p>
-                      <p className="truncate text-xs font-black">{adminEmail}</p>
+                      <p className="truncate text-xs font-semibold">{adminEmail}</p>
                     </div>
                   </div>
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
                   <AdminNav
                     pathname={pathname}
+                    unreadErrorLogCount={unreadErrorLogCount}
                     onNavigate={() => setMenuOpen(false)}
                   />
                 </div>
                 <div className="space-y-4 border-t border-border p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-muted-foreground">
+                    <span className="text-sm font-normal text-muted-foreground">
                       Theme
                     </span>
                     <ThemeToggle />
@@ -206,7 +237,7 @@ export function AdminShell({ adminEmail, children }: AdminShellProps) {
 
           <Link href="/admin" className="flex min-w-0 items-center gap-2">
             <HomzieLogo variant="mark" className="size-7" priority />
-            <span className="truncate text-sm font-black">Homzie Admin</span>
+            <span className="truncate text-sm font-semibold">Homzie Admin</span>
           </Link>
 
           <AdminHomeButton compact />

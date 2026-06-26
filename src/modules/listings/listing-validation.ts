@@ -4,6 +4,7 @@ import {
   type PropertyCategory,
   type PropertyType,
 } from "@/modules/listings/options";
+import { parseListingNumberInput } from "@/modules/listings/numeric-values";
 
 export type ListingPublishIssue = {
   message: string;
@@ -168,13 +169,7 @@ function numberValue(value: number | string | null | undefined) {
     return Number.isFinite(value) ? value : null;
   }
 
-  const normalized = String(value || "").replace(",", ".").trim();
-
-  if (!normalized) return null;
-
-  const parsed = Number(normalized);
-
-  return Number.isFinite(parsed) ? parsed : null;
+  return parseListingNumberInput(value);
 }
 
 function hasNumber(value: number | string | null | undefined) {

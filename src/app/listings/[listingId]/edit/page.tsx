@@ -24,6 +24,10 @@ import {
   type PropertyCategory,
   type PropertyType,
 } from "@/modules/listings/options";
+import {
+  formatBathroomCount,
+  formatPlainNumber,
+} from "@/modules/listings/numeric-values";
 
 type EditListingPageProps = {
   params: Promise<{
@@ -37,12 +41,18 @@ type EditListingPageProps = {
 
 function centsToInput(value: number | null) {
   return typeof value === "number" && Number.isFinite(value)
-    ? String(value / 100)
+    ? formatPlainNumber(value / 100, 2)
     : "";
 }
 
 function numberToInput(value: number | null) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function bathroomsToInput(value: number | null) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? formatBathroomCount(value)
+    : "";
 }
 
 function listingTypeValue(value: string): ListingType {
@@ -92,7 +102,7 @@ function draftFromListing(listing: ListingDetailData): Partial<ListingDraft> {
     addressVisibility: listing.addressVisibility,
     askingPrice: centsToInput(listing.askingPriceCents),
     availableFrom: listing.availableFrom || "",
-    bathrooms: numberToInput(listing.bathrooms),
+    bathrooms: bathroomsToInput(listing.bathrooms),
     bedrooms: numberToInput(listing.bedrooms),
     buyerIncentive: listing.buyerIncentive,
     city: listing.city,
