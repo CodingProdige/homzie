@@ -172,15 +172,30 @@ function conversationTitle(conversation: ConversationSummary | null) {
 }
 
 function DeliveryTicks({ status }: { status: MessageThreadItem["status"] }) {
+  const label =
+    status === "read" ? "Read" : status === "delivered" ? "Delivered" : "Sent";
+
   if (status === "read") {
-    return <CheckCheck className="size-3.5 text-primary" />;
+    return (
+      <span aria-label={label} className="inline-flex" title={label}>
+        <CheckCheck className="size-3.5 text-primary" />
+      </span>
+    );
   }
 
   if (status === "delivered") {
-    return <CheckCheck className="size-3.5 text-muted-foreground" />;
+    return (
+      <span aria-label={label} className="inline-flex" title={label}>
+        <CheckCheck className="size-3.5 text-muted-foreground" />
+      </span>
+    );
   }
 
-  return <Check className="size-3.5 text-muted-foreground" />;
+  return (
+    <span aria-label={label} className="inline-flex" title={label}>
+      <Check className="size-3.5 text-muted-foreground" />
+    </span>
+  );
 }
 
 export function MessagesPage({

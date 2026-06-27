@@ -376,6 +376,10 @@ async function dispatchUserEventNotifications({
     })) || fallbackNotificationSurfaceTemplate({ event: definition, surface: "push" });
   const pushTitle = renderNotificationTemplate(pushTemplate.title || "", context);
   const pushBody = renderNotificationTemplate(pushTemplate.body, context);
+  const pushTag =
+    eventType === "message.created" && conversationId
+      ? `${eventType}:${conversationId}`
+      : eventType;
 
   await Promise.allSettled([
     sendTemplatedEmailToUser({
@@ -389,7 +393,7 @@ async function dispatchUserEventNotifications({
       ? sendPushToUser(userId, {
           body: pushBody,
           data: { eventType, url },
-          tag: eventType,
+          tag: pushTag,
           title: pushTitle,
         })
       : Promise.resolve(),

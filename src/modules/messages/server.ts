@@ -1,6 +1,6 @@
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
-import { createUserEvent } from "@/modules/events/server";
+import { createUserEvent, createUserEventOnce } from "@/modules/events/server";
 import { publishMessageEvent } from "@/modules/messages/realtime";
 
 export type MessageUser = {
@@ -1095,9 +1095,10 @@ async function afterMessageCreated(
     users
       .filter((userId) => userId !== senderUserId)
       .map((userId) =>
-        createUserEvent({
+        createUserEventOnce({
           actorUserId: senderUserId,
           conversationId,
+          dedupeKey: `${eventType}:${messageId}`,
           entityId: messageId,
           entityType: "message",
           eventType,
