@@ -6,6 +6,10 @@ import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  addUserNotificationCreatedListener,
+  isListingNotification,
+} from "@/modules/notifications/realtime-client";
 
 type ActivityRealtimeRefreshProps = {
   className?: string;
@@ -40,12 +44,18 @@ export function ActivityRealtimeRefresh({
       if (document.visibilityState === "visible") refresh();
     };
     const interval = window.setInterval(refreshIfVisible, intervalMs);
+    const removeNotificationListener = addUserNotificationCreatedListener((event) => {
+      if (document.visibilityState === "visible" && isListingNotification(event)) {
+        refresh();
+      }
+    });
 
     document.addEventListener("visibilitychange", refreshIfVisible);
 
     return () => {
       window.clearTimeout(initialUpdate);
       window.clearInterval(interval);
+      removeNotificationListener();
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
   }, [intervalMs, refresh]);

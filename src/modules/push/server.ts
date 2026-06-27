@@ -1,6 +1,7 @@
 import webpush, { type PushSubscription } from "web-push";
 
 import { sql } from "@/db";
+import type { NotificationPreferenceCategory } from "@/modules/notifications/registry";
 
 type NotificationPayload = {
   body: string;
@@ -16,8 +17,27 @@ type SubscriptionRow = {
 };
 
 type PushPreferenceRow = {
+  listing_activity_enabled: boolean;
+  messages_enabled: boolean;
+  profile_activity_enabled: boolean;
   push_enabled: boolean;
+  reel_activity_enabled: boolean;
 };
+
+function pushPreferenceAllows(
+  preferences: PushPreferenceRow | undefined,
+  category?: NotificationPreferenceCategory,
+) {
+  if (!preferences) return true;
+  if (!preferences.push_enabled) return false;
+
+  if (category === "messages") return preferences.messages_enabled;
+  if (category === "listingActivity") return preferences.listing_activity_enabled;
+  if (category === "reelActivity") return preferences.reel_activity_enabled;
+  if (category === "profileActivity") return preferences.profile_activity_enabled;
+
+  return true;
+}
 
 function configureWebPush() {
   const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY;
@@ -66,17 +86,26 @@ export async function removeWebPushSubscription(endpoint: string) {
   `;
 }
 
-export async function sendPushToUser(userId: string, payload: NotificationPayload) {
+export async function sendPushToUser(
+  userId: string,
+  payload: NotificationPayload,
+  options: { preferenceCategory?: NotificationPreferenceCategory } = {},
+) {
   if (!configureWebPush()) return;
 
   const [preferences] = await sql<PushPreferenceRow[]>`
-    SELECT push_enabled
+    SELECT
+      push_enabled,
+      messages_enabled,
+      listing_activity_enabled,
+      reel_activity_enabled,
+      profile_activity_enabled
     FROM user_notification_preferences
     WHERE user_id = ${userId}
     LIMIT 1
   `;
 
-  if (preferences && !preferences.push_enabled) return;
+  if (!pushPreferenceAllows(preferences, options.preferenceCategory)) return;
 
   const subscriptions = await sql<SubscriptionRow[]>`
     SELECT endpoint, p256dh, auth

@@ -1,44 +1,83 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Bell, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { enablePushNotifications } from "@/modules/push/components/push-notification-bootstrap";
+import {
+  enablePushNotifications,
+  getBrowserNotificationStatus,
+  type BrowserNotificationStatus,
+} from "@/modules/push/components/push-notification-bootstrap";
+
+function statusCopy(status: BrowserNotificationStatus | null, error: string) {
+  if (error) return error;
+  if (!status) return "Checking this browser's alert status.";
+
+  if (status.status === "blocked") {
+    return "Notifications are blocked in your browser settings.";
+  }
+
+  if (status.status === "enabled") {
+    return "Alerts are enabled and connected for this browser.";
+  }
+
+  if (status.status === "not-connected") {
+    return "Notifications are allowed, but this browser needs to reconnect.";
+  }
+
+  return status.detail;
+}
 
 export function EnableNotificationsButton() {
-  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
-    () =>
-      typeof window !== "undefined" && "Notification" in window
-        ? Notification.permission
-        : "unsupported",
-  );
+  const [status, setStatus] = useState<BrowserNotificationStatus | null>(null);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  if (permission === "unsupported") return null;
+  useEffect(() => {
+    let isMounted = true;
 
-  const isGranted = permission === "granted";
+    void getBrowserNotificationStatus().then((nextStatus) => {
+      if (isMounted) {
+        setStatus(nextStatus);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (!status || status.status === "unsupported") return null;
+
+  const isBlocked = status?.status === "blocked";
+  const isConnected = status?.status === "enabled";
+  const hasPermission = status?.permission === "granted";
+  const buttonLabel = isConnected
+    ? "Refresh browser alerts"
+    : hasPermission
+      ? "Connect browser alerts"
+      : "Enable browser notifications";
 
   return (
     <div className="mt-5 flex flex-wrap items-center gap-3">
       <Button
         type="button"
         variant="outline"
-        disabled={isPending}
+        disabled={isPending || isBlocked}
         onClick={() => {
           setError("");
           startTransition(async () => {
             try {
-              await enablePushNotifications();
-              setPermission(Notification.permission);
+              const nextStatus = await enablePushNotifications();
+              setStatus(nextStatus);
             } catch (nextError) {
               setError(
                 nextError instanceof Error
                   ? nextError.message
                   : "Could not enable notifications.",
               );
-              setPermission(Notification.permission);
+              setStatus(await getBrowserNotificationStatus());
             }
           });
         }}
@@ -48,15 +87,10 @@ export function EnableNotificationsButton() {
         ) : (
           <Bell className="size-4" />
         )}
-        {isGranted ? "Refresh browser alerts" : "Enable browser notifications"}
+        {buttonLabel}
       </Button>
       <p className="max-w-md text-xs font-normal text-muted-foreground">
-        {permission === "denied"
-          ? "Notifications are blocked in your browser settings."
-          : error ||
-            (isGranted
-              ? "Alerts are enabled for this browser. Refresh if this device stops receiving them."
-              : "Optional: get alerts for calls and important activity when Homzie is not open.")}
+        {statusCopy(status, error)}
       </p>
     </div>
   );

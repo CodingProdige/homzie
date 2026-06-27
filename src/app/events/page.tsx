@@ -9,6 +9,7 @@ import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
+import { EventsRealtimeRefresh } from "@/modules/events/components/events-realtime-refresh";
 import { getUserEvents, markUserEventsSeen } from "@/modules/events/server";
 import { EnableNotificationsButton } from "@/modules/push/components/enable-notifications-button";
 
@@ -60,6 +61,7 @@ export default async function EventsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <EventsRealtimeRefresh />
       <main className="mx-auto w-full max-w-4xl px-4 pb-16 pt-24 sm:px-6 lg:pt-28">
         <div className="border-b border-border pb-6">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">

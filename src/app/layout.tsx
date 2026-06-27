@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Poppins } from "next/font/google";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
 import { Suspense } from "react";
 import Script from "next/script";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { GoogleAnalyticsPageView } from "@/components/google-analytics-page-view";
+import { authOptions } from "@/modules/auth/config";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
+import { BrowserNotificationPrompt } from "@/modules/push/components/browser-notification-prompt";
 import { PushNotificationBootstrap } from "@/modules/push/components/push-notification-bootstrap";
 import { PwaInstallBootstrap } from "@/modules/pwa/components/pwa-install";
 import { getStoredSeoSettings } from "@/modules/seo/settings";
@@ -85,8 +88,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const seoPromise = getStoredSeoSettings();
+  const sessionPromise = getServerSession(authOptions);
   const siteUrl = getSiteUrl();
   const cookieStore = await cookies();
+  const session = await sessionPromise;
   const themeCookie = cookieStore.get(themeCookieName)?.value;
   const themeMode = themeCookie && validThemeModes.has(themeCookie) ? themeCookie : "light";
   const serverUsesDark = themeMode === "dark";
@@ -129,6 +134,7 @@ export default async function RootLayout({
           <CountryPreferenceBootstrap />
           <PushNotificationBootstrap />
           <PwaInstallBootstrap />
+          <BrowserNotificationPrompt enabled={Boolean(session?.user?.id)} />
           <SiteStructuredData settingsPromise={seoPromise} siteUrl={siteUrl} />
           {children}
         </CurrencyProvider>

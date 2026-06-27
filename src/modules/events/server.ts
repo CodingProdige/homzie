@@ -14,6 +14,7 @@ import {
   fallbackNotificationSurfaceTemplate,
   getNotificationSurfaceTemplate,
 } from "@/modules/notifications/server";
+import { publishUserNotificationEvent } from "@/modules/notifications/realtime";
 import { sendPushToUser } from "@/modules/push/server";
 
 export type UserEventItem = {
@@ -376,9 +377,14 @@ async function dispatchUserEventNotifications({
     })) || fallbackNotificationSurfaceTemplate({ event: definition, surface: "push" });
   const pushTitle = renderNotificationTemplate(pushTemplate.title || "", context);
   const pushBody = renderNotificationTemplate(pushTemplate.body, context);
+  const eventDedupeKey = optionalString(metadata?.dedupeKey);
   const pushTag =
     eventType === "message.created" && conversationId
       ? `${eventType}:${conversationId}`
+      : eventType.startsWith("listing.") && listingId
+        ? [eventType, listingId, eventDedupeKey || actorUserId || ""]
+            .filter(Boolean)
+            .join(":")
       : eventType;
 
   await Promise.allSettled([
@@ -395,6 +401,8 @@ async function dispatchUserEventNotifications({
           data: { eventType, url },
           tag: pushTag,
           title: pushTitle,
+        }, {
+          preferenceCategory: definition.preferenceCategory,
         })
       : Promise.resolve(),
   ]);
@@ -434,9 +442,20 @@ export async function createUserEvent({
       })
     : null;
   const shouldCreateInAppEvent = !definition || inAppTemplate?.enabled !== false;
+  let createdEvent:
+    | {
+        created_at: Date | string;
+        id: string;
+      }
+    | null = null;
 
   if (shouldCreateInAppEvent) {
-    await sql`
+    const [event] = await sql<
+      {
+        created_at: Date | string;
+        id: string;
+      }[]
+    >`
       INSERT INTO user_events (
         user_id,
         actor_user_id,
@@ -461,7 +480,29 @@ export async function createUserEvent({
         ${reelId || null},
         ${eventMetadata}::jsonb
       )
+      RETURNING id, created_at
     `;
+
+    createdEvent = event || null;
+  }
+
+  if (createdEvent) {
+    await publishUserNotificationEvent({
+      conversationId: conversationId || null,
+      createdAt:
+        createdEvent.created_at instanceof Date
+          ? createdEvent.created_at.toISOString()
+          : new Date(createdEvent.created_at).toISOString(),
+      entityId: entityId || null,
+      entityType: entityType || null,
+      eventId: createdEvent.id,
+      eventType,
+      listingId: listingId || null,
+      messageId: messageId || null,
+      reelId: reelId || null,
+      type: "user.notification.created",
+      userId,
+    });
   }
 
   await dispatchUserEventNotifications({

@@ -10,6 +10,7 @@ const port = Number(process.env.MESSAGE_SOCKET_PORT || 3001);
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6380";
 const databaseUrl = process.env.DATABASE_URL;
 const messageChannel = "homzie:messages";
+const userNotificationChannel = "homzie:user-notifications";
 const primarySessionCookieName =
   process.env.NODE_ENV === "production"
     ? "__Secure-homzie.session-token"
@@ -423,6 +424,23 @@ await eventsClient.subscribe(messageChannel, (rawEvent) => {
     });
   } catch (error) {
     console.error("Invalid messaging realtime event", error);
+  }
+});
+
+await eventsClient.subscribe(userNotificationChannel, (rawEvent) => {
+  try {
+    const event = JSON.parse(rawEvent);
+    const userId = typeof event.userId === "string" ? event.userId : null;
+    const type =
+      event.type === "user.notification.created"
+        ? event.type
+        : "user.notification.created";
+
+    if (!userId) return;
+
+    io.to(`user:${userId}`).emit(type, { ...event, type });
+  } catch (error) {
+    console.error("Invalid user notification realtime event", error);
   }
 });
 

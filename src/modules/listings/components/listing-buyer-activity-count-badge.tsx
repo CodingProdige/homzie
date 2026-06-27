@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  addUserNotificationCreatedListener,
+  isListingNotification,
+} from "@/modules/notifications/realtime-client";
+
 export function ListingBuyerActivityCountBadge({
   className,
 }: {
@@ -34,11 +39,17 @@ export function ListingBuyerActivityCountBadge({
 
     refreshCount();
     const interval = window.setInterval(refreshCount, 5000);
+    const removeNotificationListener = addUserNotificationCreatedListener((event) => {
+      if (isListingNotification(event)) {
+        void refreshCount();
+      }
+    });
     document.addEventListener("visibilitychange", refreshCount);
 
     return () => {
       alive = false;
       window.clearInterval(interval);
+      removeNotificationListener();
       document.removeEventListener("visibilitychange", refreshCount);
     };
   }, []);

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { addUserNotificationCreatedListener } from "@/modules/notifications/realtime-client";
+
 export function EventCountBadge({ className }: { className?: string }) {
   const [count, setCount] = useState(0);
 
@@ -28,10 +30,13 @@ export function EventCountBadge({ className }: { className?: string }) {
 
     refreshCount();
     const interval = window.setInterval(refreshCount, 20_000);
+    const removeNotificationListener =
+      addUserNotificationCreatedListener(refreshCount);
 
     return () => {
       alive = false;
       window.clearInterval(interval);
+      removeNotificationListener();
     };
   }, []);
 

@@ -145,9 +145,7 @@ export function GlobalHeader({
 
   return (
     <>
-      <MessageRealtimePresence
-        enabled={Boolean(viewerUsername && !pathname.startsWith("/messages"))}
-      />
+      <MessageRealtimePresence enabled={Boolean(viewerUsername)} />
       <header
         className={`fixed inset-x-0 top-0 z-[70] overflow-x-clip border-b transition-all duration-300 ${
           scrolled

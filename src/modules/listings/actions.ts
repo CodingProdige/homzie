@@ -148,6 +148,10 @@ function viewMilestoneForCount(count: number) {
   return null;
 }
 
+function activeViewerNotificationBucket(now: Date) {
+  return Math.floor(now.getTime() / (30 * 60 * 1000));
+}
+
 const listingSchema = z.object({
   addressVisibility: z.enum(["area", "exact"]).optional(),
   askingPrice: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
@@ -3141,6 +3145,8 @@ export async function trackListingPresence(input: unknown) {
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + listingPresenceWindowSeconds * 1000);
+    const viewerKey = viewerUserId || parsed.data.viewerSessionId;
+    const notificationBucket = activeViewerNotificationBucket(now);
 
     await db
       .insert(listingPresenceSessions)
@@ -3166,6 +3172,21 @@ export async function trackListingPresence(input: unknown) {
           viewerUserId,
         },
       });
+
+    await createUserEventOnce({
+      actorUserId: viewerUserId,
+      dedupeKey: `listing:${listing.id}:active-viewer:${viewerKey}:${notificationBucket}`,
+      entityId: listing.id,
+      entityType: "listing",
+      eventType: "listing.buyer_intent.active_viewer",
+      listingId: listing.id,
+      metadata: {
+        listingTitle: listing.title,
+        source: parsed.data.source || "listing_detail",
+        viewerKey,
+      },
+      userId: listing.userId,
+    });
 
     if (viewerUserId && listing.userId !== viewerUserId) {
       const [{ count: buyerViewCount }] = await db
@@ -3213,7 +3234,7 @@ export async function trackListingPresence(input: unknown) {
 
     if (activeViewerCount >= 3) {
       await createUserEventOnce({
-        dedupeKey: `listing:${listing.id}:active-viewers:${activeViewerCount}`,
+        dedupeKey: `listing:${listing.id}:active-viewers:${activeViewerCount}:${notificationBucket}`,
         entityId: listing.id,
         entityType: "listing",
         eventType: "listing.buyer_intent.active_viewers",
