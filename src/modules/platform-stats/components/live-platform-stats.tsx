@@ -144,7 +144,7 @@ export function LivePlatformStats({ initialStats }: LivePlatformStatsProps) {
   const items = statsToItems(stats);
 
   return (
-    <div className="relative z-0 mt-7 hidden max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 text-center text-xs font-black text-muted-foreground sm:flex sm:gap-x-7 sm:text-sm">
+    <div className="relative z-0 mt-7 hidden max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 text-center text-xs font-normal text-muted-foreground sm:flex sm:gap-x-7 sm:text-sm">
       {items.map((item, index) => {
         return (
           <span className="contents" key={item.label}>

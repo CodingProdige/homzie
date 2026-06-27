@@ -71,8 +71,8 @@ function ToggleField({
   return (
     <label className="flex min-w-0 items-center gap-4 rounded-lg border border-border bg-background px-4 py-4">
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-black">{label}</span>
-        <span className="mt-1 block text-sm font-semibold leading-5 text-muted-foreground">
+        <span className="block text-sm font-semibold">{label}</span>
+        <span className="mt-1 block text-sm font-normal leading-5 text-muted-foreground">
           {description}
         </span>
       </span>
@@ -113,7 +113,7 @@ function TextField({
         placeholder={placeholder}
       />
       {description ? (
-        <p className="text-xs font-semibold leading-5 text-muted-foreground">
+        <p className="text-xs font-normal leading-5 text-muted-foreground">
           {description}
         </p>
       ) : null}
@@ -144,7 +144,7 @@ function ControlledTextField({
         onChange={(event) => onChange(event.target.value)}
       />
       {description ? (
-        <p className="text-xs font-semibold leading-5 text-muted-foreground">
+        <p className="text-xs font-normal leading-5 text-muted-foreground">
           {description}
         </p>
       ) : null}
@@ -295,13 +295,13 @@ function OgImageControl({
           className="hidden"
           onChange={handleFileChange}
         />
-        <p className="text-xs font-semibold leading-5 text-muted-foreground">
+        <p className="text-xs font-normal leading-5 text-muted-foreground">
           {message || description}
         </p>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-background">
         <div className="border-b border-border bg-muted/35 px-4 py-3">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="text-xs font-normal uppercase tracking-[0.14em] text-muted-foreground">
             Share preview
           </p>
         </div>
@@ -314,13 +314,13 @@ function OgImageControl({
               className="aspect-[1200/630] w-full object-cover"
             />
             <div className="grid gap-1 border-t border-border bg-muted/30 p-4">
-              <p className="truncate text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+              <p className="truncate text-[11px] font-normal uppercase tracking-[0.12em] text-muted-foreground">
                 {shareDomain}
               </p>
-              <p className="line-clamp-2 text-sm font-black leading-5">
+              <p className="line-clamp-2 text-sm font-semibold leading-5">
                 {shareTitle || "Homzie"}
               </p>
-              <p className="line-clamp-2 text-xs font-semibold leading-5 text-muted-foreground">
+              <p className="line-clamp-2 text-xs font-normal leading-5 text-muted-foreground">
                 {shareDescription}
               </p>
             </div>
@@ -335,20 +335,20 @@ function OgImageControl({
                   className="aspect-square w-24 shrink-0 rounded-md object-cover"
                 />
                 <div className="min-w-0 self-center">
-                  <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                  <p className="truncate text-[10px] font-normal uppercase tracking-[0.12em] text-muted-foreground">
                     {shareDomain}
                   </p>
-                  <p className="line-clamp-2 text-sm font-black leading-5">
+                  <p className="line-clamp-2 text-sm font-semibold leading-5">
                     {shareTitle || "Homzie"}
                   </p>
-                  <p className="line-clamp-2 text-xs font-semibold leading-5 text-muted-foreground">
+                  <p className="line-clamp-2 text-xs font-normal leading-5 text-muted-foreground">
                     {shareDescription}
                   </p>
                 </div>
               </div>
             </div>
             <div className="rounded-lg border border-dashed border-border bg-muted/25 p-3">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="text-xs font-normal uppercase tracking-[0.14em] text-muted-foreground">
                 Meta tags
               </p>
               <dl className="mt-3 grid gap-2 text-xs font-semibold leading-5">
@@ -373,7 +373,7 @@ function OgImageControl({
           </div>
         </div>
         <div className="border-t border-border bg-muted/20 p-4">
-          <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="mb-2 text-xs font-normal uppercase tracking-[0.14em] text-muted-foreground">
             Raw 1200x630 image
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element -- Admin OG preview can render local media URLs. */}
@@ -412,8 +412,8 @@ export function AdminSeoSettingsForm({
           <SearchCheck className="size-5" />
         </span>
         <div>
-          <h2 className="text-lg font-black">Platform SEO controls</h2>
-          <p className="text-sm font-semibold text-muted-foreground">
+          <h2 className="text-lg font-semibold">Platform SEO controls</h2>
+          <p className="text-sm font-normal text-muted-foreground">
             Defaults and verification tags used across public pages.
           </p>
         </div>

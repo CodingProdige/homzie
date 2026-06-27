@@ -91,7 +91,7 @@ export function SettingsMobileScreen({
                   item.destructive ? "text-destructive" : "text-muted-foreground",
                 ].join(" ")}
               />
-              <span className="min-w-0 flex-1 truncate text-xs font-black">
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold">
                 {item.label}
               </span>
               <ChevronRight

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+
+import { BackButton } from "@/components/back-button";
 
 import { getStoredMusicApiSettings } from "@/modules/platform-settings/music-api-settings";
 import {
@@ -23,22 +23,16 @@ export default async function AdminMusicSettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Link
-        href="/admin/settings"
-        className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ChevronLeft className="size-4" />
-        Settings
-      </Link>
+      <BackButton href="/admin/settings" label="Settings" />
 
       <div className="mt-6">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           Music
         </p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
           Music APIs
         </h1>
-        <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
           Configure API credentials for Jamendo and Freesound so reel creators
           can browse and preview tracks from these libraries.
         </p>

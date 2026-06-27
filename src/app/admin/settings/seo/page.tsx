@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, AlertTriangle, CheckCircle2, SearchCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, SearchCheck } from "lucide-react";
+
+import { BackButton } from "@/components/back-button";
 
 import { sql } from "@/db";
 import {
   AdminSeoSettingsForm,
   type AdminSeoSettingsView,
 } from "@/app/admin/admin-seo-settings-form";
-import { Button } from "@/components/ui/button";
 import { getStoredSeoSettings } from "@/modules/seo/settings";
 
 export const metadata: Metadata = {
@@ -179,10 +179,10 @@ function HealthCard({
       <span className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary">
         <Icon className="size-4" />
       </span>
-      <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-primary">
+      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
         {label}
       </p>
-      <p className="mt-1 text-2xl font-black">{value}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
 }
@@ -200,25 +200,20 @@ export default async function AdminSeoSettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Button asChild variant="ghost" className="mb-6 px-0">
-        <Link href="/admin/settings">
-          <ArrowLeft className="size-4" />
-          Settings
-        </Link>
-      </Button>
+      <BackButton href="/admin/settings" label="Settings" className="mb-6" />
 
       <div className="flex items-start gap-4">
         <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
           <SearchCheck className="size-6" />
         </span>
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Admin
           </p>
-          <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
             SEO
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-3xl text-sm font-normal leading-7 text-muted-foreground">
             Manage metadata defaults, verification tags, indexing policy, and quick
             search-quality checks for public Homzie pages.
           </p>
@@ -237,15 +232,15 @@ export default async function AdminSeoSettingsPage() {
 
         <section className="rounded-lg border border-border bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-black">SEO health notes</h2>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
+            <h2 className="text-lg font-semibold">SEO health notes</h2>
+            <p className="text-xs font-normal uppercase tracking-[0.14em] text-muted-foreground">
               {issueSummary.length} issue groups
             </p>
           </div>
           {issueSummary.length ? (
             <div className="mt-4 overflow-hidden rounded-lg border border-border">
               <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-muted/60 text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+                <thead className="bg-muted/60 text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3">Issue</th>
                     <th className="px-4 py-3">Type</th>
@@ -255,11 +250,11 @@ export default async function AdminSeoSettingsPage() {
                 <tbody className="divide-y divide-border bg-background">
                   {issueSummary.map((item) => (
                     <tr key={`${item.type}-${item.issue}`}>
-                      <td className="px-4 py-3 font-black">{item.issue}</td>
-                      <td className="px-4 py-3 font-semibold text-muted-foreground">
+                      <td className="px-4 py-3 font-semibold">{item.issue}</td>
+                      <td className="px-4 py-3 font-normal text-muted-foreground">
                         {item.type}
                       </td>
-                      <td className="px-4 py-3 text-right text-lg font-black">
+                      <td className="px-4 py-3 text-right text-lg font-semibold">
                         {item.count}
                       </td>
                     </tr>
@@ -268,7 +263,7 @@ export default async function AdminSeoSettingsPage() {
               </table>
             </div>
           ) : (
-            <div className="mt-4 rounded-lg border border-dashed border-border bg-background p-5 text-sm font-bold text-muted-foreground">
+            <div className="mt-4 rounded-lg border border-dashed border-border bg-background p-5 text-sm font-normal text-muted-foreground">
               No SEO health issues found for public listings or profiles.
             </div>
           )}

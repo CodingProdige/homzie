@@ -53,7 +53,7 @@ export function CanonicalTable<T>({
 
   if (!rows.length) {
     return (
-      <div className="rounded-lg border border-border bg-card p-8 text-sm font-semibold text-muted-foreground">
+      <div className="rounded-lg border border-border bg-card p-8 text-sm font-normal text-muted-foreground">
         {emptyState}
       </div>
     );
@@ -67,7 +67,7 @@ export function CanonicalTable<T>({
             className={cn("w-full border-separate border-spacing-0 text-left text-sm", tableClassName)}
             style={{ minWidth }}
           >
-            <thead className="bg-muted/50 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+            <thead className="bg-muted/50 text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 {columns.map((column) => {
                   const isStickyRight = column.sticky === "right" || column.key === "actions";

@@ -62,7 +62,7 @@ function statusBadge(status: EmployeeRow["status"]) {
           : "bg-muted text-muted-foreground";
 
   return (
-    <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${tone}`}>
+    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${tone}`}>
       {status}
     </span>
   );
@@ -79,8 +79,8 @@ function roleOption(value: EmployeeRole, title: string, helper: string) {
         className="mt-1 accent-primary"
       />
       <span>
-        <span className="block font-black">{title}</span>
-        <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">
+        <span className="block font-semibold">{title}</span>
+        <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">
           {helper}
         </span>
       </span>
@@ -148,10 +148,10 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
       key: "employee",
       render: (employee) => (
         <div className="min-w-0">
-          <p className="truncate font-black">
+          <p className="truncate font-semibold">
             {employee.name || employee.invited_email || "Pending employee"}
           </p>
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
             {employee.username ? `@${employee.username}` : employee.email || employee.invited_email}
           </p>
         </div>
@@ -162,8 +162,8 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
       key: "role",
       render: (employee) => (
         <div>
-          <p className="font-black">{agencyEmployeeRoleLabel(employee.role)}</p>
-          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+          <p className="font-semibold">{agencyEmployeeRoleLabel(employee.role)}</p>
+          <p className="mt-1 text-xs font-normal text-muted-foreground">
             Unpaid internal access
           </p>
         </div>
@@ -178,7 +178,7 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
       header: "Access",
       key: "access",
       render: (employee) => (
-        <p className="max-w-xs text-sm font-semibold leading-6 text-muted-foreground">
+        <p className="max-w-xs text-sm font-normal leading-6 text-muted-foreground">
           {permissionList(employee)}
         </p>
       ),
@@ -189,7 +189,7 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
       key: "actions",
       render: (employee) => {
         if (!canManage) {
-          return <span className="text-xs font-black text-muted-foreground">View only</span>;
+          return <span className="text-xs font-normal text-muted-foreground">View only</span>;
         }
 
         return (
@@ -201,7 +201,7 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
                 name="status"
                 value={employee.status === "suspended" ? "active" : "suspended"}
               />
-              <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-black">
+              <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-semibold">
                 {employee.status === "suspended" ? (
                   <UserCheck className="size-4" />
                 ) : (
@@ -213,7 +213,7 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
             <form action={updateAgencyEmployeeStatusAction}>
               <input type="hidden" name="employeeId" value={employee.id} />
               <input type="hidden" name="status" value="removed" />
-              <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-black">
+              <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-semibold">
                 <XCircle className="size-4" />
                 Remove
               </Button>
@@ -229,17 +229,17 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Internal workspace access
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Employees
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Employees are unpaid internal users. They can access control room operations based on role, but they do not appear as agents, do not receive public branding, and do not count as paid seats.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
           <ShieldCheck className="size-4 text-primary" />
           {employees.length} employees
         </span>
@@ -248,7 +248,7 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
       {canManage ? (
         <form action={inviteAgencyEmployeeAction} className="mt-8 rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-            <label className="min-w-0 flex-1 text-sm font-black">
+            <label className="min-w-0 flex-1 text-sm font-semibold">
               Employee email
               <span className="mt-2 flex h-11 items-center gap-2 rounded-md border border-border bg-background px-3">
                 <Mail className="size-4 shrink-0 text-muted-foreground" />
@@ -257,11 +257,11 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
                   type="email"
                   name="email"
                   placeholder="employee@example.com"
-                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-normal outline-none placeholder:text-muted-foreground"
                 />
               </span>
             </label>
-            <Button type="submit" className="h-11 px-5 font-black">
+            <Button type="submit" className="h-11 px-5 font-semibold">
               <UserPlus className="size-4" />
               Invite employee
             </Button>

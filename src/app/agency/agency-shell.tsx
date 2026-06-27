@@ -128,12 +128,12 @@ function AgencyNav({
           return (
             <div
               key={item.label}
-              className="flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-bold text-muted-foreground/60"
+              className="flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-normal text-muted-foreground/60"
               title="Coming soon"
             >
               <Icon className="size-4 shrink-0" />
               <span className="truncate">{item.label}</span>
-              <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[9px] font-black uppercase text-muted-foreground">
+              <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[9px] font-normal uppercase text-muted-foreground">
                 Soon
               </span>
             </div>
@@ -152,7 +152,7 @@ function AgencyNav({
             aria-current={isDashboardActive ? "page" : undefined}
             onClick={onNavigate}
             className={cn(
-              "flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-bold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none",
+              "flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none",
               isDashboardActive &&
                 "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus-visible:bg-primary/15 focus-visible:text-primary",
             )}
@@ -160,7 +160,7 @@ function AgencyNav({
             <Icon className="size-4 shrink-0" />
             <span className="truncate">{item.label}</span>
             {item.badgeCount ? (
-              <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white">
+              <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none text-white">
                 {item.badgeCount > 99 ? "99+" : item.badgeCount}
               </span>
             ) : null}
@@ -193,7 +193,7 @@ function AgencyWorkspaceIdentity({
       aria-label={`${workspaceLabel} ${roomLabel}`}
     >
       <div className="flex items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-primary text-xs font-black text-primary-foreground">
+        <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-primary text-xs font-semibold text-primary-foreground">
           {controlRoomLogoUrl ? (
             <Image
               src={controlRoomLogoUrl}
@@ -207,11 +207,11 @@ function AgencyWorkspaceIdentity({
           )}
         </span>
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
             {agencyTypeLabel(agencyType)}
           </p>
-          <p className="truncate text-sm font-black leading-tight">{workspaceLabel}</p>
-          <p className="truncate text-[11px] font-bold text-muted-foreground">
+          <p className="truncate text-sm font-semibold leading-tight">{workspaceLabel}</p>
+          <p className="truncate text-[11px] font-normal text-muted-foreground">
             {roleLabel(accountLabel)} access
           </p>
         </div>
@@ -263,7 +263,7 @@ function AgencySidebar({
 
       <div className="space-y-4 border-t border-border pt-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-bold text-muted-foreground">Theme</span>
+          <span className="text-sm font-normal text-muted-foreground">Theme</span>
           <ThemeToggle />
         </div>
         <AgencyHomeButton />
@@ -310,7 +310,7 @@ export function AgencyShell({
               <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/35 backdrop-blur-[2px] lg:hidden" />
               <Dialog.Content className="fixed bottom-0 left-0 top-0 z-[90] flex w-[min(84vw,22rem)] flex-col border-r border-border bg-background text-foreground shadow-2xl outline-none lg:hidden">
                 <div className="flex h-16 items-center justify-between border-b border-border px-4">
-                  <Dialog.Title className="text-base font-black">
+                  <Dialog.Title className="text-base font-semibold">
                     Agency menu
                   </Dialog.Title>
                   <Dialog.Description className="sr-only">
@@ -343,7 +343,7 @@ export function AgencyShell({
                 </div>
                 <div className="space-y-4 border-t border-border p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-muted-foreground">
+                    <span className="text-sm font-normal text-muted-foreground">
                       Theme
                     </span>
                     <ThemeToggle />
@@ -355,7 +355,7 @@ export function AgencyShell({
           </Dialog.Root>
 
           <Link href={basePath} className="flex min-w-0 items-center gap-2">
-            <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-md bg-primary/10 text-xs font-black text-primary">
+            <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-md bg-primary/10 text-xs font-semibold text-primary">
               {controlRoomLogoUrl ? (
                 <Image
                   src={controlRoomLogoUrl}
@@ -369,10 +369,10 @@ export function AgencyShell({
               )}
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-black leading-tight">
+              <span className="block truncate text-sm font-semibold leading-tight">
                 {workspaceLabel}
               </span>
-              <span className="block truncate text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
                 {agencyTypeLabel(agencyType)}
               </span>
             </span>
@@ -386,7 +386,7 @@ export function AgencyShell({
             >
               <Bell className="size-5" />
               {activityCount ? (
-                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white">
+                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none text-white">
                   {activityCount > 99 ? "99+" : activityCount}
                 </span>
               ) : null}

@@ -180,14 +180,14 @@ export function ReelPreviewCard({ reel }: { reel: ReelPreviewCardData }) {
       {reel.watched && reel.status === "published" ? (
         <>
           <div className="absolute inset-0 z-10 bg-black/35 backdrop-saturate-75" />
-          <span className="absolute left-2 top-2 z-20 rounded-full bg-black/55 px-2 py-1 text-[9px] font-black uppercase text-white shadow-sm backdrop-blur">
+          <span className="absolute left-2 top-2 z-20 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold uppercase text-white shadow-sm backdrop-blur">
             Watched
           </span>
         </>
       ) : null}
 
       {reel.isPromoted ? (
-        <span className="absolute right-2 top-2 z-20 rounded-full border border-white/15 bg-black/55 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white/75 backdrop-blur">
+        <span className="absolute right-2 top-2 z-20 rounded-full border border-white/15 bg-black/55 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/75 backdrop-blur">
           Promoted
         </span>
       ) : null}
@@ -202,7 +202,7 @@ export function ReelPreviewCard({ reel }: { reel: ReelPreviewCardData }) {
         <div className="absolute left-2 right-2 top-2 z-20">
           <span
             className={cn(
-              "inline-flex rounded-full px-2 py-1 text-[9px] font-black uppercase shadow-sm backdrop-blur",
+              "inline-flex rounded-full px-2 py-1 text-[9px] font-semibold uppercase shadow-sm backdrop-blur",
               reel.status === "processing"
                 ? "bg-violet-100/95 text-violet-700"
                 : "bg-red-100/95 text-red-700",
@@ -260,7 +260,7 @@ export function ReelPreviewCard({ reel }: { reel: ReelPreviewCardData }) {
 
       <div className="absolute inset-x-3 bottom-3 z-20">
         {reel.title ? (
-          <h3 className="line-clamp-2 text-sm font-black leading-tight text-white">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-white">
             {reel.title}
           </h3>
         ) : null}
@@ -269,7 +269,7 @@ export function ReelPreviewCard({ reel }: { reel: ReelPreviewCardData }) {
             @{reel.username}
           </p>
         ) : null}
-        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-black">
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold">
           {reel.viewCountLabel ? (
             <span className="flex min-w-0 items-center gap-1 rounded-full bg-black/20 px-1.5 py-1 backdrop-blur-[1px]">
               <PlayCircle className="size-3.5 shrink-0" />

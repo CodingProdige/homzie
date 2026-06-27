@@ -57,7 +57,7 @@ export function PageTopBar({
             <Button
               type="button"
               variant="outline"
-              className="h-10 shrink-0 px-3 text-xs font-black sm:hidden"
+              className="h-10 shrink-0 px-3 text-xs font-semibold sm:hidden"
             >
               <MoreHorizontal className="size-4" />
               Actions

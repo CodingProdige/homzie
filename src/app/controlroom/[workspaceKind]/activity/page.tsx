@@ -140,13 +140,13 @@ export default async function ControlRoomActivityPage({ params }: ActivityPagePr
     <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Control room
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Activity
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Operational requests, decisions, and action items for {workspace.agency.name}.
           </p>
         </div>
@@ -165,9 +165,9 @@ export default async function ControlRoomActivityPage({ params }: ActivityPagePr
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <Bell className="size-4 text-primary" />
-            <h2 className="text-sm font-black">Control room activity</h2>
+            <h2 className="text-sm font-semibold">Control room activity</h2>
           </div>
-          <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-black uppercase text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-normal uppercase text-muted-foreground">
             {unreadCount} unread
           </span>
         </div>
@@ -190,22 +190,22 @@ export default async function ControlRoomActivityPage({ params }: ActivityPagePr
                       {!row.read_at ? (
                         <span className="size-2 rounded-full bg-red-500" aria-label="Unread" />
                       ) : null}
-                      <h3 className="min-w-0 truncate text-sm font-black">
+                      <h3 className="min-w-0 truncate text-sm font-semibold">
                         {row.title}
                       </h3>
                       <span
                         className={cn(
-                          "rounded-full px-2 py-1 text-[10px] font-black uppercase",
+                          "rounded-full px-2 py-1 text-[10px] font-semibold uppercase",
                           severityClasses(row.severity),
                         )}
                       >
                         {severityLabel(row.severity)}
                       </span>
                     </div>
-                    <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
+                    <p className="mt-2 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
                       {row.body}
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-bold text-muted-foreground">
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-normal text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
                         <Clock className="size-3.5" />
                         {relativeTime(row.created_at)}
@@ -245,7 +245,7 @@ export default async function ControlRoomActivityPage({ params }: ActivityPagePr
             })}
           </div>
         ) : (
-          <div className="px-4 py-10 text-sm font-semibold text-muted-foreground">
+          <div className="px-4 py-10 text-sm font-normal text-muted-foreground">
             No control room activity yet.
           </div>
         )}

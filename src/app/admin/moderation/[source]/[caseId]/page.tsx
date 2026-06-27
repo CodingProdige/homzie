@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
+import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -29,7 +30,7 @@ function badge(value: string, tone: "default" | "warning" | "muted" = "muted") {
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em]",
+        "inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]",
         tone === "warning"
           ? "bg-amber-500/12 text-amber-700 dark:text-amber-300"
           : tone === "default"
@@ -51,7 +52,7 @@ function DetailItem({
 }) {
   return (
     <div className="rounded-lg border border-border bg-background p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+      <p className="text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 break-words text-sm font-bold">{value || "Not set"}</div>
@@ -71,12 +72,7 @@ export default async function AdminModerationDetailsPage({
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Button asChild variant="ghost" className="-ml-3 mb-6">
-        <Link href="/admin/moderation">
-          <ArrowLeft className="size-4" />
-          Moderation
-        </Link>
-      </Button>
+      <BackButton href="/admin/moderation" label="Moderation" className="mb-6" />
 
       <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -86,10 +82,10 @@ export default async function AdminModerationDetailsPage({
               {badge(statusLabel(row.status), isOpenModerationStatus(row) ? "warning" : "muted")}
               {badge(row.priority)}
             </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
               {row.content_title || sourceLabel(row.source)}
             </h1>
-            <p className="mt-2 text-sm font-semibold leading-7 text-muted-foreground">
+            <p className="mt-2 text-sm font-normal leading-7 text-muted-foreground">
               Review the submitted signal, update its status, and keep the
               dashboard moderation counts honest.
             </p>
@@ -119,8 +115,8 @@ export default async function AdminModerationDetailsPage({
       </div>
 
       <section className="mt-6 rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-black">Review decision</h2>
-        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+        <h2 className="text-lg font-semibold">Review decision</h2>
+        <p className="mt-1 text-sm font-normal text-muted-foreground">
           Status changes update the underlying moderation source and the admin
           dashboard counts.
         </p>

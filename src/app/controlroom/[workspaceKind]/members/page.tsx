@@ -51,7 +51,7 @@ function statusBadge(status: MemberRow["status"]) {
           : "bg-muted text-muted-foreground";
 
   return (
-    <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${tone}`}>
+    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${tone}`}>
       {status}
     </span>
   );
@@ -104,10 +104,10 @@ export default async function MembersPage({ params }: MembersPageProps) {
       key: "agent",
       render: (member) => (
         <div className="min-w-0">
-          <p className="truncate font-black">
+          <p className="truncate font-semibold">
             {member.name || member.invited_email || "Pending agent"}
           </p>
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
             {member.username ? `@${member.username}` : member.email || member.invited_email}
           </p>
         </div>
@@ -118,8 +118,8 @@ export default async function MembersPage({ params }: MembersPageProps) {
       key: "role",
       render: (member) => (
         <div>
-          <p className="font-black">{agencyRoleLabel(member.role)}</p>
-          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+          <p className="font-semibold">{agencyRoleLabel(member.role)}</p>
+          <p className="mt-1 text-xs font-normal text-muted-foreground">
             Paid public agent seat
           </p>
         </div>
@@ -134,7 +134,7 @@ export default async function MembersPage({ params }: MembersPageProps) {
       header: "Listings",
       key: "listings",
       render: (member) => (
-        <div className="text-sm font-semibold text-muted-foreground">
+        <div className="text-sm font-normal text-muted-foreground">
           <p>{Number(member.listing_count)} active</p>
           <p>Agency-funded</p>
         </div>
@@ -159,18 +159,18 @@ export default async function MembersPage({ params }: MembersPageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Paid agent roster
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Members
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Members are linked public agents. They count as agency-funded seats, appear on listings and leaderboards, and inherit agency branding while linked.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
             <UsersRound className="size-4 text-primary" />
             {members.length} paid seats
           </span>

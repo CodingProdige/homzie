@@ -58,10 +58,10 @@ export function GlobalFooter({
       <div className="border-b border-border px-4 py-6">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 rounded-xl border border-border bg-background p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
-            <p className="text-sm font-black text-foreground">
+            <p className="text-sm font-semibold text-foreground">
               Get the full Homzie experience on your device.
             </p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+            <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
               Install Homzie for faster access, realtime buyer alerts, messages, and app-like browsing.
             </p>
           </div>
@@ -73,15 +73,15 @@ export function GlobalFooter({
           <Link href="/" aria-label="Homzie home" className="inline-flex">
             <HomzieLogo variant="tight" className="h-10" />
           </Link>
-          <p className="mt-4 max-w-sm text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-4 max-w-sm text-sm font-normal leading-6 text-muted-foreground">
             Property discovery built around agents, listings, and reels that move buyers from interest to action.
           </p>
         </div>
 
         {footerSections.map((section) => (
           <div key={section.title}>
-            <h2 className="text-sm font-black">{section.title}</h2>
-            <nav className="mt-4 grid gap-3 text-sm font-semibold text-muted-foreground">
+            <h2 className="text-sm font-semibold">{section.title}</h2>
+            <nav className="mt-4 grid gap-3 text-sm font-normal text-muted-foreground">
               {section.links.map((link) => (
                 <Link
                   key={link.href}
@@ -112,8 +112,8 @@ export function GlobalFooter({
         ))}
 
         <div>
-          <h2 className="text-sm font-black">Support</h2>
-          <div className="mt-4 grid gap-4 text-sm font-semibold text-muted-foreground">
+          <h2 className="text-sm font-semibold">Support</h2>
+          <div className="mt-4 grid gap-4 text-sm font-normal text-muted-foreground">
             <Link
               href="mailto:support@homzie.co.za"
               className="flex items-start gap-2 transition hover:text-primary"
@@ -135,9 +135,9 @@ export function GlobalFooter({
         </div>
       </div>
       <div className="border-t border-border px-4 py-4">
-        <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center gap-3 text-center text-xs font-bold text-muted-foreground sm:flex-row sm:justify-between sm:text-left">
+        <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center gap-3 text-center text-xs font-normal text-muted-foreground sm:flex-row sm:justify-between sm:text-left">
           <span>&copy; {new Date().getFullYear()} Homzie. Find it. Love it. Live it.</span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-black text-muted-foreground">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-normal text-muted-foreground">
             Secure payments by
             <span className="text-[#635bff]">stripe</span>
           </span>

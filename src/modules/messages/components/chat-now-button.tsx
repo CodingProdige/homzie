@@ -41,15 +41,15 @@ export function ChatNowButton({
   const resolvedVariant = variant || "default";
   const surfaceClassName =
     surface === "activity-table"
-      ? "h-8 min-w-8 rounded-full px-0 text-xs font-black shadow-none"
+      ? "h-8 min-w-8 rounded-full px-0 text-xs font-semibold shadow-none"
       : surface === "intent-high" || surface === "intent-low"
-        ? "h-7 rounded-full px-2.5 text-[11px] font-black shadow-none sm:h-8 sm:px-3 sm:text-xs"
-        : "rounded-full font-black shadow-none";
+        ? "h-7 rounded-full px-2.5 text-[11px] font-semibold shadow-none sm:h-8 sm:px-3 sm:text-xs"
+        : "rounded-full font-semibold shadow-none";
 
   if (!recipientUserId) {
     return (
       <span
-        className="text-xs font-semibold text-muted-foreground"
+        className="text-xs font-normal text-muted-foreground"
         title="Guest viewers cannot be messaged yet"
       >
         {disabledLabel}

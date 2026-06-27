@@ -245,7 +245,7 @@ export default async function EditReelPage({ params }: EditReelPageProps) {
     return (
       <main className="grid min-h-dvh place-items-center bg-black px-5 text-white">
         <section className="w-full max-w-sm rounded-xl border border-white/10 bg-white/10 p-5 text-center shadow-2xl backdrop-blur">
-          <p className="text-xs font-black uppercase tracking-wide text-violet-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-200">
             Processing {progress}%
           </p>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
@@ -254,14 +254,14 @@ export default async function EditReelPage({ params }: EditReelPageProps) {
               style={{ width: `${progress}%` }}
             />
           </div>
-          <h1 className="mt-5 text-xl font-black">Your reel is still processing</h1>
+          <h1 className="mt-5 text-xl font-semibold">Your reel is still processing</h1>
           <p className="mt-2 text-sm font-semibold leading-6 text-white/65">
             You can leave this page. If processing stalls, the reel card will show a
             failure state once the render queue times out.
           </p>
           <Link
             href={profilePath}
-            className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-white px-4 text-sm font-black text-black"
+            className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black"
           >
             Back to profile
           </Link>
@@ -282,7 +282,7 @@ export default async function EditReelPage({ params }: EditReelPageProps) {
         <input type="hidden" name="reelId" value={reel.id} />
         <button
           type="submit"
-          className="inline-flex h-10 items-center gap-2 rounded-md border border-white/15 bg-black/55 px-3 text-xs font-black text-red-100 shadow-lg backdrop-blur transition hover:bg-red-500/20"
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-white/15 bg-black/55 px-3 text-xs font-semibold text-red-100 shadow-lg backdrop-blur transition hover:bg-red-500/20"
         >
           <Trash2 className="size-4" />
           Delete reel

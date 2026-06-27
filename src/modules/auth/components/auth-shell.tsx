@@ -57,7 +57,7 @@ export function AuthShell({
       <section className="relative flex min-h-screen items-center justify-center overflow-y-auto bg-background px-7 py-12 sm:px-10 lg:h-screen lg:items-start">
         <Link
           href="/"
-          className="absolute left-5 top-5 inline-flex h-10 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm font-bold text-muted-foreground shadow-sm transition hover:border-primary/40 hover:text-foreground"
+          className="absolute left-5 top-5 inline-flex h-10 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm font-normal text-muted-foreground shadow-sm transition hover:border-primary/40 hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
           Back
@@ -92,7 +92,7 @@ export function AuthShell({
 
           <div className="my-8 grid grid-cols-[1fr_auto_1fr] items-center gap-5">
             <div className="h-px bg-border" />
-            <span className="text-sm font-bold text-muted-foreground">OR</span>
+            <span className="text-sm font-normal text-muted-foreground">OR</span>
             <div className="h-px bg-border" />
           </div>
 

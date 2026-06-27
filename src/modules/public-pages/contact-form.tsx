@@ -27,10 +27,10 @@ function Field({
   required?: boolean;
 }) {
   const className =
-    "mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm font-semibold outline-none transition placeholder:text-muted-foreground/55 focus:border-primary";
+    "mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm font-normal outline-none transition placeholder:text-muted-foreground/55 focus:border-primary";
 
   return (
-    <label className="block text-xs font-bold text-muted-foreground">
+    <label className="block text-xs font-normal text-muted-foreground">
       {label}
       {textarea ? (
         <textarea
@@ -95,7 +95,7 @@ export function ContactForm() {
         type="submit"
         disabled={pending || showSuccess}
         className={cn(
-          "inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.25)] transition",
+          "inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(123,92,255,0.25)] transition",
           (pending || showSuccess) && "cursor-not-allowed opacity-80",
         )}
       >
@@ -115,7 +115,7 @@ export function ContactForm() {
           {statusMessage}
         </p>
       ) : null}
-      <p className="text-center text-xs font-semibold text-muted-foreground">
+      <p className="text-center text-xs font-normal text-muted-foreground">
         Your information is safe with us. We will never share your details.
       </p>
     </form>

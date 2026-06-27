@@ -54,7 +54,7 @@ export function NetworkSearchPicker({
             }}
             onFocus={() => setIsOpen(true)}
             placeholder={selectedNetwork?.name || "Search existing networks"}
-            className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-20 text-sm font-semibold outline-none transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/25"
+            className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-20 text-sm font-normal outline-none transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/25"
             aria-autocomplete="list"
             aria-controls={listboxId}
             aria-expanded={isOpen}
@@ -88,7 +88,7 @@ export function NetworkSearchPicker({
         </div>
 
         {selectedNetwork ? (
-          <div className="flex min-h-8 items-center gap-2 rounded-md bg-primary/8 px-3 py-2 text-xs font-black text-primary">
+          <div className="flex min-h-8 items-center gap-2 rounded-md bg-primary/8 px-3 py-2 text-xs font-semibold text-primary">
             <Check className="size-4" />
             <span className="truncate">
               Selected {selectedNetwork.name}
@@ -124,14 +124,14 @@ export function NetworkSearchPicker({
                     role="option"
                     aria-selected={isSelected}
                   >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-black text-primary">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                       {option.name.slice(0, 2).toUpperCase()}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-black">
+                      <span className="block truncate text-sm font-semibold">
                         {option.name}
                       </span>
-                      <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
+                      <span className="mt-1 block truncate text-xs font-normal text-muted-foreground">
                         {option.region || "Network HQ"} · {option.slug}
                       </span>
                     </span>
@@ -140,7 +140,7 @@ export function NetworkSearchPicker({
                 );
               })
             ) : (
-              <div className="px-3 py-6 text-center text-sm font-semibold text-muted-foreground">
+              <div className="px-3 py-6 text-center text-sm font-normal text-muted-foreground">
                 No Network HQ matches that search.
               </div>
             )}

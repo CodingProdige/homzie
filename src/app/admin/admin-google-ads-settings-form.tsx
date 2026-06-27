@@ -68,7 +68,7 @@ function SavedSecretHint({ saved }: { saved: boolean }) {
       Saved
     </span>
   ) : (
-    <span className="text-[11px] font-bold text-muted-foreground">Not saved</span>
+    <span className="text-[11px] font-normal text-muted-foreground">Not saved</span>
   );
 }
 
@@ -86,8 +86,8 @@ function ToggleField({
   return (
     <label className="flex min-w-0 items-center gap-4 rounded-lg border border-border bg-background px-4 py-4 transition hover:border-primary/35 hover:bg-primary/5">
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-black">{label}</span>
-        <span className="mt-1 block text-sm font-semibold leading-5 text-muted-foreground">
+        <span className="block text-sm font-semibold">{label}</span>
+        <span className="mt-1 block text-sm font-normal leading-5 text-muted-foreground">
           {description}
         </span>
       </span>
@@ -164,8 +164,8 @@ export function AdminGoogleAdsSettingsForm({
             <Globe2 className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-black">Google DSA control</h3>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-semibold">Google DSA control</h3>
+            <p className="text-xs font-normal text-muted-foreground">
               Homzie owns the Google Ads account and page feed. Users only choose which published listings should be eligible.
             </p>
           </div>
@@ -193,8 +193,8 @@ export function AdminGoogleAdsSettingsForm({
             <ShieldCheck className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-black">Feed and campaign</h3>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-semibold">Feed and campaign</h3>
+            <p className="text-xs font-normal text-muted-foreground">
               Create one Homzie-managed Dynamic Search Ads campaign, then let Google fetch this feed URL on a schedule.
             </p>
           </div>
@@ -273,8 +273,8 @@ export function AdminGoogleAdsSettingsForm({
             <KeyRound className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-black">API credentials</h3>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-semibold">API credentials</h3>
+            <p className="text-xs font-normal text-muted-foreground">
               Only needed for automatic campaign pause and reactivation.
             </p>
           </div>
@@ -326,7 +326,7 @@ export function AdminGoogleAdsSettingsForm({
             {state.message}
           </p>
         ) : (
-          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-normal text-muted-foreground">
             Keep the feed URL scheduled inside Google Ads so listing changes flow through automatically.
           </p>
         )}

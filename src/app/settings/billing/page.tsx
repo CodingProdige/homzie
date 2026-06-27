@@ -581,7 +581,7 @@ function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
                 )}
               </p>
               {billing && billing.nextCharge !== billing.price ? (
-                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                <p className="mt-1 text-xs font-normal text-muted-foreground">
                   Standard plan price: {billing.price}
                 </p>
               ) : null}
@@ -640,7 +640,7 @@ function PaymentMethodCard({ billing }: { billing: BillingData | null }) {
         Your payment information is stored securely by Stripe.
       </p>
       {billing?.paymentMethods.length ? (
-        <p className="mt-3 text-xs font-semibold text-muted-foreground">
+        <p className="mt-3 text-xs font-normal text-muted-foreground">
           To update a card, add a replacement, make it default, then remove the old one.
         </p>
       ) : null}
@@ -682,7 +682,7 @@ function AdsBillingOverview({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-bold">Ads billing</h2>
-          <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
             Delivered ad spend rolls into monthly ads invoices on your billing cycle.
           </p>
         </div>
@@ -690,7 +690,7 @@ function AdsBillingOverview({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
             Next ads billing date
           </p>
-          <p className="mt-1 font-black text-foreground">
+          <p className="mt-1 font-semibold text-foreground">
             {formatShortDate(summary.nextBillingDate)}
           </p>
         </div>
@@ -701,10 +701,10 @@ function AdsBillingOverview({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
             Delivered spend
           </p>
-          <p className="mt-2 text-2xl font-black">
+          <p className="mt-2 text-2xl font-semibold">
             {formatMoney(summary.deliveredSpendCents)}
           </p>
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+          <p className="mt-2 text-sm font-normal text-muted-foreground">
             Measured campaign spend accrued to date.
           </p>
         </div>
@@ -712,10 +712,10 @@ function AdsBillingOverview({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
             Awaiting invoice
           </p>
-          <p className="mt-2 text-2xl font-black">
+          <p className="mt-2 text-2xl font-semibold">
             {formatMoney(summary.uninvoicedSpendCents)}
           </p>
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+          <p className="mt-2 text-sm font-normal text-muted-foreground">
             Delivered spend not yet invoiced.
           </p>
         </div>
@@ -723,8 +723,8 @@ function AdsBillingOverview({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
             Open invoices
           </p>
-          <p className="mt-2 text-2xl font-black">{summary.openInvoiceCount}</p>
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+          <p className="mt-2 text-2xl font-semibold">{summary.openInvoiceCount}</p>
+          <p className="mt-2 text-sm font-normal text-muted-foreground">
             {formatMoney(summary.openInvoiceTotalCents)} currently due or queued.
           </p>
         </div>
@@ -732,10 +732,10 @@ function AdsBillingOverview({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
             Paid to date
           </p>
-          <p className="mt-2 text-2xl font-black">
+          <p className="mt-2 text-2xl font-semibold">
             {formatMoney(summary.paidInvoiceTotalCents)}
           </p>
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+          <p className="mt-2 text-sm font-normal text-muted-foreground">
             Across {summary.activeCampaignCount + summary.pausedCampaignCount} tracked campaigns.
           </p>
         </div>
@@ -930,7 +930,7 @@ export default async function BillingSettingsPage() {
         {billing ? <InvoiceHistory invoices={billing.invoices} /> : null}
 
         <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
-          <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
+          <p className="flex items-center gap-3 text-sm font-normal text-muted-foreground">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
               <HelpCircle className="size-4" />
             </span>

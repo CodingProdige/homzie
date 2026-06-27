@@ -177,8 +177,8 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
       key: "branch",
       render: (row) => (
         <div className="min-w-0">
-          <p className="truncate font-black">{row.branch_name}</p>
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+          <p className="truncate font-semibold">{row.branch_name}</p>
+          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
             {row.region || "No region set"}
           </p>
         </div>
@@ -188,7 +188,7 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
       header: "Team",
       key: "team",
       render: (row) => (
-        <span className="font-semibold text-muted-foreground">
+        <span className="font-normal text-muted-foreground">
           {numberLabel(row.member_count)} members
         </span>
       ),
@@ -197,7 +197,7 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
       header: "Listings",
       key: "listings",
       render: (row) => (
-        <div className="text-sm font-semibold text-muted-foreground">
+        <div className="text-sm font-normal text-muted-foreground">
           <p>{numberLabel(row.active_listings)} active</p>
           <p>{numberLabel(row.sold_count)} sold</p>
         </div>
@@ -207,7 +207,7 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
       header: "Buyer activity",
       key: "activity",
       render: (row) => (
-        <div className="text-sm font-semibold text-muted-foreground">
+        <div className="text-sm font-normal text-muted-foreground">
           <p>{numberLabel(row.view_count)} views</p>
           <p>{numberLabel(row.action_count)} actions</p>
         </div>
@@ -225,17 +225,17 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Agency network
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Network
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Link your agency to an existing Network HQ, see sibling branches, and keep branch billing self-funded.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
           <Network className="size-4 text-primary" />
           {linkStatusLabel(workspace.agency.parentLinkStatus)}
         </span>
@@ -244,16 +244,16 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
       <section className="mt-8 rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
               Affiliation
             </p>
-            <h2 className="mt-2 text-2xl font-black">
+            <h2 className="mt-2 text-2xl font-semibold">
               {parentNetwork?.name ||
                 (workspace.agency.parentLinkStatus === "pending"
                   ? workspace.agency.requestedParentAgencyName
                   : "No network linked")}
             </h2>
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-muted-foreground">
+            <p className="mt-2 max-w-3xl text-sm font-normal leading-7 text-muted-foreground">
               Network links give your agency brand relationship and branch visibility. Your seats remain paid by your own agency workspace, not the Network HQ.
             </p>
           </div>
@@ -280,10 +280,10 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
         <section className="mt-8">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
                 Network directory
               </p>
-              <h2 className="mt-2 text-2xl font-black">Linked branches</h2>
+              <h2 className="mt-2 text-2xl font-semibold">Linked branches</h2>
             </div>
             <Button asChild variant="outline">
               <Link href={`${basePath}/leaderboard`}>

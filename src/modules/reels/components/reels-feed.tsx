@@ -692,7 +692,7 @@ function ReelCard({
 
       {process.env.NODE_ENV === "development" &&
       reel.recommendationReasons?.length ? (
-        <div className="pointer-events-none absolute left-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-20 max-w-[70%] rounded-full bg-black/45 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white/80 backdrop-blur">
+        <div className="pointer-events-none absolute left-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-20 max-w-[70%] rounded-full bg-black/45 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/80 backdrop-blur">
           {reel.recommendationReasons.slice(0, 3).join(" · ")}
         </div>
       ) : null}
@@ -797,7 +797,7 @@ function ReelCard({
         <div className="relative mb-1">
           <Link
             href={`/users/${reel.agentUsername}`}
-            className="flex size-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[var(--homzie-gradient)] text-sm font-black shadow-lg"
+            className="flex size-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[var(--homzie-gradient)] text-sm font-semibold shadow-lg"
             onClick={(event) => event.stopPropagation()}
           >
             {reel.agentAvatarUrl ? (
@@ -856,7 +856,7 @@ function ReelCard({
           />
           {reshareNotice ? (
             <div
-              className="absolute right-full top-1/2 mr-3 w-48 -translate-y-1/2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-black shadow-2xl"
+              className="absolute right-full top-1/2 mr-3 w-48 -translate-y-1/2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               {reshareNotice}
@@ -982,7 +982,7 @@ function OwnerReelMenu({
       </button>
       {open ? (
         <div
-          className="absolute right-0 top-12 w-44 overflow-hidden rounded-2xl bg-white text-sm font-black text-black shadow-2xl ring-1 ring-black/10"
+          className="absolute right-0 top-12 w-44 overflow-hidden rounded-2xl bg-white text-sm font-semibold text-black shadow-2xl ring-1 ring-black/10"
           onClick={(event) => event.stopPropagation()}
         >
           <Link
@@ -1012,10 +1012,10 @@ function OwnerReelMenu({
             className="fixed left-1/2 top-1/2 z-[91] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl outline-none"
             onClick={(event) => event.stopPropagation()}
           >
-            <Dialog.Title className="text-base font-black">
+            <Dialog.Title className="text-base font-semibold">
               Delete reel?
             </Dialog.Title>
-            <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+            <Dialog.Description className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
               This permanently removes the reel and clears it from saved profiles,
               likes, comments and reshares.
             </Dialog.Description>
@@ -1060,7 +1060,7 @@ function ViewerReelMenu({
         <MoreHorizontal className="size-5" />
       </button>
       {open ? (
-        <div className="absolute right-0 top-12 w-52 overflow-hidden rounded-2xl bg-white text-sm font-black text-black shadow-2xl ring-1 ring-black/10">
+        <div className="absolute right-0 top-12 w-52 overflow-hidden rounded-2xl bg-white text-sm font-semibold text-black shadow-2xl ring-1 ring-black/10">
           <button
             type="button"
             className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-black/5"
@@ -1078,7 +1078,7 @@ function ViewerReelMenu({
             targetId={reel.id}
             targetLabel="reel"
             targetType="reel"
-            triggerClassName="flex h-auto w-full justify-start rounded-none px-4 py-3 text-left text-sm font-black text-red-500 shadow-none hover:bg-red-50 hover:text-red-600"
+            triggerClassName="flex h-auto w-full justify-start rounded-none px-4 py-3 text-left text-sm font-semibold text-red-500 shadow-none hover:bg-red-50 hover:text-red-600"
             triggerVariant="ghost"
           />
         </div>
@@ -1182,9 +1182,9 @@ function ReelListingLinkCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-black">{listing.title}</p>
+          <p className="truncate text-sm font-semibold">{listing.title}</p>
           {isSelected ? (
-            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
               Linked
             </span>
           ) : null}
@@ -1194,7 +1194,7 @@ function ReelListingLinkCard({
             {listing.location}
           </p>
         ) : null}
-        <div className="mt-2 flex items-center gap-2 text-xs font-black text-black/60">
+        <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-black/60">
           {displayPrice ? <span>{displayPrice}</span> : null}
           <span className="rounded-full bg-black/5 px-2 py-1 capitalize">
             {listing.status}
@@ -1300,7 +1300,7 @@ function CommentAvatar({
   avatarUrl: string | null;
 }) {
   return (
-    <div className="mt-0.5 size-10 shrink-0 overflow-hidden rounded-full bg-black text-sm font-black text-white">
+    <div className="mt-0.5 size-10 shrink-0 overflow-hidden rounded-full bg-black text-sm font-semibold text-white">
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- Stored user avatars can be relative media URLs.
         <img src={avatarUrl} alt="" className="size-full object-cover" />
@@ -1397,7 +1397,7 @@ function ListingLinkSheet({
   return (
     <SheetShell open={open} onClose={onClose}>
       <div className="flex h-14 shrink-0 items-center justify-center border-b border-black/5 px-4">
-        <h2 className="text-lg font-black">Link listing</h2>
+        <h2 className="text-lg font-semibold">Link listing</h2>
         <button
           type="button"
           className="absolute right-4 top-4 text-black"
@@ -1427,7 +1427,7 @@ function ListingLinkSheet({
             {linkedListingId ? (
               <button
                 type="button"
-                className="flex w-full items-center justify-center rounded-2xl bg-black px-4 py-3 text-sm font-black text-white disabled:opacity-50"
+                className="flex w-full items-center justify-center rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
                 disabled={isSaving}
                 onClick={() => void selectListing(null)}
               >
@@ -1447,7 +1447,7 @@ function ListingLinkSheet({
         ) : (
           <div className="mt-6 rounded-3xl bg-black/[0.04] p-6 text-center">
             <Link2 className="mx-auto size-10 text-black/35" />
-            <h3 className="mt-4 text-lg font-black">No listings yet</h3>
+            <h3 className="mt-4 text-lg font-semibold">No listings yet</h3>
             <p className="mt-2 text-sm font-semibold leading-6 text-black/45">
               Once you create listed properties, they will appear here so you can link one to this reel.
             </p>
@@ -1496,7 +1496,7 @@ function CommentRow({
                 <MoreHorizontal className="size-5" />
               </button>
               {isMenuOpen ? (
-                <div className="absolute right-0 top-7 z-10 w-32 overflow-hidden rounded-xl bg-white text-sm font-black text-black shadow-xl ring-1 ring-black/10">
+                <div className="absolute right-0 top-7 z-10 w-32 overflow-hidden rounded-xl bg-white text-sm font-semibold text-black shadow-xl ring-1 ring-black/10">
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-black/5"
@@ -1903,7 +1903,7 @@ function CommentsSheet({
   return (
     <SheetShell open={open} onClose={onClose}>
       <div className="flex h-12 shrink-0 items-center justify-center border-b border-black/5 px-4">
-        <h2 className="text-base font-black">{commentLabel} comments</h2>
+        <h2 className="text-base font-semibold">{commentLabel} comments</h2>
         <button
           type="button"
           className="absolute right-4 top-4 text-black"
@@ -1985,7 +1985,7 @@ function CommentsSheet({
       <div className="shrink-0 border-t border-black/10 bg-white px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
         {picker ? (
           <div className="mb-3 rounded-2xl bg-black/[0.04] p-3">
-            <div className="mb-3 grid grid-cols-2 rounded-full bg-white p-1 text-sm font-black shadow-sm">
+            <div className="mb-3 grid grid-cols-2 rounded-full bg-white p-1 text-sm font-semibold shadow-sm">
               <button
                 type="button"
                 className={cn(
@@ -2017,7 +2017,7 @@ function CommentsSheet({
                 />
                 {recentEmojis.length ? (
                   <div>
-                    <p className="mb-2 text-xs font-black text-black/45">Recently used</p>
+                    <p className="mb-2 text-xs font-semibold text-black/45">Recently used</p>
                     <div className="flex gap-1 overflow-x-auto pb-1 text-2xl">
                       {recentEmojis.map((emoji) => (
                         <button
@@ -2060,7 +2060,7 @@ function CommentsSheet({
                 />
                 {recentGifs.length ? (
                   <div>
-                    <p className="mb-2 text-xs font-black text-black/45">Recently used</p>
+                    <p className="mb-2 text-xs font-semibold text-black/45">Recently used</p>
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {recentGifs.map((gif) => (
                         <button
@@ -2071,7 +2071,7 @@ function CommentsSheet({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element -- GIF picker thumbnails are remote GIF previews. */}
                           <img src={gif.url} alt="" className="aspect-square w-full object-cover" />
-                          <span className="block truncate px-2 py-1 text-[10px] font-black">
+                          <span className="block truncate px-2 py-1 text-[10px] font-semibold">
                             {gif.label}
                           </span>
                         </button>
@@ -2089,7 +2089,7 @@ function CommentsSheet({
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element -- GIF picker thumbnails are remote GIF previews. */}
                       <img src={gif.url} alt="" className="aspect-square w-full object-cover" />
-                      <span className="block truncate px-2 py-1 text-[10px] font-black">
+                      <span className="block truncate px-2 py-1 text-[10px] font-semibold">
                         {gif.label}
                       </span>
                     </button>
@@ -2129,7 +2129,7 @@ function CommentsSheet({
                 alt={mediaLabel || "Comment attachment preview"}
                 className="size-full object-cover"
               />
-              <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-1 text-[9px] font-black text-white">
+              <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-1 text-[9px] font-semibold text-white">
                 {mediaLabel || "Attachment"}
               </span>
             </div>
@@ -2172,7 +2172,7 @@ function CommentsSheet({
           </div>
         ) : null}
         <div className="flex items-center gap-2">
-          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-black text-sm font-black text-white">
+          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-black text-sm font-semibold text-white">
             {initialsFromName(reel.agentName)}
           </div>
           <input
@@ -2293,7 +2293,7 @@ function ShareSheet({
   return (
     <SheetShell open={open} onClose={onClose}>
       <div className="flex h-14 shrink-0 items-center justify-center border-b border-black/5 px-4">
-        <h2 className="text-lg font-black">Share reel</h2>
+        <h2 className="text-lg font-semibold">Share reel</h2>
         <button
           type="button"
           className="absolute right-4 top-4 text-black"
@@ -2306,7 +2306,7 @@ function ShareSheet({
       <div className="space-y-4 p-5">
         <button
           type="button"
-          className="flex w-full items-center justify-between rounded-2xl bg-black px-5 py-4 text-left font-black text-white"
+          className="flex w-full items-center justify-between rounded-2xl bg-black px-5 py-4 text-left font-semibold text-white"
           onClick={() => void nativeShare()}
         >
           Share with device
@@ -2314,7 +2314,7 @@ function ShareSheet({
         </button>
         <button
           type="button"
-          className="flex w-full items-center justify-between rounded-2xl bg-black/5 px-5 py-4 text-left font-black"
+          className="flex w-full items-center justify-between rounded-2xl bg-black/5 px-5 py-4 text-left font-semibold"
           onClick={() => void copyLink()}
         >
           Copy link
@@ -2369,7 +2369,7 @@ function ShareBrandIcon({ brand }: { brand: string }) {
 
   if (brand === "sms") {
     return (
-      <span className="grid size-7 place-items-center rounded-full bg-[#34C759] text-[9px] font-black text-white">
+      <span className="grid size-7 place-items-center rounded-full bg-[#34C759] text-[9px] font-semibold text-white">
         SMS
       </span>
     );

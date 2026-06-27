@@ -24,7 +24,7 @@ export function AnalyticsRangeDropdown({
     <label className="block min-w-48">
       <span className="sr-only">Time period</span>
       <select
-        className="h-11 w-full rounded-md border border-border bg-card px-3 text-sm font-black text-foreground shadow-sm outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
+        className="h-11 w-full rounded-md border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
         value={activeRangeKey}
         onChange={(event) => {
           router.push(`${baseHref}${separator}range=${event.target.value}`);

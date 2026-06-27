@@ -29,7 +29,7 @@ export default async function AdminMusicPage() {
           <ChevronLeft className="size-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-black">Music Library</h1>
+          <h1 className="text-2xl font-semibold">Music Library</h1>
           <p className="text-sm text-muted-foreground">
             Upload royalty-free tracks for reel creators.
           </p>
@@ -40,7 +40,7 @@ export default async function AdminMusicPage() {
 
       {tracks.length > 0 ? (
         <div className="space-y-3">
-          <h2 className="text-base font-black">Tracks ({tracks.length})</h2>
+          <h2 className="text-base font-semibold">Tracks ({tracks.length})</h2>
           <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
             {tracks.map((track) => {
               const coverUrl = toPublicMediaUrl(track.coverPath);
@@ -60,8 +60,8 @@ export default async function AdminMusicPage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black">{track.title}</p>
-                    <p className="truncate text-xs font-semibold text-muted-foreground">
+                    <p className="truncate text-sm font-semibold">{track.title}</p>
+                    <p className="truncate text-xs font-normal text-muted-foreground">
                       {track.artist}
                       {track.genre ? ` · ${track.genre}` : ""}
                       {track.durationSeconds > 0 ? ` · ${duration}` : ""}
@@ -83,7 +83,7 @@ export default async function AdminMusicPage() {
                         "use server";
                         await toggleMusicTrackActive(track.id, !track.isActive);
                       }}
-                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-black transition ${
+                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${
                         track.isActive
                           ? "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
                           : "bg-muted text-muted-foreground hover:bg-muted/70"
@@ -99,7 +99,7 @@ export default async function AdminMusicPage() {
                         "use server";
                         await deleteMusicTrack(track.id);
                       }}
-                      className="shrink-0 rounded-full px-3 py-1 text-xs font-black text-destructive transition hover:bg-destructive/10"
+                      className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/10"
                     >
                       Delete
                     </button>
@@ -112,7 +112,7 @@ export default async function AdminMusicPage() {
       ) : (
         <div className="rounded-xl border border-dashed border-border py-12 text-center">
           <Music className="mx-auto mb-3 size-8 text-muted-foreground/40" />
-          <p className="text-sm font-semibold text-muted-foreground">No tracks yet</p>
+          <p className="text-sm font-normal text-muted-foreground">No tracks yet</p>
           <p className="mt-1 text-xs text-muted-foreground/60">
             Upload a track above to get started.
           </p>

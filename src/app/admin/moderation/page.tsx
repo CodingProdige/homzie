@@ -51,7 +51,7 @@ function badge(value: string, tone: "default" | "warning" | "muted" = "muted") {
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em]",
+        "inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]",
         tone === "warning"
           ? "bg-amber-500/12 text-amber-700 dark:text-amber-300"
           : tone === "default"
@@ -92,8 +92,8 @@ const columns: Array<CanonicalTableColumn<ModerationRow>> = [
           {badge(sourceLabel(row.source), "default")}
           {badge(statusLabel(row.status), isOpenModerationStatus(row) ? "warning" : "muted")}
         </div>
-        <p className="mt-2 font-black">{row.content_title || row.target_type}</p>
-        <p className="mt-1 line-clamp-1 text-xs font-semibold text-muted-foreground">
+        <p className="mt-2 font-semibold">{row.content_title || row.target_type}</p>
+        <p className="mt-1 line-clamp-1 text-xs font-normal text-muted-foreground">
           {row.reason || "No reason supplied"}
         </p>
       </div>
@@ -103,7 +103,7 @@ const columns: Array<CanonicalTableColumn<ModerationRow>> = [
     header: "People",
     key: "people",
     render: (row) => (
-      <div className="text-xs font-semibold leading-5 text-muted-foreground">
+      <div className="text-xs font-normal leading-5 text-muted-foreground">
         <p>
           Reporter:{" "}
           <span className="font-bold text-foreground">
@@ -129,7 +129,7 @@ const columns: Array<CanonicalTableColumn<ModerationRow>> = [
     header: "Created",
     key: "created",
     render: (row) => (
-      <span className="text-xs font-bold text-muted-foreground">
+      <span className="text-xs font-normal text-muted-foreground">
         {formatDate(row.created_at)}
       </span>
     ),
@@ -150,18 +150,18 @@ export default async function AdminModerationPage({
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Admin
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Moderation
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Review reports, sale claims, disputes, and safety signals before
             they affect public trust surfaces.
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm font-bold text-muted-foreground">
+        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm font-normal text-muted-foreground">
           {rows.length.toLocaleString("en-ZA")} {rows.length === 1 ? "item" : "items"}
         </div>
       </div>
@@ -173,7 +173,7 @@ export default async function AdminModerationPage({
               key={tab.value}
               href={`/admin/moderation?type=${tab.value}`}
               className={cn(
-                "inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-black transition",
+                "inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold transition",
                 currentType === tab.value
                   ? "border-primary bg-primary/10 text-primary"
                   : "bg-background text-muted-foreground hover:text-foreground",
@@ -202,7 +202,7 @@ export default async function AdminModerationPage({
         />
       </section>
 
-      <p className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-muted-foreground">
+      <p className="mt-5 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
         Open items include in-review, waiting, pending, and escalated records.
         <ChevronRight className="size-3" />
       </p>

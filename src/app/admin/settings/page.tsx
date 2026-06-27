@@ -64,13 +64,13 @@ export default function AdminSettingsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           Admin
         </p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
           Settings
         </h1>
-        <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
           Choose a settings area to manage platform-level configuration.
         </p>
       </div>
@@ -89,8 +89,8 @@ export default function AdminSettingsPage() {
                 <Icon className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black">{item.label}</span>
-                <span className="mt-1 block text-sm font-semibold leading-6 text-muted-foreground">
+                <span className="block text-sm font-semibold">{item.label}</span>
+                <span className="mt-1 block text-sm font-normal leading-6 text-muted-foreground">
                   {item.description}
                 </span>
               </span>

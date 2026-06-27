@@ -68,7 +68,7 @@ function HealthPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black capitalize",
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold capitalize",
         tone === "success" && "border-primary/25 bg-primary/10 text-primary",
         tone === "danger" && "border-destructive/25 bg-destructive/10 text-destructive",
         tone === "muted" && "border-border bg-muted/60 text-foreground",
@@ -125,13 +125,13 @@ export function AdminGoogleAdsHealthCard({
     <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Automation health
           </p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight">
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             Google DSA status
           </h2>
-          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-2 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
             Watch the live listing count, the most recent Google sync result, and the exact API failure if the developer token is still waiting on Basic Access approval.
           </p>
         </div>
@@ -166,13 +166,13 @@ export function AdminGoogleAdsHealthCard({
               <Tags className="size-4" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
                 Active listings
               </p>
-              <p className="mt-1 text-3xl font-black">{health.activeGoogleListings}</p>
+              <p className="mt-1 text-3xl font-semibold">{health.activeGoogleListings}</p>
             </div>
           </div>
-          <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
+          <p className="mt-3 text-xs font-normal leading-5 text-muted-foreground">
             Published listing URLs that are currently eligible for the Homzie-managed Google feed.
           </p>
         </div>
@@ -183,15 +183,15 @@ export function AdminGoogleAdsHealthCard({
               {renderLatestStateIcon(health.lastSyncStatus)}
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
                 Latest state
               </p>
-              <p className="mt-1 text-lg font-black capitalize">
+              <p className="mt-1 text-lg font-semibold capitalize">
                 {statusLabel(health.lastSyncStatus)}
               </p>
             </div>
           </div>
-          <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
+          <p className="mt-3 text-xs font-normal leading-5 text-muted-foreground">
             Last checked {formatSyncTime(health.lastSyncAt)}.
           </p>
         </div>
@@ -202,17 +202,17 @@ export function AdminGoogleAdsHealthCard({
               <ShieldCheck className="size-4" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
                 Campaign wiring
               </p>
-              <p className="mt-1 text-lg font-black">
+              <p className="mt-1 text-lg font-semibold">
                 {health.dsaCampaignIdConfigured && health.feedConfigured
                   ? "Ready"
                   : "Needs setup"}
               </p>
             </div>
           </div>
-          <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
+          <p className="mt-3 text-xs font-normal leading-5 text-muted-foreground">
             Feed token {health.feedConfigured ? "saved" : "missing"}, DSA campaign ID{" "}
             {health.dsaCampaignIdConfigured ? "saved" : "missing"}, login customer ID{" "}
             {health.loginCustomerIdConfigured ? "saved" : "optional"}.
@@ -225,13 +225,13 @@ export function AdminGoogleAdsHealthCard({
               <CircleDashed className="size-4" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
                 Google campaigns
               </p>
-              <p className="mt-1 text-3xl font-black">{health.totalGoogleCampaigns}</p>
+              <p className="mt-1 text-3xl font-semibold">{health.totalGoogleCampaigns}</p>
             </div>
           </div>
-          <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
+          <p className="mt-3 text-xs font-normal leading-5 text-muted-foreground">
             Total Google listing promotion records Homzie is currently tracking.
           </p>
         </div>
@@ -252,7 +252,7 @@ export function AdminGoogleAdsHealthCard({
             ) : (
               <ShieldCheck className="size-4 text-primary" />
             )}
-            <h3 className="text-sm font-black">Latest API result</h3>
+            <h3 className="text-sm font-semibold">Latest API result</h3>
           </div>
           <p
             className={cn(
@@ -285,9 +285,9 @@ export function AdminGoogleAdsHealthCard({
         <div className="rounded-lg border border-border bg-background p-4">
           <div className="flex items-center gap-2">
             <ShieldAlert className="size-4 text-primary" />
-            <h3 className="text-sm font-black">Access level note</h3>
+            <h3 className="text-sm font-semibold">Access level note</h3>
           </div>
-          <p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-3 text-sm font-normal leading-6 text-muted-foreground">
             {health.tokenStateLabel}. If Google still reports permission errors, confirm the developer token has moved from Test Account Access to Basic Access in the Google Ads API Center.
           </p>
         </div>

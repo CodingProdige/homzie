@@ -119,7 +119,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+      <span className="text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </span>
       <input
@@ -147,7 +147,7 @@ function TextAreaField({
 }) {
   return (
     <label className="block">
-      <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+      <span className="text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </span>
       <textarea
@@ -275,7 +275,7 @@ export function EmailTemplateManager({
 
   if (!selectedTemplate) {
     return (
-      <div className="rounded-lg border border-border bg-card p-6 text-sm font-semibold text-muted-foreground">
+      <div className="rounded-lg border border-border bg-card p-6 text-sm font-normal text-muted-foreground">
         No email templates are available yet.
       </div>
     );
@@ -302,11 +302,11 @@ export function EmailTemplateManager({
               onClick={() => setSelectedKey(template.key)}
               type="button"
             >
-              <span className="block text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="block text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
                 {template.category}
               </span>
-              <span className="mt-1 block text-sm font-black">{template.name}</span>
-              <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
+              <span className="mt-1 block text-sm font-semibold">{template.name}</span>
+              <span className="mt-1 block truncate text-xs font-normal text-muted-foreground">
                 {template.key}
               </span>
             </button>
@@ -323,11 +323,11 @@ export function EmailTemplateManager({
       >
         <section className="space-y-5 rounded-lg border border-border bg-card p-4 shadow-sm">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
               {selectedTemplate.category}
             </p>
-            <h2 className="mt-2 text-2xl font-black">{selectedTemplate.name}</h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <h2 className="mt-2 text-2xl font-semibold">{selectedTemplate.name}</h2>
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               {selectedTemplate.description}
             </p>
           </div>
@@ -336,8 +336,8 @@ export function EmailTemplateManager({
             <input name="key" type="hidden" value={selectedTemplate.key} />
             <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-3">
               <span>
-                <span className="block text-sm font-black">Template enabled</span>
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-sm font-semibold">Template enabled</span>
+                <span className="block text-xs font-normal text-muted-foreground">
                   Disabled templates log as skipped and do not send.
                 </span>
               </span>
@@ -368,7 +368,7 @@ export function EmailTemplateManager({
               value={fields.preheader}
             />
             <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
                 HTML body
               </span>
               <textarea
@@ -390,7 +390,7 @@ export function EmailTemplateManager({
 
             <div className="flex flex-wrap items-center gap-2">
               <button
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-black text-primary-foreground disabled:opacity-60"
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
                 disabled={isSaving}
                 type="submit"
               >
@@ -431,7 +431,7 @@ export function EmailTemplateManager({
                 value={testRecipient}
               />
               <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-black hover:border-primary/35 disabled:opacity-60"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-semibold hover:border-primary/35 disabled:opacity-60"
                 disabled={isTesting}
                 type="submit"
               >
@@ -451,7 +451,7 @@ export function EmailTemplateManager({
           </form>
 
           <section className="rounded-lg border border-border bg-background p-3">
-            <h3 className="text-sm font-black">Version history</h3>
+            <h3 className="text-sm font-semibold">Version history</h3>
             <div className="mt-3 space-y-2">
               {selectedVersions.length ? (
                 selectedVersions.slice(0, 8).map((version) => (
@@ -463,15 +463,15 @@ export function EmailTemplateManager({
                     <input name="templateKey" type="hidden" value={selectedTemplate.key} />
                     <input name="versionId" type="hidden" value={version.id} />
                     <span className="min-w-0">
-                      <span className="block truncate text-xs font-black">
+                      <span className="block truncate text-xs font-semibold">
                         {version.subject}
                       </span>
-                      <span className="block text-[10px] font-semibold text-muted-foreground">
+                      <span className="block text-[10px] font-normal text-muted-foreground">
                         {new Date(version.createdAt).toLocaleString()}
                       </span>
                     </span>
                     <button
-                      className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-black hover:border-primary/40 disabled:opacity-60"
+                      className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-semibold hover:border-primary/40 disabled:opacity-60"
                       disabled={isRollingBack}
                       type="submit"
                     >
@@ -480,7 +480,7 @@ export function EmailTemplateManager({
                   </form>
                 ))
               ) : (
-                <p className="text-sm font-semibold text-muted-foreground">
+                <p className="text-sm font-normal text-muted-foreground">
                   No saved versions yet.
                 </p>
               )}
@@ -499,7 +499,7 @@ export function EmailTemplateManager({
 
         <aside className="space-y-4">
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <h3 className="flex items-center gap-2 text-sm font-black">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
               <Copy className="size-4" />
               Variables
             </h3>
@@ -507,7 +507,7 @@ export function EmailTemplateManager({
               {selectedTemplate.variables.map((variable) => (
                 <button
                   key={variable.key}
-                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black hover:border-primary/45 hover:text-primary"
+                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-primary/45 hover:text-primary"
                   onClick={() => insertVariable(variable.key)}
                   title={variable.label}
                   type="button"
@@ -519,7 +519,7 @@ export function EmailTemplateManager({
           </section>
 
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <h3 className="flex items-center gap-2 text-sm font-black">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
               <Mail className="size-4" />
               Preview
             </h3>
@@ -532,7 +532,7 @@ export function EmailTemplateManager({
           </section>
 
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <h3 className="text-sm font-black">Recent deliveries</h3>
+            <h3 className="text-sm font-semibold">Recent deliveries</h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <select
                 className="h-9 rounded-md border border-border bg-background px-2 text-xs font-bold"
@@ -565,14 +565,14 @@ export function EmailTemplateManager({
                     className="rounded-md border border-border bg-background p-2"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs font-black">
+                      <span className="truncate text-xs font-semibold">
                         {log.templateKey}
                       </span>
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-black uppercase">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase">
                         {log.status}
                       </span>
                     </div>
-                    <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+                    <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
                       {log.recipientEmail}
                     </p>
                     {log.error ? (
@@ -583,7 +583,7 @@ export function EmailTemplateManager({
                     <form action={resendAction} className="mt-2">
                       <input name="logId" type="hidden" value={log.id} />
                       <button
-                        className="rounded-md border border-border px-2 py-1 text-[10px] font-black hover:border-primary/40 disabled:opacity-60"
+                        className="rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:border-primary/40 disabled:opacity-60"
                         disabled={isResending}
                         type="submit"
                       >
@@ -593,7 +593,7 @@ export function EmailTemplateManager({
                   </div>
                 ))
               ) : (
-                <p className="text-sm font-semibold text-muted-foreground">
+                <p className="text-sm font-normal text-muted-foreground">
                   No email delivery logs yet.
                 </p>
               )}

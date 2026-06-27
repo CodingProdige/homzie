@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+
+import { BackButton } from "@/components/back-button";
 
 import {
   AdminDemoProfileSettingsForm,
@@ -209,22 +211,17 @@ export default async function AdminDemoProfileSettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Button variant="ghost" asChild className="-ml-3 mb-6">
-        <Link href="/admin/settings">
-          <ArrowLeft className="size-4" />
-          Settings
-        </Link>
-      </Button>
+      <BackButton href="/admin/settings" label="Settings" className="mb-6" />
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Admin
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Demo Profile
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Edit the mock agent profile, login credentials, active showcase
             listings, and sold-history data used by the public performance page.
           </p>
@@ -249,18 +246,18 @@ export default async function AdminDemoProfileSettingsPage() {
       <section className="mt-8 rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
               Demo access state
             </p>
-            <h2 className="mt-2 text-xl font-black">
+            <h2 className="mt-2 text-xl font-semibold">
               {subscription.subscribed ? "Subscribed" : "Unsubscribed"}
             </h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
               This controls whether the demo profile passes the same Pro access
               checks used by listing creation, reel creation, and subscriber-only
               profile features.
             </p>
-            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+            <p className="mt-1 text-xs font-normal text-muted-foreground">
               Status: {subscription.status}
               {subscription.currentPeriodEnd
                 ? ` · Access ends ${subscription.currentPeriodEnd.toLocaleDateString("en-ZA")}`

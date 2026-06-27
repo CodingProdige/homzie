@@ -110,7 +110,7 @@ export function PerformanceTrendChart({
       </svg>
 
       {!hasData ? (
-        <div className="absolute inset-x-0 top-20 text-center text-xs font-black uppercase tracking-wide text-white/45">
+        <div className="absolute inset-x-0 top-20 text-center text-xs font-semibold uppercase tracking-wide text-white/45">
           No sold value yet
         </div>
       ) : null}

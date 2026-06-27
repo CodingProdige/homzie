@@ -99,10 +99,10 @@ export function ReportContentButton({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[91] max-h-[calc(100dvh-2rem)] w-[min(92vw,30rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl outline-none">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-lg font-semibold">
                 Report {targetLabel}
               </Dialog.Title>
-              <Dialog.Description className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+              <Dialog.Description className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                 Send this to Homzie moderation for review. False or abusive reports
                 may be ignored.
               </Dialog.Description>
@@ -116,8 +116,8 @@ export function ReportContentButton({
 
           {sent ? (
             <div className="mt-5 rounded-lg border border-primary/20 bg-primary/10 p-4">
-              <p className="text-sm font-black text-primary">Report received.</p>
-              <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+              <p className="text-sm font-semibold text-primary">Report received.</p>
+              <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                 Thanks. Homzie will review this moderation signal.
               </p>
               <Dialog.Close asChild>
@@ -128,7 +128,7 @@ export function ReportContentButton({
             </div>
           ) : (
             <div className="mt-5 grid gap-4">
-              <label className="grid gap-2 text-sm font-black">
+              <label className="grid gap-2 text-sm font-semibold">
                 Reason
                 <select
                   value={reason}
@@ -142,7 +142,7 @@ export function ReportContentButton({
                   ))}
                 </select>
               </label>
-              <label className="grid gap-2 text-sm font-black">
+              <label className="grid gap-2 text-sm font-semibold">
                 Details
                 <textarea
                   value={details}

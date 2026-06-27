@@ -66,7 +66,7 @@ function FieldLabel({
   label: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm font-black">
+    <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
       {label}
       <AnalyticsInfoPopover title={label} description={description} />
     </span>
@@ -141,7 +141,7 @@ function AssetPreview({
   return (
     <div
       className={cn(
-        "grid place-items-center overflow-hidden border border-border bg-card text-sm font-black text-primary",
+        "grid place-items-center overflow-hidden border border-border bg-card text-sm font-semibold text-primary",
         className,
       )}
     >
@@ -307,7 +307,7 @@ export function AgencyBrandingForm({
                   </AssetPreview>
                   <label
                     className={cn(
-                      "inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-black text-foreground transition hover:border-primary/50 hover:text-primary",
+                      "inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:text-primary",
                       !canManageControlRoomBrand &&
                         "pointer-events-none cursor-not-allowed opacity-60",
                     )}
@@ -328,7 +328,7 @@ export function AgencyBrandingForm({
                       }}
                     />
                   </label>
-                  <p className="max-w-sm text-xs font-semibold leading-5 text-muted-foreground">
+                  <p className="max-w-sm text-xs font-normal leading-5 text-muted-foreground">
                     Cropped to 1:1 and compressed to WebP before upload.
                   </p>
                 </div>
@@ -371,7 +371,7 @@ export function AgencyBrandingForm({
                   </AssetPreview>
                   <label
                     className={cn(
-                      "inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-black text-foreground transition hover:border-primary/50 hover:text-primary",
+                      "inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:text-primary",
                       !canManagePublicBrand &&
                         "pointer-events-none cursor-not-allowed opacity-60",
                     )}
@@ -392,7 +392,7 @@ export function AgencyBrandingForm({
                       }}
                     />
                   </label>
-                  <p className="max-w-sm text-xs font-semibold leading-5 text-muted-foreground">
+                  <p className="max-w-sm text-xs font-normal leading-5 text-muted-foreground">
                     Cropped to 16:5 and compressed to WebP before upload.
                   </p>
                 </div>
@@ -509,7 +509,7 @@ export function AgencyBrandingForm({
 
         <aside className="rounded-lg border border-border bg-background p-4">
           <div className="flex items-center gap-1.5">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Live preview
             </p>
             <AnalyticsInfoPopover
@@ -519,7 +519,7 @@ export function AgencyBrandingForm({
           </div>
           <div className="mt-5 grid gap-4 rounded-lg border border-border bg-card p-5">
             <div>
-              <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+              <p className="mb-2 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
                 Control room
               </p>
               <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3">
@@ -546,8 +546,8 @@ export function AgencyBrandingForm({
                   )}
                 </AssetPreview>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black">{agencyName}</p>
-                  <p className="text-xs font-semibold text-muted-foreground">
+                  <p className="truncate text-sm font-semibold">{agencyName}</p>
+                  <p className="text-xs font-normal text-muted-foreground">
                     Workspace identity
                   </p>
                 </div>
@@ -555,17 +555,17 @@ export function AgencyBrandingForm({
             </div>
 
             <div>
-              <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+              <p className="mb-2 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
                 Public badge
               </p>
               <AgencyBrandBadge brand={effectivePreviewBrand} />
-              <p className="mt-2 text-xs font-bold text-muted-foreground">
+              <p className="mt-2 text-xs font-normal text-muted-foreground">
                 {effectivePublicBrand.sourceLabel}
               </p>
             </div>
             {isNetworkBrandLocked ? (
               <div className="mt-4 rounded-lg border border-dashed border-border bg-card p-3">
-                <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
                   Your saved local public brand
                 </p>
                 <AgencyBrandBadge
@@ -576,17 +576,17 @@ export function AgencyBrandingForm({
                     logoUrl: publicPreviewUrl,
                   }}
                 />
-                <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
+                <p className="mt-2 text-xs font-normal leading-5 text-muted-foreground">
                   Saved locally for this branch, but hidden while Network HQ branding is enforced.
                 </p>
               </div>
             ) : null}
           </div>
           <div className="mt-4 rounded-lg border border-border bg-card p-3">
-            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Public surfaces
             </p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+            <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
               Agent profile header, listing cards, listing detail contact panel,
               and future agency-owned listing surfaces.
             </p>
@@ -596,25 +596,25 @@ export function AgencyBrandingForm({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         {isNetworkBrandLocked ? (
-          <p className="max-w-2xl text-xs font-semibold leading-5 text-muted-foreground">
+          <p className="max-w-2xl text-xs font-normal leading-5 text-muted-foreground">
             Network HQ controls public listing and agent badges. You can still
             update this branch&apos;s local control room logo.
           </p>
         ) : (
-          <p className="max-w-2xl text-xs font-semibold leading-5 text-muted-foreground">
+          <p className="max-w-2xl text-xs font-normal leading-5 text-muted-foreground">
             Brand assets are cropped to fixed Homzie ratios and compressed before saving.
           </p>
         )}
         <div className="flex flex-wrap items-center gap-3">
           {message ? (
-            <p className="text-xs font-bold text-muted-foreground">{message}</p>
+            <p className="text-xs font-normal text-muted-foreground">{message}</p>
           ) : null}
           <Button
             type="submit"
             disabled={
               (!canManageControlRoomBrand && !canManagePublicBrand) || isPending
             }
-            className="h-11 whitespace-nowrap font-black"
+            className="h-11 whitespace-nowrap font-semibold"
           >
             {isPending ? (
               <LoaderCircle className="size-4 animate-spin" />

@@ -309,7 +309,7 @@ export function StartAgentCheckoutButton({
                   </span>
                   <span className="mt-2 block text-3xl font-bold tracking-tight text-foreground">
                     {priceLabel}
-                    <span className="ml-1 text-sm font-semibold text-muted-foreground">
+                    <span className="ml-1 text-sm font-normal text-muted-foreground">
                       {plan.intervalLabel}
                     </span>
                   </span>

@@ -41,10 +41,10 @@ export default function ContactPage() {
       <section className="page-body grid gap-8 py-8 sm:py-14 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:gap-16 lg:py-20">
         <div className="mx-auto max-w-xl text-center lg:mx-0 lg:text-left">
           <Eyebrow>Contact Us</Eyebrow>
-          <h1 className="mt-4 text-balance text-5xl font-black tracking-tight sm:text-6xl">
+          <h1 className="mt-4 text-balance text-5xl font-semibold tracking-tight sm:text-6xl">
             We&apos;re here to <GradientWord>help.</GradientWord>
           </h1>
-          <p className="mx-auto mt-5 max-w-md text-sm font-semibold leading-7 text-muted-foreground lg:mx-0 lg:text-base">
+          <p className="mx-auto mt-5 max-w-md text-sm font-normal leading-7 text-muted-foreground lg:mx-0 lg:text-base">
             Have a question, need support, or want to learn more about Homzie?
             Get in touch with our team. We would love to hear from you.
           </p>
@@ -58,8 +58,8 @@ export default function ContactPage() {
                   <ShieldCheck className="size-5" />
                 </span>
                 <span className="text-left">
-                  <strong className="block text-sm font-black">{title}</strong>
-                  <span className="text-xs font-semibold text-muted-foreground">{text}</span>
+                  <strong className="block text-sm font-semibold">{title}</strong>
+                  <span className="text-xs font-normal text-muted-foreground">{text}</span>
                 </span>
               </div>
             ))}
@@ -73,15 +73,15 @@ export default function ContactPage() {
       <section className="page-body border-t border-border py-8 lg:py-12">
         <div className="grid gap-8 lg:grid-cols-[1fr_0.95fr] lg:gap-16">
           <div>
-            <h2 className="text-2xl font-black">Send us a message</h2>
-            <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            <h2 className="text-2xl font-semibold">Send us a message</h2>
+            <p className="mt-2 text-sm font-normal text-muted-foreground">
               Fill in the form and our team will get back to you.
             </p>
             <ContactForm />
           </div>
 
           <div>
-            <h2 className="text-2xl font-black">Other ways to reach us</h2>
+            <h2 className="text-2xl font-semibold">Other ways to reach us</h2>
             <div className="mt-6 overflow-hidden rounded-lg border border-border bg-card">
               {reachOptions.map((option) => {
                 const Icon = option.icon;
@@ -94,9 +94,9 @@ export default function ContactPage() {
                       <Icon className="size-5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-black">{option.title}</h3>
+                      <h3 className="text-sm font-semibold">{option.title}</h3>
                       <p className="mt-1 text-sm font-semibold text-foreground">{option.detail}</p>
-                      <p className="text-xs font-semibold text-muted-foreground">{option.meta}</p>
+                      <p className="text-xs font-normal text-muted-foreground">{option.meta}</p>
                     </div>
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   </div>
@@ -111,8 +111,8 @@ export default function ContactPage() {
         <div className="mx-auto max-w-4xl">
           <div className="text-center">
             <Eyebrow>FAQ</Eyebrow>
-            <h2 className="mt-3 text-3xl font-black">Frequently asked questions</h2>
-            <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            <h2 className="mt-3 text-3xl font-semibold">Frequently asked questions</h2>
+            <p className="mt-2 text-sm font-normal text-muted-foreground">
               Quick answers to the most common questions.
             </p>
           </div>
@@ -121,8 +121,8 @@ export default function ContactPage() {
             <div className="flex items-center justify-center gap-4 sm:justify-start">
               <Headphones className="size-10 text-primary" />
               <div>
-                <h3 className="text-xl font-black">Still have a question?</h3>
-                <p className="text-sm font-semibold text-muted-foreground">
+                <h3 className="text-xl font-semibold">Still have a question?</h3>
+                <p className="text-sm font-normal text-muted-foreground">
                   Our support team is ready to help you.
                 </p>
               </div>

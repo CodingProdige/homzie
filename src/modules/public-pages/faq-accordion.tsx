@@ -29,11 +29,11 @@ const contactFaqs: FaqItem[] = [
         Buyers can browse for free. To list properties, create reels, and unlock agent tools,
         you need an active Homzie Agent subscription. Every new subscription starts
         with a{" "}
-        <span className="font-black text-foreground">
+        <span className="font-semibold text-foreground">
           {agentSubscriptionTrialLabel.toLowerCase()}
         </span>{" "}
         and then continues at{" "}
-        <span className="font-black text-foreground">
+        <span className="font-semibold text-foreground">
           <CurrencyAmount cents={agentSubscriptionPlans.month.amountCents} />/month
         </span>
         .
@@ -90,7 +90,7 @@ export function FaqAccordion({ items }: { items: FaqItem[] }) {
             <button
               type="button"
               aria-expanded={open}
-              className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-sm font-black transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-sm font-semibold transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               onClick={() => setOpenQuestion(open ? "" : item.question)}
             >
               <span>{item.question}</span>
@@ -108,7 +108,7 @@ export function FaqAccordion({ items }: { items: FaqItem[] }) {
               )}
             >
               <div className="overflow-hidden">
-                <div className="px-5 pb-5 text-sm font-semibold leading-6 text-muted-foreground">
+                <div className="px-5 pb-5 text-sm font-normal leading-6 text-muted-foreground">
                   {item.answer}
                 </div>
               </div>

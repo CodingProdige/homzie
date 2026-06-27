@@ -62,7 +62,7 @@ function statusBadge(status: BranchRow["parent_link_status"]) {
         : "bg-muted text-muted-foreground";
 
   return (
-    <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${classes}`}>
+    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${classes}`}>
       {status === "linked" ? "Linked" : status === "pending" ? "Pending" : status}
     </span>
   );
@@ -144,8 +144,8 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
       key: "branch",
       render: (branch) => (
         <div className="min-w-0">
-          <p className="truncate font-black">{branch.name}</p>
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+          <p className="truncate font-semibold">{branch.name}</p>
+          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
             {[branch.region, branch.branch_code].filter(Boolean).join(" · ") || "No region set"}
           </p>
         </div>
@@ -162,7 +162,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
       render: (branch) => (
         <div>
           <p className="truncate font-semibold">{branch.owner_name || "Owner not set"}</p>
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
             {branch.owner_email || "No owner email"}
           </p>
         </div>
@@ -172,7 +172,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
       header: "Footprint",
       key: "footprint",
       render: (branch) => (
-        <div className="text-sm font-semibold text-muted-foreground">
+        <div className="text-sm font-normal text-muted-foreground">
           <p>{Number(branch.member_count)} members</p>
           <p>{Number(branch.listing_count)} active listings</p>
         </div>
@@ -182,7 +182,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
       header: "Policy",
       key: "policy",
       render: (branch) => (
-        <div className="text-xs font-semibold leading-5 text-muted-foreground">
+        <div className="text-xs font-normal leading-5 text-muted-foreground">
           <p>{agencyBillingModeLabel(branch.billing_mode)}</p>
           <p>{agencyBrandingPolicyLabel(branch.branding_policy)}</p>
         </div>
@@ -194,7 +194,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
       key: "actions",
       render: (branch) => {
         if (!canManageBranches) {
-          return <span className="text-xs font-black text-muted-foreground">View only</span>;
+          return <span className="text-xs font-normal text-muted-foreground">View only</span>;
         }
 
         if (branch.parent_link_status === "pending") {
@@ -202,14 +202,14 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
             <div className="flex flex-wrap gap-2">
               <form action={approveBranchLinkAction}>
                 <input type="hidden" name="branchAgencyId" value={branch.id} />
-                <Button size="sm" type="submit" className="h-8 px-2 text-xs font-black">
+                <Button size="sm" type="submit" className="h-8 px-2 text-xs font-semibold">
                   <CheckCircle2 className="size-4" />
                   Approve
                 </Button>
               </form>
               <form action={declineBranchLinkAction}>
                 <input type="hidden" name="branchAgencyId" value={branch.id} />
-                <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-black">
+                <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-semibold">
                   <XCircle className="size-4" />
                   Decline
                 </Button>
@@ -222,14 +222,14 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
           return (
             <form action={unlinkBranchAction}>
               <input type="hidden" name="branchAgencyId" value={branch.id} />
-              <Button size="sm" type="submit" variant="outline" className="h-8 px-3 text-xs font-black">
+              <Button size="sm" type="submit" variant="outline" className="h-8 px-3 text-xs font-semibold">
                 Unlink
               </Button>
             </form>
           );
         }
 
-        return <span className="text-xs font-black text-muted-foreground">No action</span>;
+        return <span className="text-xs font-normal text-muted-foreground">No action</span>;
       },
       useRowHref: false,
     },
@@ -239,17 +239,17 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Network HQ
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Branches
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Review branch affiliation requests, linked branches, owners, and operating policies for {workspace.agency.name}. Network links never make the HQ liable for branch seat billing.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
           <Network className="size-4 text-primary" />
           {linkedCount} linked · {pendingCount} pending
         </span>

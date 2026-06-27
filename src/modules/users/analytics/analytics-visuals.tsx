@@ -24,7 +24,7 @@ export function AnalyticsMetricTable({ metrics }: { metrics: AnalyticsMetric[] }
 
             return (
               <tr key={metric.label} className="border-b border-border last:border-b-0">
-                <th className="min-w-0 px-3 py-3 font-black sm:px-4">
+                <th className="min-w-0 px-3 py-3 font-semibold sm:px-4">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                       <Icon className="size-3.5" />
@@ -34,7 +34,7 @@ export function AnalyticsMetricTable({ metrics }: { metrics: AnalyticsMetric[] }
                     </span>
                   </span>
                 </th>
-                <td className="w-24 px-3 py-3 text-right text-lg font-black sm:px-4">
+                <td className="w-24 px-3 py-3 text-right text-lg font-semibold sm:px-4">
                   {formatMetric(metric.value)}
                 </td>
               </tr>
@@ -61,12 +61,12 @@ export function AnalyticsTrendChart({
     <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Trend
           </p>
-          <h2 className="mt-1 text-xl font-black">{title}</h2>
+          <h2 className="mt-1 text-xl font-semibold">{title}</h2>
         </div>
-        <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+        <div className="flex flex-wrap gap-2 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <span className="size-2 rounded-full bg-primary" />
             Impressions
@@ -126,7 +126,7 @@ export function AnalyticsTrendChart({
             );
           })}
         </div>
-        <div className="mt-3 flex justify-between text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+        <div className="mt-3 flex justify-between text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           <span>{points[0]?.label || ""}</span>
           <span>{points[Math.floor(points.length / 2)]?.label || ""}</span>
           <span>{points[points.length - 1]?.label || ""}</span>
@@ -153,18 +153,18 @@ export function AnalyticsBreakdownBars({
     <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Breakdown
           </p>
-          <h2 className="mt-1 text-xl font-black">{title}</h2>
+          <h2 className="mt-1 text-xl font-semibold">{title}</h2>
         </div>
-        <span className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="text-xs font-normal uppercase tracking-[0.14em] text-muted-foreground">
           {rows.length} types
         </span>
       </div>
 
       <div className="mt-5 overflow-hidden rounded-lg border border-border">
-        <div className="grid grid-cols-[minmax(0,1fr)_5rem] bg-muted/50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="grid grid-cols-[minmax(0,1fr)_5rem] bg-muted/50 px-3 py-2 text-[11px] font-normal uppercase tracking-[0.12em] text-muted-foreground">
           <span>{labelHeader}</span>
           <span className="text-right">Count</span>
         </div>
@@ -176,7 +176,7 @@ export function AnalyticsBreakdownBars({
             >
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <p className="truncate text-sm font-black">{row.label}</p>
+                  <p className="truncate text-sm font-semibold">{row.label}</p>
                   <AnalyticsInfoPopover
                     className="shrink-0"
                     description={row.description}
@@ -192,11 +192,11 @@ export function AnalyticsBreakdownBars({
                   />
                 </div>
               </div>
-              <p className="text-right text-sm font-black">{formatMetric(row.count)}</p>
+              <p className="text-right text-sm font-semibold">{formatMetric(row.count)}</p>
             </div>
           ))
         ) : (
-          <div className="border-t border-border p-6 text-center text-sm font-semibold text-muted-foreground">
+          <div className="border-t border-border p-6 text-center text-sm font-normal text-muted-foreground">
             {emptyLabel}
           </div>
         )}

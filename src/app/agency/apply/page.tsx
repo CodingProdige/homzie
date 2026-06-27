@@ -37,7 +37,7 @@ export default async function AgencyApplyPage() {
       <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
         <Link
           href="/controlroom"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
+          className="inline-flex items-center gap-2 text-sm font-normal text-muted-foreground transition-colors hover:text-primary"
         >
           <ArrowLeft className="size-4" />
           Control room
@@ -45,13 +45,13 @@ export default async function AgencyApplyPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
           <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Agency onboarding
             </p>
-            <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
               Create your Agency HQ
             </h1>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+            <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
               Set up the workspace agencies need for controlled listing quality,
               linked agents, team billing, and shared buyer activity oversight.
             </p>
@@ -91,8 +91,8 @@ export default async function AgencyApplyPage() {
                   <span className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary">
                     <Icon className="size-5" />
                   </span>
-                  <h2 className="mt-3 text-base font-black">{item.title}</h2>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                  <h2 className="mt-3 text-base font-semibold">{item.title}</h2>
+                  <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                     {item.text}
                   </p>
                 </div>

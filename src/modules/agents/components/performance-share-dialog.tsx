@@ -99,10 +99,10 @@ export function PerformanceShareDialog({
           <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted sm:hidden" />
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Dialog.Title className="text-lg font-black">
+              <Dialog.Title className="text-lg font-semibold">
                 Share performance
               </Dialog.Title>
-              <Dialog.Description className="mt-1 text-sm font-semibold text-muted-foreground">
+              <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
                 Send @{username}&apos;s proof-backed performance page.
               </Dialog.Description>
             </div>
@@ -124,7 +124,7 @@ export function PerformanceShareDialog({
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               type="button"
-              className="flex h-12 items-center justify-center gap-2 rounded-lg bg-brand-black text-sm font-black text-white transition-opacity hover:opacity-95"
+              className="flex h-12 items-center justify-center gap-2 rounded-lg bg-brand-black text-sm font-semibold text-white transition-opacity hover:opacity-95"
               onClick={() => void shareWithDevice()}
             >
               <Share2 className="size-4" />
@@ -132,7 +132,7 @@ export function PerformanceShareDialog({
             </button>
             <button
               type="button"
-              className="flex h-12 items-center justify-center gap-2 rounded-lg border bg-background text-sm font-black transition-colors hover:bg-accent"
+              className="flex h-12 items-center justify-center gap-2 rounded-lg border bg-background text-sm font-semibold transition-colors hover:bg-accent"
               onClick={() => void copyPerformanceLink()}
             >
               {copied ? (
@@ -193,7 +193,7 @@ function PerformanceShareBrandIcon({ brand }: { brand: ShareTarget["brand"] }) {
 
   if (brand === "sms") {
     return (
-      <span className="grid size-7 place-items-center rounded-full bg-[#34C759] text-[9px] font-black text-white">
+      <span className="grid size-7 place-items-center rounded-full bg-[#34C759] text-[9px] font-semibold text-white">
         SMS
       </span>
     );

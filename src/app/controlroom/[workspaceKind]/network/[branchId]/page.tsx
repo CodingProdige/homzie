@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { ArrowLeft, Building2, Home, Network, UsersRound, type LucideIcon } from "lucide-react";
+import { Building2, Home, Network, UsersRound, type LucideIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import {
   CanonicalTable,
   type CanonicalTableColumn,
@@ -221,8 +220,8 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       key: "agent",
       render: (agent) => (
         <div className="min-w-0">
-          <p className="truncate font-black">{agent.name}</p>
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+          <p className="truncate font-semibold">{agent.name}</p>
+          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
             {agent.username ? `@${agent.username}` : agent.email || "No contact"}
           </p>
         </div>
@@ -241,7 +240,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       header: "Listings",
       key: "listings",
       render: (agent) => (
-        <span className="font-semibold text-muted-foreground">
+        <span className="font-normal text-muted-foreground">
           {numberLabel(agent.active_listings)} active
         </span>
       ),
@@ -254,8 +253,8 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       key: "listing",
       render: (listing) => (
         <div className="min-w-0">
-          <p className="truncate font-black">{listing.title}</p>
-          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+          <p className="truncate font-semibold">{listing.title}</p>
+          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
             {listing.location || "No location"}
           </p>
         </div>
@@ -265,7 +264,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       header: "Price",
       key: "price",
       render: (listing) => (
-        <span className="font-semibold text-muted-foreground">
+        <span className="font-normal text-muted-foreground">
           {moneyLabel(listing.asking_price_cents)}
         </span>
       ),
@@ -274,7 +273,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       header: "Sold",
       key: "sold",
       render: (listing) => (
-        <span className="font-semibold text-muted-foreground">
+        <span className="font-normal text-muted-foreground">
           {dateLabel(listing.sold_at || listing.updated_at)}
         </span>
       ),
@@ -305,22 +304,17 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Button asChild variant="ghost" className="-ml-3 mb-4">
-        <Link href={`${basePath}/network`}>
-          <ArrowLeft className="size-4" />
-          Back to network
-        </Link>
-      </Button>
+      <BackButton href={`${basePath}/network`} label="Back to network" className="mb-4" />
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Branch insight
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             {branch.name}
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             {branch.region || "No region set"}{branch.branch_code ? ` · ${branch.branch_code}` : ""}
           </p>
         </div>
@@ -334,10 +328,10 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
                 <Icon className="size-5" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+                <p className="text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
                   {label}
                 </p>
-                <p className="mt-1 truncate text-lg font-black">{value}</p>
+                <p className="mt-1 truncate text-lg font-semibold">{value}</p>
               </div>
             </div>
           </div>
@@ -347,7 +341,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       <section className="mt-8">
         <div className="mb-3 flex items-center gap-2">
           <UsersRound className="size-5 text-primary" />
-          <h2 className="text-xl font-black">Agents</h2>
+          <h2 className="text-xl font-semibold">Agents</h2>
         </div>
         <CanonicalTable
           columns={agentColumns}
@@ -361,7 +355,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       <section className="mt-8">
         <div className="mb-3 flex items-center gap-2">
           <Building2 className="size-5 text-primary" />
-          <h2 className="text-xl font-black">Recently sold listings</h2>
+          <h2 className="text-xl font-semibold">Recently sold listings</h2>
         </div>
         <CanonicalTable
           columns={listingColumns}

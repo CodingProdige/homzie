@@ -19,7 +19,7 @@ export function RichCaption({
       {parts.map((part, index) => {
         if (part.startsWith("#")) {
           return (
-            <strong className="font-black" key={`${part}-${index}`}>
+            <strong className="font-semibold" key={`${part}-${index}`}>
               {part}
             </strong>
           );

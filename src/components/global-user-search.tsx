@@ -156,7 +156,7 @@ export function GlobalUserSearchTrigger({
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search usernames"
                 autoComplete="off"
-                className="h-12 min-w-0 flex-1 bg-transparent text-base font-semibold outline-none placeholder:text-muted-foreground"
+                className="h-12 min-w-0 flex-1 bg-transparent text-base font-normal outline-none placeholder:text-muted-foreground"
               />
               <Button
                 type="button"
@@ -180,15 +180,15 @@ export function GlobalUserSearchTrigger({
           <div className="mx-auto w-full max-w-3xl px-3 pt-3 sm:px-4">
             <div className="overflow-hidden rounded-lg border border-border bg-background shadow-xl">
               {query.trim().length < 2 ? (
-                <p className="px-4 py-5 text-sm font-semibold text-muted-foreground">
+                <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
                   Type at least 2 characters to search usernames.
                 </p>
               ) : status === "loading" ? (
-                <p className="px-4 py-5 text-sm font-semibold text-muted-foreground">
+                <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
                   Searching...
                 </p>
               ) : status === "error" ? (
-                <p className="px-4 py-5 text-sm font-semibold text-muted-foreground">
+                <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
                   Search is unavailable right now.
                 </p>
               ) : results.length ? (
@@ -210,16 +210,16 @@ export function GlobalUserSearchTrigger({
                             className="size-full rounded-full border-2 border-background object-cover"
                           />
                         ) : (
-                          <span className="flex size-full items-center justify-center rounded-full border-2 border-background bg-brand-midnight text-sm font-black text-white">
+                          <span className="flex size-full items-center justify-center rounded-full border-2 border-background bg-brand-midnight text-sm font-semibold text-white">
                             {initialsFromName(user.name)}
                           </span>
                         )}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-black">
+                        <span className="block truncate text-sm font-semibold">
                           {user.name}
                         </span>
-                        <span className="block truncate text-xs font-semibold text-muted-foreground">
+                        <span className="block truncate text-xs font-normal text-muted-foreground">
                           @{user.username}
                         </span>
                       </span>
@@ -227,7 +227,7 @@ export function GlobalUserSearchTrigger({
                   ))}
                 </div>
               ) : (
-                <p className="px-4 py-5 text-sm font-semibold text-muted-foreground">
+                <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
                   No users found.
                 </p>
               )}

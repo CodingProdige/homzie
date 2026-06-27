@@ -2022,14 +2022,14 @@ function MediaProgressOverlay({
         <div className="mx-auto grid size-20 place-items-center rounded-full bg-white/10">
           <Loader2 className="size-8 animate-spin text-white" />
         </div>
-        <h2 className="mt-5 text-xl font-black">{label}</h2>
+        <h2 className="mt-5 text-xl font-semibold">{label}</h2>
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#5b35ff] to-[#f13eb8] transition-[width] duration-300 ease-out"
             style={{ width: `${normalizedProgress}%` }}
           />
         </div>
-        <p className="mt-3 text-sm font-black text-white/60">
+        <p className="mt-3 text-sm font-semibold text-white/60">
           {Math.round(normalizedProgress)}%
         </p>
       </div>
@@ -2115,7 +2115,7 @@ function ReelProcessingOverlay({
               strokeWidth="10"
             />
           </svg>
-          <div className="absolute text-2xl font-black">
+          <div className="absolute text-2xl font-semibold">
             {isFailed ? (
               "!"
             ) : isComplete ? (
@@ -2125,7 +2125,7 @@ function ReelProcessingOverlay({
             )}
           </div>
         </div>
-        <h2 className="mt-5 text-2xl font-black">{title}</h2>
+        <h2 className="mt-5 text-2xl font-semibold">{title}</h2>
         <p className="mt-2 text-sm font-bold leading-6 text-white/62">
           {description}
         </p>
@@ -2137,7 +2137,7 @@ function ReelProcessingOverlay({
         {isFailed ? (
           <div className="mt-6 grid gap-3">
             <button
-              className="h-12 w-full rounded-2xl bg-white text-sm font-black text-black disabled:opacity-60"
+              className="h-12 w-full rounded-2xl bg-white text-sm font-semibold text-black disabled:opacity-60"
               disabled={retrying}
               onClick={onRetry}
               type="button"
@@ -2145,7 +2145,7 @@ function ReelProcessingOverlay({
               {retrying ? "Retrying..." : "Retry processing"}
             </button>
             <button
-              className="h-12 w-full rounded-2xl bg-white/10 text-sm font-black text-white"
+              className="h-12 w-full rounded-2xl bg-white/10 text-sm font-semibold text-white"
               onClick={onDismiss}
               type="button"
             >
@@ -2155,7 +2155,7 @@ function ReelProcessingOverlay({
         ) : null}
         {!isFailed ? (
           <button
-            className="mt-6 h-12 w-full rounded-2xl bg-white text-sm font-black text-black"
+            className="mt-6 h-12 w-full rounded-2xl bg-white text-sm font-semibold text-black"
             onClick={onOpenProfile}
             type="button"
           >
@@ -2196,7 +2196,7 @@ function CaptureScreen({
         <X className="size-6" />
       </button>
       <div className="absolute inset-x-0 top-5 z-10 flex justify-center px-16">
-        <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-center text-[11px] font-black text-white/70 backdrop-blur">
+        <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-center text-[11px] font-semibold text-white/70 backdrop-blur">
           {deviceModeLabel}
         </div>
       </div>
@@ -2205,11 +2205,11 @@ function CaptureScreen({
           <div className="mx-auto mb-5 grid size-20 place-items-center rounded-full bg-white/10">
             <Clapperboard className="size-9" />
           </div>
-          <h1 className="text-3xl font-black">Create reel</h1>
+          <h1 className="text-3xl font-semibold">Create reel</h1>
           <p className="mt-2 text-sm font-semibold text-white/55">
             Upload multiple clips, arrange them, trim them, and add music.
           </p>
-          <p className="mx-auto mt-3 max-w-[280px] text-[11px] font-black leading-5 text-white/38">
+          <p className="mx-auto mt-3 max-w-[280px] text-[11px] font-semibold leading-5 text-white/38">
             MP4 or MOV · up to 10 minutes · 1GB max · 1080 x 1920 recommended
           </p>
           {error ? (
@@ -2223,7 +2223,7 @@ function CaptureScreen({
         {canRecord ? (
           <div className="mb-5 flex items-end justify-center gap-9">
             <button
-              className="flex flex-col items-center gap-2 text-xs font-black text-white"
+              className="flex flex-col items-center gap-2 text-xs font-semibold text-white"
               onClick={onUpload}
               type="button"
             >
@@ -2248,7 +2248,7 @@ function CaptureScreen({
                 )}
               />
             </button>
-            <div className="flex flex-col items-center gap-2 text-xs font-black text-white/35">
+            <div className="flex flex-col items-center gap-2 text-xs font-semibold text-white/35">
               <span className="grid size-14 place-items-center rounded-2xl bg-white/5">
                 <Camera className="size-7" />
               </span>
@@ -2258,7 +2258,7 @@ function CaptureScreen({
         ) : (
           <div className="mb-5 flex justify-center">
             <button
-              className="flex h-14 w-full max-w-xs items-center justify-center gap-3 rounded-full bg-white text-base font-black text-black"
+              className="flex h-14 w-full max-w-xs items-center justify-center gap-3 rounded-full bg-white text-base font-semibold text-black"
               onClick={onUpload}
               type="button"
             >
@@ -3483,7 +3483,7 @@ function TimelineScreen({
                             onPointerUp={endVideoTrim}
                             type="button"
                           >
-                            <span className="flex h-9 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-black shadow-lg">
+                            <span className="flex h-9 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-semibold shadow-lg">
                               &#8249;
                             </span>
                           </button>
@@ -3500,7 +3500,7 @@ function TimelineScreen({
                             onPointerUp={endVideoTrim}
                             type="button"
                           >
-                            <span className="flex h-9 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-black shadow-lg">
+                            <span className="flex h-9 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-semibold shadow-lg">
                               &#8250;
                             </span>
                           </button>
@@ -3529,11 +3529,11 @@ function TimelineScreen({
                         ))}
                       </div>
                       {isSelected ? (
-                        <span className="absolute left-9 top-1 rounded bg-[#8a62ff] px-1.5 py-0.5 text-[10px] font-black">
+                        <span className="absolute left-9 top-1 rounded bg-[#8a62ff] px-1.5 py-0.5 text-[10px] font-semibold">
                           Selected
                         </span>
                       ) : null}
-                      <span className="absolute bottom-1 left-1 z-20 flex items-center gap-1 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-black text-white">
+                      <span className="absolute bottom-1 left-1 z-20 flex items-center gap-1 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                         {clip.muted || clip.volume === 0 ? (
                           <>
                             <VolumeX className="size-3" />
@@ -3546,7 +3546,7 @@ function TimelineScreen({
                           </>
                         )}
                       </span>
-                      <span className="absolute bottom-1 right-8 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-black">
+                      <span className="absolute bottom-1 right-8 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold">
                         {formatTime(segment.duration)}
                       </span>
                       <span
@@ -3646,7 +3646,7 @@ function TimelineScreen({
                                 width: fadeInWidth,
                               }}
                             >
-                              <span className="absolute bottom-0.5 left-1 rounded bg-black/65 px-1 text-[9px] font-black text-white">
+                              <span className="absolute bottom-0.5 left-1 rounded bg-black/65 px-1 text-[9px] font-semibold text-white">
                                 in {segment.clip.fadeIn.toFixed(1)}s
                               </span>
                             </span>
@@ -3659,15 +3659,15 @@ function TimelineScreen({
                                 width: fadeOutWidth,
                               }}
                             >
-                              <span className="absolute bottom-0.5 right-1 rounded bg-black/65 px-1 text-[9px] font-black text-white">
+                              <span className="absolute bottom-0.5 right-1 rounded bg-black/65 px-1 text-[9px] font-semibold text-white">
                                 out {segment.clip.fadeOut.toFixed(1)}s
                               </span>
                             </span>
                           ) : null}
-                          <span className="absolute left-3 right-11 top-1/2 z-10 block -translate-y-1/2 truncate text-sm font-black">
+                          <span className="absolute left-3 right-11 top-1/2 z-10 block -translate-y-1/2 truncate text-sm font-semibold">
                             {selectedSound.title}
                           </span>
-                          <span className="absolute right-10 top-1/2 z-10 -translate-y-1/2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-black">
+                          <span className="absolute right-10 top-1/2 z-10 -translate-y-1/2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold">
                             {formatTime(segment.duration)}
                           </span>
                           <button
@@ -3708,7 +3708,7 @@ function TimelineScreen({
                           }}
                           tabIndex={0}
                         >
-                          <span className="flex h-8 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-black shadow-lg">
+                          <span className="flex h-8 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-semibold shadow-lg">
                             &#8249;
                           </span>
                         </span>
@@ -3728,7 +3728,7 @@ function TimelineScreen({
                           }}
                           tabIndex={0}
                         >
-                          <span className="flex h-8 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-black shadow-lg">
+                          <span className="flex h-8 w-2.5 items-center justify-center rounded-full bg-white text-[10px] font-semibold shadow-lg">
                             &#8250;
                           </span>
                         </span>
@@ -3806,7 +3806,7 @@ function TimelineTool({
 }) {
   return (
     <button
-      className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-2 rounded-2xl bg-white/10 text-xs font-black"
+      className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-2 rounded-2xl bg-white/10 text-xs font-semibold"
       data-toolbar-action="true"
       onClick={onClick}
       type="button"
@@ -3847,7 +3847,7 @@ function VolumeSheet({
       <div className="w-full rounded-t-[28px] bg-white px-5 pb-7 pt-3 text-black">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-black/15" />
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-2xl font-black">Volume</h2>
+          <h2 className="text-2xl font-semibold">Volume</h2>
           <button
             className="grid size-10 place-items-center rounded-full bg-black/5"
             onClick={onClose}
@@ -3858,8 +3858,8 @@ function VolumeSheet({
         </div>
         <div className="rounded-2xl bg-black/[0.04] p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <span className="text-base font-black">{label}</span>
-            <span className="text-sm font-black text-black/45">
+            <span className="text-base font-semibold">{label}</span>
+            <span className="text-sm font-semibold text-black/45">
               {Math.round(value * 100)}%
             </span>
           </div>
@@ -3910,7 +3910,7 @@ function AudioFadeSheet({
       <div className="w-full rounded-t-[28px] bg-white px-5 pb-7 pt-3 text-black">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-black/15" />
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-2xl font-black">Audio fades</h2>
+          <h2 className="text-2xl font-semibold">Audio fades</h2>
           <button
             className="grid size-10 place-items-center rounded-full bg-black/5"
             onClick={onClose}
@@ -3953,8 +3953,8 @@ function AudioFadeControl({
   return (
     <div className="rounded-2xl bg-black/[0.04] p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <span className="text-base font-black">{label}</span>
-        <span className="text-sm font-black text-black/45">
+        <span className="text-base font-semibold">{label}</span>
+        <span className="text-sm font-semibold text-black/45">
           {value.toFixed(1)}s
         </span>
       </div>
@@ -4170,7 +4170,7 @@ function MusicSheet({
         <div className="mx-auto mt-3 h-1 w-12 shrink-0 rounded-full bg-black/15" />
 
         <div className="flex items-center justify-between px-5 py-4 shrink-0">
-          <h2 className="text-2xl font-black">Sounds</h2>
+          <h2 className="text-2xl font-semibold">Sounds</h2>
           <button
             className="grid size-10 place-items-center rounded-full bg-black/5"
             onClick={() => {
@@ -4197,7 +4197,7 @@ function MusicSheet({
                 setHasSearched(false);
               }}
               className={cn(
-                "pb-2 px-3 text-sm font-black transition border-b-2 -mb-px",
+                "pb-2 px-3 text-sm font-semibold transition border-b-2 -mb-px",
                 tab === t.id
                   ? "border-[#8a62ff] text-[#8a62ff]"
                   : "border-transparent text-black/45 hover:text-black/70",
@@ -4227,7 +4227,7 @@ function MusicSheet({
                   type="button"
                   onClick={() => setCategory(cat.id)}
                   className={cn(
-                    "shrink-0 rounded-full px-3 py-1 text-xs font-black transition",
+                    "shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition",
                     category === cat.id
                       ? "bg-[#8a62ff] text-white"
                       : "bg-black/[0.07] text-black/60 hover:bg-black/[0.12]",
@@ -4256,7 +4256,7 @@ function MusicSheet({
                 <Pause className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-black">No music</span>
+                <span className="block truncate text-base font-semibold">No music</span>
                 <span className="block truncate text-sm font-semibold text-black/40">
                   Muted
                 </span>
@@ -4278,7 +4278,7 @@ function MusicSheet({
                 <Upload className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-black">
+                <span className="block truncate text-base font-semibold">
                   Upload your own
                 </span>
                 <span className="block truncate text-sm font-semibold text-white/65">
@@ -4455,7 +4455,7 @@ function MusicTrackRow({
         className="min-w-0 flex-1 text-left"
         onClick={onSelect}
       >
-        <span className="block truncate text-base font-black">{title}</span>
+        <span className="block truncate text-base font-semibold">{title}</span>
         <span className="block truncate text-sm font-semibold text-black/40">
           {artist}
           {genre ? ` · ${genre}` : ""}
@@ -4486,7 +4486,7 @@ function CoverSheet({
       <div className="w-full rounded-t-[28px] bg-white px-5 pb-6 pt-3 text-black">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-black/15" />
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-2xl font-black">Edit cover</h2>
+          <h2 className="text-2xl font-semibold">Edit cover</h2>
           <button
             className="grid size-10 place-items-center rounded-full bg-black/5"
             onClick={onClose}
@@ -4511,7 +4511,7 @@ function CoverSheet({
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- Canvas-generated data URL thumbnails are not remote/image-loader assets. */}
               <img alt="" className="h-full w-full object-cover" src={frame.src} />
-              <span className="absolute inset-x-1 bottom-1 rounded bg-black/65 py-1 text-[10px] font-black text-white">
+              <span className="absolute inset-x-1 bottom-1 rounded bg-black/65 py-1 text-[10px] font-semibold text-white">
                 {formatTime(frame.time)}
               </span>
             </button>
@@ -4599,7 +4599,7 @@ function PostScreen({
                   className="h-full w-full object-cover"
                   src={coverFrame.src}
                 />
-                <span className="absolute inset-x-0 bottom-0 bg-black/55 py-2 text-sm font-black text-white">
+                <span className="absolute inset-x-0 bottom-0 bg-black/55 py-2 text-sm font-semibold text-white">
                   Edit cover
                 </span>
               </>
@@ -4611,7 +4611,7 @@ function PostScreen({
         </div>
         <div className="mt-5 flex gap-2">
           <button
-            className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-black"
+            className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-semibold"
             onClick={() => appendToken("#")}
             type="button"
           >
@@ -4619,7 +4619,7 @@ function PostScreen({
             Hashtags
           </button>
           <button
-            className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-black"
+            className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-semibold"
             onClick={() => appendToken("@")}
             type="button"
           >
@@ -4730,7 +4730,7 @@ function PostRow({
 }) {
   return (
     <button
-      className="flex h-16 w-full items-center justify-between text-left text-lg font-black"
+      className="flex h-16 w-full items-center justify-between text-left text-lg font-semibold"
       onClick={onClick}
       type="button"
     >
@@ -4770,7 +4770,7 @@ function ReelDetailItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-black/[0.03] px-4 py-3">
       <span className="block text-xs font-bold text-black/40">{label}</span>
-      <span className="mt-1 block text-sm font-black text-black">{value}</span>
+      <span className="mt-1 block text-sm font-semibold text-black">{value}</span>
     </div>
   );
 }
@@ -4882,7 +4882,7 @@ export function ReelLocationPanel({
       <div className="overflow-hidden rounded-2xl bg-black/[0.03]">
         {options.map((option) => (
           <button
-            className="flex h-14 w-full items-center justify-between px-4 text-left font-black"
+            className="flex h-14 w-full items-center justify-between px-4 text-left font-semibold"
             key={option.id}
             onClick={() => onSelect(option.value)}
             type="button"
@@ -4901,18 +4901,18 @@ export function ReelLocationPanel({
           </button>
         ))}
         {isLoading ? (
-          <div className="flex h-14 items-center px-4 text-sm font-black text-black/45">
+          <div className="flex h-14 items-center px-4 text-sm font-semibold text-black/45">
             <Loader2 className="mr-2 size-4 animate-spin" />
             Searching places
           </div>
         ) : null}
         {!isLoading && !options.length && query.trim().length >= 2 ? (
-          <div className="flex h-14 items-center px-4 text-sm font-black text-black/45">
+          <div className="flex h-14 items-center px-4 text-sm font-semibold text-black/45">
             No city or country found
           </div>
         ) : null}
       </div>
-      <p className="mt-3 text-right text-[11px] font-black uppercase tracking-[0.18em] text-black/35">
+      <p className="mt-3 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-black/35">
         Powered by Google
       </p>
     </div>
@@ -5012,7 +5012,7 @@ export function ReelCaptionSuggestions({
               onClick={() => replaceActiveToken(`#${suggestion.tag}`)}
               type="button"
             >
-              <span className="font-black">#{suggestion.tag}</span>
+              <span className="font-semibold">#{suggestion.tag}</span>
               <span className="text-xs font-bold text-black/40">
                 {suggestion.count} posts
               </span>
@@ -5025,11 +5025,11 @@ export function ReelCaptionSuggestions({
               onClick={() => replaceActiveToken(`@${suggestion.username || ""}`)}
               type="button"
             >
-              <span className="grid size-9 place-items-center rounded-full bg-black text-xs font-black text-white">
+              <span className="grid size-9 place-items-center rounded-full bg-black text-xs font-semibold text-white">
                 {suggestion.name.slice(0, 1)}
               </span>
               <span className="min-w-0">
-                <span className="block truncate font-black">
+                <span className="block truncate font-semibold">
                   {suggestion.name}
                 </span>
                 <span className="block truncate text-xs font-bold text-black/45">
@@ -5053,7 +5053,7 @@ function PrivacyPanel({
     <div className="pb-4">
       {["Everyone", "Followers", "Only you"].map((privacy) => (
         <button
-          className="flex h-16 w-full items-center justify-between rounded-2xl px-4 text-left text-lg font-black"
+          className="flex h-16 w-full items-center justify-between rounded-2xl px-4 text-left text-lg font-semibold"
           key={privacy}
           onClick={() => onSelect(privacy)}
           type="button"
@@ -5141,7 +5141,7 @@ function ToggleRow({
     >
       <Icon className="size-6 shrink-0" />
       <span className="min-w-0 flex-1">
-        <span className="block text-lg font-black">{label}</span>
+        <span className="block text-lg font-semibold">{label}</span>
         {note ? (
           <span className="block text-sm font-semibold leading-5 text-black/45">
             {note}

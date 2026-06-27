@@ -215,7 +215,7 @@ function UserAvatar({ user }: { user: AdminUserRow }) {
   }
 
   return (
-    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-black text-primary">
+    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
       {initialsFromName(user.name)}
     </span>
   );
@@ -237,7 +237,7 @@ function agencyRoleLabel(role: AdminUserRow["agencyMemberRole"]) {
 function AccountSummary({ user }: { user: AdminUserRow }) {
   if (!user.agencyType || !user.agencyName) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
         <UserRound className="size-4" />
         Personal
       </span>
@@ -252,7 +252,7 @@ function AccountSummary({ user }: { user: AdminUserRow }) {
         <Icon className="size-4 shrink-0 text-primary" />
         <span className="truncate">{agencyTypeLabel(user.agencyType)}</span>
       </span>
-      <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
+      <p className="mt-0.5 truncate text-xs font-normal text-muted-foreground">
         {user.agencyName}
       </p>
     </div>
@@ -269,7 +269,7 @@ function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black uppercase",
+        "inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold uppercase",
         tone === "success"
           ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
           : tone === "warning"
@@ -293,7 +293,7 @@ function DetailItem({
 }) {
   return (
     <div className="rounded-lg border border-border bg-background p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+      <p className="text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 break-words text-sm font-bold">{value || "Not set"}</div>
@@ -327,16 +327,16 @@ function AdminProAccessOverrideForm({ user }: { user: AdminUserRow }) {
       <input type="hidden" name="userId" value={user.id} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 text-sm font-black">
+          <p className="flex items-center gap-2 text-sm font-semibold">
             <Crown className="size-4 text-primary" />
             Admin granted Pro
           </p>
-          <p className="mt-1 max-w-xl text-xs font-semibold leading-5 text-muted-foreground">
+          <p className="mt-1 max-w-xl text-xs font-normal leading-5 text-muted-foreground">
             Grants buyer-intent access without touching Stripe. This does not
             create a subscription, invoice, or payment method.
           </p>
         </div>
-        <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-black">
+        <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold">
           <input
             name="enabled"
             type="checkbox"
@@ -348,18 +348,18 @@ function AdminProAccessOverrideForm({ user }: { user: AdminUserRow }) {
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
-        <label className="grid gap-1 text-xs font-black">
+        <label className="grid gap-1 text-xs font-semibold">
           Expires on
           <Input
             name="expiresAt"
             type="date"
             defaultValue={dateInputValue(user.proAccessOverrideExpiresAt)}
           />
-          <span className="text-[11px] font-semibold text-muted-foreground">
+          <span className="text-[11px] font-normal text-muted-foreground">
             Leave blank for no expiry.
           </span>
         </label>
-        <label className="grid gap-1 text-xs font-black">
+        <label className="grid gap-1 text-xs font-semibold">
           Reason
           <Input
             name="reason"
@@ -367,7 +367,7 @@ function AdminProAccessOverrideForm({ user }: { user: AdminUserRow }) {
             maxLength={240}
             placeholder="Demo access, partner account, internal QA..."
           />
-          <span className="text-[11px] font-semibold text-muted-foreground">
+          <span className="text-[11px] font-normal text-muted-foreground">
             Visible to admins only.
           </span>
         </label>
@@ -389,7 +389,7 @@ function AdminProAccessOverrideForm({ user }: { user: AdminUserRow }) {
               ? "This user currently has admin granted Pro access."
               : "This user does not have admin granted Pro access.")}
         </p>
-        <Button type="submit" disabled={isPending} className="font-black">
+        <Button type="submit" disabled={isPending} className="font-semibold">
           {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
           Save Pro access
         </Button>
@@ -420,10 +420,10 @@ function UserDetailsDialog({
             <div className="flex min-w-0 items-center gap-3">
               <UserAvatar user={user} />
               <div className="min-w-0">
-                <Dialog.Title className="truncate text-lg font-black">
+                <Dialog.Title className="truncate text-lg font-semibold">
                   {user.name}
                 </Dialog.Title>
-                <Dialog.Description className="truncate text-sm font-semibold text-muted-foreground">
+                <Dialog.Description className="truncate text-sm font-normal text-muted-foreground">
                   {user.username ? `@${user.username}` : "No username"} · {user.email}
                 </Dialog.Description>
               </div>
@@ -537,7 +537,7 @@ function UserDetailsDialog({
             <AdminProAccessOverrideForm user={user} />
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-semibold text-muted-foreground">
+              <p className="text-sm font-normal text-muted-foreground">
                 Profile actions are intentionally light for this first pass.
               </p>
               {profilePath ? (
@@ -590,7 +590,7 @@ function IncompleteTrialAuditButton() {
         <Button
           type="submit"
           variant="outline"
-          className="font-black"
+          className="font-semibold"
           disabled={isPending}
         >
           {isPending ? (
@@ -684,7 +684,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
 
             <DropdownMenu.Root modal={false}>
               <DropdownMenu.Trigger asChild>
-                <Button type="button" variant="outline" className="gap-2 font-black">
+                <Button type="button" variant="outline" className="gap-2 font-semibold">
                   <SlidersHorizontal className="size-4" />
                   Filters
                   {activeFilterCount ? (
@@ -701,11 +701,11 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                 >
                   <div className="flex items-center gap-2 border-b border-border pb-2">
                     <Filter className="size-4 text-primary" />
-                    <p className="text-sm font-black">Filter users</p>
+                    <p className="text-sm font-semibold">Filter users</p>
                   </div>
 
                   <div>
-                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                    <p className="mb-1 px-2 text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                       Subscription
                     </p>
                     <DropdownMenu.RadioGroup
@@ -723,7 +723,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                   </div>
 
                   <div>
-                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                    <p className="mb-1 px-2 text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                       Role
                     </p>
                     <DropdownMenu.RadioGroup
@@ -739,7 +739,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                   </div>
 
                   <div>
-                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                    <p className="mb-1 px-2 text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                       Account
                     </p>
                     <DropdownMenu.RadioGroup
@@ -757,7 +757,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                   </div>
 
                   <div>
-                    <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                    <p className="mb-1 px-2 text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                       Status
                     </p>
                     <DropdownMenu.RadioGroup
@@ -792,7 +792,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
               <IncompleteTrialAuditButton />
             </div>
           </div>
-          <p className="mt-3 text-xs font-bold text-muted-foreground">
+          <p className="mt-3 text-xs font-normal text-muted-foreground">
             Showing {filteredUsers.length.toLocaleString("en-ZA")} of{" "}
             {users.length.toLocaleString("en-ZA")} users.
           </p>
@@ -800,7 +800,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] text-left text-sm">
-            <thead className="border-b border-border bg-muted/40 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+            <thead className="border-b border-border bg-muted/40 text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Role</th>
@@ -823,8 +823,8 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                     <div className="flex min-w-0 items-center gap-3">
                       <UserAvatar user={user} />
                       <div className="min-w-0">
-                        <p className="truncate font-black">{user.name}</p>
-                        <p className="truncate text-xs font-semibold text-muted-foreground">
+                        <p className="truncate font-semibold">{user.name}</p>
+                        <p className="truncate text-xs font-normal text-muted-foreground">
                           {user.username ? `@${user.username}` : "No username"} ·{" "}
                           {user.email}
                         </p>
@@ -852,15 +852,15 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                       />
                       {hasActiveProOverride(user) &&
                       user.proAccessOverrideExpiresAt ? (
-                        <span className="text-xs font-bold text-muted-foreground">
+                        <span className="text-xs font-normal text-muted-foreground">
                           Until {formatDateTime(user.proAccessOverrideExpiresAt)}
                         </span>
                       ) : getTrialState(user)?.isActive ? (
-                        <span className="text-xs font-bold text-muted-foreground">
+                        <span className="text-xs font-normal text-muted-foreground">
                           {getTrialState(user)?.daysRemaining} days left
                         </span>
                       ) : user.subscriptionCurrentPeriodEnd ? (
-                        <span className="text-xs font-bold text-muted-foreground">
+                        <span className="text-xs font-normal text-muted-foreground">
                           Until {formatDateTime(user.subscriptionCurrentPeriodEnd)}
                         </span>
                       ) : null}
@@ -879,18 +879,18 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-xs font-bold text-muted-foreground">
+                  <td className="px-4 py-4 text-xs font-normal text-muted-foreground">
                     {user.listingCount.toLocaleString("en-ZA")} listings ·{" "}
                     {user.reelCount.toLocaleString("en-ZA")} reels
                   </td>
                   <td className="px-4 py-4">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                       <Clock3 className="size-4" />
                       {formatLastOnline(user.lastOnlineAt)}
                     </span>
                   </td>
                   <td className="px-4 py-4">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                       <CalendarDays className="size-4" />
                       {formatDateTime(user.createdAt)}
                     </span>
@@ -902,7 +902,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         </div>
 
         {!filteredUsers.length ? (
-          <div className="px-4 py-10 text-center text-sm font-semibold text-muted-foreground">
+          <div className="px-4 py-10 text-center text-sm font-normal text-muted-foreground">
             No users match those filters.
           </div>
         ) : null}

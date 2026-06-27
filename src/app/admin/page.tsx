@@ -266,10 +266,10 @@ function MetricCard({
     <article className="rounded-lg border border-border bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
             {label}
           </p>
-          <p className="mt-3 text-3xl font-black tracking-tight">{value}</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
         </div>
         <span
           className={
@@ -281,7 +281,7 @@ function MetricCard({
           <Icon className="size-5" />
         </span>
       </div>
-      <p className="mt-4 text-sm font-semibold leading-6 text-muted-foreground">
+      <p className="mt-4 text-sm font-normal leading-6 text-muted-foreground">
         {detail}
       </p>
     </article>
@@ -311,7 +311,7 @@ function DataPanel({
       className="scroll-mt-20 rounded-lg border border-border bg-card shadow-sm"
     >
       <div className="border-b border-border px-5 py-4">
-        <h2 className="text-base font-black">{title}</h2>
+        <h2 className="text-base font-semibold">{title}</h2>
       </div>
       <div className="divide-y divide-border">{children}</div>
     </section>
@@ -320,7 +320,7 @@ function DataPanel({
 
 function EmptyRow({ label }: { label: string }) {
   return (
-    <div className="px-5 py-8 text-sm font-semibold text-muted-foreground">
+    <div className="px-5 py-8 text-sm font-normal text-muted-foreground">
       {label}
     </div>
   );
@@ -340,13 +340,13 @@ export default async function AdminPage() {
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
               Admin
             </p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
               Dashboard
             </h1>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+            <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
               Platform health, moderation signals, and recent account activity
               for Homzie operations.
             </p>
@@ -424,15 +424,15 @@ export default async function AdminPage() {
                   <Sparkles className="size-5" />
                 </span>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
                     Demo profile
                   </p>
-                  <h2 className="text-xl font-black tracking-tight">
+                  <h2 className="text-xl font-semibold tracking-tight">
                     Future-agent showcase
                   </h2>
                 </div>
               </div>
-              <p className="mt-4 text-sm font-semibold leading-6 text-muted-foreground">
+              <p className="mt-4 text-sm font-normal leading-6 text-muted-foreground">
                 Seed a polished mock agent profile with verified sales history,
                 premium listings, and strong performance analytics. Hide it when
                 you do not want demo content visible on the public site.
@@ -470,48 +470,48 @@ export default async function AdminPage() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
                 Status
               </p>
-              <p className="mt-2 text-lg font-black">
+              <p className="mt-2 text-lg font-semibold">
                 {demoProfile?.profile_visible ? "Visible" : "Hidden"}
               </p>
-              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              <p className="mt-1 text-xs font-normal text-muted-foreground">
                 {demoProfile
                   ? `Updated ${formatDateTime(demoProfile.updated_at)}`
                   : "Not seeded yet"}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
                 Listings
               </p>
-              <p className="mt-2 text-lg font-black">
+              <p className="mt-2 text-lg font-semibold">
                 {formatNumber(demoProfile?.listing_count)}
               </p>
-              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              <p className="mt-1 text-xs font-normal text-muted-foreground">
                 {formatNumber(demoProfile?.published_count)} active showcase
               </p>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
                 Verified sales
               </p>
-              <p className="mt-2 text-lg font-black">
+              <p className="mt-2 text-lg font-semibold">
                 {formatNumber(demoProfile?.sold_count)}
               </p>
-              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              <p className="mt-1 text-xs font-normal text-muted-foreground">
                 Sales history powers the analytics page.
               </p>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
                 Sold value
               </p>
-              <p className="mt-2 text-lg font-black">
+              <p className="mt-2 text-lg font-semibold">
                 {formatMoney(numberFrom(demoProfile?.sold_value_cents), "ZAR")}
               </p>
-              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              <p className="mt-1 text-xs font-normal text-muted-foreground">
                 Current-year demo performance.
               </p>
             </div>
@@ -541,16 +541,16 @@ export default async function AdminPage() {
                 <div key={user.id} className="px-5 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black">{user.name}</p>
-                      <p className="truncate text-xs font-semibold text-muted-foreground">
+                      <p className="truncate text-sm font-semibold">{user.name}</p>
+                      <p className="truncate text-xs font-normal text-muted-foreground">
                         {user.email}
                       </p>
                     </div>
-                    <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-black uppercase text-primary">
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase text-primary">
                       {user.role}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                  <p className="mt-2 text-xs font-normal text-muted-foreground">
                     {user.status} · {formatDateTime(user.created_at)}
                   </p>
                 </div>
@@ -568,19 +568,19 @@ export default async function AdminPage() {
                     <div className="min-w-0">
                       <Link
                         href={`/listings/${listing.id}`}
-                        className="line-clamp-2 text-sm font-black transition hover:text-primary"
+                        className="line-clamp-2 text-sm font-semibold transition hover:text-primary"
                       >
                         {listing.title}
                       </Link>
-                      <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+                      <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
                         {listing.agent_name} · {listing.location || "No location"}
                       </p>
                     </div>
-                    <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-black uppercase text-secondary-foreground">
+                    <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold uppercase text-secondary-foreground">
                       {listing.status}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                  <p className="mt-2 text-xs font-normal text-muted-foreground">
                     {listing.listing_type} · {formatDateTime(listing.created_at)}
                   </p>
                 </div>
@@ -596,18 +596,18 @@ export default async function AdminPage() {
                 <div key={offer.id} className="px-5 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-sm font-black">
+                      <p className="text-sm font-semibold">
                         {formatMoney(offer.amount_cents, offer.currency)}
                       </p>
-                      <p className="mt-1 line-clamp-2 text-xs font-semibold text-muted-foreground">
+                      <p className="mt-1 line-clamp-2 text-xs font-normal text-muted-foreground">
                         {offer.listing_title}
                       </p>
                     </div>
-                    <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-black uppercase text-primary">
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase text-primary">
                       {offer.status}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                  <p className="mt-2 text-xs font-normal text-muted-foreground">
                     {offer.buyer_name} to {offer.agent_name} ·{" "}
                     {formatDateTime(offer.created_at)}
                   </p>
@@ -624,8 +624,8 @@ export default async function AdminPage() {
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-black">Admin Account Setup</h2>
-              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">
+              <h2 className="text-base font-semibold">Admin Account Setup</h2>
+              <p className="mt-2 max-w-2xl text-sm font-normal leading-6 text-muted-foreground">
                 Seed or promote an admin with `ADMIN_EMAIL` and `ADMIN_PASSWORD`
                 using `npm run db:seed:admin`. The current signed-in account is
                 verified from the database before this page renders.

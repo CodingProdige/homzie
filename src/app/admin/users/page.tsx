@@ -189,13 +189,13 @@ export default async function AdminUsersPage() {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           Admin
         </p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
           Users
         </h1>
-        <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
           Search accounts by display name, username, or email, then inspect
           their profile, contact, and platform activity.
         </p>

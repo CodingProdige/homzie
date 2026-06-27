@@ -93,7 +93,7 @@ function deltaPill(value: string) {
   if (!value || value === "0" || value === "0%") return null;
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black leading-none text-emerald-600">
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold leading-none text-emerald-600">
       <span className="text-[10px]">{isPositiveDelta(value) ? "▲" : "▼"}</span>
       {value.replace("+", "")}
     </span>
@@ -142,7 +142,7 @@ const mobilePerformanceItems = [
 function MobilePerformanceMenu() {
   return (
     <section className="mt-6 space-y-3 sm:hidden">
-      <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-xs font-normal uppercase tracking-[0.18em] text-muted-foreground">
         Performance tools
       </p>
       <div className="space-y-2.5">
@@ -159,12 +159,12 @@ function MobilePerformanceMenu() {
                 <Icon className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black">{item.label}</span>
-                <span className="mt-0.5 block text-xs font-semibold leading-5 text-muted-foreground">
+                <span className="block text-sm font-semibold">{item.label}</span>
+                <span className="mt-0.5 block text-xs font-normal leading-5 text-muted-foreground">
                   {item.description}
                 </span>
               </span>
-              <span className="text-lg font-bold text-muted-foreground">›</span>
+              <span className="text-lg font-normal text-muted-foreground">›</span>
             </Link>
           );
         })}
@@ -281,7 +281,7 @@ function PerformanceAvatar({
           className="size-full rounded-full border-[3px] border-[#fbfbfe] object-cover"
         />
       ) : (
-        <div className="flex size-full items-center justify-center rounded-full border-[3px] border-[#fbfbfe] bg-brand-midnight text-xl font-black text-white sm:text-2xl">
+        <div className="flex size-full items-center justify-center rounded-full border-[3px] border-[#fbfbfe] bg-brand-midnight text-xl font-semibold text-white sm:text-2xl">
           {initialsFromName(name) || "H"}
         </div>
       )}
@@ -347,10 +347,10 @@ export default async function AgentPerformancePage({
             <div className="mx-auto grid size-16 place-items-center rounded-full bg-muted text-muted-foreground">
               <LockKeyhole className="size-7" />
             </div>
-            <h1 className="mt-5 text-2xl font-black tracking-tight">
+            <h1 className="mt-5 text-2xl font-semibold tracking-tight">
               Performance private
             </h1>
-            <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mx-auto mt-3 max-w-md text-sm font-normal leading-6 text-muted-foreground">
               This agent has chosen not to publish sales performance publicly.
               Their listings and profile remain available.
             </p>
@@ -492,7 +492,7 @@ export default async function AgentPerformancePage({
           </div>
           <div className="min-w-0 sm:col-start-2">
             <div className="flex min-w-0 items-center justify-center gap-2 sm:justify-start">
-              <h1 className="min-w-0 text-2xl font-black leading-tight tracking-tight sm:truncate sm:text-3xl">
+              <h1 className="min-w-0 text-2xl font-semibold leading-tight tracking-tight sm:truncate sm:text-3xl">
                 <span className="sm:hidden">{profile.name}</span>
                 <span className="hidden sm:inline">{profile.name} performance</span>
               </h1>
@@ -502,11 +502,11 @@ export default async function AgentPerformancePage({
             </div>
             <Link
               href={`/users/${profile.username}`}
-              className="mt-1 inline-flex max-w-full justify-center text-sm font-bold text-muted-foreground transition-colors hover:text-primary sm:justify-start"
+              className="mt-1 inline-flex max-w-full justify-center text-sm font-normal text-muted-foreground transition-colors hover:text-primary sm:justify-start"
             >
               <span className="truncate">@{profile.username}</span>
             </Link>
-            <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-5 text-muted-foreground sm:mx-0 sm:max-w-2xl sm:leading-6">
+            <p className="mx-auto mt-2 max-w-xs text-sm font-normal leading-5 text-muted-foreground sm:mx-0 sm:max-w-2xl sm:leading-6">
               A verified view of sales outcomes, mandate history, and proof-backed
               performance for this Homzie Agent profile.
             </p>
@@ -541,7 +541,7 @@ export default async function AgentPerformancePage({
                   </div>
                   <div className="min-w-0 flex-1 lg:mt-5">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground lg:text-[11px]">
+                      <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground lg:text-[11px]">
                         {card.label}
                       </p>
                       <AnalyticsInfoPopover
@@ -552,7 +552,7 @@ export default async function AgentPerformancePage({
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       <p
                         className={cn(
-                          "min-w-0 break-words font-black leading-tight tracking-tight",
+                          "min-w-0 break-words font-semibold leading-tight tracking-tight",
                           card.isCurrency
                             ? "text-[1.35rem] sm:text-2xl xl:text-[1.65rem]"
                             : "text-xl sm:text-2xl lg:text-3xl",
@@ -566,7 +566,7 @@ export default async function AgentPerformancePage({
                       </p>
                       {deltaPill(card.delta)}
                     </div>
-                    <p className="mt-1 text-xs font-bold leading-5 text-muted-foreground lg:mt-2">
+                    <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground lg:mt-2">
                       {card.description}
                     </p>
                   </div>
@@ -581,13 +581,13 @@ export default async function AgentPerformancePage({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-black">Performance overview</h2>
+                  <h2 className="text-lg font-semibold">Performance overview</h2>
                   <AnalyticsInfoPopover
                     title="Performance overview"
                     description="A proof-aware summary of every listing outcome attached to this agent. Confirmed wins, losses, disputes, withdrawn mandates, and expired mandates are separated so the totals cannot be inflated by deleting or hiding listings."
                   />
                 </div>
-                <p className="mt-2 text-xs font-bold text-muted-foreground">
+                <p className="mt-2 text-xs font-normal text-muted-foreground">
                   Outcome counts are locked from completed mandate events.
                 </p>
               </div>
@@ -616,7 +616,7 @@ export default async function AgentPerformancePage({
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <p className="truncate text-sm font-black">
+                              <p className="truncate text-sm font-semibold">
                                 {row.label}
                               </p>
                               <AnalyticsInfoPopover
@@ -624,7 +624,7 @@ export default async function AgentPerformancePage({
                                 description={row.info}
                               />
                             </div>
-                            <p className="truncate text-xs font-semibold text-muted-foreground">
+                            <p className="truncate text-xs font-normal text-muted-foreground">
                               {row.description}
                             </p>
                           </div>
@@ -636,7 +636,7 @@ export default async function AgentPerformancePage({
                           />
                         </div>
                       </div>
-                      <span className="text-right text-sm font-black">{row.value}</span>
+                      <span className="text-right text-sm font-semibold">{row.value}</span>
                     </div>
                   );
                 })}
@@ -647,8 +647,8 @@ export default async function AgentPerformancePage({
                 style={{ background: outcomeGradient }}
               >
                 <div className="grid size-full place-items-center rounded-full bg-white text-center">
-                  <p className="text-4xl font-black">{stats.completedMandates}</p>
-                  <p className="mt-1 max-w-[7rem] text-xs font-black leading-4 text-muted-foreground">
+                  <p className="text-4xl font-semibold">{stats.completedMandates}</p>
+                  <p className="mt-1 max-w-[7rem] text-xs font-normal leading-4 text-muted-foreground">
                     Total completed mandates
                   </p>
                 </div>
@@ -661,14 +661,14 @@ export default async function AgentPerformancePage({
             <div className="relative z-10 flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-black">Total value trend</h2>
+                  <h2 className="text-lg font-semibold">Total value trend</h2>
                   <AnalyticsInfoPopover
                     title="Total value trend"
                     description="A month-by-month view of this agent's recorded sold value in the selected date range. The line uses confirmed sold property values and stays currency-aware for display."
                   />
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-2">
-                  <p className="text-2xl font-black tracking-tight">
+                  <p className="text-2xl font-semibold tracking-tight">
                     <CurrencyAmount cents={stats.totalSoldValueThisYearCents} />
                   </p>
                   {deltaPill(stats.totalSoldValueThisYearDeltaLabel)}
@@ -691,24 +691,24 @@ export default async function AgentPerformancePage({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black">Previous properties sold</h2>
+                <h2 className="text-lg font-semibold">Previous properties sold</h2>
                 <AnalyticsInfoPopover
                   title="Previous properties sold"
                   description="A record of properties this agent sold in the selected period, including asking price, final sold price, days on market, and proof status."
                 />
               </div>
-              <p className="mt-2 text-xs font-bold text-muted-foreground">
+              <p className="mt-2 text-xs font-normal text-muted-foreground">
                 Listing price compared to final sale price and time on market.
               </p>
             </div>
-            <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-black text-primary">
+            <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
               {soldProperties.length} sold
             </span>
           </div>
 
           {soldProperties.length ? (
             <div className="mt-5 overflow-hidden rounded-lg border border-border">
-              <div className="hidden grid-cols-[minmax(0,1.4fr)_1fr_1fr_0.8fr_0.8fr] gap-4 border-b border-border bg-muted/35 px-4 py-3 text-[11px] font-black uppercase tracking-wide text-muted-foreground md:grid">
+              <div className="hidden grid-cols-[minmax(0,1.4fr)_1fr_1fr_0.8fr_0.8fr] gap-4 border-b border-border bg-muted/35 px-4 py-3 text-[11px] font-normal uppercase tracking-wide text-muted-foreground md:grid">
                 <span>Property</span>
                 <span>Listed for</span>
                 <span>Sold for</span>
@@ -722,18 +722,18 @@ export default async function AgentPerformancePage({
                     className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_1fr_1fr_0.8fr_0.8fr] md:items-center"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black">{property.title}</p>
+                      <p className="truncate text-sm font-semibold">{property.title}</p>
                       {property.location ? (
-                        <p className="mt-1 truncate text-xs font-bold text-muted-foreground">
+                        <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
                           {property.location}
                         </p>
                       ) : null}
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground md:hidden">
+                      <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground md:hidden">
                         Listed for
                       </p>
-                      <p className="mt-1 text-sm font-black md:mt-0">
+                      <p className="mt-1 text-sm font-semibold md:mt-0">
                         {property.askingPriceCents ? (
                           <CurrencyAmount cents={property.askingPriceCents} />
                         ) : (
@@ -742,10 +742,10 @@ export default async function AgentPerformancePage({
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground md:hidden">
+                      <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground md:hidden">
                         Sold for
                       </p>
-                      <p className="mt-1 text-sm font-black text-emerald-600 md:mt-0">
+                      <p className="mt-1 text-sm font-semibold text-emerald-600 md:mt-0">
                         {property.soldPriceCents ? (
                           <CurrencyAmount cents={property.soldPriceCents} />
                         ) : (
@@ -754,17 +754,17 @@ export default async function AgentPerformancePage({
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground md:hidden">
+                      <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground md:hidden">
                         On market
                       </p>
-                      <p className="mt-1 text-sm font-black md:mt-0">
+                      <p className="mt-1 text-sm font-semibold md:mt-0">
                         {property.daysOnMarketLabel}
                       </p>
                     </div>
                     <div>
                       <span
                         className={cn(
-                          "inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase",
+                          "inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase",
                           property.proofStatus === "verified"
                             ? "bg-emerald-100 text-emerald-700"
                             : "bg-primary/10 text-primary",
@@ -784,8 +784,8 @@ export default async function AgentPerformancePage({
               className={cn(mutedSurfaceClassName, "mt-5 px-5 py-8 text-center")}
             >
               <ReceiptText className="mx-auto size-9 text-muted-foreground" />
-              <h3 className="mt-3 text-base font-black">No sold properties yet</h3>
-              <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+              <h3 className="mt-3 text-base font-semibold">No sold properties yet</h3>
+              <p className="mx-auto mt-2 max-w-md text-sm font-normal leading-6 text-muted-foreground">
                 Sold listings will appear here once this agent records completed
                 sales in the selected date range.
               </p>
@@ -800,7 +800,7 @@ export default async function AgentPerformancePage({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black leading-tight sm:text-2xl">
+                <h2 className="text-lg font-semibold leading-tight sm:text-2xl">
                   Proof-backed reputation
                 </h2>
                 <AnalyticsInfoPopover
@@ -814,7 +814,7 @@ export default async function AgentPerformancePage({
                 correct agent.
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs font-black leading-5 text-white/90 sm:gap-3 sm:text-sm">
+            <div className="flex items-center gap-2 text-xs font-semibold leading-5 text-white/90 sm:gap-3 sm:text-sm">
               <Send className="size-4 sm:size-5" />
               Trusted by buyers, sellers and other agents
             </div>

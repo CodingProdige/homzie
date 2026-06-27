@@ -143,7 +143,7 @@ function PreferenceSwitch({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-bold text-foreground">{title}</span>
-        <span className="mt-1 block text-sm font-semibold leading-5 text-muted-foreground">
+        <span className="mt-1 block text-sm font-normal leading-5 text-muted-foreground">
           {description}
         </span>
       </span>
@@ -172,7 +172,7 @@ function EmailEventPreferencesCard({
         <h2 className="text-lg font-bold tracking-normal text-card-foreground">
           Email event controls
         </h2>
-        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+        <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
           Fine-tune which transactional email templates can send.
         </p>
       </div>
@@ -180,8 +180,8 @@ function EmailEventPreferencesCard({
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         {emailNotificationEvents.map((group) => (
           <div key={group.category} className="rounded-lg border border-border bg-background p-4">
-            <h3 className="text-sm font-black">{group.category}</h3>
-            <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+            <h3 className="text-sm font-semibold">{group.category}</h3>
+            <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
               {group.description}
             </p>
             <div className="mt-3 space-y-2">
@@ -194,7 +194,7 @@ function EmailEventPreferencesCard({
                     <span className="block truncate text-sm font-bold">
                       {event.label}
                     </span>
-                    <span className="block truncate text-xs font-semibold text-muted-foreground">
+                    <span className="block truncate text-xs font-normal text-muted-foreground">
                       {event.key}
                     </span>
                   </span>
@@ -233,7 +233,7 @@ function BrowserNotificationsCard({
           <h2 className="text-lg font-bold tracking-normal text-card-foreground">
             Browser notifications
           </h2>
-          <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
             Push alerts for messages, calls and important account activity.
           </p>
         </div>
@@ -307,7 +307,7 @@ export function NotificationsForm({
                 <h2 className="text-lg font-bold tracking-normal text-card-foreground">
                   {group.title}
                 </h2>
-                <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                   {group.description}
                 </p>
               </div>
@@ -333,7 +333,7 @@ export function NotificationsForm({
             <h2 className="text-lg font-bold tracking-normal text-card-foreground">
               Account alerts
             </h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Security, billing and legal notices stay on.
             </p>
           </div>

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { ArrowLeft, Mail, MonitorDot, Smartphone } from "lucide-react";
+import { Mail, MonitorDot, Smartphone } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+
+import { BackButton } from "@/components/back-button";
 import { db } from "@/db";
 import { emailTemplates } from "@/db/schema";
 import { ensureDefaultEmailTemplates } from "@/modules/email/server";
@@ -74,21 +75,16 @@ export default async function AdminTemplateSurfacePickerPage({ params }: PagePro
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Button variant="ghost" asChild className="mb-6 px-0">
-        <Link href="/admin/email-templates">
-          <ArrowLeft className="size-4" />
-          Templates
-        </Link>
-      </Button>
+      <BackButton href="/admin/email-templates" label="Templates" className="mb-6" />
 
       <div className="mb-8">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           {emailTemplate.category}
         </p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
           {emailTemplate.name}
         </h1>
-        <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-muted-foreground">
+        <p className="mt-3 max-w-3xl text-sm font-normal leading-7 text-muted-foreground">
           Choose the surface you want to edit. Each surface has its own template
           so changes stay scoped to that channel.
         </p>
@@ -107,8 +103,8 @@ export default async function AdminTemplateSurfacePickerPage({ params }: PagePro
               <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
                 <Icon className="size-5" />
               </span>
-              <h2 className="mt-4 text-xl font-black">{surface.label}</h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              <h2 className="mt-4 text-xl font-semibold">{surface.label}</h2>
+              <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                 {surface.description}
               </p>
             </Link>

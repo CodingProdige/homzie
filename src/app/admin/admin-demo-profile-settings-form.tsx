@@ -78,7 +78,7 @@ export function AdminDemoProfileSettingsForm({
   return (
     <form action={action} className="space-y-5">
       <section className="rounded-lg border border-border bg-background p-4">
-        <h3 className="text-sm font-black">Public profile</h3>
+        <h3 className="text-sm font-semibold">Public profile</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <TextField label="Name" name="name" value={settings.name} />
           <TextField label="Username" name="username" value={settings.username} />
@@ -111,8 +111,8 @@ export function AdminDemoProfileSettingsForm({
 
         <label className="mt-4 flex min-w-0 items-center gap-4 rounded-lg border border-border bg-card px-4 py-4">
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black">Show demo profile</span>
-            <span className="mt-1 block text-sm font-semibold leading-5 text-muted-foreground">
+            <span className="block text-sm font-semibold">Show demo profile</span>
+            <span className="mt-1 block text-sm font-normal leading-5 text-muted-foreground">
               When enabled, the profile, active demo listings, and performance
               page are publicly accessible.
             </span>
@@ -131,8 +131,8 @@ export function AdminDemoProfileSettingsForm({
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
-        <h3 className="text-sm font-black">Login credentials</h3>
-        <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+        <h3 className="text-sm font-semibold">Login credentials</h3>
+        <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
           Current demo login email: {credentials.email}. Default password:
           {" "}{credentials.defaultPassword}. Enter a new password below only
           when you want to reset it.
@@ -143,8 +143,8 @@ export function AdminDemoProfileSettingsForm({
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
-        <h3 className="text-sm font-black">Listings and performance data</h3>
-        <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+        <h3 className="text-sm font-semibold">Listings and performance data</h3>
+        <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
           This JSON recreates the demo listings. Sold rows feed the public
           performance page; published rows show as active showcase listings.
         </p>

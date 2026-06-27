@@ -20,7 +20,7 @@ export function LogoutButton() {
           className="flex h-[54px] w-full min-w-0 items-center gap-3 rounded-lg border border-destructive/25 bg-card px-4 text-left text-destructive shadow-[0_8px_24px_rgba(13,13,20,0.035)] transition-colors hover:border-destructive/45 hover:bg-destructive/5 disabled:pointer-events-none disabled:opacity-60"
         >
           <LogOut className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-xs font-black">
+          <span className="min-w-0 flex-1 truncate text-xs font-semibold">
             {pending ? "Logging out..." : "Log out"}
           </span>
           <ChevronRight className="size-4 shrink-0" />
@@ -31,8 +31,8 @@ export function LogoutButton() {
         <Dialog.Content className="fixed inset-x-4 top-1/2 z-[91] max-h-[calc(100dvh-2rem)] -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl outline-none sm:left-1/2 sm:right-auto sm:w-[min(92vw,26rem)] sm:-translate-x-1/2">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Dialog.Title className="text-lg font-black">Log out</Dialog.Title>
-              <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              <Dialog.Title className="text-lg font-semibold">Log out</Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                 You&apos;ll be signed out on this device and returned to the sign-in screen.
               </Dialog.Description>
             </div>

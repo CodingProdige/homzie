@@ -389,27 +389,27 @@ export function AgencyRegionField() {
               className="block w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted"
               onClick={() => selectRegion(option)}
             >
-              <span className="block truncate text-sm font-black">
+              <span className="block truncate text-sm font-semibold">
                 {option.structured_formatting?.main_text || option.description}
               </span>
-              <span className="mt-0.5 block truncate text-xs font-semibold text-muted-foreground">
+              <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
                 {option.structured_formatting?.secondary_text || "Google Places"}
               </span>
             </button>
           ))}
-          <p className="px-3 py-2 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+          <p className="px-3 py-2 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
             Powered by Google
           </p>
         </div>
       ) : null}
       {isSearching ? (
-        <p className="text-xs font-semibold text-muted-foreground">Searching places...</p>
+        <p className="text-xs font-normal text-muted-foreground">Searching places...</p>
       ) : null}
       {placesError ? (
         <p className="text-xs font-semibold text-destructive">{placesError}</p>
       ) : null}
       {region && !regionPlaceId ? (
-        <p className="text-xs font-semibold text-muted-foreground">
+        <p className="text-xs font-normal text-muted-foreground">
           Select a suggestion to save verified location data.
         </p>
       ) : null}
@@ -564,7 +564,7 @@ export function AuthForm({
                     key={item.value}
                     type="button"
                     className={[
-                      "flex h-12 items-center justify-center gap-2 rounded-md border text-sm font-black transition",
+                      "flex h-12 items-center justify-center gap-2 rounded-md border text-sm font-semibold transition",
                       selected
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
@@ -638,7 +638,7 @@ export function AuthForm({
                         onClick={() => setAgencyType(item.value)}
                         aria-pressed={selected}
                       >
-                        <span className="block text-sm font-black">
+                        <span className="block text-sm font-semibold">
                           {item.label}
                         </span>
                         <span className="mt-1 block text-xs font-semibold leading-5">
@@ -714,7 +714,7 @@ export function AuthForm({
                     <select
                       id="parentAgencyId"
                       name="parentAgencyId"
-                      className="h-12 w-full appearance-none rounded-md border border-input bg-background px-12 text-base font-semibold text-foreground shadow-sm outline-none transition file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-12 w-full appearance-none rounded-md border border-input bg-background px-12 text-base font-normal text-foreground shadow-sm outline-none transition file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-50"
                       required
                       disabled={!networkOptions.length}
                     >
@@ -733,7 +733,7 @@ export function AuthForm({
                     </select>
                   </div>
                   {!networkOptions.length ? (
-                    <p className="text-xs font-semibold text-muted-foreground">
+                    <p className="text-xs font-normal text-muted-foreground">
                       Create the Network HQ first, then register this branch and request
                       affiliation.
                     </p>

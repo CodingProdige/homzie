@@ -105,10 +105,10 @@ export function AnalyticsInfoPopover({
           className="fixed z-[100] w-64 rounded-lg border border-border bg-popover p-3 text-left text-popover-foreground shadow-xl"
           style={{ left: position.left, top: position.top }}
         >
-          <span className="block text-xs font-black uppercase tracking-wide">
+          <span className="block text-xs font-semibold uppercase tracking-wide">
             {title}
           </span>
-          <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">
+          <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">
             {description}
           </span>
         </span>,

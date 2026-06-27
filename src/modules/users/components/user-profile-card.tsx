@@ -58,25 +58,25 @@ export function UserProfileCard({
               className="size-14 rounded-full border-2 border-background object-cover"
             />
           ) : (
-            <span className="grid size-14 place-items-center rounded-full border-2 border-background bg-brand-midnight text-base font-black text-white">
+            <span className="grid size-14 place-items-center rounded-full border-2 border-background bg-brand-midnight text-base font-semibold text-white">
               {initials(profile.displayName)}
             </span>
           )}
         </div>
 
         <div className="min-w-0 w-full">
-          <p className="truncate text-sm font-black">{profile.displayName}</p>
-          <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
+          <p className="truncate text-sm font-semibold">{profile.displayName}</p>
+          <p className="mt-0.5 truncate text-xs font-normal text-muted-foreground">
             @{profile.username}
           </p>
           {profile.location ? (
-            <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+            <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
               {locationFlag ? <span className="mr-1">{locationFlag}</span> : null}
               {profile.location}
             </p>
           ) : null}
           {profile.headline ? (
-            <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-muted-foreground">
+            <p className="mt-2 line-clamp-2 text-xs font-normal leading-5 text-muted-foreground">
               {profile.headline}
             </p>
           ) : null}
@@ -84,8 +84,8 @@ export function UserProfileCard({
 
         {profile.publicPerformanceVisible === false ? (
           <div className="w-full rounded-md bg-muted px-3 py-2 text-xs">
-            <p className="font-black text-muted-foreground">Performance private</p>
-            <p className="mt-0.5 font-semibold text-muted-foreground">
+            <p className="font-normal text-muted-foreground">Performance private</p>
+            <p className="mt-0.5 font-normal text-muted-foreground">
               Sales proof hidden by agent
             </p>
           </div>
@@ -93,26 +93,26 @@ export function UserProfileCard({
           <div className="w-full rounded-md bg-muted px-3 py-2 text-xs">
             {profile.totalSoldValueLabel && profile.soldCount > 0 ? (
               <>
-                <p className="font-black text-primary">{profile.totalSoldValueLabel} sold</p>
-                <p className="mt-0.5 font-semibold text-muted-foreground">
+                <p className="font-semibold text-primary">{profile.totalSoldValueLabel} sold</p>
+                <p className="mt-0.5 font-normal text-muted-foreground">
                   {profile.soldCount} {profile.soldCount === 1 ? "sale" : "sales"} past year
                 </p>
               </>
             ) : (
-              <p className="font-semibold text-muted-foreground">Building sales record</p>
+              <p className="font-normal text-muted-foreground">Building sales record</p>
             )}
           </div>
         ) : null}
 
         {profile.isPromoted ? (
-          <span className="rounded-full border border-border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+          <span className="rounded-full border border-border px-2 py-0.5 text-[9px] font-normal uppercase tracking-widest text-muted-foreground/70">
             Promoted
           </span>
         ) : null}
       </div>
       {locked ? (
         <span className="absolute inset-0 grid place-items-center bg-background/55 p-4 backdrop-blur-[1px]">
-          <span className="rounded-full bg-primary px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-lg">
+          <span className="rounded-full bg-primary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-lg">
             Create account to reveal
           </span>
         </span>

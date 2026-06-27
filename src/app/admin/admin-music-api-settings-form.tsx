@@ -37,7 +37,7 @@ function SubmitButton() {
 function SavedHint({ saved }: { saved: boolean }) {
   if (!saved) {
     return (
-      <span className="text-[11px] font-bold text-muted-foreground">Not saved</span>
+      <span className="text-[11px] font-normal text-muted-foreground">Not saved</span>
     );
   }
   return (
@@ -89,7 +89,7 @@ function SecretField({
           {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
         </button>
       </div>
-      <p className="text-[11px] font-semibold text-muted-foreground">{hint}</p>
+      <p className="text-[11px] font-normal text-muted-foreground">{hint}</p>
     </div>
   );
 }
@@ -154,7 +154,7 @@ export function AdminMusicApiSettingsForm({
             {state.message}
           </p>
         ) : (
-          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-normal text-muted-foreground">
             <KeyRound className="size-4" />
             Saved secrets are masked and only replaced when you enter a new value.
           </p>

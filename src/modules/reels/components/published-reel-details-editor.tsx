@@ -159,7 +159,7 @@ function PostRow({
     >
       <Icon className="size-6 shrink-0 text-black/65" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-base font-black">{label}</span>
+        <span className="block truncate text-base font-semibold">{label}</span>
         {value ? (
           <span className="mt-0.5 block truncate text-sm font-bold text-black/40">
             {value}
@@ -268,7 +268,7 @@ export function PublishedReelDetailsEditor({
               <ArrowLeft className="size-7" />
             </Link>
           </Button>
-          <p className="text-sm font-black">Edit details</p>
+          <p className="text-sm font-semibold">Edit details</p>
           <span />
         </div>
 
@@ -294,12 +294,12 @@ export function PublishedReelDetailsEditor({
                     className="size-full object-cover"
                     src={coverFrame.src}
                   />
-                  <span className="absolute inset-x-0 bottom-0 bg-black/55 py-2 text-sm font-black text-white">
+                  <span className="absolute inset-x-0 bottom-0 bg-black/55 py-2 text-sm font-semibold text-white">
                     Edit cover
                   </span>
                 </>
               ) : (
-                <span className="grid size-full place-items-center text-xs font-black text-black/35">
+                <span className="grid size-full place-items-center text-xs font-semibold text-black/35">
                   No cover
                 </span>
               )}
@@ -310,7 +310,7 @@ export function PublishedReelDetailsEditor({
           </div>
           <div className="mt-5 flex gap-2">
             <button
-              className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-black"
+              className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-semibold"
               onClick={() => appendToken("#")}
               type="button"
             >
@@ -318,7 +318,7 @@ export function PublishedReelDetailsEditor({
               Hashtags
             </button>
             <button
-              className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-black"
+              className="inline-flex items-center gap-1 rounded-lg bg-black/5 px-3 py-2 text-base font-semibold"
               onClick={() => appendToken("@")}
               type="button"
             >
@@ -359,7 +359,7 @@ export function PublishedReelDetailsEditor({
                   {["Everyone", "Followers", "Only me"].map((option) => (
                     <button
                       key={option}
-                      className="flex h-11 items-center justify-between rounded-xl bg-black/5 px-4 text-sm font-black"
+                      className="flex h-11 items-center justify-between rounded-xl bg-black/5 px-4 text-sm font-semibold"
                       onClick={() => setPrivacy(option)}
                       type="button"
                     >
@@ -441,7 +441,7 @@ export function PublishedReelDetailsEditor({
                   ].map(([key, label]) => (
                     <label
                       key={key}
-                      className="flex min-h-11 items-center justify-between rounded-xl bg-black/5 px-4 text-sm font-black"
+                      className="flex min-h-11 items-center justify-between rounded-xl bg-black/5 px-4 text-sm font-semibold"
                     >
                       {label}
                       <input
@@ -500,7 +500,7 @@ export function PublishedReelDetailsEditor({
             <Dialog.Trigger asChild>
               <button
                 type="button"
-                className="mx-auto mt-5 flex items-center justify-center gap-2 text-sm font-black text-red-500 transition-colors hover:text-red-600"
+                className="mx-auto mt-5 flex items-center justify-center gap-2 text-sm font-semibold text-red-500 transition-colors hover:text-red-600"
               >
                 <Trash2 className="size-4" />
                 Delete reel
@@ -509,10 +509,10 @@ export function PublishedReelDetailsEditor({
             <Dialog.Portal>
               <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm" />
               <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-5 text-foreground shadow-2xl outline-none">
-                <Dialog.Title className="text-base font-black">
+                <Dialog.Title className="text-base font-semibold">
                   Delete reel?
                 </Dialog.Title>
-                <Dialog.Description className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                <Dialog.Description className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                   This permanently removes the reel and clears it from saved profiles,
                   likes, comments and reshares.
                 </Dialog.Description>

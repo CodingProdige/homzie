@@ -83,10 +83,10 @@ export default async function AboutPage() {
         <div className="grid gap-8 lg:grid-cols-[1fr_1.04fr] lg:items-center lg:gap-16">
           <div className="mx-auto max-w-xl text-center lg:mx-0 lg:text-left">
             <Eyebrow>About Homzie</Eyebrow>
-            <h1 className="mt-4 text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="mt-4 text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
               Real estate built around <GradientWord>the agents who sell.</GradientWord>
             </h1>
-            <p className="mx-auto mt-5 max-w-md text-sm font-semibold leading-7 text-muted-foreground lg:mx-0 lg:text-base">
+            <p className="mx-auto mt-5 max-w-md text-sm font-normal leading-7 text-muted-foreground lg:mx-0 lg:text-base">
               Homzie shifts property discovery away from agency logos and back
               to the people buyers and sellers actually trust: the agents. It is
               a lead generation and portfolio platform where performance,
@@ -104,8 +104,8 @@ export default async function AboutPage() {
         <div className="mt-10 grid divide-y divide-border border-y border-border sm:grid-cols-5 sm:divide-x sm:divide-y-0">
           {stats.map((stat) => (
             <div key={stat.label} className="py-5 text-center">
-              <p className="text-xl font-black text-primary">{stat.value}</p>
-              <p className="mt-1 text-xs font-bold text-muted-foreground">{stat.label}</p>
+              <p className="text-xl font-semibold text-primary">{stat.value}</p>
+              <p className="mt-1 text-xs font-normal text-muted-foreground">{stat.label}</p>
             </div>
           ))}
         </div>
@@ -114,10 +114,10 @@ export default async function AboutPage() {
       <section className="page-body grid gap-8 py-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:gap-16 lg:py-14">
         <div className="mx-auto max-w-xl text-center lg:mx-0 lg:text-left">
           <Eyebrow>Our Story</Eyebrow>
-          <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
             Built to stop making agents pay for permission.
           </h2>
-          <div className="mt-5 space-y-4 text-sm font-semibold leading-7 text-muted-foreground">
+          <div className="mt-5 space-y-4 text-sm font-normal leading-7 text-muted-foreground">
             <p>
               Real estate marketing has revolved around big portals and agency
               budgets for too long. Agents often have to pay heavily just to list
@@ -149,7 +149,7 @@ export default async function AboutPage() {
       <section className="page-body py-10 lg:py-16">
         <div className="mx-auto max-w-3xl text-center">
           <Eyebrow>Our Values</Eyebrow>
-          <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
             The principles behind an agent-first platform.
           </h2>
         </div>
@@ -164,8 +164,8 @@ export default async function AboutPage() {
                 <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
                   <Icon className="size-6" />
                 </span>
-                <h3 className="mt-5 text-sm font-black">{value.title}</h3>
-                <p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
+                <h3 className="mt-5 text-sm font-semibold">{value.title}</h3>
+                <p className="mt-3 text-sm font-normal leading-6 text-muted-foreground">
                   {value.text}
                 </p>
               </article>
@@ -178,10 +178,10 @@ export default async function AboutPage() {
         <div className="grid overflow-hidden rounded-lg bg-primary/8 lg:grid-cols-[0.9fr_1fr]">
           <div className="p-7 sm:p-10">
             <Eyebrow>Our Mission</Eyebrow>
-            <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
               Help great agents become impossible to ignore.
             </h2>
-            <p className="mt-5 max-w-xl text-sm font-semibold leading-7 text-muted-foreground">
+            <p className="mt-5 max-w-xl text-sm font-normal leading-7 text-muted-foreground">
               Our mission is to give agents affordable, modern tools to win
               attention, build proof, and turn their work into opportunity. With
               listings, reels and performance-led profiles in one place, Homzie
@@ -199,8 +199,8 @@ export default async function AboutPage() {
 
       <section className="page-body py-10 text-center lg:py-16">
         <Eyebrow>Let&apos;s Connect</Eyebrow>
-        <h2 className="mt-3 text-3xl font-black">Ready to change the game?</h2>
-        <p className="mx-auto mt-3 max-w-md text-sm font-semibold text-muted-foreground">
+        <h2 className="mt-3 text-3xl font-semibold">Ready to change the game?</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm font-normal text-muted-foreground">
           Whether you are an agent building your portfolio or a buyer discovering
           your next home, we would love to hear from you.
         </p>

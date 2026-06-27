@@ -66,7 +66,7 @@ function rankBadge(index: number) {
           : "bg-muted text-muted-foreground";
 
   return (
-    <span className={`inline-flex min-w-9 justify-center rounded-full px-2 py-1 text-xs font-black ${tone}`}>
+    <span className={`inline-flex min-w-9 justify-center rounded-full px-2 py-1 text-xs font-semibold ${tone}`}>
       #{index + 1}
     </span>
   );
@@ -222,8 +222,8 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
       key: "branch",
       render: (row) => (
         <div>
-          <p className="font-black">{row.branch_name}</p>
-          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+          <p className="font-semibold">{row.branch_name}</p>
+          <p className="mt-1 text-xs font-normal text-muted-foreground">
             {row.region || "No region set"}
           </p>
         </div>
@@ -232,13 +232,13 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
     {
       header: "Score",
       key: "score",
-      render: (row) => <span className="font-black">{scoreLabel(row.score)}</span>,
+      render: (row) => <span className="font-semibold">{scoreLabel(row.score)}</span>,
     },
     {
       header: "Activity",
       key: "activity",
       render: (row) => (
-        <div className="text-sm font-semibold text-muted-foreground">
+        <div className="text-sm font-normal text-muted-foreground">
           <p>{scoreLabel(row.view_count)} views</p>
           <p>{scoreLabel(row.action_count)} actions</p>
         </div>
@@ -248,7 +248,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
       header: "Footprint",
       key: "footprint",
       render: (row) => (
-        <div className="text-sm font-semibold text-muted-foreground">
+        <div className="text-sm font-normal text-muted-foreground">
           <p>{scoreLabel(row.agent_count)} agents</p>
           <p>{scoreLabel(row.active_listings)} listings</p>
         </div>
@@ -267,8 +267,8 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
       key: "agent",
       render: (row) => (
         <div>
-          <p className="font-black">{row.agent_name}</p>
-          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+          <p className="font-semibold">{row.agent_name}</p>
+          <p className="mt-1 text-xs font-normal text-muted-foreground">
             {row.username ? `@${row.username}` : row.email || "No username"}
           </p>
         </div>
@@ -277,13 +277,13 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
     {
       header: "Score",
       key: "score",
-      render: (row) => <span className="font-black">{scoreLabel(row.score)}</span>,
+      render: (row) => <span className="font-semibold">{scoreLabel(row.score)}</span>,
     },
     {
       header: "Activity",
       key: "activity",
       render: (row) => (
-        <div className="text-sm font-semibold text-muted-foreground">
+        <div className="text-sm font-normal text-muted-foreground">
           <p>{scoreLabel(row.view_count)} views</p>
           <p>{scoreLabel(row.action_count)} actions</p>
         </div>
@@ -293,7 +293,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
       header: "Listings",
       key: "listings",
       render: (row) => (
-        <span className="text-sm font-semibold text-muted-foreground">
+        <span className="text-sm font-normal text-muted-foreground">
           {scoreLabel(row.active_listings)} active
         </span>
       ),
@@ -304,18 +304,18 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Control room
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Leaderboard
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Rank performance using buyer views, high-intent actions, offer starts, active listings, and team footprint over the last 30 days.
             Independent agencies see their agents only; Network HQ workspaces also see branch rankings.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
           <ListOrdered className="size-4 text-primary" />
           Last 30 days
         </span>
@@ -325,7 +325,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
         <section className="mt-8">
           <div className="mb-3 flex items-center gap-2">
             <Trophy className="size-5 text-primary" />
-            <h2 className="text-xl font-black">Branch leaderboard</h2>
+            <h2 className="text-xl font-semibold">Branch leaderboard</h2>
           </div>
           <CanonicalTable
             columns={branchColumns}
@@ -340,7 +340,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
       <section className="mt-8">
         <div className="mb-3 flex items-center gap-2">
           <UserRound className="size-5 text-primary" />
-          <h2 className="text-xl font-black">Agent leaderboard</h2>
+          <h2 className="text-xl font-semibold">Agent leaderboard</h2>
         </div>
         <CanonicalTable
           columns={agentColumns}

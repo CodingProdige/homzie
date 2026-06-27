@@ -56,7 +56,7 @@ export function Pagination({
         return (
           <span key={page} className="contents">
             {showGap ? (
-              <span className="grid h-10 min-w-10 place-items-center text-sm font-black text-muted-foreground">
+              <span className="grid h-10 min-w-10 place-items-center text-sm font-normal text-muted-foreground">
                 ...
               </span>
             ) : null}
@@ -65,7 +65,7 @@ export function Pagination({
               aria-current={page === currentPage ? "page" : undefined}
               onClick={onPageChange ? () => onPageChange(page) : undefined}
               className={cn(
-                "grid h-10 min-w-10 place-items-center rounded-md border border-border bg-card px-3 text-sm font-black text-card-foreground transition hover:bg-muted",
+                "grid h-10 min-w-10 place-items-center rounded-md border border-border bg-card px-3 text-sm font-semibold text-card-foreground transition hover:bg-muted",
                 page === currentPage &&
                   "border-primary bg-primary text-primary-foreground hover:bg-primary",
               )}
@@ -104,7 +104,7 @@ function PaginationControl({
   onClick?: () => void;
 }) {
   const classes = cn(
-    "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-black text-card-foreground transition hover:bg-muted",
+    "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-semibold text-card-foreground transition hover:bg-muted",
     disabled && "pointer-events-none opacity-45",
     className,
   );

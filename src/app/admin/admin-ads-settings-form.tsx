@@ -70,7 +70,7 @@ function NumberField({
         step={decimal ? "0.1" : "1"}
         defaultValue={String(value)}
       />
-      <p className="text-xs font-semibold leading-5 text-muted-foreground">
+      <p className="text-xs font-normal leading-5 text-muted-foreground">
         {description}
       </p>
     </div>
@@ -91,8 +91,8 @@ function ToggleField({
   return (
     <label className="flex min-w-0 items-center gap-4 rounded-lg border border-border bg-background px-4 py-4 transition hover:border-primary/35 hover:bg-primary/5">
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-black">{label}</span>
-        <span className="mt-1 block text-sm font-semibold leading-5 text-muted-foreground">
+        <span className="block text-sm font-semibold">{label}</span>
+        <span className="mt-1 block text-sm font-normal leading-5 text-muted-foreground">
           {description}
         </span>
       </span>
@@ -125,8 +125,8 @@ export function AdminAdsSettingsForm({
             <Megaphone className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-black">Channel availability</h3>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-semibold">Channel availability</h3>
+            <p className="text-xs font-normal text-muted-foreground">
               Control which ad channels users can launch from Ads Center.
             </p>
           </div>
@@ -154,8 +154,8 @@ export function AdminAdsSettingsForm({
             <BarChart3 className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-black">Pricing</h3>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-semibold">Pricing</h3>
+            <p className="text-xs font-normal text-muted-foreground">
               Set margin and budget guardrails for all ads created through Homzie.
             </p>
           </div>
@@ -204,8 +204,8 @@ export function AdminAdsSettingsForm({
             <Target className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-black">Forecast model</h3>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-semibold">Forecast model</h3>
+            <p className="text-xs font-normal text-muted-foreground">
               These inputs drive the estimated reach, clicks and result curves users see as they change budget.
             </p>
           </div>
@@ -299,7 +299,7 @@ export function AdminAdsSettingsForm({
             {state.message}
           </p>
         ) : (
-          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-normal text-muted-foreground">
             Saved forecast settings immediately affect Ads Center estimates.
           </p>
         )}

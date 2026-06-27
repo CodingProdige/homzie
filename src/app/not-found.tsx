@@ -11,13 +11,13 @@ export default function NotFound() {
           <div className="mx-auto grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
             <UserRoundX className="size-8" />
           </div>
-          <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-primary">
+          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             404
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-normal sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-semibold tracking-normal sm:text-4xl">
             We couldn&apos;t find that page
           </h1>
-          <p className="mt-4 text-sm font-semibold leading-7 text-muted-foreground sm:text-base">
+          <p className="mt-4 text-sm font-normal leading-7 text-muted-foreground sm:text-base">
             The link may be outdated, the profile may no longer be available, or the page may have moved.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">

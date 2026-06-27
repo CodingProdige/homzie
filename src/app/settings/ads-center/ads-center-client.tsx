@@ -328,7 +328,7 @@ function ListingSelect({
             {activeAsset ? (
               <ListingPreviewCard listing={activeAsset} compact />
             ) : (
-              <div className="flex min-h-10 items-center justify-between gap-3 px-2 py-1 text-sm font-semibold text-muted-foreground">
+              <div className="flex min-h-10 items-center justify-between gap-3 px-2 py-1 text-sm font-normal text-muted-foreground">
                 <span>{placeholder}</span>
                 <ChevronDown className="size-4 shrink-0" />
               </div>
@@ -378,13 +378,13 @@ function EstimateLine({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2 text-sm">
-      <span className="flex items-center gap-1 font-semibold text-muted-foreground">
+      <span className="flex items-center gap-1 font-normal text-muted-foreground">
         {label}
         {description ? (
           <AnalyticsInfoPopover title={label} description={description} />
         ) : null}
       </span>
-      <span className="text-right text-base font-black text-foreground">{value}</span>
+      <span className="text-right text-base font-semibold text-foreground">{value}</span>
     </div>
   );
 }
@@ -402,10 +402,10 @@ function BillingGate({
             <CreditCard className="size-4" />
           </span>
           <div className="min-w-0">
-            <p className="font-black text-foreground">Billing is ready</p>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="font-semibold text-foreground">Billing is ready</p>
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Campaigns can publish straight away. Ad spend will bill to{" "}
-              <span className="font-black text-foreground">
+              <span className="font-semibold text-foreground">
                 {billingStatus.paymentMethodLabel || "your saved card"}
               </span>{" "}
               on Homzie&apos;s monthly billing cycle.
@@ -419,8 +419,8 @@ function BillingGate({
   if (!billingStatus.hasActiveSubscription) {
     return (
       <div className="rounded-lg border border-amber-300/60 bg-amber-50/80 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
-        <p className="font-black text-foreground">Subscribe before publishing ads</p>
-        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+        <p className="font-semibold text-foreground">Subscribe before publishing ads</p>
+        <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
           Ads are only available to active subscribers. Start or reactivate your
           subscription first, then come back here to publish.
         </p>
@@ -435,8 +435,8 @@ function BillingGate({
 
   return (
     <div className="rounded-lg border border-amber-300/60 bg-amber-50/80 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
-      <p className="font-black text-foreground">Add a payment method before publishing</p>
-      <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+      <p className="font-semibold text-foreground">Add a payment method before publishing</p>
+      <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
         Homzie needs a saved card before we can launch ads. Add a payment method in
         billing, then publish from here.
       </p>
@@ -896,7 +896,7 @@ export function AdsCenterClient({
             <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
               <div>
                 <h2 className="text-lg font-bold">Campaign setup</h2>
-                <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                   Pick what you want to promote, where it should run, and the total
                   budget Homzie should pace across your selected channels.
                 </p>
@@ -910,7 +910,7 @@ export function AdsCenterClient({
                       <button
                         type="button"
                         className={cn(
-                          "inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-black transition",
+                          "inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition",
                           effectiveSelectedChannels.includes("homzie")
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border bg-background text-foreground hover:bg-muted/45",
@@ -926,7 +926,7 @@ export function AdsCenterClient({
                         type="button"
                         disabled={!hasGoogleListingInventory || promotedType !== "listing"}
                         className={cn(
-                          "inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50",
+                          "inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
                           effectiveSelectedChannels.includes("google")
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border bg-background text-foreground hover:bg-muted/45",
@@ -938,7 +938,7 @@ export function AdsCenterClient({
                       </button>
                     ) : null}
                   </div>
-                  <p className="text-xs font-semibold leading-5 text-muted-foreground">
+                  <p className="text-xs font-normal leading-5 text-muted-foreground">
                     {settings.allowGoogleAds && !googleChannelStatus.available
                       ? googleChannelStatus.blockedReason ||
                         "Google delivery is temporarily unavailable right now."
@@ -955,7 +955,7 @@ export function AdsCenterClient({
                         type="button"
                         disabled={option.disabled}
                         className={cn(
-                          "inline-flex h-10 items-center rounded-md border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50",
+                          "inline-flex h-10 items-center rounded-md border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
                           promotedType === option.value
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border bg-background text-foreground hover:bg-muted/45",
@@ -1010,7 +1010,7 @@ export function AdsCenterClient({
                     <button
                       type="button"
                       className={cn(
-                        "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-black transition",
+                        "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition",
                         isGlobalTarget
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border bg-background text-foreground hover:bg-muted/45",
@@ -1036,7 +1036,7 @@ export function AdsCenterClient({
                       }}
                     />
                   </div>
-                  <p className="text-xs font-semibold leading-5 text-muted-foreground">
+                  <p className="text-xs font-normal leading-5 text-muted-foreground">
                     Search and add one or more cities, suburbs, or countries. Homzie
                     combines the selected areas into one delivery forecast.
                   </p>
@@ -1045,7 +1045,7 @@ export function AdsCenterClient({
                       {resolvedSelectedTargetAreas.map((area) => (
                         <span
                           key={area.placeId}
-                          className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black text-foreground"
+                          className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground"
                         >
                           {area.label}
                           <button
@@ -1061,7 +1061,7 @@ export function AdsCenterClient({
                     </div>
                   ) : null}
                   {placesError ? (
-                    <p className="rounded-md bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+                    <p className="rounded-md bg-muted px-3 py-2 text-xs font-normal text-muted-foreground">
                       {placesError}
                     </p>
                   ) : null}
@@ -1079,13 +1079,13 @@ export function AdsCenterClient({
                           >
                             <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
                             <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-black">
+                              <span className="block text-sm font-semibold">
                                 {option.structured_formatting?.main_text || option.description}
                               </span>
-                              <span className="block text-xs font-semibold text-muted-foreground">
+                              <span className="block text-xs font-normal text-muted-foreground">
                                 {option.structured_formatting?.secondary_text || "Google Places"}
                               </span>
-                              <span className="mt-1 block text-[11px] font-semibold text-muted-foreground">
+                              <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
                                 {formatAreaMetric(stats?.populationEstimate || 0)} population ·{" "}
                                 {formatAreaMetric(stats?.activeUsersEstimate || 0, "0")} active
                                 users · {formatAreaMetric(stats?.publishedListingsEstimate || 0, "0")}{" "}
@@ -1101,21 +1101,21 @@ export function AdsCenterClient({
                         );
                       })}
                       {showAreaSearching ? (
-                        <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                        <p className="px-3 py-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
                           Searching places
                         </p>
                       ) : null}
-                      <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+                      <p className="px-3 pb-1 pt-2 text-right text-[9px] font-normal uppercase tracking-[0.35em] text-muted-foreground">
                         Powered by Google
                       </p>
                     </div>
                   ) : null}
                   <div className="rounded-lg border border-border bg-background px-4 py-3">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+                      <p className="text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
                         Selected area totals
                       </p>
-                      <p className="text-xs font-semibold text-muted-foreground">
+                      <p className="text-xs font-normal text-muted-foreground">
                         {resolvedSelectedTargetAreas.length
                           ? isGlobalTarget
                             ? "Global audience"
@@ -1125,38 +1125,38 @@ export function AdsCenterClient({
                     </div>
                     <div className="grid gap-2 sm:grid-cols-3">
                       <div>
-                        <p className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                        <p className="flex items-center gap-1 text-[11px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                           Population
                           <AnalyticsInfoPopover
                             title="Population"
                             description="A population estimate for the selected area. This helps Homzie size the total available audience, even if not everyone there is active in the product."
                           />
                         </p>
-                        <p className="mt-1 text-sm font-black text-foreground">
+                        <p className="mt-1 text-sm font-semibold text-foreground">
                           {formatAreaMetric(targetPopulationEstimate)}
                         </p>
                       </div>
                       <div>
-                        <p className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                        <p className="flex items-center gap-1 text-[11px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                           Active users
                           <AnalyticsInfoPopover
                             title="Active users"
                             description="People in the selected area who are currently active inside Homzie. This is the strongest direct signal for likely in-app delivery."
                           />
                         </p>
-                        <p className="mt-1 text-sm font-black text-foreground">
+                        <p className="mt-1 text-sm font-semibold text-foreground">
                           {formatAreaMetric(targetActiveUsersEstimate, "0")}
                         </p>
                       </div>
                       <div>
-                        <p className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                        <p className="flex items-center gap-1 text-[11px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                           Live listings
                           <AnalyticsInfoPopover
                             title="Live listings"
                             description="Published listings currently available in the selected area. This helps Homzie estimate how competitive the local inventory is."
                           />
                         </p>
-                        <p className="mt-1 text-sm font-black text-foreground">
+                        <p className="mt-1 text-sm font-semibold text-foreground">
                           {formatAreaMetric(targetPublishedListingsEstimate, "0")}
                         </p>
                       </div>
@@ -1170,16 +1170,16 @@ export function AdsCenterClient({
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-bold">Budget and duration</h2>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                  <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                     Set the total budget and runtime. Homzie will pace that spend
                     across the channels you selected.
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-background px-4 py-3 text-right">
-                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                  <p className="text-[11px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
                     Max daily spend
                   </p>
-                  <p className="mt-1 text-lg font-black">
+                  <p className="mt-1 text-lg font-semibold">
                     {formatCurrencyFromCents(
                       averageDailyBudget(budgetRands * 100, durationDays),
                     )}
@@ -1191,7 +1191,7 @@ export function AdsCenterClient({
                 <div className="grid gap-3">
                   <div className="flex items-center justify-between gap-4">
                     <Label htmlFor="totalBudgetRands">Total budget</Label>
-                    <span className="text-sm font-black text-primary">
+                    <span className="text-sm font-semibold text-primary">
                       {formatCurrencyFromCents(budgetRands * 100)}
                     </span>
                   </div>
@@ -1222,7 +1222,7 @@ export function AdsCenterClient({
                       )
                     }
                   />
-                  <p className="text-xs font-semibold text-muted-foreground">
+                  <p className="text-xs font-normal text-muted-foreground">
                     Budgets from {formatCurrencyFromCents(settings.minCampaignBudgetCents)} to{" "}
                     {formatCurrencyFromCents(settings.maxCampaignBudgetCents)}.
                   </p>
@@ -1231,7 +1231,7 @@ export function AdsCenterClient({
                 <div className="grid gap-3">
                   <div className="flex items-center justify-between gap-4">
                     <Label htmlFor="durationDaysInput">Duration</Label>
-                    <span className="text-sm font-black text-primary">{durationDays} days</span>
+                    <span className="text-sm font-semibold text-primary">{durationDays} days</span>
                   </div>
                   <input
                     id="durationRange"
@@ -1269,7 +1269,7 @@ export function AdsCenterClient({
                 </span>
                 <div>
                   <h2 className="text-lg font-bold">Projected delivery</h2>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                  <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                     A condensed cross-channel estimate based on your current budget,
                     duration, and available inventory.
                   </p>
@@ -1321,8 +1321,8 @@ export function AdsCenterClient({
               </div>
 
               <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <p className="text-sm font-black text-foreground">Billing cadence</p>
-                <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                <p className="text-sm font-semibold text-foreground">Billing cadence</p>
+                <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                   Homzie bills delivered ad spend to your saved payment method on the
                   monthly billing cycle. Pausing an ad stops future delivery, but spend
                   already used stays billable and is not refunded.
@@ -1330,12 +1330,12 @@ export function AdsCenterClient({
               </div>
 
               <div className="mt-4 rounded-lg border border-border bg-background p-4">
-                <p className="text-sm font-black text-foreground">Selected asset</p>
+                <p className="text-sm font-semibold text-foreground">Selected asset</p>
                 <div className="mt-3">
                   {promotedType === "listing" && selectedListing ? (
                     <ListingPreviewCard listing={selectedListing} compact />
                   ) : (
-                    <p className="text-sm font-semibold leading-6 text-muted-foreground break-words">
+                    <p className="text-sm font-normal leading-6 text-muted-foreground break-words">
                       {selectedAssetLabel}
                     </p>
                   )}
@@ -1350,8 +1350,8 @@ export function AdsCenterClient({
             {lastSuccessSession === publishSession ? (
               <div className="space-y-4">
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                  <p className="text-sm font-black text-foreground">Campaign published</p>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                  <p className="text-sm font-semibold text-foreground">Campaign published</p>
+                  <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                     Your campaign is now ready for delivery. Taking you to your
                     campaigns overview now&hellip;
                   </p>
@@ -1368,8 +1368,8 @@ export function AdsCenterClient({
             ) : (
               <div className="space-y-4">
                 <div className="rounded-lg border border-border bg-background p-4">
-                  <p className="text-sm font-black text-foreground">Campaign summary</p>
-                  <div className="mt-3 space-y-2 text-sm font-semibold text-muted-foreground">
+                  <p className="text-sm font-semibold text-foreground">Campaign summary</p>
+                  <div className="mt-3 space-y-2 text-sm font-normal text-muted-foreground">
                     <div className="flex justify-between gap-4">
                       <span>Promoting</span>
                       <span className="text-right text-foreground">{selectedAssetLabel}</span>
@@ -1408,10 +1408,10 @@ export function AdsCenterClient({
                 </div>
 
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                  <p className="text-sm font-black text-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     You are publishing this campaign for immediate delivery.
                   </p>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                  <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                     Homzie will pace the budget across the selected channels and bill
                     delivery to your saved card on the monthly billing cycle. Pausing
                     later stops future delivery, not spend already used.

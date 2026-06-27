@@ -87,11 +87,11 @@ export function AdminMusicForm() {
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-border bg-card p-5">
-      <h2 className="text-base font-black">Add track</h2>
+      <h2 className="text-base font-semibold">Add track</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+          <label className="text-xs font-normal uppercase tracking-widest text-muted-foreground">
             Title *
           </label>
           <input
@@ -103,7 +103,7 @@ export function AdminMusicForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+          <label className="text-xs font-normal uppercase tracking-widest text-muted-foreground">
             Artist *
           </label>
           <input
@@ -115,7 +115,7 @@ export function AdminMusicForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+          <label className="text-xs font-normal uppercase tracking-widest text-muted-foreground">
             Genre
           </label>
           <input
@@ -126,25 +126,25 @@ export function AdminMusicForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+          <label className="text-xs font-normal uppercase tracking-widest text-muted-foreground">
             Cover image
           </label>
           <input
             name="cover"
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            className="w-full text-sm font-semibold text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-black"
+            className="w-full text-sm font-normal text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-normal"
           />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+        <label className="text-xs font-normal uppercase tracking-widest text-muted-foreground">
           Audio file * (MP3, M4A, WAV, AAC — max 50MB)
         </label>
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/30 px-4 py-4 transition hover:bg-muted/50">
           <Music className="size-5 shrink-0 text-muted-foreground" />
-          <span className="text-sm font-semibold text-muted-foreground">
+          <span className="text-sm font-normal text-muted-foreground">
             {audioDuration > 0
               ? `Audio selected (${Math.floor(audioDuration / 60)}:${String(audioDuration % 60).padStart(2, "0")})`
               : "Click to choose audio file"}
@@ -175,7 +175,7 @@ export function AdminMusicForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+        className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
       >
         <Upload className="size-4" />
         {isSubmitting ? "Uploading…" : "Add track"}

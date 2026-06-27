@@ -47,7 +47,7 @@ function PrivacySwitch({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-bold text-foreground">{title}</span>
-        <span className="mt-1 block text-sm font-semibold leading-5 text-muted-foreground">
+        <span className="mt-1 block text-sm font-normal leading-5 text-muted-foreground">
           {description}
         </span>
       </span>
@@ -95,7 +95,7 @@ export function PrivacyForm({ preferences }: { preferences: PrivacyFormValues })
             <h2 className="text-lg font-bold tracking-normal text-card-foreground">
               Public profile
             </h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Control whether your Homzie profile can be viewed publicly.
             </p>
           </div>
@@ -119,7 +119,7 @@ export function PrivacyForm({ preferences }: { preferences: PrivacyFormValues })
             <h2 className="text-lg font-bold tracking-normal text-card-foreground">
               Public performance
             </h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Choose whether visitors can see your sold totals, win rate, and public performance page.
             </p>
           </div>
@@ -143,7 +143,7 @@ export function PrivacyForm({ preferences }: { preferences: PrivacyFormValues })
             <h2 className="text-lg font-bold tracking-normal text-card-foreground">
               Discoverability
             </h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Choose how easily people can find you across Homzie.
             </p>
           </div>
@@ -175,7 +175,7 @@ export function PrivacyForm({ preferences }: { preferences: PrivacyFormValues })
               <h2 className="text-lg font-bold tracking-normal text-card-foreground">
                 What changes publicly
               </h2>
-              <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+              <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                 Search visibility affects discovery. Profile visibility affects whether your public pages can be opened. Public contact visibility controls whether your contact details are shown on profile and listing surfaces.
                 Public performance visibility only controls public display of sales performance; it does not delete or change your private analytics.
               </p>

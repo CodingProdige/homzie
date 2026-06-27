@@ -31,7 +31,7 @@ export function CurrencySelector({
         <button
           type="button"
           className={cn(
-            "group inline-flex h-9 items-center justify-center rounded-full border border-border bg-background text-xs font-black text-foreground shadow-sm outline-none transition-colors hover:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/35",
+            "group inline-flex h-9 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/35",
             compact ? "min-w-0 gap-1 px-2" : "min-w-24 gap-1.5 px-3",
             className,
           )}
@@ -50,10 +50,10 @@ export function CurrencySelector({
           className="z-[120] w-72 overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl shadow-black/20 outline-none"
         >
           <div className="px-2 py-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-[10px] font-normal uppercase tracking-[0.18em] text-muted-foreground">
               Display currency
             </p>
-            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+            <p className="mt-1 text-xs font-normal text-muted-foreground">
               Prices convert from ZAR.
             </p>
           </div>
@@ -75,7 +75,7 @@ export function CurrencySelector({
                     <span className="block leading-none">{supportedCurrency.code}</span>
                     <span
                       className={cn(
-                        "mt-1 block truncate text-[11px] font-semibold leading-none text-muted-foreground",
+                        "mt-1 block truncate text-[11px] font-normal leading-none text-muted-foreground",
                         isActive && "text-primary-foreground/80",
                       )}
                     >

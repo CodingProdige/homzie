@@ -98,12 +98,12 @@ export function NotificationSurfaceTemplateEditor({
     <div className="space-y-6">
       <section className="space-y-5 rounded-lg border border-border bg-card p-4 shadow-sm">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             {template.category} / {surfaceLabel(template.surface)}
           </p>
-          <h2 className="mt-2 text-2xl font-black">{template.name}</h2>
+          <h2 className="mt-2 text-2xl font-semibold">{template.name}</h2>
           {template.description ? (
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               {template.description}
             </p>
           ) : null}
@@ -114,8 +114,8 @@ export function NotificationSurfaceTemplateEditor({
           <input name="surface" type="hidden" value={template.surface} />
           <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-3">
             <span>
-              <span className="block text-sm font-black">Template enabled</span>
-              <span className="block text-xs font-semibold text-muted-foreground">
+              <span className="block text-sm font-semibold">Template enabled</span>
+              <span className="block text-xs font-normal text-muted-foreground">
                 Disabled templates fall back to no {surfaceLabel(template.surface).toLowerCase()} notification for this event.
               </span>
             </span>
@@ -130,7 +130,7 @@ export function NotificationSurfaceTemplateEditor({
 
           {template.surface === "push" ? (
             <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
                 Push title
               </span>
               <input
@@ -145,7 +145,7 @@ export function NotificationSurfaceTemplateEditor({
           )}
 
           <label className="block">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
               {template.surface === "push" ? "Push body" : "In-app copy"}
             </span>
             <textarea
@@ -160,7 +160,7 @@ export function NotificationSurfaceTemplateEditor({
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-black text-primary-foreground disabled:opacity-60"
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               disabled={isPending}
               type="submit"
             >
@@ -182,7 +182,7 @@ export function NotificationSurfaceTemplateEditor({
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="flex items-center gap-2 text-sm font-black">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Copy className="size-4" />
           Variables
         </h3>
@@ -190,7 +190,7 @@ export function NotificationSurfaceTemplateEditor({
           {template.variables.map((variable) => (
             <button
               key={variable.key}
-              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black hover:border-primary/45 hover:text-primary"
+              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-primary/45 hover:text-primary"
               onClick={() => insertVariable(variable.key)}
               title={variable.label}
               type="button"
@@ -202,22 +202,22 @@ export function NotificationSurfaceTemplateEditor({
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="flex items-center gap-2 text-sm font-black">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Bell className="size-4" />
           Preview
         </h3>
         <div className="mt-3 rounded-lg border border-border bg-background p-4">
           {template.surface === "push" ? (
-            <p className="text-sm font-black">{renderedTitle || "Push title"}</p>
+            <p className="text-sm font-semibold">{renderedTitle || "Push title"}</p>
           ) : null}
-          <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
             {renderedBody || "Notification copy"}
           </p>
         </div>
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="text-sm font-black">Version history</h3>
+        <h3 className="text-sm font-semibold">Version history</h3>
         <div className="mt-3 space-y-2">
           {versions.length ? (
             versions.slice(0, 8).map((version) => (
@@ -226,18 +226,18 @@ export function NotificationSurfaceTemplateEditor({
                 key={version.id}
               >
                 {version.title ? (
-                  <p className="truncate text-xs font-black">{version.title}</p>
+                  <p className="truncate text-xs font-semibold">{version.title}</p>
                 ) : null}
-                <p className="mt-1 line-clamp-2 text-xs font-semibold text-muted-foreground">
+                <p className="mt-1 line-clamp-2 text-xs font-normal text-muted-foreground">
                   {version.body}
                 </p>
-                <p className="mt-2 text-[10px] font-semibold text-muted-foreground">
+                <p className="mt-2 text-[10px] font-normal text-muted-foreground">
                   {new Date(version.createdAt).toLocaleString()}
                 </p>
               </div>
             ))
           ) : (
-            <p className="text-sm font-semibold text-muted-foreground">
+            <p className="text-sm font-normal text-muted-foreground">
               No saved versions yet.
             </p>
           )}

@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
-import { ArrowLeft } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import { db } from "@/db";
 import {
   emailDeliveryLogs,
@@ -137,21 +135,16 @@ export default async function AdminTemplateSurfaceEditPage({ params }: PageProps
 
     return (
       <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-        <Button variant="ghost" asChild className="mb-6 px-0">
-          <Link href={`/admin/email-templates/${encodeURIComponent(templateKey)}`}>
-            <ArrowLeft className="size-4" />
-            Surfaces
-          </Link>
-        </Button>
+        <BackButton href={`/admin/email-templates/${encodeURIComponent(templateKey)}`} label="Surfaces" className="mb-6" />
 
         <div className="mb-8">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             {selectedTemplate.category} / Email
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             {selectedTemplate.name}
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-3xl text-sm font-normal leading-7 text-muted-foreground">
             Edit the email subject, preheader, HTML body, plain text, and preview.
           </p>
         </div>
@@ -211,21 +204,16 @@ export default async function AdminTemplateSurfaceEditPage({ params }: PageProps
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Button variant="ghost" asChild className="mb-6 px-0">
-        <Link href={`/admin/email-templates/${encodeURIComponent(templateKey)}`}>
-          <ArrowLeft className="size-4" />
-          Surfaces
-        </Link>
-      </Button>
+      <BackButton href={`/admin/email-templates/${encodeURIComponent(templateKey)}`} label="Surfaces" className="mb-6" />
 
       <div className="mb-8">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           {template.category} / {surfaceLabel(surface)}
         </p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
           {template.name}
         </h1>
-        <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-muted-foreground">
+        <p className="mt-3 max-w-3xl text-sm font-normal leading-7 text-muted-foreground">
           Edit the {surfaceLabel(surface).toLowerCase()} template for this event.
         </p>
       </div>

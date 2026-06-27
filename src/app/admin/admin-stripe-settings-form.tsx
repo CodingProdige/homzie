@@ -86,7 +86,7 @@ function SubmitButton() {
 function SavedHint({ saved }: { saved: boolean }) {
   if (!saved) {
     return (
-      <span className="text-[11px] font-bold text-muted-foreground">
+      <span className="text-[11px] font-normal text-muted-foreground">
         Not saved
       </span>
     );
@@ -167,10 +167,10 @@ function ModeFields({
           <Icon className="size-4" />
         </span>
         <div>
-          <h3 className="text-sm font-black">
+          <h3 className="text-sm font-semibold">
             {mode === "test" ? "Sandbox credentials" : "Live credentials"}
           </h3>
-          <p className="text-xs font-semibold text-muted-foreground">
+          <p className="text-xs font-normal text-muted-foreground">
             Leave saved secrets blank to keep the current value.
           </p>
         </div>
@@ -233,17 +233,17 @@ export function AdminStripeSettingsForm({
                 <Icon className="size-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black">
+                <span className="block text-sm font-semibold">
                   {mode === "test" ? "Sandbox mode" : "Live mode"}
                 </span>
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-xs font-normal text-muted-foreground">
                   {mode === "test"
                     ? "Use test cards and sandbox webhooks."
                     : "Use real payments and live webhooks."}
                 </span>
               </span>
               {active ? (
-                <span className="shrink-0 rounded-full bg-primary px-2 py-1 text-[10px] font-black uppercase text-primary-foreground">
+                <span className="shrink-0 rounded-full bg-primary px-2 py-1 text-[10px] font-semibold uppercase text-primary-foreground">
                   Active
                 </span>
               ) : null}
@@ -269,7 +269,7 @@ export function AdminStripeSettingsForm({
             {state.message}
           </p>
         ) : (
-          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <p className="inline-flex min-h-10 items-center gap-2 text-sm font-normal text-muted-foreground">
             <KeyRound className="size-4" />
             Saved secrets are masked and only replaced when you enter a new value.
           </p>

@@ -114,16 +114,16 @@ export default async function ControlRoomDashboardPage({
           <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
             <Building2 className="size-7" />
           </span>
-          <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-primary">
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             Control room
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
             Create an agency workspace
           </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mx-auto mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             Set up an agency, branch, or Network HQ before using the control room.
           </p>
-          <Button asChild className="mt-6 h-11 px-6 font-black">
+          <Button asChild className="mt-6 h-11 px-6 font-semibold">
             <Link href="/agency/apply">
               Create workspace
               <ArrowRight className="size-4" />
@@ -133,10 +133,10 @@ export default async function ControlRoomDashboardPage({
 
         {incomingTransfers.length ? (
           <section className="mt-4 w-full rounded-lg border border-border bg-card p-5 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Ownership transfer
             </p>
-            <h2 className="mt-2 text-xl font-black">
+            <h2 className="mt-2 text-xl font-semibold">
               You have an agency waiting for you
             </h2>
             <div className="mt-4 grid gap-3">
@@ -145,8 +145,8 @@ export default async function ControlRoomDashboardPage({
                   key={transfer.id}
                   className="rounded-lg border border-border bg-background p-4 text-left"
                 >
-                  <p className="font-black">{transfer.agency_name}</p>
-                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                  <p className="font-semibold">{transfer.agency_name}</p>
+                  <p className="mt-1 text-sm font-normal text-muted-foreground">
                     {agencyTypeLabel(transfer.agency_type)} ownership transfer
                   </p>
                   {transfer.message ? (
@@ -157,7 +157,7 @@ export default async function ControlRoomDashboardPage({
                   <div className="mt-3 flex flex-wrap gap-2">
                     <form action={acceptAgencyOwnershipTransferAction}>
                       <input type="hidden" name="transferId" value={transfer.id} />
-                      <Button type="submit" size="sm" className="h-9 font-black">
+                      <Button type="submit" size="sm" className="h-9 font-semibold">
                         Accept ownership
                       </Button>
                     </form>
@@ -167,7 +167,7 @@ export default async function ControlRoomDashboardPage({
                         type="submit"
                         size="sm"
                         variant="outline"
-                        className="h-9 font-black"
+                        className="h-9 font-semibold"
                       >
                         Decline
                       </Button>
@@ -251,19 +251,19 @@ export default async function ControlRoomDashboardPage({
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             {kind === "networkhq" ? "Network HQ control room" : "Agency control room"}
           </p>
-          <h1 className="mt-3 truncate text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 truncate text-4xl font-semibold tracking-tight sm:text-5xl">
             {workspace.agency.name}
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             {agencyTypeLabel(workspace.agency.agencyType)} ·{" "}
             {agencyRoleLabel(workspace.membership.role)} ·{" "}
             {statusLabel(workspace.agency.status)}
           </p>
         </div>
-        <Button asChild variant="outline" className="h-10 w-fit font-black">
+        <Button asChild variant="outline" className="h-10 w-fit font-semibold">
           <Link href={`${basePath}/settings`}>
             <Settings className="size-4" />
             Settings
@@ -283,10 +283,10 @@ export default async function ControlRoomDashboardPage({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-3xl font-black leading-none">
+                    <p className="text-3xl font-semibold leading-none">
                       {metric.value}
                     </p>
-                    <p className="mt-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                    <p className="mt-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
                       {metric.label}
                     </p>
                   </div>
@@ -294,7 +294,7 @@ export default async function ControlRoomDashboardPage({
                     <Icon className="size-5" />
                   </span>
                 </div>
-                <p className="mt-4 text-xs font-semibold leading-5 text-muted-foreground">
+                <p className="mt-4 text-xs font-normal leading-5 text-muted-foreground">
                   {metric.helper}
                 </p>
               </div>
@@ -305,10 +305,10 @@ export default async function ControlRoomDashboardPage({
 
       {incomingTransfers.length ? (
         <section className="mt-8 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             Incoming ownership
           </p>
-          <h2 className="mt-2 text-xl font-black">Ownership requests for you</h2>
+          <h2 className="mt-2 text-xl font-semibold">Ownership requests for you</h2>
           <div className="mt-4 grid gap-3">
             {incomingTransfers.map((transfer) => (
               <div
@@ -316,15 +316,15 @@ export default async function ControlRoomDashboardPage({
                 className="grid gap-3 rounded-lg border border-border bg-background p-4 sm:grid-cols-[1fr_auto] sm:items-center"
               >
                 <div>
-                  <p className="font-black">{transfer.agency_name}</p>
-                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                  <p className="font-semibold">{transfer.agency_name}</p>
+                  <p className="mt-1 text-sm font-normal text-muted-foreground">
                     {agencyTypeLabel(transfer.agency_type)} ownership transfer
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <form action={acceptAgencyOwnershipTransferAction}>
                     <input type="hidden" name="transferId" value={transfer.id} />
-                    <Button type="submit" size="sm" className="h-9 font-black">
+                    <Button type="submit" size="sm" className="h-9 font-semibold">
                       Accept
                     </Button>
                   </form>
@@ -334,7 +334,7 @@ export default async function ControlRoomDashboardPage({
                       type="submit"
                       size="sm"
                       variant="outline"
-                      className="h-9 font-black"
+                      className="h-9 font-semibold"
                     >
                       Decline
                     </Button>
@@ -359,12 +359,12 @@ export default async function ControlRoomDashboardPage({
                 <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                   <Icon className="size-5" />
                 </span>
-                <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-black uppercase text-muted-foreground">
+                <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-normal uppercase text-muted-foreground">
                   {section.cta}
                 </span>
               </div>
-              <h2 className="mt-4 text-xl font-black">{section.title}</h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              <h2 className="mt-4 text-xl font-semibold">{section.title}</h2>
+              <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                 {section.text}
               </p>
             </div>

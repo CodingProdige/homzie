@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import {
-  ArrowLeft,
   BadgeCheck,
   CheckCircle2,
   Crown,
@@ -11,6 +9,8 @@ import {
   Share2,
   XCircle,
 } from "lucide-react";
+
+import { BackButton } from "@/components/back-button";
 
 import { Button } from "@/components/ui/button";
 import { sql } from "@/db";
@@ -229,27 +229,21 @@ export default async function ControlRoomSettingsPage({
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Link
-        href={settingsPath}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ArrowLeft className="size-4" />
-        Settings
-      </Link>
+      <BackButton href={settingsPath} label="Settings" />
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
             Control room settings
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             {currentSection.title}
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
             {currentSection.description}
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
           <BadgeCheck className="size-4 text-primary" />
           {agencyTypeLabel(workspace.agency.agencyType)}
         </span>
@@ -262,14 +256,14 @@ export default async function ControlRoomSettingsPage({
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Hierarchy
             </p>
-            <h2 className="mt-2 text-xl font-black">
+            <h2 className="mt-2 text-xl font-semibold">
               {agencyTypeLabel(workspace.agency.agencyType)}
             </h2>
           </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black text-muted-foreground">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-normal text-muted-foreground">
             <Share2 className="size-4 text-primary" />
             {workspace.agency.networkVisibilityEnabled
               ? "Visible to linked network"
@@ -279,10 +273,10 @@ export default async function ControlRoomSettingsPage({
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-border bg-background p-3">
-            <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
               Parent network
             </p>
-            <p className="mt-1 truncate text-sm font-black">
+            <p className="mt-1 truncate text-sm font-semibold">
               {parentAgency?.name ||
                 workspace.agency.requestedParentAgencyName ||
                 (workspace.agency.agencyType === "network"
@@ -291,7 +285,7 @@ export default async function ControlRoomSettingsPage({
             </p>
             {workspace.agency.parentLinkStatus === "pending" ||
             workspace.agency.parentLinkStatus === "declined" ? (
-              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              <p className="mt-1 text-xs font-normal text-muted-foreground">
                 {workspace.agency.parentLinkStatus === "declined"
                   ? "Network link declined"
                   : "Pending network link"}
@@ -300,31 +294,31 @@ export default async function ControlRoomSettingsPage({
           </div>
 
           <div className="rounded-lg border border-border bg-background p-3">
-            <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
               Billing mode
             </p>
-            <p className="mt-1 text-sm font-black">
+            <p className="mt-1 text-sm font-semibold">
               {agencyBillingModeLabel(workspace.agency.billingMode)}
             </p>
-            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+            <p className="mt-1 text-xs font-normal text-muted-foreground">
               Parent billing activates when a branch links to a network.
             </p>
           </div>
 
           <div className="rounded-lg border border-border bg-background p-3">
-            <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
               Region
             </p>
-            <p className="mt-1 truncate text-sm font-black">
+            <p className="mt-1 truncate text-sm font-semibold">
               {workspace.agency.region || workspace.agency.location || "Not set"}
             </p>
           </div>
 
           <div className="rounded-lg border border-border bg-background p-3">
-            <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
               Branding
             </p>
-            <p className="mt-1 truncate text-sm font-black">
+            <p className="mt-1 truncate text-sm font-semibold">
               {agencyBrandingPolicyLabel(workspace.agency.brandingPolicy)}
             </p>
           </div>
@@ -340,15 +334,15 @@ export default async function ControlRoomSettingsPage({
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Brand identity
             </p>
-            <h2 className="mt-2 text-xl font-black">
+            <h2 className="mt-2 text-xl font-semibold">
               {workspace.agency.agencyType === "network"
                 ? "Canonical Network HQ brand"
                 : "Agency brand"}
             </h2>
-            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-1 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
               {workspace.agency.agencyType === "network"
                 ? "This is the brand branches and linked agents will inherit when Network HQ branding is enforced."
                 : branchUsesNetworkBrand
@@ -356,7 +350,7 @@ export default async function ControlRoomSettingsPage({
                   : "This is the local agency brand used when branch branding is allowed."}
             </p>
           </div>
-          <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-black text-muted-foreground">
+          <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-normal text-muted-foreground">
             {branchUsesNetworkBrand ? "Locked by Network HQ" : "Editable"}
           </span>
         </div>
@@ -387,14 +381,14 @@ export default async function ControlRoomSettingsPage({
         <section className="mt-6 rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 Network branding
               </p>
-              <h2 className="mt-2 text-xl font-black">
+              <h2 className="mt-2 text-xl font-semibold">
                 Branch brand governance
               </h2>
             </div>
-            <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-black text-muted-foreground">
+            <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-normal text-muted-foreground">
               {branchRows.length} {branchRows.length === 1 ? "branch" : "branches"}
             </span>
           </div>
@@ -403,12 +397,12 @@ export default async function ControlRoomSettingsPage({
             action={updateNetworkBrandingPolicyAction}
             className="mt-4 rounded-lg border border-border bg-background p-4"
           >
-            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Default branch policy
             </p>
             <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
               <label className="grid gap-2">
-                <span className="text-sm font-black">Default policy</span>
+                <span className="text-sm font-semibold">Default policy</span>
                 <select
                   name="brandingPolicy"
                   defaultValue={workspace.agency.brandingPolicy}
@@ -423,7 +417,7 @@ export default async function ControlRoomSettingsPage({
                 </select>
               </label>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                <label className="inline-flex items-center gap-2 text-sm font-normal text-muted-foreground">
                   <input
                     name="applyToBranches"
                     type="checkbox"
@@ -431,7 +425,7 @@ export default async function ControlRoomSettingsPage({
                   />
                   Apply to linked branches
                 </label>
-                <Button type="submit" className="h-10 font-black">
+                <Button type="submit" className="h-10 font-semibold">
                   Save rule
                 </Button>
               </div>
@@ -451,10 +445,10 @@ export default async function ControlRoomSettingsPage({
                     >
                       <div className="min-w-0">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-black">{branch.name}</p>
+                          <p className="truncate text-sm font-semibold">{branch.name}</p>
                           <span
                             className={[
-                              "rounded-full px-2 py-0.5 text-[10px] font-black uppercase",
+                              "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
                               isPending
                                 ? "bg-red-500/10 text-red-600"
                                 : "bg-emerald-500/10 text-emerald-700",
@@ -463,12 +457,12 @@ export default async function ControlRoomSettingsPage({
                             {isPending ? "Pending link" : "Linked"}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                        <p className="mt-1 text-xs font-normal text-muted-foreground">
                           {[branch.region, branch.branch_code]
                             .filter(Boolean)
                             .join(" · ") || "No region or branch code yet"}
                         </p>
-                        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                        <p className="mt-1 text-xs font-normal text-muted-foreground">
                           {agencyBrandingPolicyLabel(branch.branding_policy)}
                         </p>
                       </div>
@@ -484,7 +478,7 @@ export default async function ControlRoomSettingsPage({
                             <Button
                               type="submit"
                               size="sm"
-                              className="h-9 px-3 text-xs font-black"
+                              className="h-9 px-3 text-xs font-semibold"
                             >
                               <CheckCircle2 className="size-4" />
                               Approve
@@ -500,7 +494,7 @@ export default async function ControlRoomSettingsPage({
                               type="submit"
                               size="sm"
                               variant="outline"
-                              className="h-9 px-3 text-xs font-black"
+                              className="h-9 px-3 text-xs font-semibold"
                             >
                               <XCircle className="size-4" />
                               Decline
@@ -520,7 +514,7 @@ export default async function ControlRoomSettingsPage({
                           <select
                             name="brandingPolicy"
                             defaultValue={branch.branding_policy}
-                            className="h-9 rounded-md border border-border bg-card px-2 text-xs font-black outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                            className="h-9 rounded-md border border-border bg-card px-2 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                             aria-label={`Branding policy for ${branch.name}`}
                           >
                             <option value="branch_branding_allowed">
@@ -534,7 +528,7 @@ export default async function ControlRoomSettingsPage({
                             type="submit"
                             size="sm"
                             variant="outline"
-                            className="h-9 px-3 text-xs font-black"
+                            className="h-9 px-3 text-xs font-semibold"
                           >
                             Save
                           </Button>
@@ -545,7 +539,7 @@ export default async function ControlRoomSettingsPage({
                 })}
               </div>
             ) : (
-              <div className="bg-background p-4 text-sm font-semibold text-muted-foreground">
+              <div className="bg-background p-4 text-sm font-normal text-muted-foreground">
                 Branches that request to link to {workspace.agency.name} will appear
                 here for approval.
               </div>
@@ -564,12 +558,12 @@ export default async function ControlRoomSettingsPage({
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 Ownership
               </p>
-              <h2 className="mt-2 text-xl font-black">Transfer agency ownership</h2>
+              <h2 className="mt-2 text-xl font-semibold">Transfer agency ownership</h2>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-normal text-muted-foreground">
               <Crown className="size-4 text-primary" />
               Current owner
             </span>
@@ -580,7 +574,7 @@ export default async function ControlRoomSettingsPage({
               action={requestAgencyOwnershipTransferAction}
               className="rounded-lg border border-border bg-background p-4"
             >
-              <label className="block text-xs font-black uppercase tracking-wide text-muted-foreground">
+              <label className="block text-xs font-normal uppercase tracking-wide text-muted-foreground">
                 New owner email
               </label>
               <input
@@ -590,7 +584,7 @@ export default async function ControlRoomSettingsPage({
                 placeholder="new.owner@example.com"
                 className="mt-2 h-11 w-full rounded-md border border-border bg-card px-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
               />
-              <label className="mt-4 block text-xs font-black uppercase tracking-wide text-muted-foreground">
+              <label className="mt-4 block text-xs font-normal uppercase tracking-wide text-muted-foreground">
                 Message
               </label>
               <textarea
@@ -600,13 +594,13 @@ export default async function ControlRoomSettingsPage({
                 placeholder="Optional note for the incoming owner"
                 className="mt-2 w-full resize-none rounded-md border border-border bg-card px-3 py-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
               />
-              <Button type="submit" className="mt-4 h-10 font-black">
+              <Button type="submit" className="mt-4 h-10 font-semibold">
                 Send transfer request
               </Button>
             </form>
 
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
                 Pending transfer
               </p>
               {outgoingTransferRows.length ? (
@@ -616,17 +610,17 @@ export default async function ControlRoomSettingsPage({
                       key={transfer.id}
                       className="rounded-md border border-border bg-card p-3"
                     >
-                      <p className="text-sm font-black">
+                      <p className="text-sm font-semibold">
                         {transfer.recipient_name || transfer.recipient_email}
                       </p>
-                      <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                      <p className="mt-1 text-xs font-normal text-muted-foreground">
                         Waiting for {transfer.recipient_email} to accept.
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
+                <p className="mt-3 text-sm font-normal leading-6 text-muted-foreground">
                   No ownership transfer is pending. Sending a new request cancels any
                   previous pending request for this agency.
                 </p>
@@ -639,11 +633,11 @@ export default async function ControlRoomSettingsPage({
           id="ownership"
           className="mt-6 rounded-lg border border-border bg-card p-5 shadow-sm"
         >
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             Ownership
           </p>
-          <h2 className="mt-2 text-xl font-black">Owner access required</h2>
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">
+          <h2 className="mt-2 text-xl font-semibold">Owner access required</h2>
+          <p className="mt-2 max-w-2xl text-sm font-normal leading-6 text-muted-foreground">
             Ownership transfers are only available to the current agency or Network
             HQ owner. Admins and employees can view other settings based on their
             assigned permissions.
@@ -659,14 +653,14 @@ export default async function ControlRoomSettingsPage({
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Permission baseline
             </p>
-            <h2 className="mt-2 text-xl font-black">Your permissions</h2>
+            <h2 className="mt-2 text-xl font-semibold">Your permissions</h2>
           </div>
           <Settings2 className="size-5 text-muted-foreground" />
         </div>
-        <div className="mt-4 grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid gap-2 text-sm font-normal text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
           <p>Publish listings: {workspace.membership.canPublishListings ? "Yes" : "No"}</p>
           <p>Edit agency listings: {workspace.membership.canEditAgencyListings ? "Yes" : "No"}</p>
           <p>Buyer activity: {workspace.membership.canViewBuyerActivity ? "Yes" : "No"}</p>

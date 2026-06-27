@@ -153,7 +153,7 @@ export default async function BecomeAgentPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-bold text-primary">Homzie Pro</p>
-                    <p className="mt-2 text-sm font-semibold text-muted-foreground">
+                    <p className="mt-2 text-sm font-normal text-muted-foreground">
                       {trialEligible
                         ? `${agentSubscriptionTrialLabel} on monthly and yearly plans.`
                         : "Monthly and yearly plans start billing immediately on this account."}

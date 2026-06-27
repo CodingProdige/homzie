@@ -38,7 +38,7 @@ export function ModerationReviewForm({ row }: { row: ModerationRow }) {
       <input type="hidden" name="source" value={row.source} />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="grid gap-2 text-sm font-black">
+        <label className="grid gap-2 text-sm font-semibold">
           Status
           <select
             name="status"
@@ -52,7 +52,7 @@ export function ModerationReviewForm({ row }: { row: ModerationRow }) {
             ))}
           </select>
         </label>
-        <label className="grid gap-2 text-sm font-black">
+        <label className="grid gap-2 text-sm font-semibold">
           Priority
           <select
             name="priority"
@@ -69,7 +69,7 @@ export function ModerationReviewForm({ row }: { row: ModerationRow }) {
         </label>
       </div>
 
-      <label className="grid gap-2 text-sm font-black">
+      <label className="grid gap-2 text-sm font-semibold">
         Admin notes
         <textarea
           name="adminNotes"

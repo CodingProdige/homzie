@@ -209,7 +209,7 @@ export function AddPaymentMethodButton({
       ) : null}
       {setup && stripePromise ? (
         <ModalShell title="Add payment method" onClose={() => setSetup(null)}>
-          <p className="mb-5 text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mb-5 text-sm font-normal leading-6 text-muted-foreground">
             Add a card securely inside Homzie. Stripe stores the payment method for
             future subscription renewals.
           </p>
@@ -349,7 +349,7 @@ export function PaymentMethodList({
               </DropdownMenu.Root>
             </div>
             {!canRemove ? (
-              <p className="mt-3 text-xs font-semibold text-muted-foreground">
+              <p className="mt-3 text-xs font-normal text-muted-foreground">
                 Add another payment method before removing the default card for this active subscription.
               </p>
             ) : null}
@@ -424,7 +424,7 @@ export function CancelSubscriptionButton({
                     <p className="font-bold text-foreground">
                       Stay with Homzie and get 50% off for 2 months.
                     </p>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                    <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                       Keep your profile, listings and reels live while reducing your
                       next two subscription charges.
                     </p>
@@ -492,7 +492,7 @@ export function CancelSubscriptionButton({
                     <p className="font-bold text-foreground">
                       Discount accepted
                     </p>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                    <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                       {message ||
                         effectiveOfferMessage ||
                         "Your 50% discount has been applied for two months."}
@@ -510,12 +510,12 @@ export function CancelSubscriptionButton({
           ) : (
             <div className="space-y-5">
               <div className="space-y-3">
-                <p className="text-sm font-semibold leading-6 text-muted-foreground">
+                <p className="text-sm font-normal leading-6 text-muted-foreground">
                   Your subscription will be set to cancel at the end of the current
                   billing period. You can keep using Homzie Agent Pro until then.
                 </p>
                 {effectiveOfferMessage ? (
-                  <p className="rounded-md border border-border bg-card px-3 py-2 text-sm font-semibold text-muted-foreground">
+                  <p className="rounded-md border border-border bg-card px-3 py-2 text-sm font-normal text-muted-foreground">
                     {effectiveOfferMessage}
                   </p>
                 ) : null}
@@ -577,7 +577,7 @@ export function InvoiceHistoryTable({
       <div className="mt-5 overflow-x-auto">
         <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
           <thead>
-            <tr className="text-xs font-bold uppercase text-muted-foreground">
+            <tr className="text-xs font-normal uppercase text-muted-foreground">
               <th className="border-b border-border px-3 py-3">Date</th>
               <th className="border-b border-border px-3 py-3">Description</th>
               <th className="border-b border-border px-3 py-3 text-right">Amount</th>
@@ -622,7 +622,7 @@ export function InvoiceHistoryTable({
       </div>
       {invoices.length > pageSize ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-          <p className="font-semibold text-muted-foreground">
+          <p className="font-normal text-muted-foreground">
             Page {page + 1} of {pageCount}
           </p>
           <div className="flex gap-2">

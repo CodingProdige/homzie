@@ -40,41 +40,41 @@ function CampaignRow({
   return (
     <tr className="border-t border-border">
       <td className="px-4 py-4 align-top">
-        <p className="font-black">{campaignLabel}</p>
-        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+        <p className="font-semibold">{campaignLabel}</p>
+        <p className="mt-1 text-xs font-normal text-muted-foreground">
           {campaign.targetLocationPlaceId ? areaSummary : campaign.promotedLabel}
         </p>
       </td>
       <td className="px-4 py-4 align-top text-sm font-semibold">
         {campaign.channel === "google" ? "Google" : "Homzie"}
         {campaign.channel === "google" ? (
-          <p className="mt-1 text-xs font-semibold capitalize text-muted-foreground">
+          <p className="mt-1 text-xs font-normal capitalize text-muted-foreground">
             {campaign.googleSyncStatus.replaceAll("_", " ")}
           </p>
         ) : null}
       </td>
       <td className="px-4 py-4 align-top text-sm font-semibold">
         {formatCurrencyFromCents(campaign.totalBudgetCents)}
-        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+        <p className="mt-1 text-xs font-normal text-muted-foreground">
           Delivered {formatCurrencyFromCents(campaign.deliveredSpendCents ?? 0)}
         </p>
       </td>
       <td className="px-4 py-4 align-top text-sm font-semibold">
         {formatCompactNumber(campaign.estimatedReach)}
-        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+        <p className="mt-1 text-xs font-normal text-muted-foreground">
           {formatCompactNumber(campaign.estimatedClicks)} est. clicks
         </p>
       </td>
       <td className="px-4 py-4 align-top text-sm font-semibold">
         {formatCurrencyFromCents(campaign.billedSpendCents ?? 0)}
-        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+        <p className="mt-1 text-xs font-normal text-muted-foreground">
           {formatCurrencyFromCents(campaign.outstandingSpendCents ?? 0)} outstanding
         </p>
       </td>
       <td className="px-4 py-4 align-top">
         <span
           className={cn(
-            "inline-flex rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em]",
+            "inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
             campaign.status === "ready"
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
               : campaign.status === "paused"
@@ -84,7 +84,7 @@ function CampaignRow({
         >
           {campaign.status}
         </span>
-        <p className="mt-2 text-xs font-semibold text-muted-foreground">
+        <p className="mt-2 text-xs font-normal text-muted-foreground">
           {campaign.createdAtLabel}
         </p>
       </td>
@@ -127,7 +127,7 @@ export function AdsCampaignsList({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold">Campaigns</h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Published campaigns can be paused and resumed here. Existing spend
               remains billable even when delivery is paused.
             </p>
@@ -141,7 +141,7 @@ export function AdsCampaignsList({
       {campaigns.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="bg-muted/40 text-xs font-black uppercase tracking-[0.08em] text-muted-foreground">
+            <thead className="bg-muted/40 text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Campaign</th>
                 <th className="px-4 py-3">Channel</th>
@@ -175,8 +175,8 @@ export function AdsCampaignsList({
         </div>
       ) : (
         <div className="px-5 py-10 text-center">
-          <p className="text-base font-black">No campaigns yet</p>
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+          <p className="text-base font-semibold">No campaigns yet</p>
+          <p className="mt-2 text-sm font-normal text-muted-foreground">
             Publish your first campaign to start promoting your profile, listings,
             or reels across the channels you choose.
           </p>

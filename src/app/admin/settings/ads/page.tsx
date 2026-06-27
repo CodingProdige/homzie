@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { BarChart3, ChevronLeft, Receipt, Wallet } from "lucide-react";
+import { BarChart3, Receipt, Wallet } from "lucide-react";
+
+import { BackButton } from "@/components/back-button";
 
 import { getAdminAdBillingSummary } from "@/modules/ads/billing";
 import { getStoredAdsSettings } from "@/modules/platform-settings/ads-settings";
@@ -39,11 +40,11 @@ function SummaryMetric({
     <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
             {title}
           </p>
-          <p className="mt-3 text-3xl font-black tracking-tight">{value}</p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
+          <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
             {description}
           </p>
         </div>
@@ -125,22 +126,16 @@ export default async function AdminAdsSettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <Link
-        href="/admin/settings"
-        className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ChevronLeft className="size-4" />
-        Settings
-      </Link>
+      <BackButton href="/admin/settings" label="Settings" />
 
       <div className="mt-6">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
           Growth
         </p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
           Ads
         </h1>
-        <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
           Set campaign budget rules, channel-level margin, and the forecast assumptions that power user ads planning.
         </p>
       </div>

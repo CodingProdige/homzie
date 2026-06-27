@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
@@ -19,18 +20,29 @@ export function BackButton({
   showLabel?: boolean;
 }) {
   const router = useRouter();
+  const baseClassName = cn(
+    "inline-flex w-fit items-center gap-2 text-sm font-normal text-muted-foreground transition-colors hover:text-primary",
+    className,
+  );
+  const icon = <ArrowLeft className={cn("size-4", iconClassName)} />;
+
+  if (href) {
+    return (
+      <Link href={href} className={baseClassName}>
+        {icon}
+        {showLabel ? label : null}
+      </Link>
+    );
+  }
 
   return (
     <button
       type="button"
       aria-label={showLabel ? undefined : label}
-      className={cn(
-        "inline-flex w-fit items-center gap-3 text-sm font-medium transition-colors",
-        className,
-      )}
-      onClick={() => (href ? router.push(href) : router.back())}
+      className={baseClassName}
+      onClick={() => router.back()}
     >
-      <ArrowLeft className={cn("size-4", iconClassName)} />
+      {icon}
       {showLabel ? label : null}
     </button>
   );

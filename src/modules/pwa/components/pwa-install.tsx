@@ -178,7 +178,7 @@ export function InstallHomzieButton({
         <button
           type="button"
           className={cn(
-            "flex h-12 w-full min-w-0 items-center justify-center gap-3 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-center text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.28)] transition hover:scale-[1.005] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2",
+            "flex h-12 w-full min-w-0 items-center justify-center gap-3 rounded-md bg-[image:var(--homzie-gradient)] px-5 text-center text-sm font-semibold text-white shadow-[0_14px_30px_rgba(123,92,255,0.28)] transition hover:scale-[1.005] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2",
             compact && "h-9 w-auto px-3 text-xs",
             className,
           )}
@@ -231,7 +231,7 @@ function InstructionStep({
         <Icon className="size-3.5" />
       </span>
       <span className="min-w-0">
-        <span className="block text-sm font-black text-white">{label}</span>
+        <span className="block text-sm font-semibold text-white">{label}</span>
         <span className="mt-1 block text-xs font-semibold leading-5 text-white/65">
           {detail}
         </span>
@@ -302,11 +302,11 @@ export function PwaInstallFlow({ className }: { className?: string }) {
         </div>
 
         <div className="mx-auto mt-6 max-w-md text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/80">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
             <Sparkles className="size-3.5" />
             Homzie app setup
           </div>
-          <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {headline}
           </h2>
           <p className="mt-3 text-sm font-semibold leading-6 text-white/72">{body}</p>
@@ -328,7 +328,7 @@ export function PwaInstallFlow({ className }: { className?: string }) {
                   setNotice("No stress. Tap the button again when you are ready.");
                 }
               }}
-              className="h-14 w-full rounded-md bg-[image:var(--homzie-gradient)] text-base font-black text-white shadow-[0_18px_45px_rgba(123,92,255,0.4)] hover:scale-[1.01] hover:opacity-95"
+              className="h-14 w-full rounded-md bg-[image:var(--homzie-gradient)] text-base font-semibold text-white shadow-[0_18px_45px_rgba(123,92,255,0.4)] hover:scale-[1.01] hover:opacity-95"
             >
               {isPromptingInstall ? (
                 <Loader2 className="size-5 animate-spin" />
@@ -342,7 +342,7 @@ export function PwaInstallFlow({ className }: { className?: string }) {
 
           {needsInstall && !canPromptInstall ? (
             <div className="rounded-lg border border-white/15 bg-white/10 p-4 text-left">
-              <p className="text-sm font-black text-white">
+              <p className="text-sm font-semibold text-white">
                 {isIos ? "Install from Safari" : "Open your browser install option"}
               </p>
               <div className="mt-4 grid gap-3">
@@ -404,7 +404,7 @@ export function PwaInstallFlow({ className }: { className?: string }) {
                     setIsEnablingNotifications(false);
                   }
                 }}
-                className="h-14 w-full rounded-md bg-[image:var(--homzie-gradient)] text-base font-black text-white shadow-[0_18px_45px_rgba(123,92,255,0.4)] hover:scale-[1.01] hover:opacity-95"
+                className="h-14 w-full rounded-md bg-[image:var(--homzie-gradient)] text-base font-semibold text-white shadow-[0_18px_45px_rgba(123,92,255,0.4)] hover:scale-[1.01] hover:opacity-95"
               >
                 {isEnablingNotifications ? (
                   <Loader2 className="size-5 animate-spin" />

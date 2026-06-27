@@ -459,7 +459,7 @@ export function TikTokReelEditor({ profilePath }: TikTokReelEditorProps) {
                   }}
                 />
                 {overlayText ? (
-                  <span className="absolute left-1/2 top-[42%] max-w-[82%] -translate-x-1/2 rounded-xl bg-black/35 px-3 py-2 text-center text-3xl font-black leading-tight text-white shadow-lg">
+                  <span className="absolute left-1/2 top-[42%] max-w-[82%] -translate-x-1/2 rounded-xl bg-black/35 px-3 py-2 text-center text-3xl font-semibold leading-tight text-white shadow-lg">
                     {overlayText}
                   </span>
                 ) : null}
@@ -480,7 +480,7 @@ export function TikTokReelEditor({ profilePath }: TikTokReelEditorProps) {
                   <Upload className="size-9" />
                 </span>
                 <div>
-                  <p className="text-2xl font-black">Upload video</p>
+                  <p className="text-2xl font-semibold">Upload video</p>
                   <p className="mt-2 text-sm font-medium text-white/60">
                     MP4, MOV, or WebM
                   </p>
@@ -731,7 +731,7 @@ function TimelineVideoEditor({
           />
         ) : null}
         {overlayText ? (
-          <span className="absolute left-1/2 top-[42%] max-w-[82%] -translate-x-1/2 rounded-lg bg-black/35 px-3 py-2 text-center text-xl font-black leading-tight text-white">
+          <span className="absolute left-1/2 top-[42%] max-w-[82%] -translate-x-1/2 rounded-lg bg-black/35 px-3 py-2 text-center text-xl font-semibold leading-tight text-white">
             {overlayText}
           </span>
         ) : null}
@@ -906,7 +906,7 @@ function TrackRow({
       <Icon className="size-4 text-white/60" />
       <div
         className={cn(
-          "flex h-8 flex-1 items-center rounded-lg px-3 text-xs font-black",
+          "flex h-8 flex-1 items-center rounded-lg px-3 text-xs font-semibold",
           muted ? "bg-white/10 text-white/45" : `${color} text-white`,
         )}
       >
@@ -927,7 +927,7 @@ function TimelineAction({
 }) {
   return (
     <button
-      className="flex h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-white/[0.08] text-xs font-black text-white"
+      className="flex h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-white/[0.08] text-xs font-semibold text-white"
       onClick={onClick}
       type="button"
     >
@@ -951,7 +951,7 @@ function SoundSheet({
       <div className="w-full rounded-t-[28px] bg-background px-4 pb-5 pt-3 text-foreground">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-border" />
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-black">Sounds</h2>
+          <h2 className="text-xl font-semibold">Sounds</h2>
           <button
             aria-label="Close sounds"
             className="grid size-10 place-items-center rounded-full bg-muted"
@@ -977,10 +977,10 @@ function SoundSheet({
                 )}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-black">
+                <span className="block truncate text-sm font-semibold">
                   {sound.title}
                 </span>
-                <span className="block truncate text-xs font-semibold text-muted-foreground">
+                <span className="block truncate text-xs font-normal text-muted-foreground">
                   {sound.artist}
                 </span>
               </span>
@@ -1054,7 +1054,7 @@ function EditorActionSheet({
       <div className="w-full rounded-t-[28px] bg-background px-4 pb-5 pt-3 text-foreground shadow-2xl">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-border" />
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-black">{title}</h2>
+          <h2 className="text-xl font-semibold">{title}</h2>
           <button
             aria-label={`Close ${title}`}
             className="grid size-10 place-items-center rounded-full bg-muted"
@@ -1078,7 +1078,7 @@ function EditorActionSheet({
             <div className="flex gap-2">
               {["Tour", "For Sale", "New Listing"].map((preset) => (
                 <button
-                  className="rounded-full bg-muted px-3 py-2 text-xs font-black"
+                  className="rounded-full bg-muted px-3 py-2 text-xs font-semibold"
                   key={preset}
                   onClick={() => onOverlayTextChange(preset)}
                   type="button"
@@ -1098,8 +1098,8 @@ function EditorActionSheet({
               type="button"
             >
               <span>
-                <span className="block text-sm font-black">Auto captions</span>
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-sm font-semibold">Auto captions</span>
+                <span className="block text-xs font-normal text-muted-foreground">
                   Generate captions from reel audio after upload.
                 </span>
               </span>
@@ -1139,13 +1139,13 @@ function EditorActionSheet({
                       className="h-full w-full object-cover"
                       src={frame.src}
                     />
-                    <span className="absolute inset-x-1 bottom-1 rounded bg-black/65 py-0.5 text-[10px] font-black text-white">
+                    <span className="absolute inset-x-1 bottom-1 rounded bg-black/65 py-0.5 text-[10px] font-semibold text-white">
                       {formatTime(frame.time)}
                     </span>
                   </button>
                 ))
               ) : (
-                <div className="rounded-2xl bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+                <div className="rounded-2xl bg-muted px-4 py-3 text-sm font-normal text-muted-foreground">
                   Loading clip frames...
                 </div>
               )}
@@ -1157,10 +1157,10 @@ function EditorActionSheet({
                 onClick={() => onTrimStartChange(Math.min(currentTime, trimEnd))}
                 type="button"
               >
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-xs font-normal text-muted-foreground">
                   Start
                 </span>
-                <span className="text-base font-black">
+                <span className="text-base font-semibold">
                   {formatTime(trimStart)}
                 </span>
               </button>
@@ -1169,10 +1169,10 @@ function EditorActionSheet({
                 onClick={() => onSeek(Math.max(0, currentTime - 1))}
                 type="button"
               >
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-xs font-normal text-muted-foreground">
                   Playhead
                 </span>
-                <span className="text-base font-black">
+                <span className="text-base font-semibold">
                   {formatTime(currentTime)}
                 </span>
               </button>
@@ -1181,10 +1181,10 @@ function EditorActionSheet({
                 onClick={() => onTrimEndChange(Math.max(currentTime, trimStart))}
                 type="button"
               >
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-xs font-normal text-muted-foreground">
                   End
                 </span>
-                <span className="text-base font-black">
+                <span className="text-base font-semibold">
                   {formatTime(trimEnd || duration)}
                 </span>
               </button>
@@ -1192,14 +1192,14 @@ function EditorActionSheet({
 
             <div className="grid grid-cols-3 gap-2">
               <button
-                className="h-11 rounded-xl bg-muted text-sm font-black"
+                className="h-11 rounded-xl bg-muted text-sm font-semibold"
                 onClick={() => onSeek(Math.max(trimStart, currentTime - 0.5))}
                 type="button"
               >
                 -0.5s
               </button>
               <button
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-muted text-sm font-black"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-muted text-sm font-semibold"
                 onClick={() => {
                   onTrimStartChange(0);
                   onTrimEndChange(duration);
@@ -1211,7 +1211,7 @@ function EditorActionSheet({
                 Reset
               </button>
               <button
-                className="h-11 rounded-xl bg-muted text-sm font-black"
+                className="h-11 rounded-xl bg-muted text-sm font-semibold"
                 onClick={() =>
                   onSeek(Math.min(trimEnd || duration, currentTime + 0.5))
                 }
@@ -1240,7 +1240,7 @@ function EditorActionSheet({
               value={contrast}
             />
             <button
-              className="h-11 rounded-xl bg-muted px-4 text-sm font-black"
+              className="h-11 rounded-xl bg-muted px-4 text-sm font-semibold"
               onClick={() => {
                 onBrightnessChange(100);
                 onContrastChange(100);
@@ -1274,7 +1274,7 @@ function EditorActionSheet({
                       className="h-full w-full object-cover"
                       src={frame.src}
                     />
-                    <span className="absolute inset-x-1 bottom-1 rounded bg-black/65 py-1 text-[10px] font-black text-white">
+                    <span className="absolute inset-x-1 bottom-1 rounded bg-black/65 py-1 text-[10px] font-semibold text-white">
                       {formatTime(frame.time)}
                     </span>
                     {Math.abs(coverTime - frame.time) < 0.2 ? (
@@ -1285,12 +1285,12 @@ function EditorActionSheet({
                   </button>
                 ))
               ) : (
-                <div className="rounded-2xl bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+                <div className="rounded-2xl bg-muted px-4 py-3 text-sm font-normal text-muted-foreground">
                   Loading cover frames...
                 </div>
               )}
             </div>
-            <div className="rounded-2xl bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+            <div className="rounded-2xl bg-muted px-4 py-3 text-sm font-normal text-muted-foreground">
               Selected cover: {formatTime(coverTime)}
             </div>
           </div>
@@ -1325,7 +1325,7 @@ function RangeControl({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 flex items-center justify-between text-sm font-black">
+      <span className="mb-2 flex items-center justify-between text-sm font-semibold">
         <span>{label}</span>
         <span className="text-muted-foreground">
           {value}
@@ -1347,8 +1347,8 @@ function RangeControl({
 function SettingRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex h-14 items-center justify-between px-4 text-sm">
-      <span className="font-black">{label}</span>
-      <span className="font-semibold text-muted-foreground">{value}</span>
+      <span className="font-semibold">{label}</span>
+      <span className="font-normal text-muted-foreground">{value}</span>
     </div>
   );
 }
@@ -1385,7 +1385,7 @@ function PostScreen({
         >
           <ArrowLeft className="size-5" />
         </button>
-        <h1 className="flex-1 text-center text-base font-black">Post</h1>
+        <h1 className="flex-1 text-center text-base font-semibold">Post</h1>
         <span className="size-10" />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -1466,7 +1466,7 @@ function PostScreen({
 function PostChip({ icon: Icon, label }: { icon: typeof Hash; label: string }) {
   return (
     <button
-      className="inline-flex h-9 items-center gap-2 rounded-full bg-muted px-3 text-xs font-black"
+      className="inline-flex h-9 items-center gap-2 rounded-full bg-muted px-3 text-xs font-semibold"
       type="button"
     >
       <Icon className="size-4" />

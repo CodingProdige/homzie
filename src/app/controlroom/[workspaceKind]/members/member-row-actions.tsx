@@ -18,7 +18,7 @@ export function MemberRowActions({
   status: MemberStatus;
 }) {
   if (protectedMember) {
-    return <span className="text-xs font-black text-muted-foreground">Protected</span>;
+    return <span className="text-xs font-normal text-muted-foreground">Protected</span>;
   }
 
   const nextStatus = status === "suspended" ? "active" : "suspended";

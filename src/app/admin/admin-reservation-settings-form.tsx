@@ -63,7 +63,7 @@ function NumberField({
         step={step}
         defaultValue={String(value)}
       />
-      <p className="text-xs font-semibold leading-5 text-muted-foreground">
+      <p className="text-xs font-normal leading-5 text-muted-foreground">
         {description}
       </p>
     </div>
@@ -88,8 +88,8 @@ export function AdminReservationSettingsForm({
             <ShieldCheck className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-black">Reservation checkout</h3>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <h3 className="text-sm font-semibold">Reservation checkout</h3>
+            <p className="text-xs font-normal text-muted-foreground">
               Control availability, buyer fees, and reservation guardrails.
             </p>
           </div>
@@ -97,10 +97,10 @@ export function AdminReservationSettingsForm({
 
         <label className="mt-4 flex min-w-0 items-center gap-4 rounded-lg border border-border bg-card px-4 py-4">
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black">
+            <span className="block text-sm font-semibold">
               Enable listing reservations
             </span>
-            <span className="mt-1 block text-sm font-semibold leading-5 text-muted-foreground">
+            <span className="mt-1 block text-sm font-normal leading-5 text-muted-foreground">
               Agents can only accept reservation payments when this is enabled
               and their listing has reservations turned on.
             </span>
@@ -119,7 +119,7 @@ export function AdminReservationSettingsForm({
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
-        <h3 className="text-sm font-black">Fees</h3>
+        <h3 className="text-sm font-semibold">Fees</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <NumberField
             name="platformFeePercent"
@@ -146,7 +146,7 @@ export function AdminReservationSettingsForm({
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
-        <h3 className="text-sm font-black">Limits and terms</h3>
+        <h3 className="text-sm font-semibold">Limits and terms</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <NumberField
             name="minReservationAmountRands"
