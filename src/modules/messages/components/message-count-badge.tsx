@@ -18,9 +18,13 @@ export function MessageCountBadge({ className }: { className?: string }) {
     }
 
     refreshCount();
+    const interval = window.setInterval(refreshCount, 5000);
+    document.addEventListener("visibilitychange", refreshCount);
 
     return () => {
       alive = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshCount);
     };
   }, []);
 
