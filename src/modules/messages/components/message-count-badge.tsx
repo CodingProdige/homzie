@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { getUnreadMessageCountAction } from "@/modules/messages/actions";
-
 export function MessageCountBadge({ className }: { className?: string }) {
   const [count, setCount] = useState(0);
 
@@ -13,8 +11,21 @@ export function MessageCountBadge({ className }: { className?: string }) {
     async function refreshCount() {
       if (document.visibilityState !== "visible") return;
 
-      const nextCount = await getUnreadMessageCountAction();
-      if (alive) setCount(nextCount);
+      try {
+        const response = await fetch("/api/messages/unread-count", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { count?: unknown };
+        const nextCount =
+          typeof payload.count === "number" && Number.isFinite(payload.count)
+            ? payload.count
+            : 0;
+
+        if (alive) setCount(nextCount);
+      } catch {}
     }
 
     refreshCount();

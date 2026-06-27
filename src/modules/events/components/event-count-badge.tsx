@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { getUnseenEventCountAction } from "@/modules/events/actions";
-
 export function EventCountBadge({ className }: { className?: string }) {
   const [count, setCount] = useState(0);
 
@@ -11,8 +9,21 @@ export function EventCountBadge({ className }: { className?: string }) {
     let alive = true;
 
     async function refreshCount() {
-      const nextCount = await getUnseenEventCountAction();
-      if (alive) setCount(nextCount);
+      try {
+        const response = await fetch("/api/events/unseen-count", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { count?: unknown };
+        const nextCount =
+          typeof payload.count === "number" && Number.isFinite(payload.count)
+            ? payload.count
+            : 0;
+
+        if (alive) setCount(nextCount);
+      } catch {}
     }
 
     refreshCount();

@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { getUnreadListingBuyerActivityCountAction } from "@/modules/listings/activity-count-actions";
-
 export function ListingBuyerActivityCountBadge({
   className,
 }: {
@@ -17,8 +15,21 @@ export function ListingBuyerActivityCountBadge({
     async function refreshCount() {
       if (document.visibilityState !== "visible") return;
 
-      const nextCount = await getUnreadListingBuyerActivityCountAction();
-      if (alive) setCount(nextCount);
+      try {
+        const response = await fetch("/api/listings/buyer-activity/unread-count", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { count?: unknown };
+        const nextCount =
+          typeof payload.count === "number" && Number.isFinite(payload.count)
+            ? payload.count
+            : 0;
+
+        if (alive) setCount(nextCount);
+      } catch {}
     }
 
     refreshCount();
