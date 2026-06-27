@@ -31,6 +31,7 @@ import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { EventCountBadge } from "@/modules/events/components/event-count-badge";
 import { ListingBuyerActivityCountBadge } from "@/modules/listings/components/listing-buyer-activity-count-badge";
 import { MessageCountBadge } from "@/modules/messages/components/message-count-badge";
+import { MessageRealtimePresence } from "@/modules/messages/components/message-realtime-presence";
 import { InstallHomzieButton } from "@/modules/pwa/components/pwa-install";
 
 const navItems: Array<{
@@ -143,13 +144,17 @@ export function GlobalHeader({
   }, [transparentUntilScroll]);
 
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-[70] overflow-x-clip border-b transition-all duration-300 ${
-        scrolled
-          ? "border-border/70 bg-background/95 shadow-sm backdrop-blur-xl"
-          : "border-transparent bg-transparent"
-      }`}
-    >
+    <>
+      <MessageRealtimePresence
+        enabled={Boolean(viewerUsername && !pathname.startsWith("/messages"))}
+      />
+      <header
+        className={`fixed inset-x-0 top-0 z-[70] overflow-x-clip border-b transition-all duration-300 ${
+          scrolled
+            ? "border-border/70 bg-background/95 shadow-sm backdrop-blur-xl"
+            : "border-transparent bg-transparent"
+        }`}
+      >
       <div className="flex h-16 w-full min-w-0 items-center justify-between gap-2 px-3 sm:px-4 lg:h-20 lg:px-3">
         <Link
           href="/"
@@ -475,6 +480,7 @@ export function GlobalHeader({
           </Dialog.Root>
         </div>
       </div>
-    </header>
+      </header>
+    </>
   );
 }

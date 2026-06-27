@@ -28,6 +28,7 @@ export type MessageRealtimeEvent =
       conversationId: string;
       participantUserIds: string[];
       messageId: string;
+      senderUserId: string;
     }
   | {
       type: "conversation.read";

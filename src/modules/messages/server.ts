@@ -1120,6 +1120,7 @@ async function afterMessageCreated(
     conversationId,
     messageId,
     participantUserIds: users,
+    senderUserId,
     type: "message.created",
   });
 }

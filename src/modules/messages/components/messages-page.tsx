@@ -60,6 +60,7 @@ import type {
   MessageThreadItem,
   MessageUser,
 } from "@/modules/messages/server";
+import { getMessageSocketUrl } from "@/modules/messages/socket-url";
 
 type UserSearchResult = {
   avatarUrl: string | null;
@@ -91,36 +92,6 @@ function initials(name: string) {
       .map((part) => part[0]?.toUpperCase())
       .join("") || "H"
   );
-}
-
-function getSocketUrl() {
-  const configuredUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
-
-  if (configuredUrl && typeof window !== "undefined") {
-    try {
-      const url = new URL(configuredUrl);
-      const isLocalSocketHost = ["localhost", "127.0.0.1"].includes(url.hostname);
-      const isLocalPageHost = ["localhost", "127.0.0.1"].includes(
-        window.location.hostname,
-      );
-
-      if (!isLocalSocketHost || isLocalPageHost) {
-        return configuredUrl;
-      }
-    } catch {
-      return configuredUrl;
-    }
-  }
-
-  if (
-    process.env.NODE_ENV === "development" &&
-    typeof window !== "undefined" &&
-    ["localhost", "127.0.0.1"].includes(window.location.hostname)
-  ) {
-    return `${window.location.protocol}//${window.location.hostname}:3001`;
-  }
-
-  return undefined;
 }
 
 function UserAvatar({
@@ -371,7 +342,7 @@ export function MessagesPage({
   }, [voicePreview]);
 
   useEffect(() => {
-    const socket = io(getSocketUrl(), {
+    const socket = io(getMessageSocketUrl(), {
       path: "/socket.io",
       transports: ["websocket"],
       withCredentials: true,

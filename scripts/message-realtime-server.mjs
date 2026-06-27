@@ -2,11 +2,13 @@ import { createServer } from "node:http";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { parse as parseCookieHeaderValue } from "cookie";
 import { getToken } from "next-auth/jwt";
+import postgres from "postgres";
 import { createClient } from "redis";
 import { Server } from "socket.io";
 
 const port = Number(process.env.MESSAGE_SOCKET_PORT || 3001);
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6380";
+const databaseUrl = process.env.DATABASE_URL;
 const messageChannel = "homzie:messages";
 const primarySessionCookieName =
   process.env.NODE_ENV === "production"
@@ -30,6 +32,7 @@ const pubClient = createClient({ url: redisUrl });
 const subClient = pubClient.duplicate();
 const eventsClient = pubClient.duplicate();
 const presenceClient = pubClient.duplicate();
+const sql = databaseUrl ? postgres(databaseUrl, { max: 2, prepare: false }) : null;
 
 for (const client of [pubClient, subClient, eventsClient, presenceClient]) {
   client.on("error", (error) => {
@@ -131,6 +134,101 @@ async function getSocketAuthToken(socket) {
   });
 
   return null;
+}
+
+async function getMessageSenderUserId(messageId) {
+  if (!sql) return null;
+
+  const [message] = await sql`
+    SELECT sender_user_id
+    FROM messages
+    WHERE id = ${messageId}
+    LIMIT 1
+  `;
+
+  return typeof message?.sender_user_id === "string"
+    ? message.sender_user_id
+    : null;
+}
+
+async function getOnlineRecipientUserIds(participantUserIds, senderUserId) {
+  const recipientUserIds = participantUserIds.filter(
+    (participantUserId) => participantUserId !== senderUserId,
+  );
+  const onlineRecipientUserIds = [];
+
+  for (const recipientUserId of recipientUserIds) {
+    const sockets = await io.in(`user:${recipientUserId}`).fetchSockets();
+
+    if (sockets.length > 0) {
+      onlineRecipientUserIds.push(recipientUserId);
+    }
+  }
+
+  return onlineRecipientUserIds;
+}
+
+async function markOnlineRecipientsDelivered(event, participantUserIds) {
+  if (event.type !== "message.created") return;
+
+  if (!sql) {
+    console.warn(
+      "[messages-realtime] DATABASE_URL must be configured to write delivery receipts.",
+    );
+    return;
+  }
+
+  const conversationId =
+    typeof event.conversationId === "string" ? event.conversationId : null;
+  const messageId = typeof event.messageId === "string" ? event.messageId : null;
+
+  if (!conversationId || !messageId) return;
+
+  const senderUserId =
+    typeof event.senderUserId === "string"
+      ? event.senderUserId
+      : await getMessageSenderUserId(messageId);
+
+  if (!senderUserId) return;
+
+  const onlineRecipientUserIds = await getOnlineRecipientUserIds(
+    participantUserIds,
+    senderUserId,
+  );
+
+  if (onlineRecipientUserIds.length === 0) return;
+
+  const deliveredAt = new Date().toISOString();
+
+  await sql`
+    WITH online_recipients AS (
+      SELECT unnest(${onlineRecipientUserIds}::uuid[]) AS user_id
+    )
+    INSERT INTO message_receipts (message_id, user_id, delivered_at, updated_at)
+    SELECT ${messageId}, user_id, ${deliveredAt}, now()
+    FROM online_recipients
+    ON CONFLICT (message_id, user_id)
+    DO UPDATE SET
+      delivered_at = COALESCE(message_receipts.delivered_at, EXCLUDED.delivered_at),
+      updated_at = now()
+  `;
+
+  for (const userId of onlineRecipientUserIds) {
+    let target = io.to(`conversation:${conversationId}`);
+
+    for (const participantUserId of participantUserIds) {
+      target = target.to(`user:${participantUserId}`);
+    }
+
+    target.emit("message.delivered", {
+      conversationId,
+      deliveredAt,
+      messageId,
+      participantUserIds,
+      type: "message.delivered",
+      userId,
+    });
+  }
 }
 
 io.use(async (socket, next) => {
@@ -319,6 +417,10 @@ await eventsClient.subscribe(messageChannel, (rawEvent) => {
     if (event.conversationId) {
       io.to(`conversation:${event.conversationId}`).emit(event.type, event);
     }
+
+    void markOnlineRecipientsDelivered(event, participantUserIds).catch((error) => {
+      console.error("Failed to mark online message recipients delivered", error);
+    });
   } catch (error) {
     console.error("Invalid messaging realtime event", error);
   }
