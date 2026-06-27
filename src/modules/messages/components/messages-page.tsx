@@ -94,8 +94,22 @@ function initials(name: string) {
 }
 
 function getSocketUrl() {
-  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
-    return process.env.NEXT_PUBLIC_SOCKET_URL;
+  const configuredUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+
+  if (configuredUrl && typeof window !== "undefined") {
+    try {
+      const url = new URL(configuredUrl);
+      const isLocalSocketHost = ["localhost", "127.0.0.1"].includes(url.hostname);
+      const isLocalPageHost = ["localhost", "127.0.0.1"].includes(
+        window.location.hostname,
+      );
+
+      if (!isLocalSocketHost || isLocalPageHost) {
+        return configuredUrl;
+      }
+    } catch {
+      return configuredUrl;
+    }
   }
 
   if (
@@ -359,7 +373,7 @@ export function MessagesPage({
   useEffect(() => {
     const socket = io(getSocketUrl(), {
       path: "/socket.io",
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
       withCredentials: true,
     });
 
@@ -454,46 +468,6 @@ export function MessagesPage({
       socket.disconnect();
     };
   }, [refreshConversation, viewer.id]);
-
-  useEffect(() => {
-    function refreshActiveConversation() {
-      const conversationId = activeConversationIdRef.current;
-
-      if (!conversationId) return;
-
-      refreshConversation(conversationId);
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        refreshActiveConversation();
-      }
-    }
-
-    window.addEventListener("focus", refreshActiveConversation);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("focus", refreshActiveConversation);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [refreshConversation]);
-
-  useEffect(() => {
-    function refreshIfVisible() {
-      if (document.visibilityState !== "visible") return;
-
-      const conversationId = activeConversationIdRef.current;
-
-      if (!conversationId) return;
-
-      refreshConversation(conversationId);
-    }
-
-    const interval = window.setInterval(refreshIfVisible, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [refreshConversation]);
 
   useEffect(() => {
     const socket = socketRef.current;
