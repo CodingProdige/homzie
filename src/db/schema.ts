@@ -99,6 +99,7 @@ export const users = pgTable("users", {
   profileVisible: boolean("profile_visible").notNull().default(true),
   publicPerformanceVisible: boolean("public_performance_visible").notNull().default(true),
   searchVisible: boolean("search_visible").notNull().default(true),
+  profileRole: text("profile_role").notNull().default("home_seeker"),
   isDemo: boolean("is_demo").notNull().default(false),
   passwordHash: text("password_hash"),
   role: userRoleEnum("role").notNull().default("user"),

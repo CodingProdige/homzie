@@ -57,7 +57,7 @@ function ReelSummary({ reel }: { reel: ReelAnalyticsDetail }) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-      <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
         Reel
       </p>
       <div className="mt-3 grid gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
@@ -77,7 +77,7 @@ function ReelSummary({ reel }: { reel: ReelAnalyticsDetail }) {
           )}
         </div>
         <div className="min-w-0">
-          <h2 className="text-2xl font-black tracking-tight">{reel.caption}</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">{reel.caption}</h2>
           <Button asChild variant="outline" className="mt-5">
             <Link href={`/reels/${reel.id}`}>Open reel</Link>
           </Button>
@@ -86,10 +86,10 @@ function ReelSummary({ reel }: { reel: ReelAnalyticsDetail }) {
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {rows.map(([label, value]) => (
           <div key={label} className="rounded-lg border border-border bg-muted/35 p-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="text-[11px] font-normal uppercase tracking-[0.12em] text-muted-foreground">
               {label}
             </p>
-            <p className="mt-1 text-sm font-black">{value}</p>
+            <p className="mt-1 text-sm font-semibold">{value}</p>
           </div>
         ))}
       </div>
@@ -113,7 +113,13 @@ export default async function ReelAnalyticsDetailPage({
   if (!reel) {
     return (
       <>
-        <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+        <GlobalHeader
+          viewerAvatarUrl={viewer.avatarUrl}
+          viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+          viewerName={viewer.name}
+          viewerRole={viewer.role}
+          viewerUsername={viewer.username}
+        />
         <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-24 lg:pt-28">
           <Button asChild variant="ghost" className="mb-6 px-0">
             <Link href={`/users/${profile.username}/analytics?type=reels`}>
@@ -122,8 +128,8 @@ export default async function ReelAnalyticsDetailPage({
             </Link>
           </Button>
           <div className="rounded-lg border border-border bg-card p-8 text-center shadow-sm">
-            <h1 className="text-2xl font-black">Reel analytics not found</h1>
-            <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            <h1 className="text-2xl font-semibold">Reel analytics not found</h1>
+            <p className="mt-2 text-sm font-normal text-muted-foreground">
               This reel does not belong to your profile or no longer exists.
             </p>
           </div>
@@ -135,7 +141,13 @@ export default async function ReelAnalyticsDetailPage({
 
   return (
     <>
-      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="mx-auto w-full max-w-6xl px-4 pb-14 pt-24 sm:px-6 lg:px-8 lg:pb-10 lg:pt-28">
         <section>
           <div className="min-w-0 flex-1">
@@ -143,18 +155,18 @@ export default async function ReelAnalyticsDetailPage({
               <div>
                 <Link
                   href={`/users/${profile.username}/analytics?type=reels&range=${range.key}`}
-                  className="mb-4 inline-flex items-center gap-2 text-sm font-black text-muted-foreground transition-colors hover:text-primary"
+                  className="mb-4 inline-flex items-center gap-2 text-sm font-normal text-muted-foreground transition-colors hover:text-primary"
                 >
                   <ArrowLeft className="size-4" />
                   Back to analytics
                 </Link>
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
                   Reel
                 </p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">
+                <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
                   Analytics
                 </h1>
-                <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+                <p className="mt-4 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
                   A focused view of this reel&apos;s reach, watch depth, listing
                   clicks, saves, comments, and reshares.
                 </p>

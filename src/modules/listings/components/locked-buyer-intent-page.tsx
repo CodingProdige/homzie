@@ -6,21 +6,27 @@ import { Button } from "@/components/ui/button";
 
 type LockedBuyerIntentPageProps = {
   backHref?: string;
+  viewerAvatarUrl?: string | null;
   viewerHasAgencyWorkspace: boolean;
+  viewerName?: string;
   viewerRole?: "admin" | "user";
   viewerUsername?: string;
 };
 
 export function LockedBuyerIntentPage({
   backHref = "/listings/activity",
+  viewerAvatarUrl,
   viewerHasAgencyWorkspace,
+  viewerName,
   viewerRole,
   viewerUsername,
 }: LockedBuyerIntentPageProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <GlobalHeader
+        viewerAvatarUrl={viewerAvatarUrl}
         viewerHasAgencyWorkspace={viewerHasAgencyWorkspace}
+        viewerName={viewerName}
         viewerRole={viewerRole}
         viewerUsername={viewerUsername}
       />

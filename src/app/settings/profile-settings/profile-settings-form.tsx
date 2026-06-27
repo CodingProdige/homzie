@@ -1,5 +1,6 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   useActionState,
   useEffect,
@@ -11,7 +12,9 @@ import { useFormStatus } from "react-dom";
 import {
   AtSign,
   Camera,
+  Check,
   CheckCircle2,
+  ChevronDown,
   MapPin,
   Save,
   X,
@@ -24,6 +27,11 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { UsernameAvailability } from "@/modules/auth/actions";
 import { normalizeUsername } from "@/modules/auth/username";
+import {
+  profileRoleOptions,
+  profileRoleSentenceLabel,
+  type ProfileRole,
+} from "@/modules/users/profile-role";
 import { SettingsPageHeader } from "../settings-page-header";
 import {
   checkProfileUsernameAvailability,
@@ -47,6 +55,7 @@ type ProfileSettingsFormProps = {
     locationSuburb: string;
     name: string;
     publicContactVisible: boolean;
+    profileRole: ProfileRole;
     username: string;
     whatsappNumber: string;
   };
@@ -681,7 +690,7 @@ function LocationField({
         </p>
       ) : null}
       {placesError ? (
-        <p className="rounded-md bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+        <p className="rounded-md bg-muted px-3 py-2 text-xs font-normal text-muted-foreground">
           {placesError}
         </p>
       ) : null}
@@ -696,21 +705,21 @@ function LocationField({
             >
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
               <span>
-                <span className="block text-sm font-black">
+                <span className="block text-sm font-semibold">
                   {option.structured_formatting?.main_text || option.description}
                 </span>
-                <span className="block text-xs font-semibold text-muted-foreground">
+                <span className="block text-xs font-normal text-muted-foreground">
                   {option.structured_formatting?.secondary_text || "Google Places"}
                 </span>
               </span>
             </button>
           ))}
           {isSearching ? (
-            <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <p className="px-3 py-2 text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Searching cities
             </p>
           ) : null}
-          <p className="px-3 pb-1 pt-2 text-right text-[9px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+          <p className="px-3 pb-1 pt-2 text-right text-[9px] font-normal uppercase tracking-[0.35em] text-muted-foreground">
             Powered by Google
           </p>
         </div>
@@ -859,6 +868,9 @@ export function ProfileSettingsForm({
   const [publicContactVisible, setPublicContactVisible] = useState(
     initialProfile.publicContactVisible,
   );
+  const [profileRole, setProfileRole] = useState<ProfileRole>(
+    initialProfile.profileRole,
+  );
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     initialProfile.avatarUrl,
   );
@@ -943,7 +955,8 @@ export function ProfileSettingsForm({
     contactEmail !== initialProfile.contactEmail ||
     contactPhone !== initialProfile.contactPhone ||
     whatsappNumber !== initialProfile.whatsappNumber ||
-    publicContactVisible !== initialProfile.publicContactVisible;
+    publicContactVisible !== initialProfile.publicContactVisible ||
+    profileRole !== initialProfile.profileRole;
   const usernameReady =
     username === initialProfile.username ||
     (availability.status === "available" && !pendingUsername);
@@ -984,7 +997,7 @@ export function ProfileSettingsForm({
               name={name}
             />
             <div className="min-w-0">
-              <h2 className="text-lg font-black">Profile photo</h2>
+              <h2 className="text-lg font-semibold">Profile photo</h2>
               <p className="mt-1 text-sm font-medium leading-6 text-muted-foreground">
                 Use a JPG, PNG, or WebP image up to 8MB.
               </p>
@@ -1032,7 +1045,7 @@ export function ProfileSettingsForm({
 
         <section className="w-full min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm">
           <div>
-            <h2 className="text-lg font-black">Public profile</h2>
+            <h2 className="text-lg font-semibold">Public profile</h2>
             <p className="mt-1 text-sm font-medium leading-6 text-muted-foreground">
               These details appear on your public profile.
             </p>
@@ -1087,13 +1100,60 @@ export function ProfileSettingsForm({
               value={locationPlaceData}
             />
             <input type="hidden" name="locationPlaceId" value={locationPlaceId} />
+
+            <Field
+              label="Profile identity"
+              description="This controls how your public profile is labelled across Homzie."
+            >
+              <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-3">
+                <span className="text-sm font-semibold text-muted-foreground">
+                  I am a
+                </span>
+                <input type="hidden" name="profileRole" value={profileRole} />
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-10 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/8 px-3 text-left text-sm font-bold text-foreground outline-none transition hover:bg-primary/12 focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <span className="truncate">
+                        {profileRoleSentenceLabel(profileRole)}
+                      </span>
+                      <ChevronDown className="size-4 shrink-0 text-primary" />
+                    </button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content
+                      align="start"
+                      sideOffset={8}
+                      className="z-[80] min-w-64 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl outline-none"
+                    >
+                      {profileRoleOptions.map((option) => (
+                        <DropdownMenu.Item
+                          key={option.value}
+                          onSelect={() => setProfileRole(option.value)}
+                          className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2.5 text-sm font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                        >
+                          <span className="grid size-4 place-items-center text-primary">
+                            {profileRole === option.value ? (
+                              <Check className="size-4" />
+                            ) : null}
+                          </span>
+                          {option.sentenceLabel}
+                        </DropdownMenu.Item>
+                      ))}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
+              </div>
+            </Field>
           </div>
         </section>
 
         <section className="w-full min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-black">Contact information</h2>
+              <h2 className="text-lg font-semibold">Contact information</h2>
               <p className="mt-1 text-sm font-medium leading-6 text-muted-foreground">
                 These details can appear on your profile and listing contact cards.
               </p>

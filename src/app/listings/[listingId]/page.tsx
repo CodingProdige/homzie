@@ -78,6 +78,8 @@ export default async function ListingPage({ params }: ListingPageProps) {
   return (
     <ListingDetailPage
       listing={listing}
+      viewerAvatarUrl={viewer.avatarUrl}
+      viewerName={viewer.name}
       viewerSignedIn={Boolean(session?.user?.id)}
       viewerRole={viewer.role}
       viewerUsername={viewer.username}

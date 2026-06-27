@@ -29,7 +29,13 @@ export default async function MessagesRoute({ searchParams }: MessagesRouteProps
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="min-h-0 flex-1 pt-16 lg:pt-20">
         <MessagesPage {...messagesData} />
       </main>

@@ -60,17 +60,23 @@ export default async function EventsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <EventsRealtimeRefresh />
       <main className="mx-auto w-full max-w-4xl px-4 pb-16 pt-24 sm:px-6 lg:pt-28">
         <div className="border-b border-border pb-6">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             Events
           </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-5xl">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">
             Activity
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold text-muted-foreground sm:text-base">
+          <p className="mt-3 max-w-2xl text-sm font-normal text-muted-foreground sm:text-base">
             Messages, offers, calls, follows, listing and reel activity will collect here
             as Homzie events.
           </p>
@@ -81,7 +87,7 @@ export default async function EventsPage() {
           <div className="mt-8 space-y-8">
             {Object.entries(groups).map(([label, group]) => (
               <section key={label}>
-                <h2 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-muted-foreground">
+                <h2 className="mb-3 text-sm font-normal uppercase tracking-[0.14em] text-muted-foreground">
                   {label}
                 </h2>
                 <div className="divide-y divide-border rounded-lg border border-border bg-card text-card-foreground">
@@ -132,7 +138,7 @@ export default async function EventsPage() {
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-bold">{event.message}</span>
-                          <span className="mt-1 block text-xs font-semibold text-muted-foreground">
+                          <span className="mt-1 block text-xs font-normal text-muted-foreground">
                             {timeLabel(event.createdAt)}
                           </span>
                         </span>
@@ -157,8 +163,8 @@ export default async function EventsPage() {
               <span className="mx-auto grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
                 <Heart className="size-7" />
               </span>
-              <h2 className="mt-5 text-xl font-black">No events yet</h2>
-              <p className="mt-2 max-w-md text-sm font-semibold text-muted-foreground">
+              <h2 className="mt-5 text-xl font-semibold">No events yet</h2>
+              <p className="mt-2 max-w-md text-sm font-normal text-muted-foreground">
                 Once people message you, make offers, interact with your reels, or view
                 important listing updates, they will appear here.
               </p>

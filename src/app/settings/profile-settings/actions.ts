@@ -14,6 +14,11 @@ import { getMediaStorageRoot } from "@/media/storage";
 import type { UsernameAvailability } from "@/modules/auth/actions";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername, validateUsername } from "@/modules/auth/username";
+import {
+  defaultProfileRole,
+  profileRoleValues,
+  type ProfileRole,
+} from "@/modules/users/profile-role";
 
 export type ProfileSettingsState = {
   message: string;
@@ -74,6 +79,7 @@ const profileSettingsSchema = z.object({
   contactPhone: z.string().trim().max(40, "Phone number is too long.").optional(),
   whatsappNumber: z.string().trim().max(40, "WhatsApp number is too long.").optional(),
   publicContactVisible: z.boolean(),
+  profileRole: z.enum(profileRoleValues).default(defaultProfileRole),
   removeAvatar: z.boolean(),
 });
 
@@ -237,6 +243,7 @@ export async function updateProfileSettings(
     contactPhone: formString(formData, "contactPhone"),
     whatsappNumber: formString(formData, "whatsappNumber"),
     publicContactVisible: formData.get("publicContactVisible") === "on",
+    profileRole: formString(formData, "profileRole") as ProfileRole,
     removeAvatar: formData.get("removeAvatar") === "on",
   });
 
@@ -350,6 +357,7 @@ export async function updateProfileSettings(
       contactPhone: normalizedInternationalPhone(parsed.data.contactPhone || ""),
       whatsappNumber: normalizedInternationalPhone(parsed.data.whatsappNumber || ""),
       publicContactVisible: parsed.data.publicContactVisible,
+      profileRole: parsed.data.profileRole,
       ...(avatarUrl !== undefined ? { avatarUrl } : {}),
       updatedAt: new Date(),
     })

@@ -161,6 +161,7 @@ try {
       contact_phone text,
       whatsapp_number text,
       public_contact_visible boolean NOT NULL DEFAULT true,
+      profile_role text NOT NULL DEFAULT 'home_seeker',
       password_hash text,
       role user_role NOT NULL DEFAULT 'user',
       status user_status NOT NULL DEFAULT 'active',
@@ -253,6 +254,34 @@ try {
   await sql`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS search_visible boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS profile_role text NOT NULL DEFAULT 'home_seeker'
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+          AND column_name = 'is_agent'
+      ) THEN
+        UPDATE users
+        SET profile_role = 'property_agent'
+        WHERE is_agent = true
+          AND profile_role = 'home_seeker';
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    ALTER TABLE users
+    DROP COLUMN IF EXISTS is_agent
   `;
 
   await sql`
@@ -471,6 +500,30 @@ try {
 
   await sql`
     CREATE INDEX IF NOT EXISTS subscriptions_status_idx ON subscriptions (status)
+  `;
+
+  await sql`
+    UPDATE users
+    SET profile_role = 'property_agent'
+    WHERE profile_role = 'home_seeker'
+      AND (
+        EXISTS (
+          SELECT 1
+          FROM agent_profiles
+          WHERE agent_profiles.user_id = users.id
+            AND agent_profiles.status = 'active'
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM subscriptions
+          WHERE subscriptions.user_id = users.id
+            AND subscriptions.status = 'active'
+            AND (
+              subscriptions.current_period_end IS NULL
+              OR subscriptions.current_period_end > now()
+            )
+        )
+      )
   `;
 
   await sql`

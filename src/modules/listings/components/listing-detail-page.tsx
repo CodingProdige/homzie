@@ -1740,11 +1740,15 @@ function AgentProfileCard({
 
 export function ListingDetailPage({
   listing,
+  viewerAvatarUrl,
+  viewerName,
   viewerSignedIn = false,
   viewerRole,
   viewerUsername,
 }: {
   listing: ListingDetailData;
+  viewerAvatarUrl?: string | null;
+  viewerName?: string;
   viewerSignedIn?: boolean;
   viewerRole?: "user" | "admin";
   viewerUsername?: string;
@@ -2037,7 +2041,12 @@ export function ListingDetailPage({
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-background pt-20 pb-48 text-foreground lg:pb-0">
-      <GlobalHeader viewerRole={viewerRole} viewerUsername={viewerUsername} />
+      <GlobalHeader
+        viewerAvatarUrl={viewerAvatarUrl}
+        viewerName={viewerName}
+        viewerRole={viewerRole}
+        viewerUsername={viewerUsername}
+      />
       <div className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
         <section className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">

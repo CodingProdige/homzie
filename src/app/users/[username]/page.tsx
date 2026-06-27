@@ -32,6 +32,7 @@ import {
   getStoredSeoSettings,
 } from "@/modules/seo/settings";
 import { absoluteUrl } from "@/modules/site/url";
+import { normalizeProfileRole } from "@/modules/users/profile-role";
 
 type UserProfileRouteProps = {
   params: Promise<{
@@ -72,6 +73,7 @@ const getUserProfile = cache(async function getUserProfile(usernameParam: string
       whatsappNumber: users.whatsappNumber,
       publicContactVisible: users.publicContactVisible,
       publicPerformanceVisible: users.publicPerformanceVisible,
+      profileRole: users.profileRole,
     })
     .from(users)
     .where(
@@ -855,6 +857,7 @@ export default async function UserProfilePage({
     viewerUserId
       ? db
           .select({
+            name: users.name,
             role: users.role,
             username: users.username,
             avatarUrl: users.avatarUrl,
@@ -910,6 +913,7 @@ export default async function UserProfilePage({
   const publicProfileUrl = absoluteUrl(`/users/${profile.username}`);
   const avatarImage = toPublicMediaUrl(profile.avatarUrl);
   const locationLabel = profileLocationLabel(profile);
+  const profileRole = normalizeProfileRole(profile.profileRole);
   const canExposePublicPerformance = profile.publicPerformanceVisible || isOwner;
   const visibleAgentStats = canExposePublicPerformance
     ? agentStats
@@ -932,8 +936,8 @@ export default async function UserProfilePage({
       };
   const profileJsonLd = {
     "@context": "https://schema.org",
-    "@type": "RealEstateAgent",
-    "@id": `${publicProfileUrl}#agent`,
+    "@type": profileRole === "property_agent" ? "RealEstateAgent" : "Person",
+    "@id": `${publicProfileUrl}#profile`,
     address: profilePostalAddress(profile),
     description: profile.bio || undefined,
     email:
@@ -984,6 +988,7 @@ export default async function UserProfilePage({
           isFollowing: viewerFollowingProfile,
           hasActiveSubscription: hasAgentAccess,
           publicPerformanceVisible: profile.publicPerformanceVisible,
+          profileRole,
           initialTab:
             query.tab === "listings" || query.tab === "saved"
               ? query.tab
@@ -998,6 +1003,7 @@ export default async function UserProfilePage({
           viewerRole: viewer?.role || undefined,
           viewerHasAgencyWorkspace: Boolean(viewerAgencyWorkspace),
           viewerSignedIn: Boolean(viewerUserId),
+          viewerName: viewer?.name || undefined,
           viewerUsername: viewer?.username || undefined,
           viewerAvatarUrl:
             toPublicMediaUrl(viewer?.avatarUrl) ||

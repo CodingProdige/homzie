@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
+import { normalizeProfileRole } from "@/modules/users/profile-role";
 import { ProfileSettingsForm } from "./profile-settings-form";
 
 function initialsFromName(name: string) {
@@ -63,6 +64,7 @@ export default async function ProfileSettingsPage() {
       contactPhone: users.contactPhone,
       whatsappNumber: users.whatsappNumber,
       publicContactVisible: users.publicContactVisible,
+      profileRole: users.profileRole,
     })
     .from(users)
     .where(eq(users.id, session.user.id))
@@ -95,6 +97,7 @@ export default async function ProfileSettingsPage() {
           locationSuburb: profile.locationSuburb || "",
           name: profile.name,
           publicContactVisible: profile.publicContactVisible,
+          profileRole: normalizeProfileRole(profile.profileRole),
           username: profile.username,
           whatsappNumber: profile.whatsappNumber || "",
         }}

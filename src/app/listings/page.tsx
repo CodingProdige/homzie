@@ -127,7 +127,13 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="page-body pb-16 pt-28">
         <section className="mb-8 flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
           <div>

@@ -47,6 +47,13 @@ import { startConversationAction } from "@/modules/messages/actions";
 import { ReportContentButton } from "@/modules/moderation/report-content-button";
 import { toggleProfileFollow } from "@/modules/reels/actions";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
+import { updateProfileRoleAction } from "@/modules/users/actions";
+import {
+  profileRoleLabel,
+  profileRoleOptions,
+  profileRoleSentenceLabel,
+  type ProfileRole,
+} from "@/modules/users/profile-role";
 
 type UserProfile = {
   agencyBrand?: EffectiveAgencyBrand;
@@ -73,15 +80,17 @@ type UserProfile = {
   hasActiveSubscription: boolean;
   initialTab?: ProfileTab;
   listings: ProfileListing[];
+  profileRole: ProfileRole;
   publicPerformanceVisible: boolean;
   reels: ProfileReel[];
   savedListings: ProfileListing[];
   savedReels: ProfileReel[];
+  viewerAvatarUrl?: string;
   viewerHasAgencyWorkspace?: boolean;
+  viewerName?: string;
   viewerRole?: "user" | "admin";
   viewerSignedIn?: boolean;
   viewerUsername?: string;
-  viewerAvatarUrl?: string;
 };
 
 type ProfileTab = "reels" | "listings" | "saved";
@@ -524,6 +533,80 @@ function ShareProfileDialog({
   );
 }
 
+function ProfileRoleLine({ profile }: { profile: UserProfile }) {
+  const [role, setRole] = useState<ProfileRole>(profile.profileRole);
+  const [notice, setNotice] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  if (!profile.isOwner) {
+    return (
+      <p
+        className="mt-2 inline-flex max-w-full items-center rounded-full border border-border bg-muted/55 px-3 py-1 text-xs font-semibold text-muted-foreground"
+        title={profileRoleLabel(role)}
+      >
+        I am a {profileRoleSentenceLabel(role)}
+      </p>
+    );
+  }
+
+  function updateRole(nextRole: ProfileRole) {
+    const previousRole = role;
+
+    setRole(nextRole);
+    setNotice("");
+    startTransition(() => {
+      void updateProfileRoleAction(nextRole).then((result) => {
+        if (!result.ok) {
+          setRole(previousRole);
+          setNotice(result.message);
+          return;
+        }
+
+        setRole(result.profileRole);
+      });
+    });
+  }
+
+  return (
+    <div className="mt-2 flex max-w-full flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+      <span>I am a</span>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild disabled={isPending}>
+          <button
+            type="button"
+            className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-primary/45 bg-primary/8 px-3 text-xs font-bold text-foreground shadow-sm outline-none transition hover:bg-primary/12 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+          >
+            <span className="truncate">{profileRoleSentenceLabel(role)}</span>
+            <ChevronDown className="size-3.5 shrink-0 text-primary" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="start"
+            sideOffset={8}
+            className="z-[80] min-w-64 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl outline-none"
+          >
+            {profileRoleOptions.map((option) => (
+              <DropdownMenu.Item
+                key={option.value}
+                onSelect={() => updateRole(option.value)}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2.5 text-sm font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+              >
+                <span className="grid size-4 place-items-center text-primary">
+                  {role === option.value ? <Check className="size-4" /> : null}
+                </span>
+                {option.sentenceLabel}
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+      {isPending ? <span>Saving</span> : null}
+      {notice ? <span className="text-destructive">{notice}</span> : null}
+    </div>
+  );
+}
+
 function ProfileHero({ profile }: { profile: UserProfile }) {
   const [followerCount, setFollowerCount] = useState(() =>
     profileCountNumber(profile.followerCount),
@@ -533,6 +616,14 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
   );
   const [connectionDialogTab, setConnectionDialogTab] =
     useState<ConnectionTab | null>(null);
+  const contactLabel =
+    profile.profileRole === "property_agent"
+      ? "Contact agent"
+      : profile.profileRole === "private_seller"
+        ? "Contact seller"
+        : profile.profileRole === "developer"
+          ? "Contact developer"
+          : "Contact";
 
   return (
     <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-start gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-x-5 lg:py-16">
@@ -558,6 +649,7 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
         {profile.agencyBrand ? (
           <AgencyBrandBadge brand={profile.agencyBrand} className="mt-2" />
         ) : null}
+        <ProfileRoleLine profile={profile} />
 
         <div className="mt-3 grid max-w-sm grid-cols-3 gap-2 sm:mt-5 sm:flex sm:gap-10">
           <div className="min-w-0">
@@ -635,7 +727,7 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
             aria-hidden={profile.viewerSignedIn ? undefined : true}
           >
             <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
-              Contact agent
+              {contactLabel}
             </p>
             <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
               {profile.contactEmail ? (
@@ -1065,6 +1157,10 @@ function AgentPerformanceCard({ profile }: { profile: UserProfile }) {
       value: profile.agentStats.verifiedSalesLabel,
     },
   ];
+
+  if (profile.profileRole !== "property_agent") {
+    return null;
+  }
 
   if (!profile.publicPerformanceVisible && !profile.isOwner) {
     return (
@@ -1965,7 +2061,9 @@ export function UserProfilePage({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <GlobalHeader
+        viewerAvatarUrl={profile.viewerAvatarUrl}
         viewerHasAgencyWorkspace={profile.viewerHasAgencyWorkspace}
+        viewerName={profile.viewerName}
         viewerRole={profile.viewerRole}
         viewerUsername={profile.viewerUsername}
       />
@@ -1978,7 +2076,11 @@ export function UserProfilePage({
             </div>
           </section>
         ) : null}
-        {profile.isOwner && !profile.hasActiveSubscription ? <AgentBrandCta /> : null}
+        {profile.isOwner &&
+        profile.profileRole === "property_agent" &&
+        !profile.hasActiveSubscription ? (
+          <AgentBrandCta />
+        ) : null}
         <ProfileTabs
           activeTab={activeTab}
           canViewSaved={canViewSaved}

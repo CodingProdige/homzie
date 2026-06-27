@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
-import { and, desc, eq, gt, gte, ilike, inArray, isNull, or } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { Award, Building2, MapPin, Search, SlidersHorizontal } from "lucide-react";
 
 import { GlobalFooter } from "@/components/global-footer";
@@ -8,7 +19,7 @@ import { GlobalHeader } from "@/components/global-header";
 import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
-import { agentProfiles, propertyListings, subscriptions, users } from "@/db/schema";
+import { agentProfiles, propertyListings, users } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
@@ -100,9 +111,8 @@ async function getAgentDirectory({
   q: string;
   sort: string;
 }) {
-  const now = new Date();
-  const oneYearAgo = new Date(now);
-  oneYearAgo.setFullYear(now.getFullYear() - 1);
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
   const search = q ? `%${q}%` : "";
   const locationSearch = location ? `%${location}%` : "";
@@ -110,30 +120,36 @@ async function getAgentDirectory({
   const agentRows = await db
     .select({
       avatarUrl: users.avatarUrl,
-      headline: agentProfiles.headline,
+      headline: sql<string | null>`coalesce(${agentProfiles.headline}, ${users.bio})`,
       id: users.id,
-      location: agentProfiles.location,
-      locationCity: agentProfiles.locationCity,
-      locationCountry: agentProfiles.locationCountry,
-      locationProvince: agentProfiles.locationProvince,
-      locationSuburb: agentProfiles.locationSuburb,
+      location: sql<string | null>`coalesce(${agentProfiles.location}, ${users.location})`,
+      locationCity: sql<string | null>`coalesce(${agentProfiles.locationCity}, ${users.locationCity})`,
+      locationCountry: sql<string | null>`coalesce(${agentProfiles.locationCountry}, ${users.locationCountry})`,
+      locationProvince: sql<string | null>`coalesce(${agentProfiles.locationProvince}, ${users.locationProvince})`,
+      locationSuburb: sql<string | null>`coalesce(${agentProfiles.locationSuburb}, ${users.locationSuburb})`,
       name: users.name,
       publicPerformanceVisible: users.publicPerformanceVisible,
       username: users.username,
     })
-    .from(subscriptions)
-    .innerJoin(users, eq(users.id, subscriptions.userId))
-    .innerJoin(agentProfiles, eq(agentProfiles.id, subscriptions.agentProfileId))
+    .from(users)
+    .leftJoin(agentProfiles, eq(agentProfiles.userId, users.id))
     .where(
       and(
-        eq(subscriptions.status, "active"),
-        gt(subscriptions.currentPeriodEnd, now),
-        eq(agentProfiles.status, "active"),
         eq(users.status, "active"),
+        eq(users.profileVisible, true),
+        eq(users.searchVisible, true),
+        or(isNull(agentProfiles.id), ne(agentProfiles.status, "suspended")),
+        eq(users.profileRole, "property_agent"),
         search
           ? or(
               ilike(users.name, search),
               ilike(users.username, search),
+              ilike(users.bio, search),
+              ilike(users.location, search),
+              ilike(users.locationCity, search),
+              ilike(users.locationCountry, search),
+              ilike(users.locationProvince, search),
+              ilike(users.locationSuburb, search),
               ilike(agentProfiles.displayName, search),
               ilike(agentProfiles.headline, search),
               ilike(agentProfiles.location, search),
@@ -145,6 +161,11 @@ async function getAgentDirectory({
           : undefined,
         locationSearch
           ? or(
+              ilike(users.location, locationSearch),
+              ilike(users.locationCity, locationSearch),
+              ilike(users.locationCountry, locationSearch),
+              ilike(users.locationProvince, locationSearch),
+              ilike(users.locationSuburb, locationSearch),
               ilike(agentProfiles.location, locationSearch),
               ilike(agentProfiles.locationCity, locationSearch),
               ilike(agentProfiles.locationCountry, locationSearch),
@@ -154,7 +175,7 @@ async function getAgentDirectory({
           : undefined,
       ),
     )
-    .orderBy(desc(subscriptions.currentPeriodEnd))
+    .orderBy(desc(users.updatedAt))
     .limit(200);
 
   const uniqueAgents = Array.from(
@@ -312,16 +333,22 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="page-body pb-16 pt-28">
         <section className="mb-8 border-b border-border pb-6">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             Agents
           </p>
-          <h1 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">
             Find trusted Homzie agents
           </h1>
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-sm font-normal leading-6 text-muted-foreground">
             Search active agent profiles by name or area, then compare their
             available listings and recorded sold value.
           </p>
@@ -331,7 +358,7 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
           action="/agents"
           className="mb-7 grid gap-3 border-b border-border pb-5 lg:grid-cols-[minmax(18rem,1fr)_15rem_13rem_auto]"
         >
-          <label className="grid gap-1.5 text-xs font-black">
+          <label className="grid gap-1.5 text-xs font-semibold">
             <span>Search agents</span>
             <span className="flex h-12 items-center gap-2 rounded-md border border-input bg-background px-3 focus-within:ring-2 focus-within:ring-primary">
               <Search className="size-4 text-muted-foreground" />
@@ -339,11 +366,11 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
                 name="q"
                 defaultValue={q}
                 placeholder="Name, username, headline"
-                className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
+                className="min-w-0 flex-1 bg-transparent text-sm font-normal outline-none placeholder:text-muted-foreground"
               />
             </span>
           </label>
-          <label className="grid gap-1.5 text-xs font-black">
+          <label className="grid gap-1.5 text-xs font-semibold">
             <span>Location</span>
             <select
               name="location"
@@ -358,7 +385,7 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
               ))}
             </select>
           </label>
-          <label className="grid gap-1.5 text-xs font-black">
+          <label className="grid gap-1.5 text-xs font-semibold">
             <span>Sort</span>
             <select
               name="sort"
@@ -425,25 +452,25 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
                           className="size-14 rounded-full border-2 border-background object-cover"
                         />
                       ) : (
-                        <span className="grid size-14 place-items-center rounded-full border-2 border-background bg-brand-midnight text-sm font-black text-white">
+                        <span className="grid size-14 place-items-center rounded-full border-2 border-background bg-brand-midnight text-sm font-semibold text-white">
                           {initials(agent.name)}
                         </span>
                       )}
                     </div>
                     <div className="min-w-0">
-                      <h2 className="truncate text-base font-black group-hover:text-primary">
+                      <h2 className="truncate text-base font-semibold group-hover:text-primary">
                         {agent.name}
                       </h2>
-                      <p className="mt-1 truncate text-sm font-semibold text-muted-foreground">
+                      <p className="mt-1 truncate text-sm font-normal text-muted-foreground">
                         {agent.headline}
                       </p>
-                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-muted-foreground">
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
                         <MapPin className="size-3.5" />
                         {agent.location}
                       </p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm font-black sm:w-72">
+                  <div className="grid grid-cols-2 gap-3 text-sm font-semibold sm:w-72">
                     <span className="inline-flex items-center gap-2 rounded-md bg-muted px-3 py-2">
                       <Building2 className="size-4 text-primary" />
                       {agent.activeListingCount} active
@@ -460,7 +487,7 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
                 </div>
                 {!viewerSignedIn ? (
                   <span className="absolute inset-0 grid place-items-center bg-background/55 p-4 text-center backdrop-blur-[1px]">
-                    <span className="rounded-full bg-primary px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-lg">
+                    <span className="rounded-full bg-primary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-lg">
                       Create account to reveal
                     </span>
                   </span>
@@ -474,8 +501,8 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
               <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
                 <Search className="size-5" />
               </span>
-              <h2 className="mt-4 text-lg font-black">No agents found</h2>
-              <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-muted-foreground">
+              <h2 className="mt-4 text-lg font-semibold">No agents found</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm font-normal leading-6 text-muted-foreground">
                 Try a broader name or location search.
               </p>
             </div>

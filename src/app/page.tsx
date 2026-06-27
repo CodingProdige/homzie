@@ -7,19 +7,22 @@ import {
   and,
   desc,
   eq,
-  gt,
   gte,
   ilike,
   inArray,
   isNull,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
 import {
+  BadgeCheck,
   ChevronRight,
   LocateFixed,
+  MessageCircle,
   Search,
   SlidersHorizontal,
+  UserRoundCheck,
   Tag,
   type LucideIcon,
 } from "lucide-react";
@@ -27,13 +30,11 @@ import {
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { HorizontalScrollRail } from "@/components/horizontal-scroll-rail";
-import { RotatingHeroCopy } from "@/components/rotating-hero-copy";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import {
   agentProfiles,
   propertyListings,
-  subscriptions,
   users,
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
@@ -109,6 +110,7 @@ type HomeListingSummary = {
 };
 
 type TopAgent = {
+  activeListingCount: number;
   avatarUrl: string | null;
   headline: string | null;
   location: string;
@@ -116,6 +118,7 @@ type TopAgent = {
   locationCountry: string | null;
   locationProvince: string | null;
   name: string;
+  publicPerformanceVisible: boolean;
   soldCount: number;
   totalSoldValueCents: number;
   totalSoldValueLabel: string;
@@ -124,6 +127,20 @@ type TopAgent = {
 
 const heroImage =
   "https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1600&q=85";
+const heroValueSignals = [
+  {
+    icon: BadgeCheck,
+    label: "FREE LISTINGS",
+  },
+  {
+    icon: MessageCircle,
+    label: "LIVE BUYER CHAT",
+  },
+  {
+    icon: UserRoundCheck,
+    label: "AGENT BRAND GROWTH",
+  },
+];
 const homeDiscoverListingsPageSize = 24;
 
 function metadataObject(value: unknown) {
@@ -272,7 +289,7 @@ async function getHomeReels({
   });
 }
 
-async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]> {
+async function getTopAgents(countryName?: string): Promise<TopAgent[]> {
   const now = new Date();
   const oneYearAgo = new Date(now);
 
@@ -281,29 +298,29 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
   const agentRows = await db
     .select({
       avatarUrl: users.avatarUrl,
-      headline: agentProfiles.headline,
+      headline: sql<string | null>`coalesce(${agentProfiles.headline}, ${users.bio})`,
       id: users.id,
-      location: agentProfiles.location,
-      locationCity: agentProfiles.locationCity,
-      locationCountry: agentProfiles.locationCountry,
-      locationProvince: agentProfiles.locationProvince,
+      location: sql<string | null>`coalesce(${agentProfiles.location}, ${users.location})`,
+      locationCity: sql<string | null>`coalesce(${agentProfiles.locationCity}, ${users.locationCity})`,
+      locationCountry: sql<string | null>`coalesce(${agentProfiles.locationCountry}, ${users.locationCountry})`,
+      locationProvince: sql<string | null>`coalesce(${agentProfiles.locationProvince}, ${users.locationProvince})`,
       name: users.name,
+      publicPerformanceVisible: users.publicPerformanceVisible,
       username: users.username,
     })
-    .from(subscriptions)
-    .innerJoin(users, eq(users.id, subscriptions.userId))
-    .innerJoin(agentProfiles, eq(agentProfiles.id, subscriptions.agentProfileId))
+    .from(users)
+    .leftJoin(agentProfiles, eq(agentProfiles.userId, users.id))
     .where(
       and(
-        eq(subscriptions.status, "active"),
-        gt(subscriptions.currentPeriodEnd, now),
-        eq(agentProfiles.status, "active"),
         eq(users.status, "active"),
-        eq(users.publicPerformanceVisible, true),
+        eq(users.profileVisible, true),
+        eq(users.searchVisible, true),
+        or(isNull(agentProfiles.id), ne(agentProfiles.status, "suspended")),
+        eq(users.profileRole, "property_agent"),
       ),
     )
-    .orderBy(desc(subscriptions.currentPeriodEnd))
-    .limit(24);
+    .orderBy(desc(users.updatedAt))
+    .limit(200);
   const uniqueAgents = Array.from(
     new Map(
       agentRows
@@ -317,6 +334,7 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
   const soldRows = await db
     .select({
       soldPriceCents: propertyListings.soldPriceCents,
+      status: propertyListings.status,
       userId: propertyListings.userId,
     })
     .from(propertyListings)
@@ -326,47 +344,61 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
           propertyListings.userId,
           uniqueAgents.map((agent) => agent.id),
         ),
-        eq(propertyListings.status, "sold"),
         or(
-          gte(propertyListings.soldAt, oneYearAgo),
+          eq(propertyListings.status, "published"),
           and(
-            isNull(propertyListings.soldAt),
-            gte(propertyListings.outcomeAt, oneYearAgo),
-          ),
-          and(
-            isNull(propertyListings.soldAt),
-            isNull(propertyListings.outcomeAt),
-            gte(propertyListings.listedAt, oneYearAgo),
+            eq(propertyListings.status, "sold"),
+            or(
+              gte(propertyListings.soldAt, oneYearAgo),
+              and(
+                isNull(propertyListings.soldAt),
+                gte(propertyListings.outcomeAt, oneYearAgo),
+              ),
+              and(
+                isNull(propertyListings.soldAt),
+                isNull(propertyListings.outcomeAt),
+                gte(propertyListings.listedAt, oneYearAgo),
+              ),
+            ),
           ),
         ),
       ),
     );
   const totalsByUserId = new Map<
     string,
-    { soldCount: number; totalSoldValueCents: number }
+    { activeListingCount: number; soldCount: number; totalSoldValueCents: number }
   >();
 
   soldRows.forEach((listing) => {
     const current = totalsByUserId.get(listing.userId) || {
+      activeListingCount: 0,
       soldCount: 0,
       totalSoldValueCents: 0,
     };
 
-    totalsByUserId.set(listing.userId, {
-      soldCount: current.soldCount + 1,
-      totalSoldValueCents:
-        current.totalSoldValueCents + (listing.soldPriceCents || 0),
-    });
+    if (listing.status === "published") {
+      current.activeListingCount += 1;
+    }
+
+    if (listing.status === "sold") {
+      current.soldCount += 1;
+      current.totalSoldValueCents += listing.soldPriceCents || 0;
+    }
+
+    totalsByUserId.set(listing.userId, current);
   });
 
   return uniqueAgents
     .map((agent) => {
       const totals = totalsByUserId.get(agent.id) || {
+        activeListingCount: 0,
         soldCount: 0,
         totalSoldValueCents: 0,
       };
+      const publicPerformanceVisible = agent.publicPerformanceVisible !== false;
 
       return {
+        activeListingCount: totals.activeListingCount,
         avatarUrl: toPublicMediaUrl(agent.avatarUrl),
         headline: agent.headline,
         location:
@@ -375,9 +407,14 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
         locationCountry: agent.locationCountry,
         locationProvince: agent.locationProvince,
         name: agent.name,
-        soldCount: totals.soldCount,
-        totalSoldValueCents: totals.totalSoldValueCents,
-        totalSoldValueLabel: formatCurrencyCompact(totals.totalSoldValueCents),
+        publicPerformanceVisible,
+        soldCount: publicPerformanceVisible ? totals.soldCount : 0,
+        totalSoldValueCents: publicPerformanceVisible
+          ? totals.totalSoldValueCents
+          : 0,
+        totalSoldValueLabel: publicPerformanceVisible
+          ? formatCurrencyCompact(totals.totalSoldValueCents)
+          : "Performance private",
         username: agent.username || "",
       };
     })
@@ -394,6 +431,10 @@ async function getTopSubscribedAgents(countryName?: string): Promise<TopAgent[]>
 
       if (second.totalSoldValueCents !== first.totalSoldValueCents) {
         return second.totalSoldValueCents - first.totalSoldValueCents;
+      }
+
+      if (second.activeListingCount !== first.activeListingCount) {
+        return second.activeListingCount - first.activeListingCount;
       }
 
       return second.soldCount - first.soldCount;
@@ -659,7 +700,7 @@ async function TopAgentsSection({
   countryLabel?: string;
   viewerSignedIn: boolean;
 }) {
-  const topAgents = await getTopSubscribedAgents(countryLabel);
+  const topAgents = await getTopAgents(countryLabel);
 
   return (
     <section className="page-body mt-10">
@@ -680,6 +721,7 @@ async function TopAgentsSection({
                 displayName: agent.name,
                 headline: agent.headline,
                 location: agent.location,
+                publicPerformanceVisible: agent.publicPerformanceVisible,
                 soldCount: agent.soldCount,
                 totalSoldValueLabel: agent.totalSoldValueLabel,
                 username: agent.username,
@@ -691,7 +733,7 @@ async function TopAgentsSection({
         <SectionEmptyState
           actionHref="/agents"
           actionLabel="Browse agents"
-          description="Agents will appear here once they have subscribed profiles or recorded sales activity."
+          description="Agents will appear here once they add listings, publish reels, or mark themselves as agents."
           title="No top agents to rank yet"
         />
       )}
@@ -1077,6 +1119,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         transparentUntilScroll
         viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
         viewerRole={viewer.role}
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerName={viewer.name}
         viewerUsername={viewer.username}
       />
       <main className="pb-14">
@@ -1093,14 +1137,42 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
           <div className="page-body relative z-10 flex min-h-[700px] flex-col items-center justify-center pb-8 pt-8 text-center sm:min-h-[740px]">
             <div className="max-w-5xl">
-              <h1 className="text-balance text-4xl font-black leading-[0.95] tracking-tight text-brand-black dark:text-foreground sm:text-6xl lg:text-7xl">
-                <span className="block sm:inline">Find it.</span>{" "}
-                <span className="homzie-gradient-text block text-5xl sm:inline sm:text-6xl lg:text-7xl">
-                  Love it.
-                </span>{" "}
-                <span className="block sm:inline">Live it.</span>
+              <div className="mx-auto mb-4 flex max-w-4xl flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[10px] font-bold uppercase leading-4 tracking-[0.14em] text-brand-black/75 dark:text-foreground/80 sm:mb-6 sm:gap-x-4 sm:text-xs">
+                {heroValueSignals.map(({ icon: Icon, label }, index) => (
+                  <span key={label} className="contents">
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                      <Icon className="size-3.5 text-primary sm:size-4" />
+                      {label}
+                    </span>
+                    {index < heroValueSignals.length - 1 ? (
+                      <span className="text-primary/70" aria-hidden="true">
+                        &bull;
+                      </span>
+                    ) : null}
+                  </span>
+                ))}
+              </div>
+              <h1 className="text-balance text-4xl font-black leading-[1.04] tracking-tight text-brand-black dark:text-foreground sm:text-6xl lg:text-7xl">
+                <span className="block">Find homes.</span>
+                <span className="homzie-gradient-text block pb-2 text-5xl sm:text-6xl lg:text-7xl">
+                  Chat live. List free.
+                </span>
               </h1>
-              <RotatingHeroCopy className="mx-auto mt-4 max-w-xs text-sm font-semibold leading-6 text-muted-foreground sm:mt-6 sm:max-w-2xl sm:text-balance sm:text-lg sm:leading-7" />
+              <p className="mx-auto mt-4 max-w-3xl text-balance text-sm font-semibold leading-6 text-muted-foreground sm:mt-6 sm:text-lg sm:leading-8">
+                South Africa&apos;s first platform where{" "}
+                <span className="font-bold text-brand-black dark:text-foreground">
+                  buyers discover homes
+                </span>
+                ,{" "}
+                <span className="font-bold text-brand-black dark:text-foreground">
+                  sellers chat live
+                </span>
+                , and{" "}
+                <span className="font-bold text-brand-black dark:text-foreground">
+                  agents list for free
+                </span>{" "}
+                &mdash; all in one place.
+              </p>
             </div>
 
             <PropertySearchBar

@@ -143,6 +143,8 @@ export default async function ForAgentsPage() {
       <GlobalHeader
         viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
         viewerRole={viewer.role}
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerName={viewer.name}
         viewerUsername={viewer.username}
       />
 
@@ -160,10 +162,10 @@ export default async function ForAgentsPage() {
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent" />
 
           <div className="homzie-fade-up relative z-10 mx-auto flex min-h-[92svh] w-full max-w-7xl flex-col justify-end px-4 pb-20 pt-28 sm:px-6 lg:px-8">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-white/75">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">
               Homzie for estate agents
             </p>
-            <h1 className="mt-5 max-w-5xl text-5xl font-black leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">
+            <h1 className="mt-5 max-w-5xl text-5xl font-semibold leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">
               Win More Mandates. See Buyer Intent Live.
             </h1>
             <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-white/82 sm:text-lg">
@@ -173,7 +175,7 @@ export default async function ForAgentsPage() {
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <TrialButton
-                className="h-12 px-6 text-sm font-black sm:h-14 sm:px-8"
+                className="h-12 px-6 text-sm font-semibold sm:h-14 sm:px-8"
                 href={href}
                 location="hero"
               />
@@ -196,8 +198,8 @@ export default async function ForAgentsPage() {
                 <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary">
                   <Icon className="size-5" />
                 </span>
-                <h2 className="mt-5 text-xl font-black">{card.title}</h2>
-                <p className="mt-3 text-sm font-semibold leading-7 text-muted-foreground">
+                <h2 className="mt-5 text-xl font-semibold">{card.title}</h2>
+                <p className="mt-3 text-sm font-normal leading-7 text-muted-foreground">
                   {card.text}
                 </p>
               </article>
@@ -211,13 +213,13 @@ export default async function ForAgentsPage() {
         >
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 See Homzie in action
               </p>
-              <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-5xl">
                 Watch how agents turn listings into proof.
               </h2>
-              <p className="mt-4 max-w-3xl text-sm font-semibold leading-7 text-muted-foreground sm:text-base">
+              <p className="mt-4 max-w-3xl text-sm font-normal leading-7 text-muted-foreground sm:text-base">
                 See how an agent can build a profile, publish listings and reels,
                 monitor live buyer activity, and use buyer intent to follow up smarter.
               </p>
@@ -239,10 +241,10 @@ export default async function ForAgentsPage() {
         <section className="border-y border-border bg-muted/35">
           <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
             <div className="max-w-3xl">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 Agent growth tools
               </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
                 Everything an agent needs to market with proof.
               </h2>
             </div>
@@ -257,8 +259,8 @@ export default async function ForAgentsPage() {
                     className="homzie-hover-lift rounded-lg border border-border bg-card p-5 shadow-sm"
                   >
                     <Icon className="size-5 text-primary" />
-                    <h3 className="mt-4 text-lg font-black">{feature.title}</h3>
-                    <p className="mt-3 text-sm font-semibold leading-7 text-muted-foreground">
+                    <h3 className="mt-4 text-lg font-semibold">{feature.title}</h3>
+                    <p className="mt-3 text-sm font-normal leading-7 text-muted-foreground">
                       {feature.text}
                     </p>
                   </article>
@@ -274,13 +276,13 @@ export default async function ForAgentsPage() {
 
         <section className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Seller mandate proof
             </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
               Walk into seller meetings with proof.
             </h2>
-            <p className="mt-4 text-sm font-semibold leading-7 text-muted-foreground sm:text-base">
+            <p className="mt-4 text-sm font-normal leading-7 text-muted-foreground sm:text-base">
               Most agents tell sellers they will market harder. Homzie helps you
               show it. Your profile, reels, listings, buyer activity, and
               performance signals become proof that you understand buyer behaviour
@@ -303,7 +305,7 @@ export default async function ForAgentsPage() {
                 className="homzie-hover-lift flex items-start gap-3 rounded-lg border border-border bg-card p-4 shadow-sm"
               >
                 <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
-                <p className="text-sm font-black leading-6">{item}</p>
+                <p className="text-sm font-semibold leading-6">{item}</p>
               </div>
             ))}
           </div>
@@ -311,10 +313,10 @@ export default async function ForAgentsPage() {
 
         <section className="border-y border-border bg-muted/35">
           <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               Not just another portal
             </p>
-            <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-5xl">
               Stop waiting for cold enquiries.
             </h2>
 
@@ -325,18 +327,18 @@ export default async function ForAgentsPage() {
                   className="grid gap-4 border-b border-border p-5 last:border-b-0 lg:grid-cols-2"
                 >
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                    <p className="text-[10px] font-normal uppercase tracking-[0.12em] text-muted-foreground">
                       Traditional portals
                     </p>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                    <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
                       {row.old}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                       Homzie
                     </p>
-                    <p className="mt-2 text-sm font-black leading-6">
+                    <p className="mt-2 text-sm font-semibold leading-6">
                       {row.new}
                     </p>
                   </div>
@@ -356,13 +358,13 @@ export default async function ForAgentsPage() {
           <div className="homzie-hover-lift overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-primary/5">
             <div className="grid gap-0 lg:grid-cols-[1fr_0.85fr]">
               <div className="p-6 sm:p-8 lg:p-10">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                   Start your agent trial
                 </p>
-                <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+                <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
                   Start your 7-day agent trial.
                 </h2>
-                <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground sm:text-base">
+                <p className="mt-4 max-w-2xl text-sm font-normal leading-7 text-muted-foreground sm:text-base">
                   Create your profile, publish your first listing, test reels, and
                   see how Homzie helps you prove your value to sellers.
                 </p>
@@ -376,11 +378,11 @@ export default async function ForAgentsPage() {
                   {trialBullets.map((item) => (
                     <div key={item} className="flex items-center gap-3">
                       <ShieldCheck className="size-5 shrink-0 text-primary" />
-                      <p className="text-sm font-black">{item}</p>
+                      <p className="text-sm font-semibold">{item}</p>
                     </div>
                   ))}
                 </div>
-                <p className="mt-6 text-xs font-semibold leading-6 text-muted-foreground">
+                <p className="mt-6 text-xs font-normal leading-6 text-muted-foreground">
                   Trial activation uses Homzie&apos;s existing agent subscription
                   checkout. Your card is stored securely by Stripe and you can
                   manage billing from your account settings.
@@ -391,7 +393,7 @@ export default async function ForAgentsPage() {
         </section>
 
         <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6 lg:px-8 lg:pb-20">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             Questions agents ask
           </p>
           <div className="mt-6 divide-y divide-border rounded-lg border border-border bg-card shadow-sm">
@@ -414,11 +416,11 @@ export default async function ForAgentsPage() {
               ],
             ].map(([question, answer]) => (
               <details key={question} className="group p-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-black">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold">
                   {question}
                   <Sparkles className="size-4 shrink-0 text-primary transition-transform group-open:rotate-45" />
                 </summary>
-                <p className="mt-3 text-sm font-semibold leading-7 text-muted-foreground">
+                <p className="mt-3 text-sm font-normal leading-7 text-muted-foreground">
                   {answer}
                 </p>
               </details>

@@ -51,10 +51,11 @@ export async function getPlatformStats(): Promise<PlatformStats> {
       ) AS total_users,
       (
         SELECT count(*)::int
-        FROM agent_profiles ap
-        INNER JOIN users u ON u.id = ap.user_id
-        WHERE ap.status = 'active'
-          AND u.status = 'active'
+        FROM users
+        WHERE status = 'active'
+          AND profile_visible = true
+          AND search_visible = true
+          AND profile_role = 'property_agent'
       ) AS total_agents
   `;
 

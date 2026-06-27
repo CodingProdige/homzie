@@ -1,19 +1,26 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useState } from "react";
 import {
+  Bell,
   Building2,
+  ChevronDown,
   Clapperboard,
   CircleHelp,
   Heart,
   Home,
   Menu,
+  MoreHorizontal,
   Radar,
   Send,
+  Settings2,
   ShieldCheck,
+  Sparkles,
   TowerControl,
   UserRound,
   UsersRound,
@@ -26,6 +33,7 @@ import { GlobalUserSearchTrigger } from "@/components/global-user-search";
 import { HomzieLogo } from "@/components/homzie-logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toPublicMediaUrl } from "@/media/paths";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { EventCountBadge } from "@/modules/events/components/event-count-badge";
@@ -39,21 +47,27 @@ const navItems: Array<{
   icon: LucideIcon;
   label: string;
 }> = [
+  { href: "/listings", icon: Building2, label: "Listings" },
   { href: "/agents", icon: UsersRound, label: "Agents" },
   { href: "/reels", icon: Clapperboard, label: "Reels" },
-  { href: "/listings", icon: Building2, label: "Listings" },
   { href: "/about", icon: CircleHelp, label: "About" },
   { href: "/contact", icon: Send, label: "Contact" },
 ];
+const primaryNavItems = navItems.slice(0, 3);
+const secondaryNavItems = navItems.slice(3);
 
 export function GlobalHeader({
   transparentUntilScroll = false,
+  viewerAvatarUrl,
   viewerHasAgencyWorkspace = false,
+  viewerName,
   viewerRole,
   viewerUsername,
 }: {
   transparentUntilScroll?: boolean;
+  viewerAvatarUrl?: string | null;
   viewerHasAgencyWorkspace?: boolean;
+  viewerName?: string;
   viewerRole?: "user" | "admin";
   viewerUsername?: string;
 }) {
@@ -72,10 +86,16 @@ export function GlobalHeader({
 
     return pathname === href || pathname.startsWith(`${href}/`);
   };
+  const safeViewerAvatarUrl = toPublicMediaUrl(viewerAvatarUrl);
+  const viewerInitials = getInitials(viewerName || viewerUsername);
   const profileHref = viewerUsername ? `/users/${viewerUsername}` : "/sign-in";
+  const listFreeHref = viewerUsername
+    ? "/listings/new"
+    : "/sign-up?callbackUrl=/listings/new";
   const messagesHref = "/messages";
   const eventsHref = viewerUsername ? "/events" : "/sign-in";
   const isProfileActive = isActiveHref(profileHref);
+  const isListFreeActive = isActiveHref("/listings/new");
   const isMessagesActive = isActiveHref(messagesHref);
   const isEventsActive = isActiveHref("/events");
   const isAgencyActive = isActiveHref("/controlroom") || isActiveHref("/agency");
@@ -86,6 +106,11 @@ export function GlobalHeader({
       label: "Home",
       href: "/",
       icon: Home,
+    },
+    {
+      label: "List free",
+      href: listFreeHref,
+      icon: Sparkles,
     },
     {
       label: "Messages",
@@ -171,8 +196,8 @@ export function GlobalHeader({
           />
         </Link>
 
-        <nav className="hidden items-center gap-10 text-sm font-semibold text-foreground lg:flex">
-          {navItems.map((item) => {
+        <nav className="hidden items-center gap-7 text-sm font-semibold text-foreground lg:flex xl:gap-9">
+          {primaryNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = isActiveHref(item.href);
 
@@ -186,9 +211,7 @@ export function GlobalHeader({
                   isActive && "text-primary",
                 )}
               >
-                {item.label === "Reels" ? (
-                  <Icon className="size-4 text-current" />
-                ) : null}
+                <Icon className="size-4 text-current" />
                 {item.label}
                 {isActive ? (
                   <span className="absolute -bottom-1 left-0 h-0.5 w-full rounded-full bg-primary" />
@@ -196,77 +219,190 @@ export function GlobalHeader({
               </Link>
             );
           })}
+          <DropdownMenu.Root modal={false}>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "relative flex items-center gap-1.5 py-2 transition-colors hover:text-primary",
+                  secondaryNavItems.some((item) => isActiveHref(item.href)) &&
+                    "text-primary",
+                )}
+              >
+                <MoreHorizontal className="size-4" />
+                More
+                <ChevronDown className="size-3.5" />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="start"
+                sideOffset={10}
+                className="z-[80] min-w-48 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl outline-none"
+              >
+                {secondaryNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isActiveHref(item.href);
+
+                  return (
+                    <DropdownMenu.Item key={item.href} asChild>
+                      <Link
+                        href={item.href}
+                        aria-current={isActive ? "page" : undefined}
+                        className={cn(
+                          "flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                          isActive && "bg-primary/10 text-primary",
+                        )}
+                      >
+                        <Icon className="size-4" />
+                        {item.label}
+                      </Link>
+                    </DropdownMenu.Item>
+                  );
+                })}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </nav>
 
         <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 lg:gap-3">
-          <div className="hidden sm:block">
+          <div className="hidden sm:block lg:hidden">
             <ThemeToggle />
           </div>
-          <CountryPreferenceSelector compact className="shrink-0" />
-          <CurrencySelector compact className="shrink-0" />
+          <CountryPreferenceSelector compact className="shrink-0 lg:hidden" />
+          <CurrencySelector compact className="shrink-0 lg:hidden" />
           <GlobalUserSearchTrigger className="hidden lg:inline-flex" />
-          {viewerUsername ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={cn(
-                "hidden lg:inline-flex",
-                isActiveHref("/listings/activity") && "bg-primary/10 text-primary",
-              )}
-              aria-label="Listing buyer activity"
-            >
-              <Link
-                href="/listings/activity"
-                aria-current={isActiveHref("/listings/activity") ? "page" : undefined}
-                className="relative"
-                title="Listing buyer activity"
+          <DropdownMenu.Root modal={false}>
+            <DropdownMenu.Trigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="hidden lg:inline-flex"
+                aria-label="Preferences"
+                title="Preferences"
               >
-                <Radar className="size-5" />
-                <ListingBuyerActivityCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-primary-foreground" />
-              </Link>
-            </Button>
-          ) : null}
-          {viewerHasAgencyWorkspace ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={cn(
-                "hidden lg:inline-flex",
-                isAgencyActive && "bg-primary/10 text-primary",
-              )}
-              aria-label="Agency HQ"
-            >
-              <Link
-                href="/controlroom"
-                aria-current={isAgencyActive ? "page" : undefined}
-                title="Agency HQ"
+                <Settings2 className="size-5" />
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={10}
+                className="z-[80] w-72 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-2xl outline-none"
               >
-                <TowerControl className="size-5" />
-              </Link>
-            </Button>
-          ) : null}
-          {isAdmin ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={cn(
-                "hidden lg:inline-flex",
-                isAdminActive && "bg-primary/10 text-primary",
-              )}
-              aria-label="Admin"
-            >
-              <Link
-                href="/admin"
-                aria-current={isAdminActive ? "page" : undefined}
-                title="Admin"
+                <div className="flex items-center justify-between gap-4 rounded-md px-2 py-2">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    Theme
+                  </span>
+                  <ThemeToggle />
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-md px-2 py-2">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    Country
+                  </span>
+                  <CountryPreferenceSelector compact />
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-md px-2 py-2">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    Currency
+                  </span>
+                  <CurrencySelector compact />
+                </div>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+          <DropdownMenu.Root modal={false}>
+            <DropdownMenu.Trigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "relative hidden lg:inline-flex",
+                  (isEventsActive ||
+                    isActiveHref("/listings/activity") ||
+                    isAgencyActive ||
+                    isAdminActive) &&
+                    "bg-primary/10 text-primary",
+                )}
+                aria-label="Activity"
+                title="Activity"
               >
-                <ShieldCheck className="size-5" />
-              </Link>
-            </Button>
-          ) : null}
+                <Bell className="size-5" />
+                {viewerUsername ? (
+                  <EventCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground" />
+                ) : null}
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={10}
+                className="z-[80] min-w-64 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl outline-none"
+              >
+                {[
+                  { href: eventsHref, icon: Heart, label: "Events", active: isEventsActive },
+                  ...(viewerUsername
+                    ? [
+                        {
+                          href: "/listings/activity",
+                          icon: Radar,
+                          label: "Listing buyers",
+                          active: isActiveHref("/listings/activity"),
+                        },
+                      ]
+                    : []),
+                  ...(viewerHasAgencyWorkspace
+                    ? [
+                        {
+                          href: "/controlroom",
+                          icon: TowerControl,
+                          label: "Agency HQ",
+                          active: isAgencyActive,
+                        },
+                      ]
+                    : []),
+                  ...(isAdmin
+                    ? [
+                        {
+                          href: "/admin",
+                          icon: ShieldCheck,
+                          label: "Admin",
+                          active: isAdminActive,
+                        },
+                      ]
+                    : []),
+                ].map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <DropdownMenu.Item key={item.label} asChild>
+                      <Link
+                        href={item.href}
+                        aria-current={item.active ? "page" : undefined}
+                        className={cn(
+                          "flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-sm font-semibold outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                          item.active && "bg-primary/10 text-primary",
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <Icon className="size-4 shrink-0" />
+                          <span>{item.label}</span>
+                        </span>
+                        {item.label === "Events" && viewerUsername ? (
+                          <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground" />
+                        ) : null}
+                        {item.label === "Listing buyers" && viewerUsername ? (
+                          <ListingBuyerActivityCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground" />
+                        ) : null}
+                      </Link>
+                    </DropdownMenu.Item>
+                  );
+                })}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
           <Button
             variant="ghost"
             size="icon"
@@ -285,7 +421,7 @@ export function GlobalHeader({
             >
               <Send className="size-4" />
               {viewerUsername ? (
-                <MessageCountBadge className="absolute -right-1 -top-1 grid min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[9px] font-black leading-3.5 text-primary-foreground" />
+                <MessageCountBadge className="absolute -right-1 -top-1 grid min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-3.5 text-primary-foreground" />
               ) : null}
             </Link>
           </Button>
@@ -307,7 +443,7 @@ export function GlobalHeader({
             >
               <Heart className="size-4" />
               {viewerUsername ? (
-                <EventCountBadge className="absolute -right-1 -top-1 grid min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[9px] font-black leading-3.5 text-primary-foreground" />
+                <EventCountBadge className="absolute -right-1 -top-1 grid min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-3.5 text-primary-foreground" />
               ) : null}
             </Link>
           </Button>
@@ -325,50 +461,56 @@ export function GlobalHeader({
               href={messagesHref}
               aria-current={isMessagesActive ? "page" : undefined}
               className="relative"
+              title="Messages"
             >
               <Send className="size-5" />
               {viewerUsername ? (
-                <MessageCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-primary-foreground" />
+                <MessageCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground" />
               ) : null}
             </Link>
           </Button>
           <Button
             variant="ghost"
-            size="icon"
             asChild
-            className="hidden lg:inline-flex"
-            aria-label="Events"
+            className={cn(
+              "hidden px-3 sm:inline-flex xl:px-4",
+              isListFreeActive && "bg-primary/10 text-primary",
+            )}
           >
             <Link
-              href={eventsHref}
-              aria-current={isEventsActive ? "page" : undefined}
-              className={cn(
-                "relative",
-                isEventsActive && "bg-primary/10 text-primary",
-              )}
+              href={listFreeHref}
+              aria-current={isListFreeActive ? "page" : undefined}
+              prefetch={isListFreeActive ? false : undefined}
             >
-              <Heart className="size-5" />
-              {viewerUsername ? (
-                <EventCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-primary-foreground" />
-              ) : null}
+              <Sparkles className="size-4" />
+              <span className="hidden xl:inline">List free</span>
             </Link>
           </Button>
           {viewerUsername ? (
-            <Button
-              asChild
+            <Link
+              href={`/users/${viewerUsername}`}
+              aria-current={isProfileActive ? "page" : undefined}
+              prefetch={isProfileActive ? false : undefined}
+              title="Profile"
               className={cn(
-                "hidden px-6 sm:inline-flex",
+                "relative hidden size-11 shrink-0 items-center justify-center rounded-full bg-[conic-gradient(from_150deg,#ff4db8,#7b5cff,#ff9f1c,#ff4db8)] p-[2px] shadow-[0_12px_26px_rgba(123,92,255,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(255,77,184,0.26)] sm:flex",
                 isProfileActive && "ring-2 ring-primary/35 ring-offset-2",
               )}
             >
-              <Link
-                href={`/users/${viewerUsername}`}
-                aria-current={isProfileActive ? "page" : undefined}
-                prefetch={isProfileActive ? false : undefined}
-              >
-                Profile
-              </Link>
-            </Button>
+              <span className="flex size-full items-center justify-center overflow-hidden rounded-full border-2 border-background bg-brand-midnight text-sm font-bold text-white">
+                {safeViewerAvatarUrl ? (
+                  <Image
+                    src={safeViewerAvatarUrl}
+                    alt={viewerName || "Profile"}
+                    width={40}
+                    height={40}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  viewerInitials || <UserRound className="size-4" />
+                )}
+              </span>
+            </Link>
           ) : (
             <Button
               asChild
@@ -438,13 +580,13 @@ export function GlobalHeader({
                               <span>{item.label}</span>
                             </span>
                             {item.label === "Events" && viewerUsername ? (
-                              <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                              <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground" />
                             ) : null}
                             {item.label === "Listing buyers" && viewerUsername ? (
-                              <ListingBuyerActivityCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                              <ListingBuyerActivityCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground" />
                             ) : null}
                             {item.label === "Messages" && viewerUsername ? (
-                              <MessageCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-black leading-5 text-primary-foreground" />
+                              <MessageCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground" />
                             ) : null}
                           </Link>
                         </Dialog.Close>
@@ -481,4 +623,15 @@ export function GlobalHeader({
       </header>
     </>
   );
+}
+
+function getInitials(value: string | null | undefined) {
+  if (!value) return "";
+
+  return value
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }

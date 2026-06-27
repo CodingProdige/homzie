@@ -140,7 +140,7 @@ const agencyRows = [
 
 function CheckMark({ active }: { active: boolean }) {
   if (!active) {
-    return <span className="text-sm font-black text-muted-foreground">-</span>;
+    return <span className="text-sm font-normal text-muted-foreground">-</span>;
   }
 
   return (
@@ -161,12 +161,12 @@ function BuyerIntentMockup() {
     <div className="rounded-lg border border-white/35 bg-white/80 p-4 shadow-xl shadow-primary/10 backdrop-blur">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
             Buyer activity
           </p>
-          <p className="mt-1 text-2xl font-black">5 active viewers</p>
+          <p className="mt-1 text-2xl font-semibold">5 active viewers</p>
         </div>
-        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-black text-primary">
+        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
           Live
         </span>
       </div>
@@ -177,20 +177,20 @@ function BuyerIntentMockup() {
             className="grid grid-cols-[1fr_auto] gap-3 border-b border-border p-3 last:border-b-0"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-black">{name}</p>
-              <p className="truncate text-xs font-semibold text-muted-foreground">
+              <p className="truncate text-sm font-semibold">{name}</p>
+              <p className="truncate text-xs font-normal text-muted-foreground">
                 {intent} intent
               </p>
             </div>
-            <p className="self-center text-xs font-black text-muted-foreground">
+            <p className="self-center text-xs font-normal text-muted-foreground">
               {time}
             </p>
           </div>
         ))}
       </div>
       <div className="mt-4 rounded-lg border border-primary/15 bg-primary/5 p-3">
-        <p className="text-sm font-black">AI insight</p>
-        <p className="mt-1 text-xs font-semibold leading-5 text-muted-foreground">
+        <p className="text-sm font-semibold">AI insight</p>
+        <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
           You have returning buyers on your strongest listing. Follow up while
           activity is live.
         </p>
@@ -209,6 +209,8 @@ export default async function GoProPage() {
       <GlobalHeader
         viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
         viewerRole={viewer.role}
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerName={viewer.name}
         viewerUsername={viewer.username}
       />
 
@@ -217,13 +219,13 @@ export default async function GoProPage() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_16%,rgba(255,77,184,0.18),transparent_28%),radial-gradient(circle_at_48%_12%,rgba(123,92,255,0.16),transparent_26%)]" />
           <div className="relative mx-auto grid w-full max-w-7xl gap-8 px-4 pb-14 pt-28 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-20 lg:pt-32">
             <div className="homzie-fade-up flex flex-col justify-center">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 Upgrade your demand layer
               </p>
-              <h1 className="mt-4 text-5xl font-black leading-[0.95] tracking-tight sm:text-7xl">
+              <h1 className="mt-4 text-5xl font-semibold leading-[0.95] tracking-tight sm:text-7xl">
                 Go Pro. See Buyer Intent Live.
               </h1>
-              <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-muted-foreground sm:text-lg">
+              <p className="mt-6 max-w-2xl text-base font-normal leading-8 text-muted-foreground sm:text-lg">
                 Listings, reels, and your agent profile are free. Homzie Pro
                 unlocks the buyer demand layer: active buyers, listing activity,
                 buyer timelines, AI insights, and chat opportunities.
@@ -232,18 +234,18 @@ export default async function GoProPage() {
                 <TrialButton
                   href={href}
                   location="hero"
-                  className="h-12 px-6 text-sm font-black sm:h-14"
+                  className="h-12 px-6 text-sm font-semibold sm:h-14"
                 />
                 <TrialButton
                   href="#plans"
                   location="compare"
                   variant="outline"
-                  className="h-12 px-6 text-sm font-black sm:h-14"
+                  className="h-12 px-6 text-sm font-semibold sm:h-14"
                 >
                   Compare plans
                 </TrialButton>
               </div>
-              <p className="mt-4 text-xs font-bold text-muted-foreground">
+              <p className="mt-4 text-xs font-normal text-muted-foreground">
                 Card required. You are only charged after the 7-day trial unless
                 you cancel first.
               </p>
@@ -256,7 +258,7 @@ export default async function GoProPage() {
                     <span className="grid size-14 place-items-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                       <Radar className="size-7" />
                     </span>
-                    <h2 className="mt-8 text-2xl font-black leading-tight">
+                    <h2 className="mt-8 text-2xl font-semibold leading-tight">
                       Unlock buyer-intent tools that drive real action.
                     </h2>
                     <div className="mt-6 grid gap-3">
@@ -267,7 +269,7 @@ export default async function GoProPage() {
                       ].map((item) => (
                         <p
                           key={item}
-                          className="flex items-center gap-2 text-sm font-black"
+                          className="flex items-center gap-2 text-sm font-semibold"
                         >
                           <CheckCircle2 className="size-4 text-primary" />
                           {item}
@@ -289,14 +291,14 @@ export default async function GoProPage() {
           <AgentPricingViewedTracker />
           <div className="grid gap-4 lg:grid-cols-2">
             <article className="homzie-hover-lift rounded-lg border border-border bg-card p-6 shadow-sm">
-              <p className="text-sm font-black text-muted-foreground">Free</p>
-              <h2 className="mt-3 text-4xl font-black">R0</h2>
-              <p className="mt-2 text-sm font-semibold text-muted-foreground">
+              <p className="text-sm font-normal text-muted-foreground">Free</p>
+              <h2 className="mt-3 text-4xl font-semibold">R0</h2>
+              <p className="mt-2 text-sm font-normal text-muted-foreground">
                 Everything you need to start building your public property brand.
               </p>
               <div className="mt-6 grid gap-3">
                 {freeFeatures.map((feature) => (
-                  <p key={feature} className="flex items-center gap-3 text-sm font-black">
+                  <p key={feature} className="flex items-center gap-3 text-sm font-semibold">
                     <CheckCircle2 className="size-5 text-primary" />
                     {feature}
                   </p>
@@ -305,25 +307,25 @@ export default async function GoProPage() {
             </article>
 
             <article className="homzie-hover-lift relative overflow-hidden rounded-lg border border-primary bg-card p-6 shadow-xl shadow-primary/10">
-              <span className="absolute right-5 top-5 rounded-full bg-primary px-3 py-1 text-xs font-black text-primary-foreground">
+              <span className="absolute right-5 top-5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
                 Most popular
               </span>
-              <p className="text-sm font-black text-primary">Pro</p>
+              <p className="text-sm font-semibold text-primary">Pro</p>
               <div className="mt-3 flex flex-wrap items-end gap-2">
-                <h2 className="text-4xl font-black">
+                <h2 className="text-4xl font-semibold">
                   <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
                 </h2>
-                <p className="pb-1 text-sm font-black text-muted-foreground">
+                <p className="pb-1 text-sm font-normal text-muted-foreground">
                   / month
                 </p>
               </div>
-              <p className="mt-2 text-sm font-semibold text-muted-foreground">
+              <p className="mt-2 text-sm font-normal text-muted-foreground">
                 Unlock the demand tools that turn listing attention into
                 conversations.
               </p>
               <div className="mt-6 grid gap-3">
                 {proFeatures.map((feature) => (
-                  <p key={feature} className="flex items-center gap-3 text-sm font-black">
+                  <p key={feature} className="flex items-center gap-3 text-sm font-semibold">
                     <CheckCircle2 className="size-5 text-primary" />
                     {feature}
                   </p>
@@ -334,14 +336,14 @@ export default async function GoProPage() {
                 location="pricing_card"
                 className="mt-7 w-full"
               />
-              <p className="mt-3 text-center text-xs font-bold text-muted-foreground">
+              <p className="mt-3 text-center text-xs font-normal text-muted-foreground">
                 {agentSubscriptionTrialLabel}. Cancel before your first charge.
               </p>
             </article>
           </div>
 
           <div className="homzie-fade-up homzie-delay-2 mt-6 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-            <div className="grid grid-cols-[1.5fr_0.7fr_0.7fr] border-b border-border bg-muted/35 p-4 text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+            <div className="grid grid-cols-[1.5fr_0.7fr_0.7fr] border-b border-border bg-muted/35 p-4 text-xs font-normal uppercase tracking-[0.12em] text-muted-foreground">
               <span>All features</span>
               <span className="text-center">Free</span>
               <span className="text-center">Pro</span>
@@ -366,10 +368,10 @@ export default async function GoProPage() {
         <section className="border-y border-border bg-muted/35">
           <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
             <div className="max-w-3xl">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                 What Pro unlocks
               </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
                 Free gets you visible. Pro shows you demand.
               </h2>
             </div>
@@ -385,8 +387,8 @@ export default async function GoProPage() {
                     <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary">
                       <Icon className="size-5" />
                     </span>
-                    <h3 className="mt-5 text-lg font-black">{item.title}</h3>
-                    <p className="mt-3 text-sm font-semibold leading-7 text-muted-foreground">
+                    <h3 className="mt-5 text-lg font-semibold">{item.title}</h3>
+                    <p className="mt-3 text-sm font-normal leading-7 text-muted-foreground">
                       {item.text}
                     </p>
                   </article>
@@ -398,19 +400,19 @@ export default async function GoProPage() {
 
         <section className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-16">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
               Control rooms
             </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
               Agency teams get a different operating model.
             </h2>
-            <p className="mt-4 text-sm font-semibold leading-7 text-muted-foreground sm:text-base">
+            <p className="mt-4 text-sm font-normal leading-7 text-muted-foreground sm:text-base">
               Individual agents can subscribe to Pro directly. Agencies can pay
               for linked agent seats from the control room, manage branding, and
               keep billing where the business expects it.
             </p>
             <div className="homzie-hover-lift mt-6 rounded-lg border border-border bg-card p-5">
-              <p className="flex items-start gap-3 text-sm font-black leading-6">
+              <p className="flex items-start gap-3 text-sm font-semibold leading-6">
                 <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
                 Network HQs do not pay for branch seats. Each agency or branch
                 remains responsible for its own agent billing.
@@ -431,8 +433,8 @@ export default async function GoProPage() {
                       <Icon className="size-5" />
                     </span>
                     <div>
-                      <h3 className="text-lg font-black">{row.title}</h3>
-                      <p className="mt-2 text-sm font-semibold leading-7 text-muted-foreground">
+                      <h3 className="text-lg font-semibold">{row.title}</h3>
+                      <p className="mt-2 text-sm font-normal leading-7 text-muted-foreground">
                         {row.text}
                       </p>
                     </div>
@@ -446,10 +448,10 @@ export default async function GoProPage() {
         <section className="border-y border-border bg-brand-black text-white">
           <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:py-16">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-white/60">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
                 Built around proof
               </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
                 More than impressions.
               </h2>
             </div>
@@ -464,7 +466,7 @@ export default async function GoProPage() {
                   className="homzie-hover-lift rounded-lg border border-white/10 bg-white/[0.06] p-5"
                 >
                   <Target className="size-5 text-brand-pink" />
-                  <p className="mt-4 text-lg font-black">{title}</p>
+                  <p className="mt-4 text-lg font-semibold">{title}</p>
                   <p className="mt-2 text-sm font-semibold leading-6 text-white/68">
                     {text}
                   </p>
@@ -475,7 +477,7 @@ export default async function GoProPage() {
         </section>
 
         <section className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             Quick answers
           </p>
           <div className="mt-6 divide-y divide-border rounded-lg border border-border bg-card shadow-sm">
@@ -498,11 +500,11 @@ export default async function GoProPage() {
               ],
             ].map(([question, answer]) => (
               <details key={question} className="group p-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-black">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold">
                   {question}
                   <BadgeCheck className="size-4 shrink-0 text-primary transition-transform group-open:rotate-12" />
                 </summary>
-                <p className="mt-3 text-sm font-semibold leading-7 text-muted-foreground">
+                <p className="mt-3 text-sm font-normal leading-7 text-muted-foreground">
                   {answer}
                 </p>
               </details>
@@ -511,8 +513,8 @@ export default async function GoProPage() {
 
           <div className="homzie-hover-lift mt-8 rounded-lg border border-border bg-card p-6 text-center shadow-xl shadow-primary/5">
             <LockKeyhole className="mx-auto size-6 text-primary" />
-            <h2 className="mt-4 text-2xl font-black">Ready to see buyer intent?</h2>
-            <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+            <h2 className="mt-4 text-2xl font-semibold">Ready to see buyer intent?</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
               Start with a 7-day trial, publish freely, and unlock the buyer
               signals that make follow-up feel obvious.
             </p>

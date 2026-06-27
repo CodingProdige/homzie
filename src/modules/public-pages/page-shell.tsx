@@ -26,7 +26,13 @@ export async function PublicPageShell({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="pt-20 lg:pt-24">{children}</main>
       <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
@@ -35,7 +41,7 @@ export async function PublicPageShell({ children }: { children: React.ReactNode 
 
 export function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-primary">
+    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-primary">
       {children}
     </p>
   );
@@ -49,7 +55,7 @@ export function PrimaryLink({ href, children }: { href: string; children: React.
   return (
     <Link
       href={href}
-      className="inline-flex h-11 items-center justify-center rounded-md bg-[image:var(--homzie-gradient)] px-6 text-sm font-black text-white shadow-[0_14px_30px_rgba(123,92,255,0.28)] transition hover:scale-[1.01]"
+      className="inline-flex h-11 items-center justify-center rounded-md bg-[image:var(--homzie-gradient)] px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(123,92,255,0.28)] transition hover:scale-[1.01]"
     >
       {children}
     </Link>
@@ -60,7 +66,7 @@ export function SecondaryLink({ href, children }: { href: string; children: Reac
   return (
     <Link
       href={href}
-      className="inline-flex h-11 items-center justify-center rounded-md border border-border bg-card px-6 text-sm font-black text-card-foreground transition hover:border-primary/40 hover:text-primary"
+      className="inline-flex h-11 items-center justify-center rounded-md border border-border bg-card px-6 text-sm font-semibold text-card-foreground transition hover:border-primary/40 hover:text-primary"
     >
       {children}
     </Link>

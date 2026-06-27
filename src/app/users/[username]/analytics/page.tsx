@@ -70,10 +70,10 @@ function AnalyticsCard({
       <span className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary">
         <Icon className="size-4" />
       </span>
-      <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-primary">
+      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
         {label}
       </p>
-      <p className="mt-1 text-2xl font-black">{value}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
 }
@@ -107,7 +107,7 @@ function AnalyticsTabs({
           key={tab.value}
           href={tab.href}
           className={cn(
-            "rounded-md border border-transparent px-4 py-2 text-sm font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+            "rounded-md border border-transparent px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
             activeTab === tab.value
               ? "border-primary/25 bg-primary/15 text-primary shadow-sm"
               : "text-muted-foreground hover:text-foreground",
@@ -126,8 +126,8 @@ const listingColumns: Array<CanonicalTableColumn<ListingAnalyticsRow>> = [
     key: "listing",
     render: (row) => (
       <div>
-        <p className="line-clamp-1 font-black">{row.title}</p>
-        <p className="mt-1 text-xs font-bold text-muted-foreground">
+        <p className="line-clamp-1 font-semibold">{row.title}</p>
+        <p className="mt-1 text-xs font-normal text-muted-foreground">
           {row.location || "Location not set"} - {row.status}
         </p>
       </div>
@@ -183,8 +183,8 @@ const reelColumns: Array<CanonicalTableColumn<ReelAnalyticsRow>> = [
     key: "reel",
     render: (row) => (
       <div>
-        <p className="line-clamp-1 font-black">{row.caption}</p>
-        <p className="mt-1 text-xs font-bold text-muted-foreground">
+        <p className="line-clamp-1 font-semibold">{row.caption}</p>
+        <p className="mt-1 text-xs font-normal text-muted-foreground">
           {row.status} - {formatMetric(row.watchSessions)} watch sessions
         </p>
       </div>
@@ -267,7 +267,13 @@ export default async function ProfileAnalyticsPage({
 
   return (
     <>
-      <GlobalHeader viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace} viewerRole={viewer.role} viewerUsername={viewer.username} />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="mx-auto w-full max-w-6xl px-4 pb-14 pt-24 sm:px-6 lg:px-8 lg:pb-10 lg:pt-28">
         <section>
           <div className="min-w-0 flex-1">
@@ -275,18 +281,18 @@ export default async function ProfileAnalyticsPage({
               <div>
                 <Link
                   href={`/users/${profile.username}`}
-                  className="mb-4 inline-flex items-center gap-2 text-sm font-black text-muted-foreground transition-colors hover:text-primary"
+                  className="mb-4 inline-flex items-center gap-2 text-sm font-normal text-muted-foreground transition-colors hover:text-primary"
                 >
                   <ArrowLeft className="size-4" />
                   Back to profile
                 </Link>
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
                   Profile
                 </p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">
+                <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
                   Content Analytics
                 </h1>
-                <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-muted-foreground">
+                <p className="mt-4 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
                   Track how your listings and reels are performing across discovery,
                   saves, shares, clicks, and deeper engagement.
                 </p>
@@ -326,10 +332,10 @@ export default async function ProfileAnalyticsPage({
         <section className="mt-8 rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
                 Breakdown
               </p>
-              <h2 className="mt-1 text-xl font-black">Content performance</h2>
+              <h2 className="mt-1 text-xl font-semibold">Content performance</h2>
             </div>
             <AnalyticsTabs
               activeTab={activeTab}
@@ -378,24 +384,24 @@ export default async function ProfileAnalyticsPage({
         <section className="mt-8 grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-border bg-muted/35 p-4">
             <TrendingUp className="size-5 text-primary" />
-            <h3 className="mt-3 font-black">Impressions and hovers</h3>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <h3 className="mt-3 font-semibold">Impressions and hovers</h3>
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Detail pages are tracked today. Feed-level hover and impression
               capture can now plug into these columns.
             </p>
           </div>
           <div className="rounded-lg border border-border bg-muted/35 p-4">
             <Send className="size-5 text-primary" />
-            <h3 className="mt-3 font-black">Click intent</h3>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <h3 className="mt-3 font-semibold">Click intent</h3>
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Listing contact, offer, reserve, calculator, and reel listing-card
               taps are counted as clicks.
             </p>
           </div>
           <div className="rounded-lg border border-border bg-muted/35 p-4">
             <Clapperboard className="size-5 text-primary" />
-            <h3 className="mt-3 font-black">Reel depth</h3>
-            <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+            <h3 className="mt-3 font-semibold">Reel depth</h3>
+            <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
               Watch sessions, completion rate, saves, comments, and reshares show
               whether a reel is holding attention.
             </p>
