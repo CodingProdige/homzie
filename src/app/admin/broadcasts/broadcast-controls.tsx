@@ -170,7 +170,7 @@ export function BroadcastControls({
               Processing {formatCount(progress?.processingCount || 0)}
             </span>
             <span className="rounded-md bg-green-100 px-3 py-2 font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-              Sent {formatCount(progress?.sentCount || 0)}
+              Accepted {formatCount(progress?.sentCount || 0)}
             </span>
             <span className="rounded-md bg-destructive/10 px-3 py-2 font-semibold text-destructive">
               Failed {formatCount(progress?.failedCount || 0)}
