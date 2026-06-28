@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, lte } from "drizzle-orm";
+import { and, asc, eq, lte, sql as drizzleSql } from "drizzle-orm";
 
 import { db, sql as postgresSql } from "@/db";
 import {
@@ -42,6 +42,13 @@ type SendGridEventPayload = {
   useragent?: unknown;
   user_id?: unknown;
 };
+
+class BroadcastCampaignBusyError extends Error {
+  constructor(campaignId: string) {
+    super(`Broadcast ${campaignId} is already being processed.`);
+    this.name = "BroadcastCampaignBusyError";
+  }
+}
 
 function cleanText(value: unknown, maxLength = 500) {
   if (typeof value !== "string") return "";
@@ -444,6 +451,10 @@ export async function sendBroadcastCampaign({
     throw new Error("This broadcast is already sending.");
   }
 
+  if (campaign.status === "sent") {
+    throw new Error("Duplicate this broadcast before sending it again.");
+  }
+
   const blocks = normalizeBroadcastBlocks(campaign.blocks);
   if (!blocks.length) {
     throw new Error("Add at least one content block before sending.");
@@ -453,16 +464,6 @@ export async function sendBroadcastCampaign({
   const recipients = await getBroadcastAudienceRecipients(audience);
 
   if (!recipients.length) {
-    await db
-      .update(broadcastCampaigns)
-      .set({
-        lastAudienceCount: 0,
-        status: "draft",
-        updatedAt: new Date(),
-        updatedByUserId: adminUserId || null,
-      })
-      .where(eq(broadcastCampaigns.id, campaignId));
-
     throw new Error("No eligible recipients match this broadcast audience.");
   }
 
@@ -471,7 +472,7 @@ export async function sendBroadcastCampaign({
     preheader: campaign.preheader,
   });
 
-  await db
+  const [claimed] = await db
     .update(broadcastCampaigns)
     .set({
       html: rendered.html,
@@ -482,17 +483,40 @@ export async function sendBroadcastCampaign({
       updatedAt: new Date(),
       updatedByUserId: adminUserId || null,
     })
-    .where(eq(broadcastCampaigns.id, campaignId));
+    .where(
+      and(
+        eq(broadcastCampaigns.id, campaignId),
+        drizzleSql`broadcast_campaigns.status NOT IN ('sending', 'sent')`,
+      ),
+    )
+    .returning({ id: broadcastCampaigns.id });
 
-  await runInChunks(recipients, 5, (recipient) =>
-    sendToRecipient({
-      campaignId,
-      html: rendered.html,
-      recipient,
-      subject: campaign.subject,
-      text: rendered.text,
-    }),
-  );
+  if (!claimed) {
+    throw new BroadcastCampaignBusyError(campaignId);
+  }
+
+  try {
+    await runInChunks(recipients, 5, (recipient) =>
+      sendToRecipient({
+        campaignId,
+        html: rendered.html,
+        recipient,
+        subject: campaign.subject,
+        text: rendered.text,
+      }),
+    );
+  } catch (error) {
+    await db
+      .update(broadcastCampaigns)
+      .set({
+        status: "failed",
+        updatedAt: new Date(),
+        updatedByUserId: adminUserId || null,
+      })
+      .where(eq(broadcastCampaigns.id, campaignId));
+
+    throw error;
+  }
 
   await refreshBroadcastCampaignStats(campaignId);
 
@@ -685,6 +709,15 @@ export async function sendDueBroadcastCampaigns(limit = 3) {
 
       results.push({ campaignId: campaign.id, ok: true, ...result });
     } catch (error) {
+      if (error instanceof BroadcastCampaignBusyError) {
+        results.push({
+          campaignId: campaign.id,
+          ok: true,
+          skipped: true,
+        });
+        continue;
+      }
+
       await db
         .update(broadcastCampaigns)
         .set({

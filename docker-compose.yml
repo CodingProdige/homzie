@@ -101,6 +101,27 @@ services:
       redis:
         condition: service_started
 
+  cron:
+    profiles:
+      - selfhost
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: cron
+      args: *homzie-build-args
+    restart: unless-stopped
+    env_file:
+      - ${HOMZIE_ENV_FILE:-/mnt/c/Homzie/config/homzie.env}
+    environment:
+      NODE_ENV: production
+      BROADCAST_CRON_INTERVAL_MS: ${BROADCAST_CRON_INTERVAL_MS:-600000}
+      BROADCAST_CRON_BATCH_LIMIT: ${BROADCAST_CRON_BATCH_LIMIT:-3}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   realtime:
     profiles:
       - selfhost
