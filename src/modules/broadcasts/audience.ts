@@ -94,7 +94,7 @@ function buildAudienceQuery(audience: BroadcastAudience, countOnly: boolean) {
 
   const select = countOnly
     ? "COUNT(DISTINCT u.id)::int AS count"
-    : "DISTINCT u.id AS user_id, u.email, u.name";
+    : "u.id AS user_id, u.email, u.name";
 
   const orderLimit = countOnly ? "" : "ORDER BY u.created_at DESC, u.id DESC";
 
