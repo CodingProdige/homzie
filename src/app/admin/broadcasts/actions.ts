@@ -15,6 +15,10 @@ import {
   queueBroadcastCampaign,
   renderBroadcastParts,
 } from "@/modules/broadcasts/server";
+import {
+  liveBroadcastSubject,
+  testBroadcastSubject,
+} from "@/modules/broadcasts/subject";
 import { defaultBroadcastBlocks } from "@/modules/broadcasts/types";
 import { authOptions } from "@/modules/auth/config";
 import { sendSendGridEmail } from "@/modules/email/sendgrid";
@@ -96,6 +100,11 @@ function parseCampaignForm(formData: FormData) {
 
   const audience = normalizeBroadcastAudience(parseJson(parsed.data.audienceJson));
   const blocks = normalizeBroadcastBlocks(parseJson(parsed.data.blocksJson));
+  const subject = liveBroadcastSubject(parsed.data.subject);
+
+  if (!subject) {
+    throw new Error("Subject is required.");
+  }
 
   if (!blocks.length) {
     throw new Error("Add at least one content block.");
@@ -105,6 +114,7 @@ function parseCampaignForm(formData: FormData) {
     ...parsed.data,
     audience,
     blocks,
+    subject,
   };
 }
 
@@ -223,6 +233,7 @@ export async function sendBroadcastTestAction(
 
     const blocks = normalizeBroadcastBlocks(parseJson(parsed.data.blocksJson));
     if (!blocks.length) throw new Error("Add at least one content block.");
+    const subject = testBroadcastSubject(parsed.data.subject);
 
     const rendered = renderBroadcastParts({
       blocks,
@@ -232,7 +243,7 @@ export async function sendBroadcastTestAction(
     const delivery = await sendSendGridEmail({
       categories: ["broadcast-test"],
       html: rendered.html,
-      subject: `[Test] ${parsed.data.subject}`,
+      subject,
       text: rendered.text,
       to: { email: parsed.data.recipientEmail },
     });
@@ -243,7 +254,7 @@ export async function sendBroadcastTestAction(
       recipientEmail: parsed.data.recipientEmail,
       sentAt: new Date(),
       status: "sent",
-      subject: `[Test] ${parsed.data.subject}`,
+      subject,
       templateKey: "broadcast_test",
       variables: { campaignId: parsed.data.campaignId || null },
     });
@@ -362,7 +373,7 @@ export async function duplicateBroadcastCampaignAction(formData: FormData) {
       lastAudienceCount: campaign.lastAudienceCount,
       name: `Copy of ${campaign.name}`.slice(0, 140),
       preheader: campaign.preheader,
-      subject: campaign.subject,
+      subject: liveBroadcastSubject(campaign.subject),
       text: campaign.text,
       updatedByUserId: admin.id,
     })

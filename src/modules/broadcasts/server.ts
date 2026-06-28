@@ -13,6 +13,7 @@ import { sendSendGridEmail } from "@/modules/email/sendgrid";
 
 import { getBroadcastAudienceRecipients } from "./audience";
 import { renderBroadcastEmail, renderBroadcastText } from "./render";
+import { liveBroadcastSubject } from "./subject";
 import type { BroadcastAudience, BroadcastBlock, BroadcastRecipient } from "./types";
 
 type CampaignStatsRow = {
@@ -512,6 +513,7 @@ export async function queueBroadcastCampaign({
     blocks,
     preheader: campaign.preheader,
   });
+  const subject = liveBroadcastSubject(campaign.subject);
 
   const [claimed] = await db
     .update(broadcastCampaigns)
@@ -521,6 +523,7 @@ export async function queueBroadcastCampaign({
       recipientCount: recipients.length,
       scheduledAt: null,
       status: "sending",
+      subject,
       text: rendered.text,
       updatedAt: new Date(),
       updatedByUserId: adminUserId || null,
@@ -611,7 +614,7 @@ export async function processBroadcastCampaignBatch({
         campaignId,
         html: campaign.html || "",
         recipient,
-        subject: campaign.subject,
+        subject: liveBroadcastSubject(campaign.subject),
         text: campaign.text || "",
       }),
     );
