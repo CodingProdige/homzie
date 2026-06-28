@@ -14,6 +14,10 @@ export type GoogleAdsSettings = {
   customerId: string;
   loginCustomerId: string;
   dsaCampaignId: string;
+  homzieFundedDsaCampaignId: string;
+  homzieFundedEnabled: boolean;
+  homzieFundedPageFeedLabel: string;
+  homzieFundedPageFeedToken: string;
   siteDomain: string;
   languageCode: string;
   pageFeedLabel: string;
@@ -34,6 +38,10 @@ export const defaultGoogleAdsSettings: GoogleAdsSettings = {
   customerId: "",
   loginCustomerId: "",
   dsaCampaignId: "",
+  homzieFundedDsaCampaignId: "",
+  homzieFundedEnabled: false,
+  homzieFundedPageFeedLabel: "homzie-funded-listings",
+  homzieFundedPageFeedToken: "",
   siteDomain: "homzie.co.za",
   languageCode: "en",
   pageFeedLabel: "homzie-promoted-listings",
@@ -52,6 +60,12 @@ const settingsSchema = z.object({
   customerId: z.string().catch(""),
   loginCustomerId: z.string().catch(""),
   dsaCampaignId: z.string().catch(""),
+  homzieFundedDsaCampaignId: z.string().catch(""),
+  homzieFundedEnabled: z.boolean().catch(defaultGoogleAdsSettings.homzieFundedEnabled),
+  homzieFundedPageFeedLabel: z
+    .string()
+    .catch(defaultGoogleAdsSettings.homzieFundedPageFeedLabel),
+  homzieFundedPageFeedToken: z.string().catch(""),
   siteDomain: z.string().catch(defaultGoogleAdsSettings.siteDomain),
   languageCode: z.string().catch(defaultGoogleAdsSettings.languageCode),
   pageFeedLabel: z.string().catch(defaultGoogleAdsSettings.pageFeedLabel),
@@ -77,6 +91,13 @@ export function normalizeGoogleAdsSettings(value: unknown): GoogleAdsSettings {
     customerId: clean(parsed.customerId).replaceAll("-", ""),
     loginCustomerId: clean(parsed.loginCustomerId).replaceAll("-", ""),
     dsaCampaignId: clean(parsed.dsaCampaignId),
+    homzieFundedDsaCampaignId: clean(parsed.homzieFundedDsaCampaignId),
+    homzieFundedEnabled: parsed.homzieFundedEnabled,
+    homzieFundedPageFeedLabel: clean(
+      parsed.homzieFundedPageFeedLabel ||
+        defaultGoogleAdsSettings.homzieFundedPageFeedLabel,
+    ),
+    homzieFundedPageFeedToken: clean(parsed.homzieFundedPageFeedToken),
     siteDomain: clean(parsed.siteDomain).replace(/^https?:\/\//, "").replace(/\/$/, ""),
     languageCode: clean(parsed.languageCode || "en") || "en",
     pageFeedLabel: clean(parsed.pageFeedLabel || defaultGoogleAdsSettings.pageFeedLabel),
@@ -123,7 +144,6 @@ export function hasGoogleAdsApiCredentials(settings: GoogleAdsSettings) {
       settings.clientId &&
       settings.clientSecret &&
       settings.refreshToken &&
-      settings.customerId &&
-      settings.dsaCampaignId,
+      settings.customerId,
   );
 }

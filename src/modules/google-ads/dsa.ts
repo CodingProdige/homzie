@@ -4,6 +4,7 @@ import { and, count, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { adCampaigns, propertyListings } from "@/db/schema";
+import { getHomzieFundedListingPageFeedRows } from "@/modules/google-ads/page-feeds";
 import {
   getStoredGoogleAdsSettings,
   hasGoogleAdsApiCredentials,
@@ -38,11 +39,15 @@ const GOOGLE_ADS_API_VERSION = "v24";
 
 export type GoogleDsaAutomationHealth = {
   activeGoogleListings: number;
+  activeHomzieFundedListings: number;
   automationEnabled: boolean;
   credentialsComplete: boolean;
   dsaCampaignIdConfigured: boolean;
   feedConfigured: boolean;
   googlePromotionEnabled: boolean;
+  homzieFundedCampaignIdConfigured: boolean;
+  homzieFundedEnabled: boolean;
+  homzieFundedFeedConfigured: boolean;
   lastError: string;
   lastSyncAt: Date | null;
   lastSyncStatus: string;
@@ -98,7 +103,10 @@ async function getGoogleAdsAccessToken() {
   };
 }
 
-async function setGoogleDsaCampaignStatus(status: "ENABLED" | "PAUSED") {
+async function setGoogleDsaCampaignStatus(
+  campaignId: string,
+  status: "ENABLED" | "PAUSED",
+) {
   const { accessToken, settings } = await getGoogleAdsAccessToken();
 
   const response = await fetch(
@@ -117,7 +125,7 @@ async function setGoogleDsaCampaignStatus(status: "ENABLED" | "PAUSED") {
         operations: [
           {
             update: {
-              resourceName: `customers/${settings.customerId}/campaigns/${settings.dsaCampaignId}`,
+              resourceName: `customers/${settings.customerId}/campaigns/${campaignId}`,
               status,
             },
             updateMask: "status",
@@ -237,7 +245,8 @@ export async function getGoogleDsaDailyMetrics({
 export async function getGoogleDsaAutomationHealth(): Promise<GoogleDsaAutomationHealth> {
   const settings = await getStoredGoogleAdsSettings();
 
-  const [activeSummary, totalSummary, latestGoogleCampaign] = await Promise.all([
+  const [activeSummary, totalSummary, latestGoogleCampaign, homzieFundedRows] =
+    await Promise.all([
     db
       .select({ total: count() })
       .from(adCampaigns)
@@ -265,15 +274,22 @@ export async function getGoogleDsaAutomationHealth(): Promise<GoogleDsaAutomatio
       .orderBy(desc(adCampaigns.googleLastSyncedAt), desc(adCampaigns.updatedAt))
       .limit(1)
       .then((rows) => rows[0] ?? null),
+    settings.homzieFundedEnabled
+      ? getHomzieFundedListingPageFeedRows(settings.homzieFundedPageFeedLabel)
+      : Promise.resolve([]),
   ]);
 
   return {
     activeGoogleListings: Number(activeSummary[0]?.total || 0),
+    activeHomzieFundedListings: homzieFundedRows.length,
     automationEnabled: settings.automationEnabled,
     credentialsComplete: hasGoogleAdsApiCredentials(settings),
     dsaCampaignIdConfigured: Boolean(settings.dsaCampaignId),
     feedConfigured: Boolean(settings.pageFeedToken),
     googlePromotionEnabled: settings.enabled,
+    homzieFundedCampaignIdConfigured: Boolean(settings.homzieFundedDsaCampaignId),
+    homzieFundedEnabled: settings.homzieFundedEnabled,
+    homzieFundedFeedConfigured: Boolean(settings.homzieFundedPageFeedToken),
     lastError: latestGoogleCampaign?.googleSyncError || "",
     lastSyncAt: latestGoogleCampaign?.googleLastSyncedAt ?? null,
     lastSyncStatus: latestGoogleCampaign?.googleSyncStatus || "not_started",
@@ -306,6 +322,13 @@ export function getGoogleDsaChannelAvailability(
     return {
       available: false,
       blockedReason: "Google delivery is unavailable until Homzie's Google Ads credentials are complete.",
+    };
+  }
+
+  if (!health.dsaCampaignIdConfigured) {
+    return {
+      available: false,
+      blockedReason: "Google delivery is unavailable until the user-paid DSA campaign ID is configured.",
     };
   }
 
@@ -350,20 +373,26 @@ export function getGoogleDsaChannelAvailability(
 export async function syncGoogleDsaCampaignState() {
   const settings = await getStoredGoogleAdsSettings();
 
-  const [summary] = await db
-    .select({ total: count() })
-    .from(adCampaigns)
-    .innerJoin(propertyListings, eq(propertyListings.id, adCampaigns.listingId))
-    .where(
-      and(
-        eq(adCampaigns.channel, "google"),
-        eq(adCampaigns.promotedType, "listing"),
-        eq(propertyListings.status, "published"),
-        inArray(adCampaigns.status, ["ready", "live"]),
+  const [[summary], homzieFundedRows] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(adCampaigns)
+      .innerJoin(propertyListings, eq(propertyListings.id, adCampaigns.listingId))
+      .where(
+        and(
+          eq(adCampaigns.channel, "google"),
+          eq(adCampaigns.promotedType, "listing"),
+          eq(propertyListings.status, "published"),
+          inArray(adCampaigns.status, ["ready", "live"]),
+        ),
       ),
-    );
+    settings.homzieFundedEnabled
+      ? getHomzieFundedListingPageFeedRows(settings.homzieFundedPageFeedLabel)
+      : Promise.resolve([]),
+  ]);
 
   const activeGoogleListings = Number(summary?.total || 0);
+  const activeHomzieFundedListings = homzieFundedRows.length;
   const nextSyncStatus = activeGoogleListings > 0 ? "feed_active" : "campaign_paused";
   const now = new Date();
 
@@ -402,16 +431,28 @@ export async function syncGoogleDsaCampaignState() {
   if (!settings.enabled || !settings.automationEnabled) {
     return {
       activeGoogleListings,
+      activeHomzieFundedListings,
       ok: true,
       state: activeGoogleListings > 0 ? "feed_active" : "awaiting_manual_pause",
     };
   }
 
   try {
-    await setGoogleDsaCampaignStatus(activeGoogleListings > 0 ? "ENABLED" : "PAUSED");
+    await setGoogleDsaCampaignStatus(
+      settings.dsaCampaignId,
+      activeGoogleListings > 0 ? "ENABLED" : "PAUSED",
+    );
+
+    if (settings.homzieFundedEnabled && settings.homzieFundedDsaCampaignId) {
+      await setGoogleDsaCampaignStatus(
+        settings.homzieFundedDsaCampaignId,
+        activeHomzieFundedListings > 0 ? "ENABLED" : "PAUSED",
+      );
+    }
 
     return {
       activeGoogleListings,
+      activeHomzieFundedListings,
       ok: true,
       state: activeGoogleListings > 0 ? "campaign_enabled" : "campaign_paused",
     };

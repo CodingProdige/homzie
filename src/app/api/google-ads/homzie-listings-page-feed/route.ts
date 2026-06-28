@@ -1,6 +1,6 @@
 import {
   buildGoogleAdsPageFeedCsv,
-  getUserPaidGoogleListingPageFeedRows,
+  getHomzieFundedListingPageFeedRows,
 } from "@/modules/google-ads/page-feeds";
 import { getStoredGoogleAdsSettings } from "@/modules/platform-settings/google-ads-settings";
 
@@ -10,11 +10,18 @@ export async function GET(request: Request) {
   const settings = await getStoredGoogleAdsSettings();
   const token = new URL(request.url).searchParams.get("token") || "";
 
-  if (!settings.pageFeedToken || token !== settings.pageFeedToken) {
+  if (
+    !settings.enabled ||
+    !settings.homzieFundedEnabled ||
+    !settings.homzieFundedPageFeedToken ||
+    token !== settings.homzieFundedPageFeedToken
+  ) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const rows = await getUserPaidGoogleListingPageFeedRows(settings.pageFeedLabel);
+  const rows = await getHomzieFundedListingPageFeedRows(
+    settings.homzieFundedPageFeedLabel,
+  );
   const csv = buildGoogleAdsPageFeedCsv(rows);
 
   return new Response(csv, {

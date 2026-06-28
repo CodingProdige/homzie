@@ -31,6 +31,11 @@ export type AdminGoogleAdsSettingsView = {
   developerToken: string;
   dsaCampaignId: string;
   feedUrl: string;
+  homzieFundedDsaCampaignId: string;
+  homzieFundedEnabled: boolean;
+  homzieFundedFeedUrl: string;
+  homzieFundedPageFeedLabel: string;
+  homzieFundedPageFeedToken: string;
   hasClientId: boolean;
   hasClientSecret: boolean;
   hasDeveloperToken: boolean;
@@ -193,9 +198,10 @@ export function AdminGoogleAdsSettingsForm({
             <ShieldCheck className="size-4" />
           </span>
           <div>
-            <h3 className="text-sm font-semibold">Feed and campaign</h3>
+            <h3 className="text-sm font-semibold">User-paid feed and campaign</h3>
             <p className="text-xs font-normal text-muted-foreground">
-              Create one Homzie-managed Dynamic Search Ads campaign, then let Google fetch this feed URL on a schedule.
+              Create one Homzie-managed Dynamic Search Ads campaign for listings
+              users actively promote.
             </p>
           </div>
         </div>
@@ -223,7 +229,7 @@ export function AdminGoogleAdsSettingsForm({
             />
           </div>
           <div className="grid gap-2 md:col-span-2">
-            <Label htmlFor="feedPreview">Protected feed URL</Label>
+            <Label htmlFor="feedPreview">User-paid protected feed URL</Label>
             <Input id="feedPreview" readOnly value={settings.feedUrl} />
           </div>
           <div className="grid gap-2">
@@ -262,6 +268,71 @@ export function AdminGoogleAdsSettingsForm({
               id="descriptionLine2"
               name="descriptionLine2"
               defaultValue={settings.descriptionLine2}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-border bg-background p-4">
+        <div className="flex items-center gap-3">
+          <span className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary">
+            <Globe2 className="size-4" />
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold">Homzie-funded listing feed</h3>
+            <p className="text-xs font-normal text-muted-foreground">
+              A separate Dynamic Search Ads campaign for eligible published
+              listings funded from Homzie&apos;s own growth budget.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          <ToggleField
+            name="homzieFundedEnabled"
+            label="Enable Homzie-funded listing feed"
+            description="Publishes a separate protected page feed containing eligible public listings."
+            defaultChecked={settings.homzieFundedEnabled}
+          />
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="homzieFundedPageFeedLabel">Homzie-funded feed label</Label>
+            <Input
+              id="homzieFundedPageFeedLabel"
+              name="homzieFundedPageFeedLabel"
+              defaultValue={settings.homzieFundedPageFeedLabel}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="homzieFundedPageFeedToken">Homzie-funded feed token</Label>
+            <Input
+              id="homzieFundedPageFeedToken"
+              name="homzieFundedPageFeedToken"
+              defaultValue={settings.homzieFundedPageFeedToken}
+              placeholder="Use a different long random string"
+            />
+          </div>
+          <div className="grid gap-2 md:col-span-2">
+            <Label htmlFor="homzieFundedFeedPreview">
+              Homzie-funded protected feed URL
+            </Label>
+            <Input
+              id="homzieFundedFeedPreview"
+              readOnly
+              value={settings.homzieFundedFeedUrl}
+            />
+          </div>
+          <div className="grid gap-2 md:col-span-2">
+            <Label htmlFor="homzieFundedDsaCampaignId">
+              Homzie-funded DSA campaign ID
+            </Label>
+            <Input
+              id="homzieFundedDsaCampaignId"
+              name="homzieFundedDsaCampaignId"
+              defaultValue={settings.homzieFundedDsaCampaignId}
+              placeholder="The numeric campaign ID from Google Ads"
             />
           </div>
         </div>

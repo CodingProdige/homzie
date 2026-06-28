@@ -157,6 +157,15 @@ export function AdminGoogleAdsHealthCard({
           tone={health.credentialsComplete ? "success" : "danger"}
           text={health.credentialsComplete ? "credentials complete" : "credentials incomplete"}
         />
+        <HealthPill
+          icon={health.homzieFundedEnabled ? CheckCircle2 : CircleDashed}
+          tone={health.homzieFundedEnabled ? "success" : "muted"}
+          text={
+            health.homzieFundedEnabled
+              ? "Homzie-funded feed on"
+              : "Homzie-funded feed off"
+          }
+        />
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -167,13 +176,32 @@ export function AdminGoogleAdsHealthCard({
             </span>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-                Active listings
+                User-paid listings
               </p>
               <p className="mt-1 text-3xl font-semibold">{health.activeGoogleListings}</p>
             </div>
           </div>
           <p className="mt-3 text-xs font-normal leading-5 text-muted-foreground">
-            Published listing URLs that are currently eligible for the Homzie-managed Google feed.
+            Listing URLs from user-created Google promotion campaigns.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-background p-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary">
+              <Tags className="size-4" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+                Homzie-funded
+              </p>
+              <p className="mt-1 text-3xl font-semibold">
+                {health.activeHomzieFundedListings}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs font-normal leading-5 text-muted-foreground">
+            Eligible public listing URLs in Homzie&apos;s own growth feed.
           </p>
         </div>
 
@@ -206,7 +234,11 @@ export function AdminGoogleAdsHealthCard({
                 Campaign wiring
               </p>
               <p className="mt-1 text-lg font-semibold">
-                {health.dsaCampaignIdConfigured && health.feedConfigured
+                {health.dsaCampaignIdConfigured &&
+                health.feedConfigured &&
+                (!health.homzieFundedEnabled ||
+                  (health.homzieFundedCampaignIdConfigured &&
+                    health.homzieFundedFeedConfigured))
                   ? "Ready"
                   : "Needs setup"}
               </p>
@@ -214,8 +246,19 @@ export function AdminGoogleAdsHealthCard({
           </div>
           <p className="mt-3 text-xs font-normal leading-5 text-muted-foreground">
             Feed token {health.feedConfigured ? "saved" : "missing"}, DSA campaign ID{" "}
-            {health.dsaCampaignIdConfigured ? "saved" : "missing"}, login customer ID{" "}
-            {health.loginCustomerIdConfigured ? "saved" : "optional"}.
+            {health.dsaCampaignIdConfigured ? "saved" : "missing"}. Homzie feed{" "}
+            {health.homzieFundedEnabled
+              ? health.homzieFundedFeedConfigured
+                ? "saved"
+                : "missing"
+              : "off"}
+            , Homzie campaign ID{" "}
+            {health.homzieFundedEnabled
+              ? health.homzieFundedCampaignIdConfigured
+                ? "saved"
+                : "missing"
+              : "off"}
+            . Login customer ID {health.loginCustomerIdConfigured ? "saved" : "optional"}.
           </p>
         </div>
 

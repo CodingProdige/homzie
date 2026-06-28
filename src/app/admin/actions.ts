@@ -1434,6 +1434,9 @@ function mergeGoogleAdsSettings(
     "customerId",
     "loginCustomerId",
     "dsaCampaignId",
+    "homzieFundedDsaCampaignId",
+    "homzieFundedPageFeedLabel",
+    "homzieFundedPageFeedToken",
     "siteDomain",
     "languageCode",
     "pageFeedLabel",
@@ -1452,6 +1455,7 @@ function mergeGoogleAdsSettings(
 
   next.enabled = formBoolean(formData, "enabled");
   next.automationEnabled = formBoolean(formData, "automationEnabled");
+  next.homzieFundedEnabled = formBoolean(formData, "homzieFundedEnabled");
 
   return next;
 }
@@ -1469,13 +1473,27 @@ function validateGoogleAdsSettings(settings: GoogleAdsSettings) {
     return "Add the Homzie domain used by your Dynamic Search Ads campaign.";
   }
 
+  if (settings.homzieFundedEnabled) {
+    if (!settings.homzieFundedPageFeedToken) {
+      return "Add a Homzie-funded page feed token so Google can fetch the protected feed URL.";
+    }
+
+    if (!settings.homzieFundedPageFeedLabel) {
+      return "Add a Homzie-funded page feed label for the second Dynamic Search Ads campaign.";
+    }
+  }
+
   if (settings.automationEnabled) {
     if (!settings.developerToken || !settings.clientId || !settings.clientSecret) {
       return "Automation needs a Google developer token, client ID, and client secret.";
     }
 
     if (!settings.refreshToken || !settings.customerId || !settings.dsaCampaignId) {
-      return "Automation needs a refresh token, customer ID, and DSA campaign ID.";
+      return "Automation needs a refresh token, customer ID, and user-paid DSA campaign ID.";
+    }
+
+    if (settings.homzieFundedEnabled && !settings.homzieFundedDsaCampaignId) {
+      return "Automation needs the Homzie-funded DSA campaign ID when the Homzie-funded feed is enabled.";
     }
   }
 
@@ -1577,14 +1595,7 @@ export async function runAdminGoogleAdsAutomationSync(
 
     return {
       ok: true,
-      message:
-        result.state === "campaign_enabled"
-          ? "Google DSA campaign is enabled and in sync."
-          : result.state === "campaign_paused"
-            ? "Google DSA campaign is paused because no published listing URLs are active."
-            : result.state === "feed_active"
-              ? "Feed eligibility is active. Google API pause/resume automation is currently disabled."
-              : "No active Google listing URLs remain. Manual pause is still required in Google Ads.",
+      message: `Google DSA sync checked. User-paid feed: ${result.activeGoogleListings} active listing URLs. Homzie-funded feed: ${result.activeHomzieFundedListings} eligible listing URLs.`,
       health,
     };
   } catch (error) {

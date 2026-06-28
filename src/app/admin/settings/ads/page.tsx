@@ -91,6 +91,13 @@ function toGoogleAdsSettingsView(
   const feedUrl = settings.pageFeedToken
     ? absoluteUrl(`/api/google-ads/page-feed?token=${settings.pageFeedToken}`)
     : absoluteUrl("/api/google-ads/page-feed?token=YOUR_FEED_TOKEN");
+  const homzieFundedFeedUrl = settings.homzieFundedPageFeedToken
+    ? absoluteUrl(
+        `/api/google-ads/homzie-listings-page-feed?token=${settings.homzieFundedPageFeedToken}`,
+      )
+    : absoluteUrl(
+        "/api/google-ads/homzie-listings-page-feed?token=YOUR_HOMZIE_FEED_TOKEN",
+      );
 
   return {
     enabled: settings.enabled,
@@ -101,6 +108,11 @@ function toGoogleAdsSettingsView(
     developerToken: settings.developerToken,
     dsaCampaignId: settings.dsaCampaignId,
     feedUrl,
+    homzieFundedDsaCampaignId: settings.homzieFundedDsaCampaignId,
+    homzieFundedEnabled: settings.homzieFundedEnabled,
+    homzieFundedFeedUrl,
+    homzieFundedPageFeedLabel: settings.homzieFundedPageFeedLabel,
+    homzieFundedPageFeedToken: settings.homzieFundedPageFeedToken,
     hasClientId: Boolean(settings.clientId),
     hasClientSecret: Boolean(settings.clientSecret),
     hasDeveloperToken: Boolean(settings.developerToken),
