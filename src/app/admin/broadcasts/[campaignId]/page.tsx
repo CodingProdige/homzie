@@ -121,7 +121,10 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
   const audience = normalizeBroadcastAudience(campaign.audience);
   const blocks = normalizeBroadcastBlocks(campaign.blocks);
   const metrics = metricCards(campaign);
-  const eventWebhookSecretConfigured = Boolean(process.env.SENDGRID_EVENT_WEBHOOK_SECRET);
+  const sendGridPublicKeyConfigured = Boolean(process.env.SENDGRID_WEBHOOK_PUBLIC_KEY);
+  const legacyWebhookSecretConfigured = Boolean(process.env.SENDGRID_EVENT_WEBHOOK_SECRET);
+  const webhookAuthConfigured =
+    sendGridPublicKeyConfigured || legacyWebhookSecretConfigured;
   const showSendGridEventNotice =
     campaign.sentCount > 0 && (campaign.deliveredCount === 0 || events.length === 0);
   const webhookUrl = sendGridWebhookUrl();
@@ -180,21 +183,24 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
             <p className="font-semibold">Webhook URL</p>
             <code className="mt-1 block break-all text-xs">
               {webhookUrl}
-              {eventWebhookSecretConfigured
+              {!sendGridPublicKeyConfigured && legacyWebhookSecretConfigured
                 ? "?secret=<SENDGRID_EVENT_WEBHOOK_SECRET>"
                 : ""}
             </code>
           </div>
-          {!eventWebhookSecretConfigured ? (
+          {!webhookAuthConfigured ? (
             <p className="mt-3 rounded-md bg-destructive/10 p-3 font-semibold text-destructive">
-              SENDGRID_EVENT_WEBHOOK_SECRET is not configured. In production,
-              Homzie rejects SendGrid event callbacks until this env value is set.
+              SENDGRID_WEBHOOK_PUBLIC_KEY is not configured. In production,
+              Homzie rejects unsigned SendGrid event callbacks until this env
+              value is set.
             </p>
           ) : null}
           <p className="mt-3 leading-6 text-amber-900/90 dark:text-amber-100/80">
             In SendGrid, enable the Event Webhook for processed, delivered, open,
             click, bounce, dropped, spam report and unsubscribe events. Open and
-            click metrics also require SendGrid tracking to be enabled.
+            click metrics also require SendGrid tracking to be enabled. Use
+            SendGrid&apos;s signed webhook option and store its public verification
+            key as SENDGRID_WEBHOOK_PUBLIC_KEY.
           </p>
         </section>
       ) : null}
