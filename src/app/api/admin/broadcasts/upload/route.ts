@@ -1,0 +1,84 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+import { getServerSession } from "next-auth";
+
+import { sql } from "@/db";
+import { getMediaStorageRoot } from "@/media/storage";
+import { authOptions } from "@/modules/auth/config";
+
+export const runtime = "nodejs";
+
+const maxBroadcastImageBytes = 10 * 1024 * 1024;
+const imageExtensions: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+async function isAdmin(userId: string) {
+  const [row] = await sql<[{ role: string; status: string }?]>`
+    SELECT role, status FROM users WHERE id = ${userId} LIMIT 1
+  `;
+
+  return row?.role === "admin" && row?.status === "active";
+}
+
+export async function POST(request: Request) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return Response.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  if (!(await isAdmin(session.user.id))) {
+    return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const formData = await request.formData();
+  const file = formData.get("file");
+
+  if (!(file instanceof File) || file.size <= 0) {
+    return Response.json({ error: "Choose an image to upload." }, { status: 400 });
+  }
+
+  const extension = imageExtensions[file.type];
+
+  if (!extension) {
+    return Response.json(
+      { error: "Upload a JPG, PNG, or WebP image." },
+      { status: 400 },
+    );
+  }
+
+  if (file.size > maxBroadcastImageBytes) {
+    return Response.json(
+      { error: "Broadcast images must be 10MB or smaller." },
+      { status: 400 },
+    );
+  }
+
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const fileName = `${randomUUID()}.${extension}`;
+  const relativePath = ["broadcasts", "images", year, month, fileName].join("/");
+  const storagePath = path.join(
+    /*turbopackIgnore: true*/ getMediaStorageRoot(),
+    relativePath,
+  );
+
+  await mkdir(path.dirname(storagePath), { recursive: true });
+  await writeFile(storagePath, Buffer.from(await file.arrayBuffer()));
+
+  return Response.json({
+    image: {
+      name: file.name,
+      path: relativePath,
+      size: file.size,
+      type: file.type,
+      url: `/media/${relativePath}`,
+    },
+  });
+}

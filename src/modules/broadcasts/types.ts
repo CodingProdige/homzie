@@ -39,6 +39,16 @@ export type BroadcastImageBlock = BaseBlock & {
   url: string;
 };
 
+export type BroadcastVideoBlock = BaseBlock & {
+  body?: string;
+  label?: string;
+  thumbnailAlt?: string;
+  thumbnailUrl?: string;
+  title: string;
+  type: "video";
+  url: string;
+};
+
 export type BroadcastButtonBlock = BaseBlock & {
   href: string;
   label: string;
@@ -79,7 +89,8 @@ export type BroadcastBlock =
   | BroadcastHeroBlock
   | BroadcastImageBlock
   | BroadcastListingBlock
-  | BroadcastTextBlock;
+  | BroadcastTextBlock
+  | BroadcastVideoBlock;
 
 export type BroadcastRecipient = {
   email: string;

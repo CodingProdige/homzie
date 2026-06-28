@@ -2,9 +2,11 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   ImageIcon,
   Link2,
   Minus,
@@ -12,7 +14,9 @@ import {
   Send,
   TextCursorInput,
   Trash2,
+  Upload,
   UserRound,
+  Video,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -41,6 +45,17 @@ type BroadcastComposerProps = {
   initialSubject?: string;
 };
 
+type BroadcastImageUploadResult = {
+  error?: string;
+  image?: {
+    name: string;
+    path: string;
+    size: number;
+    type: string;
+    url: string;
+  };
+};
+
 const roleOptions = [
   { label: "All opted-in users", value: "all" },
   { label: "Home seekers", value: "home_seeker" },
@@ -53,6 +68,7 @@ const blockOptions = [
   { icon: TextCursorInput, label: "Hero", type: "hero" },
   { icon: TextCursorInput, label: "Text", type: "text" },
   { icon: ImageIcon, label: "Image", type: "image" },
+  { icon: Video, label: "Video", type: "video" },
   { icon: Link2, label: "Button", type: "button" },
   { icon: ImageIcon, label: "Listing", type: "listing" },
   { icon: UserRound, label: "Agent", type: "agent" },
@@ -95,6 +111,19 @@ function blockTemplate(type: (typeof blockOptions)[number]["type"]): BroadcastBl
 
   if (type === "image") {
     return { alt: "", id, type, url: "" };
+  }
+
+  if (type === "video") {
+    return {
+      body: "Add a short reason to watch.",
+      id,
+      label: "Watch video",
+      thumbnailAlt: "",
+      thumbnailUrl: "",
+      title: "Featured video",
+      type,
+      url: "",
+    };
   }
 
   if (type === "button") {
@@ -198,7 +227,44 @@ function PreviewBlock({ block }: { block: BroadcastBlock }) {
   if (block.type === "image") {
     return (
       <div className="grid aspect-[16/9] place-items-center overflow-hidden rounded-lg border border-dashed border-border bg-muted text-xs text-muted-foreground">
-        {block.url ? block.url : "Image URL"}
+        {block.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt={block.alt || ""}
+            className="h-full w-full object-cover"
+            src={block.url}
+          />
+        ) : (
+          "Image URL"
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "video") {
+    return (
+      <div className="overflow-hidden rounded-lg border border-border bg-background">
+        <div className="grid aspect-video place-items-center bg-muted text-xs text-muted-foreground">
+          {block.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt={block.thumbnailAlt || block.title}
+              className="h-full w-full object-cover"
+              src={block.thumbnailUrl}
+            />
+          ) : (
+            <Video className="size-7 text-primary" />
+          )}
+        </div>
+        <div className="p-3">
+          <p className="text-sm font-semibold">{block.title}</p>
+          {block.body ? (
+            <p className="mt-1 text-xs text-muted-foreground">{block.body}</p>
+          ) : null}
+          <span className="mt-3 inline-flex rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+            {block.label || "Watch video"}
+          </span>
+        </div>
       </div>
     );
   }
@@ -262,6 +328,10 @@ export function BroadcastComposer({
   const [subject, setSubject] = useState(initialSubject);
   const [preheader, setPreheader] = useState(initialPreheader || "");
   const [testRecipient, setTestRecipient] = useState("");
+  const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
+  const [uploadErrorByBlockId, setUploadErrorByBlockId] = useState<
+    Record<string, string>
+  >({});
   const [audience, setAudience] = useState<BroadcastAudience>({
     role: "all",
     ...initialAudience,
@@ -305,6 +375,79 @@ export function BroadcastComposer({
 
   function removeBlock(id: string) {
     setBlocks((current) => current.filter((block) => block.id !== id));
+  }
+
+  async function uploadBroadcastImage(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/admin/broadcasts/upload", {
+      body: formData,
+      method: "POST",
+    });
+    const result = (await response.json()) as BroadcastImageUploadResult;
+
+    if (!response.ok || !result.image?.url) {
+      throw new Error(result.error || "Upload failed.");
+    }
+
+    return result.image;
+  }
+
+  async function uploadImage(
+    block: Extract<BroadcastBlock, { type: "image" }>,
+    file: File,
+  ) {
+    setUploadingBlockId(block.id);
+    setUploadErrorByBlockId((current) => {
+      const next = { ...current };
+      delete next[block.id];
+      return next;
+    });
+
+    try {
+      const image = await uploadBroadcastImage(file);
+
+      updateBlock(block, {
+        alt: block.alt || file.name.replace(/\.[^.]+$/, ""),
+        url: image.url,
+      });
+    } catch (error) {
+      setUploadErrorByBlockId((current) => ({
+        ...current,
+        [block.id]: error instanceof Error ? error.message : "Upload failed.",
+      }));
+    } finally {
+      setUploadingBlockId(null);
+    }
+  }
+
+  async function uploadVideoThumbnail(
+    block: Extract<BroadcastBlock, { type: "video" }>,
+    file: File,
+  ) {
+    setUploadingBlockId(block.id);
+    setUploadErrorByBlockId((current) => {
+      const next = { ...current };
+      delete next[block.id];
+      return next;
+    });
+
+    try {
+      const image = await uploadBroadcastImage(file);
+
+      updateBlock(block, {
+        thumbnailAlt: block.thumbnailAlt || file.name.replace(/\.[^.]+$/, ""),
+        thumbnailUrl: image.url,
+      });
+    } catch (error) {
+      setUploadErrorByBlockId((current) => ({
+        ...current,
+        [block.id]: error instanceof Error ? error.message : "Upload failed.",
+      }));
+    } finally {
+      setUploadingBlockId(null);
+    }
   }
 
   return (
@@ -509,29 +652,41 @@ export function BroadcastComposer({
               </h2>
             </div>
             {!isLocked ? (
-              <div className="flex flex-wrap gap-2">
-                {blockOptions.map((option) => {
-                  const Icon = option.icon;
+              <DropdownMenu.Root modal={false}>
+                <DropdownMenu.Trigger asChild>
+                  <Button type="button">
+                    <Plus className="size-4" />
+                    Add block
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    align="end"
+                    className="z-[120] w-56 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl"
+                    sideOffset={8}
+                  >
+                    {blockOptions.map((option) => {
+                      const Icon = option.icon;
 
-                  return (
-                    <Button
-                      key={option.type}
-                      onClick={() =>
-                        setBlocks((current) => [
-                          ...current,
-                          blockTemplate(option.type),
-                        ])
-                      }
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      <Icon className="size-4" />
-                      {option.label}
-                    </Button>
-                  );
-                })}
-              </div>
+                      return (
+                        <DropdownMenu.Item
+                          className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold outline-none transition-colors focus:bg-accent focus:text-accent-foreground"
+                          key={option.type}
+                          onSelect={() =>
+                            setBlocks((current) => [
+                              ...current,
+                              blockTemplate(option.type),
+                            ])
+                          }
+                        >
+                          <Icon className="size-4 text-primary" />
+                          <span>{option.label}</span>
+                        </DropdownMenu.Item>
+                      );
+                    })}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
             ) : null}
           </div>
 
@@ -615,15 +770,54 @@ export function BroadcastComposer({
                   ) : null}
 
                   {block.type === "image" ? (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <Input
-                        disabled={isLocked}
-                        onChange={(event) =>
-                          updateBlock(block, { url: event.target.value })
-                        }
-                        placeholder="Image URL"
-                        value={block.url}
-                      />
+                    <>
+                      {block.url ? (
+                        <div className="overflow-hidden rounded-lg border border-border bg-muted">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            alt={block.alt || ""}
+                            className="max-h-64 w-full object-cover"
+                            src={block.url}
+                          />
+                        </div>
+                      ) : null}
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                        <Input
+                          disabled={isLocked}
+                          onChange={(event) =>
+                            updateBlock(block, { url: event.target.value })
+                          }
+                          placeholder="Image URL"
+                          value={block.url}
+                        />
+                        <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                          {uploadingBlockId === block.id ? (
+                            <span className="size-4 rounded-full border-2 border-primary/25 border-t-primary motion-safe:animate-spin" />
+                          ) : block.url ? (
+                            <Check className="size-4" />
+                          ) : (
+                            <Upload className="size-4" />
+                          )}
+                          <span>
+                            {uploadingBlockId === block.id
+                              ? "Uploading"
+                              : block.url
+                                ? "Replace"
+                                : "Upload"}
+                          </span>
+                          <input
+                            accept="image/jpeg,image/png,image/webp"
+                            className="sr-only"
+                            disabled={isLocked || uploadingBlockId === block.id}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void uploadImage(block, file);
+                            }}
+                            type="file"
+                          />
+                        </label>
+                      </div>
                       <Input
                         disabled={isLocked}
                         onChange={(event) =>
@@ -632,7 +826,113 @@ export function BroadcastComposer({
                         placeholder="Alt text"
                         value={block.alt || ""}
                       />
-                    </div>
+                      {uploadErrorByBlockId[block.id] ? (
+                        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">
+                          {uploadErrorByBlockId[block.id]}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  {block.type === "video" ? (
+                    <>
+                      {block.thumbnailUrl ? (
+                        <div className="overflow-hidden rounded-lg border border-border bg-muted">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            alt={block.thumbnailAlt || block.title}
+                            className="max-h-64 w-full object-cover"
+                            src={block.thumbnailUrl}
+                          />
+                        </div>
+                      ) : null}
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <Input
+                          disabled={isLocked}
+                          onChange={(event) =>
+                            updateBlock(block, { title: event.target.value })
+                          }
+                          placeholder="Video title"
+                          value={block.title}
+                        />
+                        <Input
+                          disabled={isLocked}
+                          onChange={(event) =>
+                            updateBlock(block, { label: event.target.value })
+                          }
+                          placeholder="CTA label"
+                          value={block.label || ""}
+                        />
+                        <Input
+                          className="md:col-span-2"
+                          disabled={isLocked}
+                          onChange={(event) =>
+                            updateBlock(block, { url: event.target.value })
+                          }
+                          placeholder="Video URL"
+                          value={block.url}
+                        />
+                      </div>
+                      <TextArea
+                        disabled={isLocked}
+                        onChange={(value) => updateBlock(block, { body: value })}
+                        placeholder="Short supporting copy"
+                        rows={3}
+                        value={block.body || ""}
+                      />
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                        <Input
+                          disabled={isLocked}
+                          onChange={(event) =>
+                            updateBlock(block, {
+                              thumbnailUrl: event.target.value,
+                            })
+                          }
+                          placeholder="Thumbnail image URL"
+                          value={block.thumbnailUrl || ""}
+                        />
+                        <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                          {uploadingBlockId === block.id ? (
+                            <span className="size-4 rounded-full border-2 border-primary/25 border-t-primary motion-safe:animate-spin" />
+                          ) : block.thumbnailUrl ? (
+                            <Check className="size-4" />
+                          ) : (
+                            <Upload className="size-4" />
+                          )}
+                          <span>
+                            {uploadingBlockId === block.id
+                              ? "Uploading"
+                              : block.thumbnailUrl
+                                ? "Replace"
+                                : "Upload"}
+                          </span>
+                          <input
+                            accept="image/jpeg,image/png,image/webp"
+                            className="sr-only"
+                            disabled={isLocked || uploadingBlockId === block.id}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void uploadVideoThumbnail(block, file);
+                            }}
+                            type="file"
+                          />
+                        </label>
+                      </div>
+                      <Input
+                        disabled={isLocked}
+                        onChange={(event) =>
+                          updateBlock(block, { thumbnailAlt: event.target.value })
+                        }
+                        placeholder="Thumbnail alt text"
+                        value={block.thumbnailAlt || ""}
+                      />
+                      {uploadErrorByBlockId[block.id] ? (
+                        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">
+                          {uploadErrorByBlockId[block.id]}
+                        </p>
+                      ) : null}
+                    </>
                   ) : null}
 
                   {block.type === "button" ? (

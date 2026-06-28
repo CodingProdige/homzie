@@ -137,6 +137,23 @@ export function normalizeBroadcastBlocks(value: unknown): BroadcastBlock[] {
         };
       }
 
+      if (type === "video") {
+        const title = cleanText(source.title, 140);
+        const url = normalizeHref(source.url);
+        if (!title || !url) return null;
+
+        return {
+          body: cleanText(source.body, 1000),
+          id,
+          label: cleanText(source.label, 60) || "Watch video",
+          thumbnailAlt: cleanText(source.thumbnailAlt, 180),
+          thumbnailUrl: normalizeHref(source.thumbnailUrl) || undefined,
+          title,
+          type,
+          url,
+        };
+      }
+
       if (type === "button") {
         const href = normalizeHref(source.href);
         const label = cleanText(source.label, 60);

@@ -60,6 +60,30 @@ function renderBlockHtml(block: BroadcastBlock) {
     `;
   }
 
+  if (block.type === "video") {
+    const href = absoluteUrl(block.url);
+    const thumbnail = textValue(block.thumbnailUrl);
+    const label = textValue(block.label) || "Watch video";
+    const body = textValue(block.body);
+
+    return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid #e8e8ef;border-radius:16px;overflow:hidden;background:#fbfbfd;">
+        ${
+          thumbnail
+            ? `<tr><td><a href="${escapeHtml(href)}"><img src="${escapeHtml(absoluteUrl(thumbnail))}" alt="${escapeHtml(block.thumbnailAlt || block.title)}" style="display:block;width:100%;max-height:300px;object-fit:cover;" /></a></td></tr>`
+            : ""
+        }
+        <tr>
+          <td style="padding:18px;">
+            <p style="margin:0 0 8px;font-size:18px;font-weight:900;color:#121218;">${escapeHtml(block.title)}</p>
+            ${body ? paragraphHtml(body) : ""}
+            <a class="button" href="${escapeHtml(href)}">${escapeHtml(label)}</a>
+          </td>
+        </tr>
+      </table>
+    `;
+  }
+
   if (block.type === "button") {
     return `
       <p style="margin:22px 0;">
@@ -147,6 +171,16 @@ export function renderBroadcastText(blocks: BroadcastBlock[]) {
 
       if (block.type === "image") {
         return block.alt ? `[Image: ${block.alt}]` : "[Image]";
+      }
+
+      if (block.type === "video") {
+        return [
+          block.title,
+          block.body,
+          `${block.label || "Watch video"}: ${absoluteUrl(block.url)}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
       }
 
       if (block.type === "listing") {
