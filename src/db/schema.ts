@@ -1696,6 +1696,116 @@ export const notificationSurfaceTemplateVersions = pgTable(
   ],
 );
 
+export const broadcastCampaigns = pgTable(
+  "broadcast_campaigns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    subject: text("subject").notNull(),
+    preheader: text("preheader"),
+    status: text("status").notNull().default("draft"),
+    channel: text("channel").notNull().default("email"),
+    audience: jsonb("audience").notNull().default({}),
+    blocks: jsonb("blocks").notNull().default([]),
+    html: text("html"),
+    text: text("text"),
+    lastAudienceCount: integer("last_audience_count").notNull().default(0),
+    recipientCount: integer("recipient_count").notNull().default(0),
+    sentCount: integer("sent_count").notNull().default(0),
+    deliveredCount: integer("delivered_count").notNull().default(0),
+    openedCount: integer("opened_count").notNull().default(0),
+    machineOpenCount: integer("machine_open_count").notNull().default(0),
+    clickedCount: integer("clicked_count").notNull().default(0),
+    unsubscribedCount: integer("unsubscribed_count").notNull().default(0),
+    bouncedCount: integer("bounced_count").notNull().default(0),
+    droppedCount: integer("dropped_count").notNull().default(0),
+    spamReportCount: integer("spam_report_count").notNull().default(0),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("broadcast_campaigns_status_idx").on(table.status),
+    index("broadcast_campaigns_created_at_idx").on(table.createdAt),
+    index("broadcast_campaigns_created_by_idx").on(table.createdByUserId),
+  ],
+);
+
+export const broadcastCampaignRecipients = pgTable(
+  "broadcast_campaign_recipients",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => broadcastCampaigns.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    recipientEmail: text("recipient_email").notNull(),
+    recipientName: text("recipient_name"),
+    status: text("status").notNull().default("pending"),
+    provider: text("provider").notNull().default("sendgrid"),
+    providerMessageId: text("provider_message_id"),
+    error: text("error"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    droppedAt: timestamp("dropped_at", { withTimezone: true }),
+    unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
+    spamReportedAt: timestamp("spam_reported_at", { withTimezone: true }),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("broadcast_recipients_campaign_email_idx").on(
+      table.campaignId,
+      table.recipientEmail,
+    ),
+    index("broadcast_recipients_campaign_idx").on(table.campaignId),
+    index("broadcast_recipients_status_idx").on(table.status),
+    index("broadcast_recipients_user_idx").on(table.userId),
+  ],
+);
+
+export const broadcastCampaignEvents = pgTable(
+  "broadcast_campaign_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => broadcastCampaigns.id, { onDelete: "cascade" }),
+    recipientId: uuid("recipient_id").references(
+      () => broadcastCampaignRecipients.id,
+      { onDelete: "set null" },
+    ),
+    eventType: text("event_type").notNull(),
+    provider: text("provider").notNull().default("sendgrid"),
+    providerEventId: text("provider_event_id"),
+    providerMessageId: text("provider_message_id"),
+    url: text("url"),
+    userAgent: text("user_agent"),
+    ip: text("ip"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    rawEvent: jsonb("raw_event").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("broadcast_events_provider_event_idx").on(table.providerEventId),
+    index("broadcast_events_campaign_idx").on(table.campaignId),
+    index("broadcast_events_recipient_idx").on(table.recipientId),
+    index("broadcast_events_type_idx").on(table.eventType),
+    index("broadcast_events_occurred_at_idx").on(table.occurredAt),
+  ],
+);
+
 export const emailDeliveryLogs = pgTable(
   "email_delivery_logs",
   {
@@ -1703,6 +1813,13 @@ export const emailDeliveryLogs = pgTable(
     templateKey: text("template_key").notNull(),
     eventKey: text("event_key").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    campaignId: uuid("campaign_id").references(() => broadcastCampaigns.id, {
+      onDelete: "set null",
+    }),
+    campaignRecipientId: uuid("campaign_recipient_id").references(
+      () => broadcastCampaignRecipients.id,
+      { onDelete: "set null" },
+    ),
     recipientEmail: text("recipient_email").notNull(),
     subject: text("subject"),
     provider: text("provider").notNull().default("sendgrid"),
@@ -1717,6 +1834,7 @@ export const emailDeliveryLogs = pgTable(
     index("email_delivery_logs_template_key_idx").on(table.templateKey),
     index("email_delivery_logs_event_key_idx").on(table.eventKey),
     index("email_delivery_logs_user_id_idx").on(table.userId),
+    index("email_delivery_logs_campaign_id_idx").on(table.campaignId),
     index("email_delivery_logs_status_idx").on(table.status),
     index("email_delivery_logs_created_at_idx").on(table.createdAt),
   ],
@@ -1964,6 +2082,13 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   profileViewEvents: many(profileViewEvents, { relationName: "profileOwner" }),
   recordedProfileViews: many(profileViewEvents, { relationName: "profileViewer" }),
   notificationPreferences: one(userNotificationPreferences),
+  broadcastCampaignsCreated: many(broadcastCampaigns, {
+    relationName: "broadcastCampaignCreator",
+  }),
+  broadcastCampaignsUpdated: many(broadcastCampaigns, {
+    relationName: "broadcastCampaignUpdater",
+  }),
+  broadcastCampaignRecipients: many(broadcastCampaignRecipients),
   passwordResetTokens: many(passwordResetTokens),
   adCampaigns: many(adCampaigns),
   adCampaignDeliveryDaily: many(adCampaignDeliveryDaily),
@@ -2139,6 +2264,53 @@ export const userNotificationPreferencesRelations = relations(
     user: one(users, {
       fields: [userNotificationPreferences.userId],
       references: [users.id],
+    }),
+  }),
+);
+
+export const broadcastCampaignsRelations = relations(
+  broadcastCampaigns,
+  ({ many, one }) => ({
+    createdByUser: one(users, {
+      fields: [broadcastCampaigns.createdByUserId],
+      references: [users.id],
+      relationName: "broadcastCampaignCreator",
+    }),
+    updatedByUser: one(users, {
+      fields: [broadcastCampaigns.updatedByUserId],
+      references: [users.id],
+      relationName: "broadcastCampaignUpdater",
+    }),
+    recipients: many(broadcastCampaignRecipients),
+    events: many(broadcastCampaignEvents),
+  }),
+);
+
+export const broadcastCampaignRecipientsRelations = relations(
+  broadcastCampaignRecipients,
+  ({ many, one }) => ({
+    campaign: one(broadcastCampaigns, {
+      fields: [broadcastCampaignRecipients.campaignId],
+      references: [broadcastCampaigns.id],
+    }),
+    user: one(users, {
+      fields: [broadcastCampaignRecipients.userId],
+      references: [users.id],
+    }),
+    events: many(broadcastCampaignEvents),
+  }),
+);
+
+export const broadcastCampaignEventsRelations = relations(
+  broadcastCampaignEvents,
+  ({ one }) => ({
+    campaign: one(broadcastCampaigns, {
+      fields: [broadcastCampaignEvents.campaignId],
+      references: [broadcastCampaigns.id],
+    }),
+    recipient: one(broadcastCampaignRecipients, {
+      fields: [broadcastCampaignEvents.recipientId],
+      references: [broadcastCampaignRecipients.id],
     }),
   }),
 );
@@ -2542,6 +2714,14 @@ export type NotificationSurfaceTemplate =
   typeof notificationSurfaceTemplates.$inferSelect;
 export type NewNotificationSurfaceTemplate =
   typeof notificationSurfaceTemplates.$inferInsert;
+export type BroadcastCampaign = typeof broadcastCampaigns.$inferSelect;
+export type NewBroadcastCampaign = typeof broadcastCampaigns.$inferInsert;
+export type BroadcastCampaignRecipient =
+  typeof broadcastCampaignRecipients.$inferSelect;
+export type NewBroadcastCampaignRecipient =
+  typeof broadcastCampaignRecipients.$inferInsert;
+export type BroadcastCampaignEvent = typeof broadcastCampaignEvents.$inferSelect;
+export type NewBroadcastCampaignEvent = typeof broadcastCampaignEvents.$inferInsert;
 export type EmailDeliveryLog = typeof emailDeliveryLogs.$inferSelect;
 export type NewEmailDeliveryLog = typeof emailDeliveryLogs.$inferInsert;
 export type ErrorLog = typeof errorLogs.$inferSelect;

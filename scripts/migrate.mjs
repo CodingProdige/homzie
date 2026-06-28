@@ -2417,11 +2417,153 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS broadcast_campaigns (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      name text NOT NULL,
+      subject text NOT NULL,
+      preheader text,
+      status text NOT NULL DEFAULT 'draft',
+      channel text NOT NULL DEFAULT 'email',
+      audience jsonb NOT NULL DEFAULT '{}'::jsonb,
+      blocks jsonb NOT NULL DEFAULT '[]'::jsonb,
+      html text,
+      text text,
+      last_audience_count integer NOT NULL DEFAULT 0,
+      recipient_count integer NOT NULL DEFAULT 0,
+      sent_count integer NOT NULL DEFAULT 0,
+      delivered_count integer NOT NULL DEFAULT 0,
+      opened_count integer NOT NULL DEFAULT 0,
+      machine_open_count integer NOT NULL DEFAULT 0,
+      clicked_count integer NOT NULL DEFAULT 0,
+      unsubscribed_count integer NOT NULL DEFAULT 0,
+      bounced_count integer NOT NULL DEFAULT 0,
+      dropped_count integer NOT NULL DEFAULT 0,
+      spam_report_count integer NOT NULL DEFAULT 0,
+      scheduled_at timestamptz,
+      sent_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      updated_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+    )
+  `;
+
+  await sql`
+    ALTER TABLE broadcast_campaigns
+    ADD COLUMN IF NOT EXISTS machine_open_count integer NOT NULL DEFAULT 0
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_campaigns_status_idx
+    ON broadcast_campaigns (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_campaigns_created_at_idx
+    ON broadcast_campaigns (created_at)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_campaigns_created_by_idx
+    ON broadcast_campaigns (created_by_user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS broadcast_campaign_recipients (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      campaign_id uuid NOT NULL REFERENCES broadcast_campaigns(id) ON DELETE CASCADE,
+      user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      recipient_email text NOT NULL,
+      recipient_name text,
+      status text NOT NULL DEFAULT 'pending',
+      provider text NOT NULL DEFAULT 'sendgrid',
+      provider_message_id text,
+      error text,
+      sent_at timestamptz,
+      delivered_at timestamptz,
+      opened_at timestamptz,
+      clicked_at timestamptz,
+      bounced_at timestamptz,
+      dropped_at timestamptz,
+      unsubscribed_at timestamptz,
+      spam_reported_at timestamptz,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS broadcast_recipients_campaign_email_idx
+    ON broadcast_campaign_recipients (campaign_id, recipient_email)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_recipients_campaign_idx
+    ON broadcast_campaign_recipients (campaign_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_recipients_status_idx
+    ON broadcast_campaign_recipients (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_recipients_user_idx
+    ON broadcast_campaign_recipients (user_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS broadcast_campaign_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      campaign_id uuid NOT NULL REFERENCES broadcast_campaigns(id) ON DELETE CASCADE,
+      recipient_id uuid REFERENCES broadcast_campaign_recipients(id) ON DELETE SET NULL,
+      event_type text NOT NULL,
+      provider text NOT NULL DEFAULT 'sendgrid',
+      provider_event_id text,
+      provider_message_id text,
+      url text,
+      user_agent text,
+      ip text,
+      occurred_at timestamptz NOT NULL,
+      raw_event jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS broadcast_events_provider_event_idx
+    ON broadcast_campaign_events (provider_event_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_events_campaign_idx
+    ON broadcast_campaign_events (campaign_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_events_recipient_idx
+    ON broadcast_campaign_events (recipient_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_events_type_idx
+    ON broadcast_campaign_events (event_type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS broadcast_events_occurred_at_idx
+    ON broadcast_campaign_events (occurred_at)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS email_delivery_logs (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       template_key text NOT NULL,
       event_key text NOT NULL,
       user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      campaign_id uuid REFERENCES broadcast_campaigns(id) ON DELETE SET NULL,
+      campaign_recipient_id uuid REFERENCES broadcast_campaign_recipients(id) ON DELETE SET NULL,
       recipient_email text NOT NULL,
       subject text,
       provider text NOT NULL DEFAULT 'sendgrid',
@@ -2432,6 +2574,16 @@ try {
       sent_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now()
     )
+  `;
+
+  await sql`
+    ALTER TABLE email_delivery_logs
+    ADD COLUMN IF NOT EXISTS campaign_id uuid REFERENCES broadcast_campaigns(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE email_delivery_logs
+    ADD COLUMN IF NOT EXISTS campaign_recipient_id uuid REFERENCES broadcast_campaign_recipients(id) ON DELETE SET NULL
   `;
 
   await sql`
@@ -2447,6 +2599,11 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS email_delivery_logs_user_id_idx
     ON email_delivery_logs (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS email_delivery_logs_campaign_id_idx
+    ON email_delivery_logs (campaign_id)
   `;
 
   await sql`

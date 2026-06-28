@@ -38,6 +38,13 @@ const settingsItems = [
       "Control platform ad pricing, channel availability, and the forecast model users see in Ads Center.",
   },
   {
+    href: "/admin/broadcasts",
+    icon: Mail,
+    label: "Broadcasts",
+    description:
+      "Create campaign emails, target opted-in audiences, send tests, and review delivery analytics.",
+  },
+  {
     href: "/admin/settings/seo",
     icon: SearchCheck,
     label: "SEO",

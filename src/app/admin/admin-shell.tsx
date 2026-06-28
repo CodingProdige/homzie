@@ -11,6 +11,7 @@ import {
   Bug,
   Home,
   Mail,
+  Megaphone,
   Menu,
   Music,
   Settings,
@@ -51,6 +52,7 @@ const adminNavItems: Array<{
     showUnreadErrorLogCount: true,
   },
   { href: "/admin/music", icon: Music, label: "Music Library" },
+  { href: "/admin/broadcasts", icon: Megaphone, label: "Broadcasts" },
   { href: "/admin/email-templates", icon: Mail, label: "Email Templates" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];

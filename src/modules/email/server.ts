@@ -101,8 +101,11 @@ async function getTemplate(templateKey: string) {
 }
 
 async function logEmailDelivery({
+  campaignId,
+  campaignRecipientId,
   error,
   eventKey,
+  providerMessageId,
   recipientEmail,
   status,
   subject,
@@ -110,8 +113,11 @@ async function logEmailDelivery({
   userId,
   variables,
 }: {
+  campaignId?: string | null;
+  campaignRecipientId?: string | null;
   error?: string | null;
   eventKey: string;
+  providerMessageId?: string | null;
   recipientEmail: string;
   status: "sent" | "failed" | "skipped";
   subject?: string | null;
@@ -120,8 +126,11 @@ async function logEmailDelivery({
   variables: Record<string, unknown>;
 }) {
   await db.insert(emailDeliveryLogs).values({
+    campaignId: campaignId || null,
+    campaignRecipientId: campaignRecipientId || null,
     error: error || null,
     eventKey,
+    providerMessageId: providerMessageId || null,
     recipientEmail,
     sentAt: status === "sent" ? new Date() : null,
     status,
@@ -134,6 +143,10 @@ async function logEmailDelivery({
 
 export async function sendTemplatedEmailToUser({
   bypassPreferences = false,
+  campaignId,
+  campaignRecipientId,
+  categories,
+  customArgs,
   eventKey,
   preferenceCategory,
   templateKey,
@@ -141,6 +154,10 @@ export async function sendTemplatedEmailToUser({
   variables,
 }: {
   bypassPreferences?: boolean;
+  campaignId?: string | null;
+  campaignRecipientId?: string | null;
+  categories?: string[];
+  customArgs?: Record<string, string | number | boolean | null | undefined>;
   eventKey?: string;
   preferenceCategory?: EmailPreferenceCategory;
   templateKey: string;
@@ -164,6 +181,8 @@ export async function sendTemplatedEmailToUser({
 
   if (!template || !template.enabled) {
     await logEmailDelivery({
+      campaignId,
+      campaignRecipientId,
       error: template ? "Template disabled." : "Template not found.",
       eventKey: key,
       recipientEmail: recipient.email,
@@ -192,6 +211,8 @@ export async function sendTemplatedEmailToUser({
 
     if (!preferenceAllows(preferences, preferenceCategory, key)) {
       await logEmailDelivery({
+        campaignId,
+        campaignRecipientId,
         error: "User email preferences disabled this notification.",
         eventKey: key,
         recipientEmail: recipient.email,
@@ -213,7 +234,9 @@ export async function sendTemplatedEmailToUser({
   });
 
   try {
-    await sendSendGridEmail({
+    const delivery = await sendSendGridEmail({
+      categories,
+      customArgs,
       html: rendered.html,
       subject: rendered.subject,
       text: rendered.text,
@@ -221,7 +244,10 @@ export async function sendTemplatedEmailToUser({
     });
 
     await logEmailDelivery({
+      campaignId,
+      campaignRecipientId,
       eventKey: key,
+      providerMessageId: delivery.messageId,
       recipientEmail: recipient.email,
       status: "sent",
       subject: rendered.subject,
@@ -233,6 +259,8 @@ export async function sendTemplatedEmailToUser({
     return { ok: true as const };
   } catch (error) {
     await logEmailDelivery({
+      campaignId,
+      campaignRecipientId,
       error: error instanceof Error ? error.message : String(error),
       eventKey: key,
       recipientEmail: recipient.email,
@@ -251,6 +279,10 @@ export async function sendTemplatedEmailToUser({
 }
 
 export async function sendTemplatedEmailToAddress({
+  campaignId,
+  campaignRecipientId,
+  categories,
+  customArgs,
   eventKey,
   from,
   recipientEmail,
@@ -259,6 +291,10 @@ export async function sendTemplatedEmailToAddress({
   templateKey,
   variables,
 }: {
+  campaignId?: string | null;
+  campaignRecipientId?: string | null;
+  categories?: string[];
+  customArgs?: Record<string, string | number | boolean | null | undefined>;
   eventKey?: string;
   from?: { email: string; name?: string };
   recipientEmail: string;
@@ -272,6 +308,8 @@ export async function sendTemplatedEmailToAddress({
 
   if (!template || !template.enabled) {
     await logEmailDelivery({
+      campaignId,
+      campaignRecipientId,
       error: template ? "Template disabled." : "Template not found.",
       eventKey: key,
       recipientEmail,
@@ -291,7 +329,9 @@ export async function sendTemplatedEmailToAddress({
   });
 
   try {
-    await sendSendGridEmail({
+    const delivery = await sendSendGridEmail({
+      categories,
+      customArgs,
       from,
       html: rendered.html,
       replyTo,
@@ -301,7 +341,10 @@ export async function sendTemplatedEmailToAddress({
     });
 
     await logEmailDelivery({
+      campaignId,
+      campaignRecipientId,
       eventKey: key,
+      providerMessageId: delivery.messageId,
       recipientEmail,
       status: "sent",
       subject: rendered.subject,
@@ -312,6 +355,8 @@ export async function sendTemplatedEmailToAddress({
     return { ok: true as const };
   } catch (error) {
     await logEmailDelivery({
+      campaignId,
+      campaignRecipientId,
       error: error instanceof Error ? error.message : String(error),
       eventKey: key,
       recipientEmail,

@@ -6,6 +6,9 @@ type SendGridEmailAddress = {
 };
 
 type SendGridMessage = {
+  asmGroupId?: number;
+  categories?: string[];
+  customArgs?: Record<string, string | number | boolean | null | undefined>;
   to: SendGridEmailAddress | SendGridEmailAddress[];
   from?: SendGridEmailAddress;
   replyTo?: SendGridEmailAddress;
@@ -35,12 +38,32 @@ function normalizeRecipients(
   return Array.isArray(recipients) ? recipients : [recipients];
 }
 
+function normalizeCustomArgs(
+  customArgs?: Record<string, string | number | boolean | null | undefined>,
+) {
+  if (!customArgs) return undefined;
+
+  const entries = Object.entries(customArgs)
+    .filter((entry): entry is [string, string | number | boolean] => {
+      const [, value] = entry;
+
+      return value !== null && value !== undefined && value !== "";
+    })
+    .map(([key, value]) => [key, String(value)]);
+
+  if (entries.length === 0) return undefined;
+
+  return Object.fromEntries(entries);
+}
+
 export async function sendSendGridEmail(message: SendGridMessage) {
   const apiKey = process.env.SENDGRID_API_KEY;
 
   if (!apiKey) {
     throw new Error("SENDGRID_API_KEY is not configured.");
   }
+
+  const customArgs = normalizeCustomArgs(message.customArgs);
 
   const response = await fetch(sendGridEndpoint, {
     method: "POST",
@@ -52,10 +75,13 @@ export async function sendSendGridEmail(message: SendGridMessage) {
       personalizations: [
         {
           to: normalizeRecipients(message.to),
+          ...(customArgs ? { custom_args: customArgs } : {}),
         },
       ],
       from: message.from || getConfiguredSender(),
       ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+      ...(message.categories?.length ? { categories: message.categories.slice(0, 10) } : {}),
+      ...(message.asmGroupId ? { asm: { group_id: message.asmGroupId } } : {}),
       subject: message.subject,
       content: [
         { type: "text/plain", value: message.text },
@@ -68,4 +94,8 @@ export async function sendSendGridEmail(message: SendGridMessage) {
     const details = await response.text().catch(() => "");
     throw new Error(`SendGrid request failed with ${response.status}: ${details}`);
   }
+
+  return {
+    messageId: response.headers.get("x-message-id"),
+  };
 }
