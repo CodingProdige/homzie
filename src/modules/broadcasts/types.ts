@@ -14,6 +14,7 @@ export type BroadcastAudience = {
   hasListings?: boolean;
   hasReels?: boolean;
   province?: string;
+  requireMarketingOptIn?: boolean;
   role?: BroadcastAudienceRole;
 };
 

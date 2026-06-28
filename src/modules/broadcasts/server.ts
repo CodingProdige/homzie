@@ -82,6 +82,7 @@ export function normalizeBroadcastAudience(value: unknown): BroadcastAudience {
     hasListings: source.hasListings === true,
     hasReels: source.hasReels === true,
     province: cleanText(source.province, 120) || undefined,
+    requireMarketingOptIn: source.requireMarketingOptIn === true,
     role:
       role === "home_seeker" ||
       role === "private_seller" ||

@@ -57,7 +57,7 @@ type BroadcastImageUploadResult = {
 };
 
 const roleOptions = [
-  { label: "All opted-in users", value: "all" },
+  { label: "All email-enabled users", value: "all" },
   { label: "Home seekers", value: "home_seeker" },
   { label: "Private sellers", value: "private_seller" },
   { label: "Property agents", value: "property_agent" },
@@ -523,7 +523,7 @@ export function BroadcastComposer({
                 Audience
               </p>
               <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                Target opted-in users
+                Target email-enabled users
               </h2>
               <p className="mt-2 text-sm font-normal text-muted-foreground">
                 Current saved audience count: {initialAudienceCount}
@@ -636,6 +636,20 @@ export function BroadcastComposer({
                   type="checkbox"
                 />
                 Has reels
+              </label>
+              <label className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold">
+                <input
+                  checked={Boolean(audience.requireMarketingOptIn)}
+                  disabled={isLocked}
+                  onChange={(event) =>
+                    setAudience((current) => ({
+                      ...current,
+                      requireMarketingOptIn: event.target.checked,
+                    }))
+                  }
+                  type="checkbox"
+                />
+                Product updates only
               </label>
             </div>
           </div>

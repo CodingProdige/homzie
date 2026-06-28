@@ -25,8 +25,11 @@ function buildAudienceQuery(audience: BroadcastAudience, countOnly: boolean) {
     "u.email IS NOT NULL",
     "u.email <> ''",
     "COALESCE(p.email_enabled, true) = true",
-    "COALESCE(p.marketing_enabled, false) = true",
   ];
+
+  if (audience.requireMarketingOptIn) {
+    clauses.push("COALESCE(p.marketing_enabled, false) = true");
+  }
 
   const role = audience.role && audience.role !== "all" ? audience.role : "";
   if (role) {
