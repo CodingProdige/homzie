@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
   ImageIcon,
   Link2,
   Minus,
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
 import {
   defaultBroadcastBlocks,
   type BroadcastAudience,
+  type BroadcastAudienceRole,
   type BroadcastBlock,
 } from "@/modules/broadcasts/types";
 
@@ -56,13 +58,27 @@ type BroadcastImageUploadResult = {
   };
 };
 
+type BroadcastAudienceCountsResult = {
+  count?: number;
+  error?: string;
+  roleCounts?: Partial<Record<BroadcastAudienceRole, number>>;
+};
+
 const roleOptions = [
   { label: "All email-enabled users", value: "all" },
   { label: "Home seekers", value: "home_seeker" },
   { label: "Private sellers", value: "private_seller" },
   { label: "Property agents", value: "property_agent" },
   { label: "Developers", value: "developer" },
-];
+] satisfies Array<{ label: string; value: BroadcastAudienceRole }>;
+
+const emptyRoleCounts: Record<BroadcastAudienceRole, number> = {
+  all: 0,
+  developer: 0,
+  home_seeker: 0,
+  private_seller: 0,
+  property_agent: 0,
+};
 
 const blockOptions = [
   { icon: TextCursorInput, label: "Hero", type: "hero" },
@@ -186,6 +202,87 @@ function TextArea({
       rows={rows}
       value={value}
     />
+  );
+}
+
+function formatAudienceCount(count?: number) {
+  if (typeof count !== "number") return "...";
+
+  return count.toLocaleString("en-ZA");
+}
+
+function RoleSelect({
+  disabled,
+  loading,
+  onChange,
+  roleCounts,
+  value,
+}: {
+  disabled?: boolean;
+  loading?: boolean;
+  onChange: (value: BroadcastAudienceRole) => void;
+  roleCounts: Record<BroadcastAudienceRole, number>;
+  value: BroadcastAudienceRole;
+}) {
+  const selectedRole =
+    roleOptions.find((option) => option.value === value) || roleOptions[0];
+
+  return (
+    <DropdownMenu.Root modal={false}>
+      <DropdownMenu.Trigger asChild>
+        <button
+          aria-label="Select broadcast audience role"
+          className={cn(
+            "flex h-9 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-input bg-background px-3 text-left text-sm font-semibold shadow-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+            loading && "text-muted-foreground",
+          )}
+          disabled={disabled}
+          type="button"
+        >
+          <span className="min-w-0 truncate">{selectedRole.label}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+              {formatAudienceCount(roleCounts[value])}
+            </span>
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </span>
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          className="z-[130] w-[var(--radix-dropdown-menu-trigger-width)] min-w-72 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl"
+          sideOffset={8}
+        >
+          {roleOptions.map((option) => {
+            const isSelected = option.value === value;
+
+            return (
+              <DropdownMenu.Item
+                className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold outline-none transition-colors focus:bg-accent focus:text-accent-foreground"
+                key={option.value}
+                onSelect={() => onChange(option.value)}
+              >
+                <span className="grid size-4 shrink-0 place-items-center text-primary">
+                  {isSelected ? <Check className="size-4" /> : null}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-bold",
+                    isSelected
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {formatAudienceCount(roleCounts[option.value])}
+                </span>
+              </DropdownMenu.Item>
+            );
+          })}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 
@@ -336,6 +433,16 @@ export function BroadcastComposer({
     role: "all",
     ...initialAudience,
   });
+  const [audienceCount, setAudienceCount] = useState(initialAudienceCount);
+  const [audienceCountsLoading, setAudienceCountsLoading] = useState(false);
+  const [audienceCountsError, setAudienceCountsError] = useState("");
+  const [roleCounts, setRoleCounts] = useState<Record<BroadcastAudienceRole, number>>(
+    {
+      ...emptyRoleCounts,
+      [(initialAudience?.role || "all") as BroadcastAudienceRole]:
+        initialAudienceCount,
+    },
+  );
   const [blocks, setBlocks] = useState<BroadcastBlock[]>(
     initialBlocks?.length ? initialBlocks : defaultBroadcastBlocks,
   );
@@ -350,6 +457,51 @@ export function BroadcastComposer({
 
   const audienceJson = useMemo(() => JSON.stringify(audience), [audience]);
   const blocksJson = useMemo(() => JSON.stringify(blocks), [blocks]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setAudienceCountsLoading(true);
+      setAudienceCountsError("");
+
+      try {
+        const response = await fetch("/api/admin/broadcasts/audience-counts", {
+          body: JSON.stringify({ audience }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+          signal: controller.signal,
+        });
+        const result = (await response.json()) as BroadcastAudienceCountsResult;
+
+        if (!response.ok) {
+          throw new Error(result.error || "Could not update audience counts.");
+        }
+
+        setAudienceCount(result.count || 0);
+        setRoleCounts({
+          ...emptyRoleCounts,
+          ...result.roleCounts,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+
+        setAudienceCountsError(
+          error instanceof Error
+            ? error.message
+            : "Could not update audience counts.",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setAudienceCountsLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [audience, audienceJson]);
 
   function updateBlock<T extends BroadcastBlock>(
     block: T,
@@ -526,31 +678,36 @@ export function BroadcastComposer({
                 Target email-enabled users
               </h2>
               <p className="mt-2 text-sm font-normal text-muted-foreground">
-                Current saved audience count: {initialAudienceCount}
+                Current audience estimate:{" "}
+                <span className="font-semibold text-foreground">
+                  {audienceCountsLoading
+                    ? "Updating..."
+                    : formatAudienceCount(audienceCount)}
+                </span>
               </p>
+              {audienceCountsError ? (
+                <p className="mt-2 text-sm font-semibold text-destructive">
+                  {audienceCountsError}
+                </p>
+              ) : null}
             </div>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <FieldLabel>Role</FieldLabel>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+              <RoleSelect
                 disabled={isLocked}
-                onChange={(event) =>
+                loading={audienceCountsLoading}
+                onChange={(value) =>
                   setAudience((current) => ({
                     ...current,
-                    role: event.target.value as BroadcastAudience["role"],
+                    role: value,
                   }))
                 }
                 value={audience.role || "all"}
-              >
-                {roleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                roleCounts={roleCounts}
+              />
             </div>
             <div className="space-y-2">
               <FieldLabel>Country</FieldLabel>

@@ -2,7 +2,11 @@ import "server-only";
 
 import { sql } from "@/db";
 
-import type { BroadcastAudience, BroadcastRecipient } from "./types";
+import type {
+  BroadcastAudience,
+  BroadcastAudienceRole,
+  BroadcastRecipient,
+} from "./types";
 
 type AudienceRow = {
   email: string;
@@ -13,6 +17,14 @@ type AudienceRow = {
 type CountRow = {
   count: number;
 };
+
+const audienceRoles: BroadcastAudienceRole[] = [
+  "all",
+  "home_seeker",
+  "private_seller",
+  "property_agent",
+  "developer",
+];
 
 function cleanText(value?: string) {
   return value?.trim() || "";
@@ -103,6 +115,20 @@ export async function countBroadcastAudience(audience: BroadcastAudience) {
   const [row] = await sql.unsafe<CountRow[]>(query, params);
 
   return row?.count || 0;
+}
+
+export async function countBroadcastAudienceByRole(audience: BroadcastAudience) {
+  const entries = await Promise.all(
+    audienceRoles.map(async (role) => [
+      role,
+      await countBroadcastAudience({
+        ...audience,
+        role,
+      }),
+    ]),
+  );
+
+  return Object.fromEntries(entries) as Record<BroadcastAudienceRole, number>;
 }
 
 export async function getBroadcastAudienceRecipients(
