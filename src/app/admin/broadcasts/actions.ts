@@ -12,8 +12,8 @@ import { countBroadcastAudience } from "@/modules/broadcasts/audience";
 import {
   normalizeBroadcastAudience,
   normalizeBroadcastBlocks,
+  queueBroadcastCampaign,
   renderBroadcastParts,
-  sendBroadcastCampaign,
 } from "@/modules/broadcasts/server";
 import { defaultBroadcastBlocks } from "@/modules/broadcasts/types";
 import { authOptions } from "@/modules/auth/config";
@@ -271,14 +271,17 @@ export async function sendBroadcastCampaignAction(
   try {
     const admin = await requireAdminUser();
     const campaignId = z.string().uuid().parse(formValue(formData, "campaignId"));
-    const result = await sendBroadcastCampaign({ adminUserId: admin.id, campaignId });
+    const result = await queueBroadcastCampaign({
+      adminUserId: admin.id,
+      campaignId,
+    });
 
     revalidatePath("/admin/broadcasts");
     revalidatePath(`/admin/broadcasts/${campaignId}`);
 
     return {
       campaignId,
-      message: `Broadcast sent to ${result.sentCount} of ${result.recipientCount} recipients.`,
+      message: `Broadcast queued for ${result.recipientCount} recipients. Batches will send in the background.`,
       ok: true,
     };
   } catch (error) {

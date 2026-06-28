@@ -10,6 +10,7 @@ import {
   broadcastCampaigns,
 } from "@/db/schema";
 import {
+  getBroadcastSendProgress,
   normalizeBroadcastAudience,
   normalizeBroadcastBlocks,
 } from "@/modules/broadcasts/server";
@@ -91,7 +92,7 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
     notFound();
   }
 
-  const [recipients, events] = await Promise.all([
+  const [recipients, events, progress] = await Promise.all([
     db
       .select()
       .from(broadcastCampaignRecipients)
@@ -104,6 +105,7 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
       .where(eq(broadcastCampaignEvents.campaignId, campaign.id))
       .orderBy(desc(broadcastCampaignEvents.occurredAt))
       .limit(50),
+    getBroadcastSendProgress(campaign.id),
   ]);
 
   const audience = normalizeBroadcastAudience(campaign.audience);
@@ -151,7 +153,11 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
       </div>
 
       <div className="mb-6">
-        <BroadcastControls campaignId={campaign.id} status={campaign.status} />
+        <BroadcastControls
+          campaignId={campaign.id}
+          progress={progress}
+          status={campaign.status}
+        />
       </div>
 
       <BroadcastComposer

@@ -13,7 +13,7 @@ import { sendSendGridEmail } from "@/modules/email/sendgrid";
 
 import { getBroadcastAudienceRecipients } from "./audience";
 import { renderBroadcastEmail, renderBroadcastText } from "./render";
-import type { BroadcastAudience, BroadcastBlock } from "./types";
+import type { BroadcastAudience, BroadcastBlock, BroadcastRecipient } from "./types";
 
 type CampaignStatsRow = {
   bounced_count: number;
@@ -26,6 +26,31 @@ type CampaignStatsRow = {
   sent_count: number;
   spam_report_count: number;
   unsubscribed_count: number;
+};
+
+type BroadcastSendProgress = {
+  failedCount: number;
+  pendingCount: number;
+  processedCount: number;
+  processingCount: number;
+  sentCount: number;
+  totalCount: number;
+};
+
+type ClaimedBroadcastRecipientRow = {
+  id: string;
+  recipient_email: string;
+  recipient_name: string | null;
+  user_id: string | null;
+};
+
+type BroadcastProgressRow = {
+  failed_count: number;
+  pending_count: number;
+  processed_count: number;
+  processing_count: number;
+  sent_count: number;
+  total_count: number;
 };
 
 type SendGridEventPayload = {
@@ -304,54 +329,36 @@ async function logBroadcastDelivery({
   });
 }
 
-async function upsertRecipient({
-  campaignId,
-  email,
-  name,
-  userId,
-}: {
-  campaignId: string;
-  email: string;
-  name: string | null;
-  userId: string;
-}) {
-  const [recipient] = await db
-    .insert(broadcastCampaignRecipients)
-    .values({
-      campaignId,
-      recipientEmail: email,
-      recipientName: name,
-      status: "pending",
-      userId,
-    })
-    .onConflictDoUpdate({
-      target: [
-        broadcastCampaignRecipients.campaignId,
-        broadcastCampaignRecipients.recipientEmail,
-      ],
-      set: {
-        bouncedAt: null,
-        clickedAt: null,
-        deliveredAt: null,
-        droppedAt: null,
-        error: null,
-        openedAt: null,
-        providerMessageId: null,
-        recipientName: name,
-        sentAt: null,
-        spamReportedAt: null,
-        status: "pending",
-        unsubscribedAt: null,
-        updatedAt: new Date(),
-        userId,
-      },
-    })
-    .returning({ id: broadcastCampaignRecipients.id });
+async function insertRecipientSnapshot(
+  campaignId: string,
+  recipients: BroadcastRecipient[],
+) {
+  const chunkSize = 500;
 
-  return recipient;
+  for (let index = 0; index < recipients.length; index += chunkSize) {
+    const chunk = recipients.slice(index, index + chunkSize);
+
+    await db
+      .insert(broadcastCampaignRecipients)
+      .values(
+        chunk.map((recipient) => ({
+          campaignId,
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          status: "pending",
+          userId: recipient.userId,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [
+          broadcastCampaignRecipients.campaignId,
+          broadcastCampaignRecipients.recipientEmail,
+        ],
+      });
+  }
 }
 
-async function sendToRecipient({
+async function sendPreparedRecipient({
   campaignId,
   html,
   recipient,
@@ -360,37 +367,25 @@ async function sendToRecipient({
 }: {
   campaignId: string;
   html: string;
-  recipient: {
-    email: string;
-    name: string | null;
-    userId: string;
-  };
+  recipient: ClaimedBroadcastRecipientRow;
   subject: string;
   text: string;
 }) {
-  const recipientRow = await upsertRecipient({
-    campaignId,
-    email: recipient.email,
-    name: recipient.name,
-    userId: recipient.userId,
-  });
-
-  if (!recipientRow) {
-    throw new Error("Could not create campaign recipient.");
-  }
-
   try {
     const delivery = await sendSendGridEmail({
       categories: ["broadcast", `campaign-${campaignId.slice(0, 8)}`],
       customArgs: {
         campaign_id: campaignId,
-        campaign_recipient_id: recipientRow.id,
-        user_id: recipient.userId,
+        campaign_recipient_id: recipient.id,
+        ...(recipient.user_id ? { user_id: recipient.user_id } : {}),
       },
       html,
       subject,
       text,
-      to: { email: recipient.email, name: recipient.name || undefined },
+      to: {
+        email: recipient.recipient_email,
+        name: recipient.recipient_name || undefined,
+      },
     });
 
     await db
@@ -401,13 +396,13 @@ async function sendToRecipient({
         status: "sent",
         updatedAt: new Date(),
       })
-      .where(eq(broadcastCampaignRecipients.id, recipientRow.id));
+      .where(eq(broadcastCampaignRecipients.id, recipient.id));
 
     await logBroadcastDelivery({
       campaignId,
-      campaignRecipientId: recipientRow.id,
+      campaignRecipientId: recipient.id,
       providerMessageId: delivery.messageId,
-      recipientEmail: recipient.email,
+      recipientEmail: recipient.recipient_email,
       status: "sent",
       subject,
     });
@@ -423,13 +418,13 @@ async function sendToRecipient({
         status: "failed",
         updatedAt: new Date(),
       })
-      .where(eq(broadcastCampaignRecipients.id, recipientRow.id));
+      .where(eq(broadcastCampaignRecipients.id, recipient.id));
 
     await logBroadcastDelivery({
       campaignId,
-      campaignRecipientId: recipientRow.id,
+      campaignRecipientId: recipient.id,
       error: message,
-      recipientEmail: recipient.email,
+      recipientEmail: recipient.recipient_email,
       status: "failed",
       subject,
     });
@@ -448,7 +443,35 @@ async function runInChunks<T>(
   }
 }
 
-export async function sendBroadcastCampaign({
+export async function getBroadcastSendProgress(
+  campaignId: string,
+): Promise<BroadcastSendProgress> {
+  const [progress] = await postgresSql<BroadcastProgressRow[]>`
+    SELECT
+      COUNT(*)::int AS total_count,
+      COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count,
+      COUNT(*) FILTER (WHERE status = 'processing')::int AS processing_count,
+      COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_count,
+      COUNT(*) FILTER (WHERE sent_at IS NOT NULL)::int AS sent_count,
+      COUNT(*) FILTER (
+        WHERE sent_at IS NOT NULL
+           OR status IN ('failed', 'bounced', 'dropped', 'spam_reported', 'unsubscribed')
+      )::int AS processed_count
+    FROM broadcast_campaign_recipients
+    WHERE campaign_id = ${campaignId}
+  `;
+
+  return {
+    failedCount: progress?.failed_count || 0,
+    pendingCount: progress?.pending_count || 0,
+    processedCount: progress?.processed_count || 0,
+    processingCount: progress?.processing_count || 0,
+    sentCount: progress?.sent_count || 0,
+    totalCount: progress?.total_count || 0,
+  };
+}
+
+export async function queueBroadcastCampaign({
   adminUserId,
   campaignId,
 }: {
@@ -496,6 +519,7 @@ export async function sendBroadcastCampaign({
       html: rendered.html,
       lastAudienceCount: recipients.length,
       recipientCount: recipients.length,
+      scheduledAt: null,
       status: "sending",
       text: rendered.text,
       updatedAt: new Date(),
@@ -513,14 +537,82 @@ export async function sendBroadcastCampaign({
     throw new BroadcastCampaignBusyError(campaignId);
   }
 
+  await db
+    .delete(broadcastCampaignEvents)
+    .where(eq(broadcastCampaignEvents.campaignId, campaignId));
+  await db
+    .delete(broadcastCampaignRecipients)
+    .where(eq(broadcastCampaignRecipients.campaignId, campaignId));
+  await insertRecipientSnapshot(campaignId, recipients);
+  await refreshBroadcastCampaignStats(campaignId);
+
+  return {
+    recipientCount: recipients.length,
+  };
+}
+
+async function claimPendingBroadcastRecipients(campaignId: string, batchSize: number) {
+  return postgresSql<ClaimedBroadcastRecipientRow[]>`
+    UPDATE broadcast_campaign_recipients
+    SET status = 'processing', updated_at = NOW()
+    WHERE id IN (
+      SELECT id
+      FROM broadcast_campaign_recipients
+      WHERE campaign_id = ${campaignId}
+        AND (
+          status = 'pending'
+          OR (status = 'processing' AND updated_at < NOW() - INTERVAL '15 minutes')
+        )
+      ORDER BY created_at ASC, id ASC
+      LIMIT ${batchSize}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, user_id, recipient_email, recipient_name
+  `;
+}
+
+export async function processBroadcastCampaignBatch({
+  adminUserId,
+  batchSize = 25,
+  campaignId,
+}: {
+  adminUserId?: string | null;
+  batchSize?: number;
+  campaignId: string;
+}) {
+  const [campaign] = await db
+    .select()
+    .from(broadcastCampaigns)
+    .where(eq(broadcastCampaigns.id, campaignId))
+    .limit(1);
+
+  if (!campaign) {
+    throw new Error("Broadcast campaign not found.");
+  }
+
+  if (campaign.status !== "sending") {
+    return {
+      campaignId,
+      ok: true as const,
+      skipped: true as const,
+      status: campaign.status,
+    };
+  }
+
+  if (!campaign.html || !campaign.text) {
+    throw new Error("Broadcast content has not been rendered.");
+  }
+
+  const batch = await claimPendingBroadcastRecipients(campaignId, batchSize);
+
   try {
-    await runInChunks(recipients, 5, (recipient) =>
-      sendToRecipient({
+    await runInChunks(batch, 5, (recipient) =>
+      sendPreparedRecipient({
         campaignId,
-        html: rendered.html,
+        html: campaign.html || "",
         recipient,
         subject: campaign.subject,
-        text: rendered.text,
+        text: campaign.text || "",
       }),
     );
   } catch (error) {
@@ -537,29 +629,23 @@ export async function sendBroadcastCampaign({
   }
 
   await refreshBroadcastCampaignStats(campaignId);
+  const progress = await getBroadcastSendProgress(campaignId);
 
-  const [stats] = await postgresSql<CampaignStatsRow[]>`
-    SELECT
-      COUNT(*)::int AS recipient_count,
-      COUNT(*) FILTER (WHERE sent_at IS NOT NULL)::int AS sent_count,
-      COUNT(*) FILTER (WHERE delivered_at IS NOT NULL)::int AS delivered_count,
-      0::int AS machine_open_count,
-      COUNT(*) FILTER (WHERE opened_at IS NOT NULL)::int AS opened_count,
-      COUNT(*) FILTER (WHERE clicked_at IS NOT NULL)::int AS clicked_count,
-      COUNT(*) FILTER (WHERE unsubscribed_at IS NOT NULL)::int AS unsubscribed_count,
-      COUNT(*) FILTER (WHERE bounced_at IS NOT NULL)::int AS bounced_count,
-      COUNT(*) FILTER (WHERE dropped_at IS NOT NULL)::int AS dropped_count,
-      COUNT(*) FILTER (WHERE spam_reported_at IS NOT NULL)::int AS spam_report_count
-    FROM broadcast_campaign_recipients
-    WHERE campaign_id = ${campaignId}
-  `;
-  const sentCount = stats?.sent_count || 0;
+  if (progress.pendingCount > 0 || progress.processingCount > 0) {
+    return {
+      campaignId,
+      ok: true as const,
+      processedCount: batch.length,
+      progress,
+      queued: true as const,
+    };
+  }
 
   await db
     .update(broadcastCampaigns)
     .set({
-      sentAt: sentCount > 0 ? new Date() : null,
-      status: sentCount > 0 ? "sent" : "failed",
+      sentAt: progress.sentCount > 0 ? new Date() : null,
+      status: progress.sentCount > 0 ? "sent" : "failed",
       updatedAt: new Date(),
       updatedByUserId: adminUserId || null,
     })
@@ -568,8 +654,12 @@ export async function sendBroadcastCampaign({
   await refreshBroadcastCampaignStats(campaignId);
 
   return {
-    recipientCount: recipients.length,
-    sentCount,
+    campaignId,
+    ok: true as const,
+    processedCount: batch.length,
+    progress,
+    recipientCount: progress.totalCount,
+    sentCount: progress.sentCount,
   };
 }
 
@@ -701,7 +791,7 @@ export async function recordSendGridBroadcastEvents(events: unknown[]) {
 }
 
 export async function sendDueBroadcastCampaigns(limit = 3) {
-  const campaigns = await db
+  const dueCampaigns = await db
     .select({
       createdByUserId: broadcastCampaigns.createdByUserId,
       id: broadcastCampaigns.id,
@@ -718,14 +808,14 @@ export async function sendDueBroadcastCampaigns(limit = 3) {
 
   const results = [];
 
-  for (const campaign of campaigns) {
+  for (const campaign of dueCampaigns) {
     try {
-      const result = await sendBroadcastCampaign({
+      const result = await queueBroadcastCampaign({
         adminUserId: campaign.createdByUserId,
         campaignId: campaign.id,
       });
 
-      results.push({ campaignId: campaign.id, ok: true, ...result });
+      results.push({ campaignId: campaign.id, ok: true, queued: true, ...result });
     } catch (error) {
       if (error instanceof BroadcastCampaignBusyError) {
         results.push({
@@ -736,6 +826,42 @@ export async function sendDueBroadcastCampaigns(limit = 3) {
         continue;
       }
 
+      await db
+        .update(broadcastCampaigns)
+        .set({
+          status: "failed",
+          updatedAt: new Date(),
+        })
+        .where(eq(broadcastCampaigns.id, campaign.id));
+
+      results.push({
+        campaignId: campaign.id,
+        error: error instanceof Error ? error.message : String(error),
+        ok: false,
+      });
+    }
+  }
+
+  const sendingCampaigns = await db
+    .select({
+      createdByUserId: broadcastCampaigns.createdByUserId,
+      id: broadcastCampaigns.id,
+    })
+    .from(broadcastCampaigns)
+    .where(eq(broadcastCampaigns.status, "sending"))
+    .orderBy(asc(broadcastCampaigns.updatedAt))
+    .limit(limit);
+
+  for (const campaign of sendingCampaigns) {
+    try {
+      const result = await processBroadcastCampaignBatch({
+        adminUserId: campaign.createdByUserId,
+        batchSize: Number(process.env.BROADCAST_SEND_BATCH_SIZE || 25),
+        campaignId: campaign.id,
+      });
+
+      results.push(result);
+    } catch (error) {
       await db
         .update(broadcastCampaigns)
         .set({

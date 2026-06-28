@@ -1,7 +1,7 @@
 import { sql } from "../src/db";
 import { sendDueBroadcastCampaigns } from "../src/modules/broadcasts/server";
 
-const defaultIntervalMs = 10 * 60 * 1000;
+const defaultIntervalMs = 60 * 1000;
 const minimumIntervalMs = 60 * 1000;
 
 let isShuttingDown = false;
