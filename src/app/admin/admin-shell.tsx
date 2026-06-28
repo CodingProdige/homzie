@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -29,6 +29,10 @@ type AdminShellProps = {
   adminEmail: string;
   children: ReactNode;
   unreadErrorLogCount?: number;
+};
+type PendingAdminNavigation = {
+  fromPathname: string;
+  href: string;
 };
 
 const adminNavItems: Array<{
@@ -67,12 +71,38 @@ function AdminHomeButton({ compact = false }: { compact?: boolean }) {
 function AdminNav({
   onNavigate,
   pathname,
+  pendingNavigation,
+  setPendingNavigation,
   unreadErrorLogCount = 0,
 }: {
   onNavigate?: () => void;
   pathname: string;
+  pendingNavigation?: PendingAdminNavigation | null;
+  setPendingNavigation?: (navigation: PendingAdminNavigation | null) => void;
   unreadErrorLogCount?: number;
 }) {
+  function handleNavigate(
+    event: MouseEvent<HTMLAnchorElement>,
+    href: string,
+    isActive: boolean,
+  ) {
+    onNavigate?.();
+
+    if (
+      isActive ||
+      event.defaultPrevented ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      event.button !== 0
+    ) {
+      return;
+    }
+
+    setPendingNavigation?.({ fromPathname: pathname, href });
+  }
+
   return (
     <nav className="space-y-1" aria-label="Admin pages">
       {adminNavItems.map((item) => {
@@ -81,6 +111,10 @@ function AdminNav({
           item.href === "/admin"
             ? pathname === "/admin"
             : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const isPending =
+          pendingNavigation?.href === item.href &&
+          pendingNavigation.fromPathname === pathname &&
+          !isActive;
         const count = item.showUnreadErrorLogCount ? unreadErrorLogCount : 0;
 
         return (
@@ -88,17 +122,27 @@ function AdminNav({
             key={item.label}
             href={item.href}
             aria-current={isActive ? "page" : undefined}
-            onClick={onNavigate}
+            aria-busy={isPending || undefined}
+            onClick={(event) => handleNavigate(event, item.href, isActive)}
             className={cn(
               "flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none",
               isActive &&
                 "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus-visible:bg-primary/15 focus-visible:text-primary",
+              isPending && "bg-primary/8 text-primary",
             )}
           >
             <Icon className="size-4 shrink-0" />
             <span className="truncate">{item.label}</span>
+            {isPending ? (
+              <span className="ml-auto size-3 rounded-full border-2 border-primary/25 border-t-primary motion-safe:animate-spin" />
+            ) : null}
             {count > 0 ? (
-              <span className="ml-auto inline-flex min-w-5 justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+              <span
+                className={cn(
+                  "inline-flex min-w-5 justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground",
+                  !isPending && "ml-auto",
+                )}
+              >
                 {count > 99 ? "99+" : count}
               </span>
             ) : null}
@@ -111,11 +155,15 @@ function AdminNav({
 
 function AdminSidebar({
   adminEmail,
+  pendingNavigation,
   pathname,
+  setPendingNavigation,
   unreadErrorLogCount,
 }: {
   adminEmail: string;
+  pendingNavigation?: PendingAdminNavigation | null;
   pathname: string;
+  setPendingNavigation?: (navigation: PendingAdminNavigation | null) => void;
   unreadErrorLogCount: number;
 }) {
   return (
@@ -147,6 +195,8 @@ function AdminSidebar({
       <div className="mt-6 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
         <AdminNav
           pathname={pathname}
+          pendingNavigation={pendingNavigation}
+          setPendingNavigation={setPendingNavigation}
           unreadErrorLogCount={unreadErrorLogCount}
         />
       </div>
@@ -169,12 +219,16 @@ export function AdminShell({
 }: AdminShellProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] =
+    useState<PendingAdminNavigation | null>(null);
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
       <AdminSidebar
         adminEmail={adminEmail}
+        pendingNavigation={pendingNavigation}
         pathname={pathname}
+        setPendingNavigation={setPendingNavigation}
         unreadErrorLogCount={unreadErrorLogCount}
       />
 
@@ -218,6 +272,8 @@ export function AdminShell({
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
                   <AdminNav
                     pathname={pathname}
+                    pendingNavigation={pendingNavigation}
+                    setPendingNavigation={setPendingNavigation}
                     unreadErrorLogCount={unreadErrorLogCount}
                     onNavigate={() => setMenuOpen(false)}
                   />
