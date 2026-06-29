@@ -139,7 +139,7 @@ export default async function RootLayout({
         ) : null}
         <CurrencyProvider>
           <CountryPreferenceBootstrap />
-          <PushNotificationBootstrap />
+          <PushNotificationBootstrap enabled={Boolean(session?.user?.id)} />
           <PwaInstallBootstrap />
           <BrowserNotificationPrompt enabled={Boolean(session?.user?.id)} />
           <SiteStructuredData settingsPromise={seoPromise} siteUrl={siteUrl} />

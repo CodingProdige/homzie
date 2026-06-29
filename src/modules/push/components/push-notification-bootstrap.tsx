@@ -128,9 +128,13 @@ function onIdle(callback: () => void) {
   return () => globalThis.clearTimeout(timeoutId);
 }
 
-export function PushNotificationBootstrap() {
+export function PushNotificationBootstrap({ enabled }: { enabled: boolean }) {
   useEffect(() => {
-    if (!("Notification" in window) || Notification.permission !== "granted") {
+    if (
+      !enabled ||
+      !("Notification" in window) ||
+      Notification.permission !== "granted"
+    ) {
       return;
     }
 
@@ -139,7 +143,7 @@ export function PushNotificationBootstrap() {
         console.warn("[push] could not refresh browser subscription", error);
       });
     });
-  }, []);
+  }, [enabled]);
 
   return null;
 }
