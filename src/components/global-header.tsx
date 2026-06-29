@@ -40,6 +40,7 @@ import { EventCountBadge } from "@/modules/events/components/event-count-badge";
 import { ListingBuyerActivityCountBadge } from "@/modules/listings/components/listing-buyer-activity-count-badge";
 import { MessageCountBadge } from "@/modules/messages/components/message-count-badge";
 import { MessageRealtimePresence } from "@/modules/messages/components/message-realtime-presence";
+import { ActivityCountBadge } from "@/modules/notifications/components/activity-count-badge";
 import { InstallHomzieButton } from "@/modules/pwa/components/pwa-install";
 
 const navItems: Array<{
@@ -331,7 +332,7 @@ export function GlobalHeader({
               >
                 <Bell className="size-5" />
                 {viewerUsername ? (
-                  <EventCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground" />
+                  <ActivityCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground" />
                 ) : null}
               </Button>
             </DropdownMenu.Trigger>
