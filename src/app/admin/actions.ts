@@ -1,5 +1,7 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
@@ -1456,6 +1458,18 @@ function mergeGoogleAdsSettings(
   next.enabled = formBoolean(formData, "enabled");
   next.automationEnabled = formBoolean(formData, "automationEnabled");
   next.homzieFundedEnabled = formBoolean(formData, "homzieFundedEnabled");
+
+  if (next.enabled && !next.pageFeedToken) {
+    next.pageFeedToken = randomBytes(32).toString("base64url");
+  }
+
+  if (
+    next.enabled &&
+    next.homzieFundedEnabled &&
+    !next.homzieFundedPageFeedToken
+  ) {
+    next.homzieFundedPageFeedToken = randomBytes(32).toString("base64url");
+  }
 
   return next;
 }

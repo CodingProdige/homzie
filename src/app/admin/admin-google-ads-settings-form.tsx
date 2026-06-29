@@ -8,6 +8,7 @@ import {
   EyeOff,
   Globe2,
   KeyRound,
+  RefreshCw,
   Save,
   ShieldCheck,
   XCircle,
@@ -110,6 +111,58 @@ function ToggleField({
   );
 }
 
+function generateFeedToken() {
+  const bytes = new Uint8Array(32);
+
+  crypto.getRandomValues(bytes);
+
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function FeedTokenField({
+  id,
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          id={id}
+          name={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onChange(generateFeedToken())}
+          className="shrink-0"
+        >
+          <RefreshCw className="size-4" />
+          Generate
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SecretField({
   defaultValue,
   id,
@@ -160,6 +213,18 @@ export function AdminGoogleAdsSettingsForm({
   settings: AdminGoogleAdsSettingsView;
 }) {
   const [state, action] = useActionState(updateAdminGoogleAdsSettings, initialState);
+  const [pageFeedToken, setPageFeedToken] = useState(settings.pageFeedToken);
+  const [homzieFundedPageFeedToken, setHomzieFundedPageFeedToken] = useState(
+    settings.homzieFundedPageFeedToken,
+  );
+  const feedUrl = settings.feedUrl.replace(
+    settings.pageFeedToken || "YOUR_FEED_TOKEN",
+    pageFeedToken || "YOUR_FEED_TOKEN",
+  );
+  const homzieFundedFeedUrl = settings.homzieFundedFeedUrl.replace(
+    settings.homzieFundedPageFeedToken || "YOUR_HOMZIE_FEED_TOKEN",
+    homzieFundedPageFeedToken || "YOUR_HOMZIE_FEED_TOKEN",
+  );
 
   return (
     <form action={action} className="space-y-5">
@@ -219,18 +284,16 @@ export function AdminGoogleAdsSettingsForm({
             <Label htmlFor="pageFeedLabel">Page feed label</Label>
             <Input id="pageFeedLabel" name="pageFeedLabel" defaultValue={settings.pageFeedLabel} />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="pageFeedToken">Feed token</Label>
-            <Input
-              id="pageFeedToken"
-              name="pageFeedToken"
-              defaultValue={settings.pageFeedToken}
-              placeholder="Use a long random string"
-            />
-          </div>
+          <FeedTokenField
+            id="pageFeedToken"
+            label="Feed token"
+            value={pageFeedToken}
+            onChange={setPageFeedToken}
+            placeholder="Generate a protected feed token"
+          />
           <div className="grid gap-2 md:col-span-2">
             <Label htmlFor="feedPreview">User-paid protected feed URL</Label>
-            <Input id="feedPreview" readOnly value={settings.feedUrl} />
+            <Input id="feedPreview" readOnly value={feedUrl} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="customerId">Google Ads customer ID</Label>
@@ -305,15 +368,13 @@ export function AdminGoogleAdsSettingsForm({
               defaultValue={settings.homzieFundedPageFeedLabel}
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="homzieFundedPageFeedToken">Homzie-funded feed token</Label>
-            <Input
-              id="homzieFundedPageFeedToken"
-              name="homzieFundedPageFeedToken"
-              defaultValue={settings.homzieFundedPageFeedToken}
-              placeholder="Use a different long random string"
-            />
-          </div>
+          <FeedTokenField
+            id="homzieFundedPageFeedToken"
+            label="Homzie-funded feed token"
+            value={homzieFundedPageFeedToken}
+            onChange={setHomzieFundedPageFeedToken}
+            placeholder="Generate a protected Homzie-funded feed token"
+          />
           <div className="grid gap-2 md:col-span-2">
             <Label htmlFor="homzieFundedFeedPreview">
               Homzie-funded protected feed URL
@@ -321,7 +382,7 @@ export function AdminGoogleAdsSettingsForm({
             <Input
               id="homzieFundedFeedPreview"
               readOnly
-              value={settings.homzieFundedFeedUrl}
+              value={homzieFundedFeedUrl}
             />
           </div>
           <div className="grid gap-2 md:col-span-2">
