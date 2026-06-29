@@ -395,6 +395,11 @@ export function AdminGoogleAdsSettingsForm({
               defaultValue={settings.homzieFundedDsaCampaignId}
               placeholder="The numeric campaign ID from Google Ads"
             />
+            <p className="text-xs font-normal leading-5 text-muted-foreground">
+              Optional during setup. Save the feed first, create the Google Ads
+              campaign with this feed, then paste the campaign ID here so Homzie
+              can pause and resume it automatically.
+            </p>
           </div>
         </div>
       </section>

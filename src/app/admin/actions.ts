@@ -1506,9 +1506,6 @@ function validateGoogleAdsSettings(settings: GoogleAdsSettings) {
       return "Automation needs a refresh token, customer ID, and user-paid DSA campaign ID.";
     }
 
-    if (settings.homzieFundedEnabled && !settings.homzieFundedDsaCampaignId) {
-      return "Automation needs the Homzie-funded DSA campaign ID when the Homzie-funded feed is enabled.";
-    }
   }
 
   return null;
