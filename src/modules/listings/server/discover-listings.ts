@@ -581,6 +581,7 @@ export async function getDiscoverListings({
               | string
               | undefined,
           ) || imageUrls[0],
+        country: cleanParam(details.country as string),
         erfSize: numberValue(details.erfSize),
         features: stringArray(listing.features).slice(0, 10),
         floorSize: numberValue(details.floorSize),

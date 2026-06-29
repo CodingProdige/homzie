@@ -42,7 +42,8 @@ import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import {
   appendCountryPreference,
-  countryOptionForName,
+  countryFlagFromNameOrLocation,
+  countryPreferenceFromNameOrCode,
   countryPreferenceCookie,
   parseCountryPreference,
   type CountryPreference,
@@ -107,6 +108,13 @@ type HomeListingSummary = {
   location: string | null;
   media: unknown;
   propertyType: string;
+};
+
+type HomeAreaSummary = {
+  count: number;
+  country: string;
+  imageUrl: string;
+  title: string;
 };
 
 type TopAgent = {
@@ -195,6 +203,20 @@ function listingAreaName(listing: HomeListingSummary) {
   if (locationParts.length >= 2) return locationParts[0];
 
   return listing.location || "";
+}
+
+function listingCountryName(listing: HomeListingSummary) {
+  const details = metadataObject(listing.details);
+  const explicitCountry = stringValue(details.country);
+
+  if (explicitCountry) return explicitCountry;
+
+  const locationParts = (listing.location || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return locationParts[locationParts.length - 1] || "";
 }
 
 function listingCountLabel(count: number) {
@@ -401,8 +423,7 @@ async function getTopAgents(countryName?: string): Promise<TopAgent[]> {
         activeListingCount: totals.activeListingCount,
         avatarUrl: toPublicMediaUrl(agent.avatarUrl),
         headline: agent.headline,
-        location:
-          profileLocationLabel(agent) || countryName || "Homzie agent",
+        location: profileLocationLabel(agent) || "Homzie agent",
         locationCity: agent.locationCity,
         locationCountry: agent.locationCountry,
         locationProvince: agent.locationProvince,
@@ -447,7 +468,7 @@ function buildHomeListingStats(listings: HomeListingSummary[]) {
   const propertyTypeCounts = new Map<string, number>();
   const areasByKey = new Map<
     string,
-    { count: number; imageUrl: string; title: string }
+    HomeAreaSummary
   >();
 
   for (const listing of listings) {
@@ -464,11 +485,13 @@ function buildHomeListingStats(listings: HomeListingSummary[]) {
 
     if (!area) continue;
 
-    const key = area.toLowerCase();
+    const country = listingCountryName(listing);
+    const key = `${area.toLowerCase()}|${country.toLowerCase()}`;
     const existing = areasByKey.get(key);
 
     areasByKey.set(key, {
       count: (existing?.count || 0) + 1,
+      country: existing?.country || country,
       imageUrl: existing?.imageUrl || listingImageUrl(listing),
       title: existing?.title || area,
     });
@@ -638,8 +661,15 @@ function categoryHref(
   return appendCountryPreference(`/listings?${query}`, countryPreference);
 }
 
-function areaHref(area: string, countryPreference?: CountryPreference | null) {
-  return categoryHref({ area }, countryPreference);
+function areaHref(
+  area: string,
+  country?: string | null,
+  fallbackCountryPreference?: CountryPreference | null,
+) {
+  return categoryHref(
+    { area },
+    countryPreferenceFromNameOrCode(country) || fallbackCountryPreference,
+  );
 }
 
 function MediaCard({
@@ -721,6 +751,7 @@ async function TopAgentsSection({
                 displayName: agent.name,
                 headline: agent.headline,
                 location: agent.location,
+                locationCountry: agent.locationCountry,
                 publicPerformanceVisible: agent.publicPerformanceVisible,
                 soldCount: agent.soldCount,
                 totalSoldValueLabel: agent.totalSoldValueLabel,
@@ -777,6 +808,7 @@ async function PromotedHomeSections({
                     bathrooms: listing.bathrooms,
                     bedrooms: listing.bedrooms,
                     coverImageUrl: listing.coverImageUrl,
+                    country: listing.country,
                     erfSize: listing.erfSize,
                     floorSize: listing.floorSize,
                     garages: listing.garages,
@@ -825,6 +857,7 @@ async function PromotedHomeSections({
                     headline: profile.headline,
                     isPromoted: true,
                     location: profile.location,
+                    locationCountry: profile.locationCountry,
                     username: profile.username,
                   }}
                 />
@@ -881,7 +914,6 @@ async function BrowseHomeSections({
   const { listings: homeListings, usedCountryFallback } =
     await getHomeListingsWithFallback(countryLabel);
   const homeStats = buildHomeListingStats(homeListings);
-  const countryFlag = countryOptionForName(countryLabel)?.flag || "";
 
   return (
     <>
@@ -958,10 +990,10 @@ async function BrowseHomeSections({
                   compact
                   item={{
                     imageUrl: area.imageUrl,
-                    meta: `${countryFlag ? `${countryFlag} ` : ""}${listingCountLabel(area.count)}`,
+                    meta: `${countryFlagFromNameOrLocation(area.country)} ${listingCountLabel(area.count)}`.trim(),
                     showBadge: false,
                     title: area.title,
-                    href: areaHref(area.title, countryPreference),
+                    href: areaHref(area.title, area.country, countryPreference),
                   }}
                 />
               </div>

@@ -35,7 +35,7 @@ import {
 } from "@/modules/listings/actions";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import { mandateTypeOptions, type ListingType } from "@/modules/listings/options";
-import { countryFlagFromLocation } from "@/modules/location/country-preference";
+import { countryFlagFromNameOrLocation } from "@/modules/location/country-preference";
 import { getAnalyticsViewerSessionId } from "@/modules/analytics/browser-session";
 import {
   formatBathroomCount,
@@ -50,6 +50,7 @@ export type ListingCardData = {
   bedrooms?: number | string | null;
   buyerIncentive?: string | null;
   coverImageUrl?: string | null;
+  country?: string | null;
   erfSize?: number | string | null;
   features?: string[];
   floorSize?: number | string | null;
@@ -482,7 +483,10 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   const isReserved = listing.status === "reserved";
   const statusLabel = listing.statusLabel || "Reserved";
   const isUnavailableButNotReserved = listing.unavailable && !isReserved;
-  const locationFlag = countryFlagFromLocation(listing.location);
+  const locationFlag = countryFlagFromNameOrLocation(
+    listing.country,
+    listing.location,
+  );
   const stats = listingCardStats(listing);
 
   function trackCardAction(actionType: "card_click" | "hover") {

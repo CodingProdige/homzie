@@ -1,12 +1,13 @@
 import Link from "next/link";
 
-import { countryFlagFromLocation } from "@/modules/location/country-preference";
+import { countryFlagFromNameOrLocation } from "@/modules/location/country-preference";
 
 export type UserProfileCardData = {
   avatarUrl: string | null;
   displayName: string;
   headline: string | null;
   isPromoted?: boolean;
+  locationCountry?: string | null;
   location: string | null;
   publicPerformanceVisible?: boolean;
   soldCount?: number;
@@ -30,7 +31,10 @@ export function UserProfileCard({
   locked?: boolean;
   profile: UserProfileCardData;
 }) {
-  const locationFlag = countryFlagFromLocation(profile.location);
+  const locationFlag = countryFlagFromNameOrLocation(
+    profile.locationCountry,
+    profile.location,
+  );
   const href = locked
     ? `/register?callbackUrl=${encodeURIComponent(`/users/${profile.username}`)}`
     : `/users/${profile.username}`;

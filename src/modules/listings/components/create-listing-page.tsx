@@ -5959,6 +5959,7 @@ function ListingPreview({
     bedrooms: draft.bedrooms,
     buyerIncentive: draft.buyerIncentive,
     coverImageUrl: cover,
+    country: draft.country,
     erfSize: draft.erfSize,
     features: draft.features,
     floorSize: draft.floorSize,

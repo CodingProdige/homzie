@@ -85,6 +85,7 @@ export type PromotedListing = {
   id: string;
   href: string;
   title: string;
+  country: string | null;
   location: string | null;
   coverImageUrl: string | null;
   videoUrls: string[];
@@ -268,6 +269,7 @@ export async function getPromotedItems({
           title: r.title,
         }),
         title: r.title,
+        country: typeof details.country === "string" ? details.country : null,
         location: r.location,
         coverImageUrl: toPublicMediaUrl(r.coverImageUrl),
         videoUrls,

@@ -454,6 +454,7 @@ async function getProfileListings({
       buyerIncentive:
         typeof details.buyerIncentive === "string" ? details.buyerIncentive : "",
       coverImageUrl: listingCoverImageUrl(listing.coverImageUrl, listing.media),
+      country,
       erfSize: listingNumber(details.erfSize),
       features: listingStringArray(listing.features).slice(0, 10),
       floorSize: listingNumber(details.floorSize),
@@ -599,6 +600,7 @@ async function getSavedListings({
       buyerIncentive:
         typeof details.buyerIncentive === "string" ? details.buyerIncentive : "",
       coverImageUrl: listingCoverImageUrl(listing.coverImageUrl, listing.media),
+      country,
       erfSize: listingNumber(details.erfSize),
       features: listingStringArray(listing.features).slice(0, 10),
       floorSize: listingNumber(details.floorSize),

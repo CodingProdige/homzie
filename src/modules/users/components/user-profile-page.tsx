@@ -142,6 +142,7 @@ type ProfileListing = {
   bedrooms: number;
   buyerIncentive: string;
   coverImageUrl?: string | null;
+  country: string;
   erfSize: number;
   features: string[];
   floorSize: number;
@@ -1606,6 +1607,7 @@ function ProfileListingCard({
     bedrooms: listing.bedrooms,
     buyerIncentive: listing.buyerIncentive,
     coverImageUrl: listing.coverImageUrl,
+    country: listing.country,
     erfSize: listing.erfSize,
     features: listing.features,
     floorSize: listing.floorSize,

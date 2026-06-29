@@ -186,3 +186,40 @@ export function countryOptionFromLocation(value?: string | null) {
 export function countryFlagFromLocation(value?: string | null) {
   return countryOptionFromLocation(value)?.flag || "";
 }
+
+export function countryFlagFromNameOrLocation(
+  country?: string | null,
+  location?: string | null,
+) {
+  return (
+    countryOptionForName(country)?.flag ||
+    countryOptionForCode(country)?.flag ||
+    countryFlagFromLocation(location) ||
+    ""
+  );
+}
+
+export function countryPreferenceFromNameOrCode(
+  value?: string | null,
+): CountryPreference | null {
+  const option = countryOptionForName(value) || countryOptionForCode(value);
+
+  if (option) {
+    return {
+      country: option.country,
+      countryCode: option.countryCode,
+      label: option.country,
+      source: "detected",
+    };
+  }
+
+  const country = (value || "").trim();
+
+  if (!country) return null;
+
+  return {
+    country,
+    label: country,
+    source: "detected",
+  };
+}
