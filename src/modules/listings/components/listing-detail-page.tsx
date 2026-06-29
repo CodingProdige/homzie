@@ -43,6 +43,10 @@ import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AgencyBrandBadge } from "@/modules/agencies/components/agency-brand-badge";
+import {
+  trackGoogleAdsConversion,
+  trackGoogleEvent,
+} from "@/modules/analytics/gtag";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
   getListingLiveIntentAction,
@@ -1467,6 +1471,16 @@ function MakeOfferDialog({
                       note,
                     });
 
+                    trackGoogleEvent("offer_submitted", {
+                      currency,
+                      event_category: "listing",
+                      event_label: listing.id,
+                      listing_id: listing.id,
+                      value: amountCents / 100,
+                    });
+                    trackGoogleAdsConversion("offerSubmitted", {
+                      transaction_id: result.offerId,
+                    });
                     router.push(`/messages?conversation=${result.conversationId}`);
                   } catch (offerError) {
                     setError(
@@ -1522,6 +1536,14 @@ function SendListingMessageButton({
                 listingId: listing.id,
               });
 
+              trackGoogleEvent("buyer_message_sent", {
+                event_category: "listing",
+                event_label: listing.id,
+                listing_id: listing.id,
+              });
+              trackGoogleAdsConversion("buyerMessageSent", {
+                transaction_id: result.messageId || clientId,
+              });
               onSent?.();
               router.push(`/messages?conversation=${result.conversationId}`);
             } catch (messageError) {
@@ -1898,6 +1920,23 @@ export function ListingDetailPage({
       source: "listing_detail",
       viewerSessionId: getListingViewerSessionId(),
     });
+
+    if (
+      actionType === "call_agent" ||
+      actionType === "contact_agent" ||
+      actionType === "email_agent" ||
+      actionType === "whatsapp_agent"
+    ) {
+      trackGoogleEvent("listing_contact_clicked", {
+        contact_type: actionType,
+        event_category: "listing",
+        event_label: listing.id,
+        listing_id: listing.id,
+      });
+      trackGoogleAdsConversion("listingContactClicked", {
+        contact_type: actionType,
+      });
+    }
   };
   useEffect(() => {
     if (trackedListingViewRef.current === listing.id) return;

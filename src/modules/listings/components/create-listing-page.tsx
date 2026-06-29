@@ -58,6 +58,10 @@ import {
 } from "@/components/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  trackGoogleAdsConversion,
+  trackGoogleEvent,
+} from "@/modules/analytics/gtag";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
@@ -1450,11 +1454,23 @@ function ListingStrengthPanel({
 
 function ListingPublishSuccess({
   createAnotherPath,
+  listingId,
   listingPath,
 }: {
   createAnotherPath: string;
+  listingId: string;
   listingPath: string;
 }) {
+  useEffect(() => {
+    trackGoogleEvent("listing_published", {
+      event_category: "listing",
+      event_label: listingId,
+    });
+    trackGoogleAdsConversion("listingPublished", {
+      transaction_id: listingId,
+    });
+  }, [listingId]);
+
   return (
     <main className="min-h-dvh bg-background px-4 py-8 text-foreground sm:px-6">
       <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[720px] items-center justify-center">
@@ -2434,6 +2450,25 @@ export function CreateListingPage({
   }, [autosaveKey, publishedListingId]);
 
   useEffect(() => {
+    if (mode !== "create") return;
+
+    const storageKey = "homzie:create-listing-started-conversion:v1";
+
+    try {
+      if (window.sessionStorage.getItem(storageKey) === "true") return;
+      window.sessionStorage.setItem(storageKey, "true");
+    } catch {
+      return;
+    }
+
+    trackGoogleEvent("create_listing_started", {
+      event_category: "listing",
+      event_label: "new_listing_flow",
+    });
+    trackGoogleAdsConversion("createListingStarted");
+  }, [mode]);
+
+  useEffect(() => {
     if (
       !availablePropertyCategories.some(
         (option) => option.value === draft.propertyCategory,
@@ -2986,6 +3021,7 @@ export function CreateListingPage({
     return (
       <ListingPublishSuccess
         createAnotherPath="/listings/new"
+        listingId={publishedListingId}
         listingPath={`/listings/${publishedListingId}`}
       />
     );

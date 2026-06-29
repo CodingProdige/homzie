@@ -18,7 +18,10 @@ import { BadgeCheck, Check, LockKeyhole, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { trackGoogleEvent } from "@/modules/analytics/gtag";
+import {
+  trackGoogleAdsConversion,
+  trackGoogleEvent,
+} from "@/modules/analytics/gtag";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
   finalizeAgentSubscriptionCheckout,
@@ -133,6 +136,12 @@ function StripePaymentForm({
           plan_interval: selectedPlan,
           trial_days: trialApplied ? 7 : 0,
         });
+        trackGoogleAdsConversion(
+          trialApplied ? "agentTrialStarted" : "agentSubscriptionStarted",
+          {
+            transaction_id: finalized.subscriptionId,
+          },
+        );
         window.sessionStorage.setItem(
           "homzie-agent-payment-success",
           JSON.stringify({

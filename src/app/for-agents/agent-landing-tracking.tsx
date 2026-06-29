@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import type { ComponentProps } from "react";
 
-import { trackGoogleEvent } from "@/modules/analytics/gtag";
+import {
+  trackGoogleAdsConversion,
+  trackGoogleEvent,
+} from "@/modules/analytics/gtag";
 
 type AgentTrialLinkProps = ComponentProps<typeof Link> & {
   location: string;
@@ -31,6 +34,7 @@ export function AgentTrialLink({
             event_label: location,
             trial_days: 7,
           });
+          trackGoogleAdsConversion("agentSignupStarted");
         }
 
         onClick?.(event);

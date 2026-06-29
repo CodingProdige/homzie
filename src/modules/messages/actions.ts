@@ -222,6 +222,7 @@ export async function startListingInquiryAction(
   return {
     conversationId: result.conversationId,
     conversations: await getConversationSummaries(userId),
+    messageId: result.messageId,
     messages: await getConversationMessages(result.conversationId, userId),
   };
 }
