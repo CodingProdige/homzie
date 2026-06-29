@@ -1,3 +1,14 @@
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+const defaultNotificationIcon = "/favicon/web-app-manifest-192x192.png";
+const defaultNotificationBadge = "/favicon/favicon-96x96.png";
+
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -10,13 +21,17 @@ self.addEventListener("push", (event) => {
         title: "Open",
       },
     ],
-    badge: "/favicon/favicon-96x96.png",
+    badge: payload.badge || defaultNotificationBadge,
     body: payload.body,
     data: payload.data || {},
-    icon: "/favicon/web-app-manifest-512x512.png",
+    icon: payload.icon || defaultNotificationIcon,
     requireInteraction: payload.tag === "incoming-call",
     tag: payload.tag || "homzie-event",
   };
+
+  if (payload.image) {
+    options.image = payload.image;
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

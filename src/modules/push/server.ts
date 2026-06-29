@@ -4,8 +4,11 @@ import { sql } from "@/db";
 import type { NotificationPreferenceCategory } from "@/modules/notifications/registry";
 
 type NotificationPayload = {
+  badge?: string;
   body: string;
   data?: Record<string, string>;
+  icon?: string;
+  image?: string;
   tag?: string;
   title: string;
 };
@@ -23,6 +26,9 @@ type PushPreferenceRow = {
   push_enabled: boolean;
   reel_activity_enabled: boolean;
 };
+
+const defaultNotificationIcon = "/favicon/web-app-manifest-192x192.png";
+const defaultNotificationBadge = "/favicon/favicon-96x96.png";
 
 function pushPreferenceAllows(
   preferences: PushPreferenceRow | undefined,
@@ -116,6 +122,12 @@ export async function sendPushToUser(
   await Promise.all(
     subscriptions.map(async (subscription) => {
       try {
+        const notificationPayload: NotificationPayload = {
+          ...payload,
+          badge: payload.badge || defaultNotificationBadge,
+          icon: payload.icon || defaultNotificationIcon,
+        };
+
         await webpush.sendNotification(
           {
             endpoint: subscription.endpoint,
@@ -124,7 +136,7 @@ export async function sendPushToUser(
               p256dh: subscription.p256dh,
             },
           } satisfies PushSubscription,
-          JSON.stringify(payload),
+          JSON.stringify(notificationPayload),
         );
       } catch (error) {
         const statusCode =
