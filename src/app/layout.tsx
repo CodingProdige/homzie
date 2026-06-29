@@ -11,6 +11,7 @@ import { CurrencyProvider } from "@/modules/currency/currency-provider";
 import { BrowserNotificationPrompt } from "@/modules/push/components/browser-notification-prompt";
 import { PushNotificationBootstrap } from "@/modules/push/components/push-notification-bootstrap";
 import { PwaInstallBootstrap } from "@/modules/pwa/components/pwa-install";
+import { PlatformVisitorHeartbeat } from "@/modules/platform-stats/components/platform-visitor-heartbeat";
 import { getStoredSeoSettings } from "@/modules/seo/settings";
 import { absoluteUrl, getSiteUrl } from "@/modules/site/url";
 import "./globals.css";
@@ -139,6 +140,7 @@ export default async function RootLayout({
         ) : null}
         <CurrencyProvider>
           <CountryPreferenceBootstrap />
+          <PlatformVisitorHeartbeat />
           <PushNotificationBootstrap enabled={Boolean(session?.user?.id)} />
           <PwaInstallBootstrap />
           <BrowserNotificationPrompt enabled={Boolean(session?.user?.id)} />

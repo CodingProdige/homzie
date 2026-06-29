@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 
+import { getPlatformStats, type PlatformStats } from "@/modules/platform-stats/actions";
 import {
-  getPlatformStats,
-  heartbeatPlatformVisitor,
-  type PlatformStats,
-} from "@/modules/platform-stats/actions";
-
-const visitorSessionKey = "homzie.visitorSessionId";
+  platformStatsUpdatedEventName,
+  type PlatformStatsUpdatedEvent,
+} from "@/modules/platform-stats/events";
 
 type LivePlatformStatsProps = {
   initialStats: PlatformStats;
@@ -30,25 +28,6 @@ function formatSoldValue(cents: number) {
     notation: "compact",
     style: "currency",
   }).format(Math.max(0, cents) / 100);
-}
-
-function createVisitorId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `visitor-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-}
-
-function getVisitorId() {
-  const existing = sessionStorage.getItem(visitorSessionKey);
-
-  if (existing) return existing;
-
-  const next = createVisitorId();
-  sessionStorage.setItem(visitorSessionKey, next);
-
-  return next;
 }
 
 function onIdle(callback: () => void) {
@@ -101,11 +80,9 @@ export function LivePlatformStats({ initialStats }: LivePlatformStatsProps) {
   useEffect(() => {
     let mounted = true;
 
-    async function refresh(heartbeat = true) {
+    async function refresh() {
       try {
-        const nextStats = heartbeat
-          ? await heartbeatPlatformVisitor(getVisitorId())
-          : await getPlatformStats();
+        const nextStats = await getPlatformStats();
 
         if (mounted) {
           setStats(nextStats);
@@ -131,13 +108,23 @@ export function LivePlatformStats({ initialStats }: LivePlatformStatsProps) {
       }
     };
 
+    const handleStatsUpdated = (event: Event) => {
+      const customEvent = event as PlatformStatsUpdatedEvent;
+
+      if (mounted && customEvent.detail?.stats) {
+        setStats(customEvent.detail.stats);
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener(platformStatsUpdatedEventName, handleStatsUpdated);
 
     return () => {
       mounted = false;
       cancelInitialRefresh();
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(platformStatsUpdatedEventName, handleStatsUpdated);
     };
   }, []);
 
