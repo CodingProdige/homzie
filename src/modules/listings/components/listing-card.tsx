@@ -719,8 +719,11 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         {listing.agencyBrand ? (
           <AgencyBrandBadge
             brand={listing.agencyBrand}
-            className="absolute bottom-3 right-3 z-10 max-w-[calc(100%-1.5rem)] backdrop-blur"
-            size="sm"
+            className={cn(
+              "absolute right-3 z-10 max-w-[48%] backdrop-blur",
+              listing.buyerIncentive ? "bottom-20" : "bottom-8",
+            )}
+            size="card"
           />
         ) : null}
         {listing.id ? (
@@ -740,11 +743,11 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         ) : null}
         {!videoUrl && imageUrls.length > 1 ? (
           <div
-            className={
-              listing.buyerIncentive
-                ? "absolute inset-x-3 bottom-12 flex gap-1"
-                : "absolute inset-x-3 bottom-3 flex gap-1"
-            }
+            className={cn(
+              "absolute left-3 flex gap-1",
+              listing.agencyBrand ? "right-40" : "right-3",
+              listing.buyerIncentive ? "bottom-12" : "bottom-3",
+            )}
           >
             {imageUrls.map((imageUrl, index) => (
               <span
