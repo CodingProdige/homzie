@@ -80,12 +80,19 @@ export function controlRoomBasePathForAgencyType() {
 }
 
 export function canUseAgencyListingWorkspace(workspace: AgencyWorkspace | null) {
-  return Boolean(
-    workspace &&
-      workspace.agency.status === "active" &&
-      workspace.agency.agencyType !== "network" &&
-      workspace.membership.status === "active",
-  );
+  if (
+    !workspace ||
+    workspace.agency.agencyType === "network" ||
+    workspace.membership.status !== "active"
+  ) {
+    return false;
+  }
+
+  if (workspace.membership.accessType === "admin_support") {
+    return true;
+  }
+
+  return workspace.agency.status === "active";
 }
 
 export function agencyListingAccessFromWorkspace(
