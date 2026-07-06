@@ -17,9 +17,9 @@ import { AgentProfileAvatar } from "@/components/agent-profile-avatar";
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
-import { AgencyBrandBadge } from "@/modules/agencies/components/agency-brand-badge";
 import {
   getPublicAgencyProfile,
+  type PublicAgencyBrand,
   publicAgencyTypeLabel,
   type PublicAgencyAgent,
   type PublicAgencyProfile,
@@ -57,6 +57,51 @@ function StatCard({ helper, icon: Icon, label, value }: StatCardProps) {
       <p className="mt-3 text-sm font-normal leading-5 text-muted-foreground">
         {helper}
       </p>
+    </div>
+  );
+}
+
+function AgencyHeroBanner({
+  brand,
+  networkLabel,
+}: {
+  brand: PublicAgencyBrand;
+  networkLabel: string;
+}) {
+  const badgeStyle = brand.badgeStyle;
+  const hasLogo = Boolean(brand.logoUrl);
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-lg border border-border shadow-sm"
+      style={{
+        backgroundColor: badgeStyle.backgroundColor,
+        color: badgeStyle.textColor,
+        fontFamily: badgeStyle.fontFamily,
+        fontWeight: Number(badgeStyle.fontWeight),
+      }}
+    >
+      <div className="relative aspect-[2.8/1] min-h-32 sm:aspect-[4.5/1] lg:aspect-[6/1]">
+        {hasLogo ? (
+          <Image
+            src={brand.logoUrl || ""}
+            alt={`${brand.name} brand banner`}
+            fill
+            priority
+            sizes="(min-width: 1280px) 1180px, calc(100vw - 2rem)"
+            className="object-cover"
+          />
+        ) : (
+          <div className="grid size-full place-items-center px-6 text-center">
+            <span className="max-w-4xl truncate text-4xl font-black leading-none tracking-normal sm:text-6xl">
+              {brand.badgeLabel || brand.name}
+            </span>
+          </div>
+        )}
+      </div>
+      <span className="absolute left-4 top-4 rounded-full bg-background/95 px-3 py-1 text-xs font-semibold text-primary shadow-sm">
+        {networkLabel}
+      </span>
     </div>
   );
 }
@@ -440,15 +485,10 @@ export default async function AgencyProfilePage({ params }: AgencyProfilePagePro
         </Link>
 
         <section className="border-b border-border pb-8">
-          <div className="flex flex-wrap items-start justify-between gap-5">
+          <AgencyHeroBanner brand={agency.brand} networkLabel={networkLabel} />
+          <div className="mt-6 flex flex-wrap items-start justify-between gap-5">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <AgencyBrandBadge brand={agency.brand} />
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                  {networkLabel}
-                </span>
-              </div>
-              <h1 className="mt-4 max-w-4xl text-3xl font-semibold tracking-tight md:text-5xl">
+              <h1 className="max-w-4xl text-3xl font-semibold tracking-tight md:text-5xl">
                 {agency.name}
               </h1>
               <p className="mt-3 max-w-2xl text-sm font-normal leading-6 text-muted-foreground md:text-base">
