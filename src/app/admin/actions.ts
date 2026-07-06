@@ -51,6 +51,10 @@ import {
 } from "@/modules/seo/settings";
 import { hashPassword } from "@/modules/auth/password";
 import { normalizeUsername, validateUsername } from "@/modules/auth/username";
+import {
+  absoluteAppUrl,
+  sendTemplatedEmailToUser,
+} from "@/modules/email/server";
 
 export type AdminStripeSettingsState = {
   message: string;
@@ -161,6 +165,10 @@ function formNumber(formData: FormData, key: string, fallback: number) {
 
 function formBoolean(formData: FormData, key: string) {
   return formData.get(key) === "on";
+}
+
+function firstNameFromName(name: string) {
+  return name.split(/\s+/)[0] || name;
 }
 
 function formIndexingMode(formData: FormData, key: string): SeoIndexingMode {
@@ -495,6 +503,28 @@ export async function updateAdminProAccessOverride(
       throw new Error("Choose a user first.");
     }
 
+    const [existingUser] = await sql<
+      Array<{
+        name: string;
+        proAccessOverrideEnabled: boolean;
+        proAccessOverrideExpiresAt: string | null;
+        username: string | null;
+      }>
+    >`
+      SELECT
+        name,
+        username,
+        pro_access_override_enabled AS "proAccessOverrideEnabled",
+        pro_access_override_expires_at::text AS "proAccessOverrideExpiresAt"
+      FROM users
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+
+    if (!existingUser) {
+      throw new Error("Could not find that user.");
+    }
+
     let expiresAt: Date | null = null;
 
     if (enabled && expiresAtRaw) {
@@ -504,6 +534,14 @@ export async function updateAdminProAccessOverride(
         throw new Error("Choose a valid expiry date.");
       }
     }
+
+    const now = Date.now();
+    const hadActiveProOverride =
+      existingUser.proAccessOverrideEnabled &&
+      (!existingUser.proAccessOverrideExpiresAt ||
+        new Date(existingUser.proAccessOverrideExpiresAt).getTime() > now);
+    const grantWillBeActive =
+      enabled && (!expiresAt || expiresAt.getTime() > now);
 
     const [updatedUser] = await sql<Array<{ username: string | null }>>`
       UPDATE users
@@ -522,6 +560,49 @@ export async function updateAdminProAccessOverride(
       throw new Error("Could not find that user.");
     }
 
+    let notificationStatus: "not_sent" | "sent" | "not_delivered" = "not_sent";
+
+    if (grantWillBeActive && !hadActiveProOverride) {
+      const expiresLabel = expiresAt
+        ? new Intl.DateTimeFormat("en-ZA", {
+            dateStyle: "medium",
+            timeZone: "Africa/Johannesburg",
+          }).format(expiresAt)
+        : "No expiry date";
+
+      try {
+        const delivery = await sendTemplatedEmailToUser({
+          bypassPreferences: true,
+          categories: ["admin-pro-access"],
+          customArgs: {
+            event: "account.pro_access.granted",
+          },
+          eventKey: "account.pro_access.granted",
+          templateKey: "account.pro_access.granted",
+          userId,
+          variables: {
+            app: {
+              name: "Homzie",
+              url: absoluteAppUrl("/"),
+            },
+            pro: {
+              activityUrl: absoluteAppUrl("/listings/activity"),
+              expiresLabel,
+            },
+            user: {
+              firstName: firstNameFromName(existingUser.name),
+              name: existingUser.name,
+            },
+          },
+        });
+
+        notificationStatus = delivery.ok ? "sent" : "not_delivered";
+      } catch (error) {
+        console.error("[email] admin granted Pro access failed", error);
+        notificationStatus = "not_delivered";
+      }
+    }
+
     revalidatePath("/admin/users");
     revalidatePath("/listings/activity");
 
@@ -533,7 +614,11 @@ export async function updateAdminProAccessOverride(
     return {
       ok: true,
       message: enabled
-        ? "Admin granted Pro access is enabled."
+        ? notificationStatus === "sent"
+          ? "Admin granted Pro access is enabled. The user was emailed."
+          : notificationStatus === "not_delivered"
+            ? "Admin granted Pro access is enabled, but the email was not delivered."
+            : "Admin granted Pro access is enabled."
         : "Admin granted Pro access is disabled.",
     };
   } catch (error) {

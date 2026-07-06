@@ -133,6 +133,40 @@ export const defaultEmailTemplates = [
     ],
   },
   {
+    category: "Accounts",
+    description:
+      "Sent when a Homzie admin grants temporary or ongoing Pro access to a user profile.",
+    enabled: true,
+    html: `
+      <h1>Great news, {{user.firstName}}. Homzie Pro is active.</h1>
+      <p>The Homzie team has unlocked Pro access on your profile.</p>
+      <p>Use it while it is active to check buyer intent, listing activity, and performance signals across your listings.</p>
+      <p><strong>Access window:</strong> {{pro.expiresLabel}}</p>
+      <p><a class="button" href="{{pro.activityUrl}}">Open listing activity</a></p>
+      <p class="muted">This access was granted directly by Homzie and does not create a Stripe subscription, invoice, or payment method.</p>
+    `,
+    key: "account.pro_access.granted",
+    name: "Admin granted Pro access",
+    preheader: "Homzie Pro is active on your profile. Jump in while you have it.",
+    sampleVariables: {
+      app: { name: "Homzie", url: "https://homzie.co.za" },
+      pro: {
+        activityUrl: "https://homzie.co.za/listings/activity",
+        expiresLabel: "31 Jul 2026",
+      },
+      user: { firstName: "Dillon", name: "Dillon Jurgens" },
+    },
+    subject: "Homzie Pro is active on your profile",
+    text: "Great news, {{user.firstName}}. Homzie Pro is active on your profile. Use it while it is active to check buyer intent, listing activity, and performance signals: {{pro.activityUrl}} Access window: {{pro.expiresLabel}}",
+    variables: [
+      ...commonVariables,
+      { key: "user.firstName", label: "Recipient first name" },
+      { key: "user.name", label: "Recipient full name" },
+      { key: "pro.activityUrl", label: "Listing activity URL" },
+      { key: "pro.expiresLabel", label: "Pro access expiry label" },
+    ],
+  },
+  {
     category: "Agencies",
     description: "Sent when an agency invites a public agent into an agency-funded member seat.",
     enabled: true,
