@@ -4,7 +4,14 @@ import * as Dialog from "@radix-ui/react-dialog";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   Bath,
   BedDouble,
@@ -1825,6 +1832,7 @@ export function ListingDetailPage({
   viewerUsername?: string;
 }) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const [mediaViewerOpen, setMediaViewerOpen] = useState(false);
   const [liveIntent, setLiveIntent] = useState<LiveIntentState | null>(null);
   const [, startLiveIntentTransition] = useTransition();
   const trackedListingViewRef = useRef<string | null>(null);
@@ -2071,6 +2079,19 @@ export function ListingDetailPage({
       mediaItems.length ? (index + 1) % mediaItems.length : 0,
     );
   };
+  const handleMediaViewerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!showGalleryControls) return;
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      showPreviousMedia();
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      showNextMedia();
+    }
+  };
   const editListingAction = listing.isOwner ? (
     <Button asChild>
       <Link href={`/listings/${listing.id}/edit`}>
@@ -2149,20 +2170,30 @@ export function ListingDetailPage({
                     )}
                     controls
                     playsInline
-	                    preload="metadata"
-	                    onPlay={() => recordListingAction("media_video_play")}
-	                  />
-                ) : activeMedia?.url ? (
-                  <Image
-                    src={activeMedia.url}
-                    alt={listing.title}
-                    fill
-                    priority
-                    className={cn(
-                      "object-cover",
-                      listing.isUnavailableForViewer && "grayscale",
-                    )}
+                    preload="metadata"
+                    onPlay={() => recordListingAction("media_video_play")}
                   />
+                ) : activeMedia?.url ? (
+                  <button
+                    type="button"
+                    aria-label="Open listing media fullscreen"
+                    className="relative block size-full cursor-zoom-in overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                    onClick={() => {
+                      recordListingAction("media_thumbnail");
+                      setMediaViewerOpen(true);
+                    }}
+                  >
+                    <Image
+                      src={activeMedia.url}
+                      alt={listing.title}
+                      fill
+                      priority
+                      className={cn(
+                        "object-cover",
+                        listing.isUnavailableForViewer && "grayscale",
+                      )}
+                    />
+                  </button>
                 ) : (
                   <div className="grid size-full place-items-center text-muted-foreground">
                     <Upload className="size-10" />
@@ -2221,10 +2252,10 @@ export function ListingDetailPage({
                             ? "border-primary ring-2 ring-primary/25"
                             : "border-border",
                         )}
-	                        onClick={() => {
-	                          recordListingAction("media_thumbnail");
-	                          setActiveMediaIndex(index);
-	                        }}
+                        onClick={() => {
+                          recordListingAction("media_thumbnail");
+                          setActiveMediaIndex(index);
+                        }}
                       >
                         {isVideo ? (
                           <>
@@ -2259,6 +2290,131 @@ export function ListingDetailPage({
                 </div>
               ) : null}
             </div>
+            <Dialog.Root open={mediaViewerOpen} onOpenChange={setMediaViewerOpen}>
+              <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 z-[120] bg-black/95" />
+                <Dialog.Content
+                  className="fixed inset-0 z-[121] grid h-dvh w-screen grid-rows-[auto_minmax(0,1fr)_auto] bg-black text-white outline-none"
+                  onKeyDown={handleMediaViewerKeyDown}
+                >
+                  <Dialog.Title className="sr-only">Listing media viewer</Dialog.Title>
+                  <Dialog.Description className="sr-only">
+                    Fullscreen listing media gallery.
+                  </Dialog.Description>
+                  <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                      {safeActiveMediaIndex + 1} / {mediaItems.length || 1}
+                    </span>
+                    <Dialog.Close asChild>
+                      <button
+                        type="button"
+                        aria-label="Close media viewer"
+                        className="grid size-10 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                      >
+                        <X className="size-5" />
+                      </button>
+                    </Dialog.Close>
+                  </div>
+
+                  <div className="relative min-h-0 px-3 pb-3 sm:px-6 sm:pb-4">
+                    <div className="relative size-full overflow-hidden rounded-md bg-black">
+                      {activeMediaIsVideo && activeMedia ? (
+                        <video
+                          key={`viewer-${activeMedia.url}`}
+                          src={activeMedia.url}
+                          className="size-full object-contain"
+                          controls
+                          playsInline
+                          preload="metadata"
+                          onPlay={() => recordListingAction("media_video_play")}
+                        />
+                      ) : activeMedia?.url ? (
+                        <Image
+                          src={activeMedia.url}
+                          alt={listing.title}
+                          fill
+                          sizes="100vw"
+                          className="object-contain"
+                          priority
+                        />
+                      ) : (
+                        <div className="grid size-full place-items-center text-white/60">
+                          <Upload className="size-10" />
+                        </div>
+                      )}
+                    </div>
+                    {showGalleryControls ? (
+                      <>
+                        <button
+                          type="button"
+                          aria-label="Previous listing media"
+                          className="absolute left-4 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/15 text-white shadow-lg backdrop-blur transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-8"
+                          onClick={showPreviousMedia}
+                        >
+                          <ChevronLeft className="size-6" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Next listing media"
+                          className="absolute right-4 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/15 text-white shadow-lg backdrop-blur transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-8"
+                          onClick={showNextMedia}
+                        >
+                          <ChevronRight className="size-6" />
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+
+                  {showGalleryControls ? (
+                    <div className="flex max-w-full gap-2 overflow-x-auto border-t border-white/10 px-4 py-3 [scrollbar-width:thin] sm:px-6">
+                      {mediaItems.map((item, index) => {
+                        const isVideo = item.type.startsWith("video/");
+
+                        return (
+                          <button
+                            key={`viewer-thumb-${item.url}-${index}`}
+                            type="button"
+                            aria-label={`Show listing ${isVideo ? "video" : "image"} ${index + 1}`}
+                            className={cn(
+                              "relative h-16 w-24 shrink-0 overflow-hidden rounded-md border bg-white/10",
+                              index === safeActiveMediaIndex
+                                ? "border-white ring-2 ring-white/40"
+                                : "border-white/20",
+                            )}
+                            onClick={() => {
+                              recordListingAction("media_thumbnail");
+                              setActiveMediaIndex(index);
+                            }}
+                          >
+                            {isVideo ? (
+                              <>
+                                <video
+                                  src={item.url}
+                                  className="size-full object-cover"
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                />
+                                <span className="absolute inset-0 grid place-items-center bg-black/25 text-white">
+                                  <Play className="size-5 fill-current drop-shadow" />
+                                </span>
+                              </>
+                            ) : (
+                              <Image
+                                src={item.url}
+                                alt=""
+                                fill
+                                className="object-cover"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </Dialog.Content>
+              </Dialog.Portal>
+            </Dialog.Root>
 
             <section className="mt-8">
               <div className="flex items-start justify-between gap-4">
