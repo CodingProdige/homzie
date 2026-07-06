@@ -901,6 +901,16 @@ function normalizeDuplicateLocation(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function hasExactDuplicateLocationData(data: z.infer<typeof listingSchema>) {
+  if ((data.addressVisibility || "area") !== "exact") return false;
+
+  return Boolean(
+    data.googlePlaceId?.trim() ||
+      data.streetName?.trim() ||
+      data.streetNumber?.trim(),
+  );
+}
+
 async function findDuplicateActiveListing({
   data,
   userId,
@@ -908,6 +918,10 @@ async function findDuplicateActiveListing({
   data: z.infer<typeof listingSchema>;
   userId: string;
 }) {
+  if (!hasExactDuplicateLocationData(data)) {
+    return null;
+  }
+
   const normalizedLocation = normalizeDuplicateLocation(data.location);
 
   if (
