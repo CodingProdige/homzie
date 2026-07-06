@@ -817,7 +817,10 @@ function AgencyHomeCard({ agency }: { agency: AgencyDirectoryItem }) {
       className="group block w-60 shrink-0 text-card-foreground sm:w-72"
     >
       <div
-        className="relative grid aspect-[5/3] place-items-center overflow-hidden rounded-lg border border-border p-6 shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md"
+        className={[
+          "relative grid aspect-[5/3] overflow-hidden rounded-lg border border-border shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md",
+          hasLogo ? "p-0" : "place-items-center p-6",
+        ].join(" ")}
         style={
           hasLogo
             ? {
@@ -837,9 +840,9 @@ function AgencyHomeCard({ agency }: { agency: AgencyDirectoryItem }) {
           <Image
             src={agency.brand.logoUrl || ""}
             alt={`${agency.name} logo`}
-            width={320}
-            height={144}
-            className="max-h-20 w-full object-contain"
+            fill
+            sizes="(min-width: 640px) 18rem, 15rem"
+            className="object-cover"
           />
         ) : (
           <>
