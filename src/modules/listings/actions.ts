@@ -18,6 +18,7 @@ import {
   listingSaves,
   listingViewEvents,
   propertyIdentities,
+  propertyListingAgents,
   propertyListingStatusHistory,
   propertyListings,
   propertyOffers,
@@ -68,6 +69,7 @@ import {
   getDiscoverListings,
   type DiscoverListingFilters,
 } from "@/modules/listings/server/discover-listings";
+import { createAgencyActivityEvent } from "@/modules/agencies/activity";
 import { completeListingReservationPayment } from "@/modules/listings/reservations";
 import {
   assertCanEditListingForUser,
@@ -75,7 +77,7 @@ import {
   resolveAgencyListingSubmission,
   syncListingAgentAssignments,
 } from "@/modules/listings/agency-listing-access";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 const maxListingImageBytes = 15 * 1024 * 1024;
 const maxListingVideoBytes = 80 * 1024 * 1024;
@@ -310,6 +312,163 @@ const listingLiveIntentSchema = z.object({
   listingId: listingIdSchema,
 });
 const listingPresenceWindowSeconds = 5 * 60;
+
+type ListingActivityListing = {
+  agencyId: string | null;
+  id: string;
+  title: string;
+  userId: string;
+};
+
+type ListingActivityContext = {
+  isInternalViewer: boolean;
+  userIds: string[];
+};
+
+type AgencyListingActivitySeverity =
+  | "action_required"
+  | "info"
+  | "success"
+  | "warning";
+
+function listingActivityActionHref(listing: ListingActivityListing) {
+  return listing.agencyId
+    ? `/listings/${listing.id}/activity?from=controlroom`
+    : `/listings/${listing.id}/activity`;
+}
+
+async function getListingActivityContext(
+  listing: ListingActivityListing,
+  viewerUserId: string | null | undefined,
+): Promise<ListingActivityContext> {
+  const assignedRows = await db
+    .select({ userId: propertyListingAgents.userId })
+    .from(propertyListingAgents)
+    .innerJoin(users, eq(users.id, propertyListingAgents.userId))
+    .where(
+      and(
+        eq(propertyListingAgents.listingId, listing.id),
+        eq(users.status, "active"),
+        isNull(propertyListingAgents.removedAt),
+      ),
+    );
+  const recipientIds = new Set<string>([listing.userId]);
+
+  for (const row of assignedRows) {
+    recipientIds.add(row.userId);
+  }
+
+  let isAgencyInternalViewer = false;
+
+  if (viewerUserId && listing.agencyId && !recipientIds.has(viewerUserId)) {
+    const [internalRow] = await rawSql<{ is_internal: boolean }[]>`
+      SELECT (
+        EXISTS (
+          SELECT 1
+          FROM agency_members
+          WHERE agency_id = ${listing.agencyId}
+            AND user_id = ${viewerUserId}
+            AND status = 'active'
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM agency_employees
+          WHERE agency_id = ${listing.agencyId}
+            AND user_id = ${viewerUserId}
+            AND status = 'active'
+        )
+      ) AS is_internal
+    `;
+
+    isAgencyInternalViewer = Boolean(internalRow?.is_internal);
+  }
+
+  return {
+    isInternalViewer: Boolean(
+      viewerUserId &&
+        (recipientIds.has(viewerUserId) || isAgencyInternalViewer),
+    ),
+    userIds: Array.from(recipientIds).filter((userId) => userId !== viewerUserId),
+  };
+}
+
+async function createListingActivityUserEvents(
+  context: ListingActivityContext,
+  event: Omit<Parameters<typeof createUserEvent>[0], "userId">,
+) {
+  await Promise.all(
+    context.userIds.map((userId) =>
+      createUserEvent({
+        ...event,
+        userId,
+      }),
+    ),
+  );
+}
+
+async function createListingActivityUserEventsOnce(
+  context: ListingActivityContext,
+  event: Omit<Parameters<typeof createUserEventOnce>[0], "userId">,
+) {
+  await Promise.all(
+    context.userIds.map((userId) =>
+      createUserEventOnce({
+        ...event,
+        userId,
+      }),
+    ),
+  );
+}
+
+async function createAgencyListingActivityEventOnce({
+  actorUserId,
+  body,
+  dedupeKey,
+  eventType,
+  listing,
+  metadata,
+  severity = "info",
+  title,
+}: {
+  actorUserId?: string | null;
+  body: string;
+  dedupeKey: string;
+  eventType: string;
+  listing: ListingActivityListing;
+  metadata?: Record<string, unknown>;
+  severity?: AgencyListingActivitySeverity;
+  title: string;
+}) {
+  if (!listing.agencyId) return;
+
+  const [existing] = await rawSql<{ id: string }[]>`
+    SELECT id
+    FROM agency_activity_events
+    WHERE agency_id = ${listing.agencyId}
+      AND event_type = ${eventType}
+      AND metadata->>'dedupeKey' = ${dedupeKey}
+    LIMIT 1
+  `;
+
+  if (existing) return;
+
+  await createAgencyActivityEvent({
+    actionHref: listingActivityActionHref(listing),
+    actionLabel: "Open buyer activity",
+    actorUserId: actorUserId || null,
+    agencyId: listing.agencyId,
+    body,
+    eventType,
+    metadata: {
+      ...(metadata || {}),
+      dedupeKey,
+      listingId: listing.id,
+      listingTitle: listing.title,
+    },
+    severity,
+    title,
+  });
+}
 
 const titleImprovementSchema = z.object({
   description: z.string().trim().max(10_000).optional(),
@@ -3152,6 +3311,7 @@ export async function getListingOfferStatsAction(
 async function getTrackableListing(listingId: string, viewerUserId?: string | null) {
   const [listing] = await db
     .select({
+      agencyId: propertyListings.agencyId,
       id: propertyListings.id,
       status: propertyListings.status,
       title: propertyListings.title,
@@ -3187,8 +3347,10 @@ export async function trackListingView(input: unknown) {
     return { ok: false as const };
   }
 
-  if (viewerUserId && listing.userId === viewerUserId) {
-    return { ok: true as const, skippedOwner: true as const };
+  const activityContext = await getListingActivityContext(listing, viewerUserId);
+
+  if (activityContext.isInternalViewer) {
+    return { ok: true as const, skippedInternal: true as const };
   }
 
   if (parsed.data.viewInstanceId) {
@@ -3222,15 +3384,26 @@ export async function trackListingView(input: unknown) {
     .where(eq(listingViewEvents.listingId, parsed.data.listingId));
   const milestone = viewMilestoneForCount(count);
 
-  if (milestone && listing.userId !== viewerUserId) {
-    await createUserEventOnce({
+  if (milestone) {
+    const dedupeKey = `listing:${listing.id}:views:${milestone}`;
+    const metadata = { count: milestone, listingTitle: listing.title };
+
+    await createListingActivityUserEventsOnce(activityContext, {
       dedupeKey: `listing:${listing.id}:views:${milestone}`,
       entityId: listing.id,
       entityType: "listing",
       eventType: "listing.views.milestone",
       listingId: listing.id,
-      metadata: { count: milestone, listingTitle: listing.title },
-      userId: listing.userId,
+      metadata,
+    });
+    await createAgencyListingActivityEventOnce({
+      body: `${listing.title} reached ${milestone.toLocaleString()} views.`,
+      dedupeKey,
+      eventType: "listing.views.milestone",
+      listing,
+      metadata,
+      severity: "success",
+      title: "Listing views milestone",
     });
   }
 
@@ -3253,8 +3426,10 @@ export async function trackListingPresence(input: unknown) {
       return { ok: false as const };
     }
 
-    if (viewerUserId && listing.userId === viewerUserId) {
-      return { ok: true as const, skippedOwner: true as const };
+    const activityContext = await getListingActivityContext(listing, viewerUserId);
+
+    if (activityContext.isInternalViewer) {
+      return { ok: true as const, skippedInternal: true as const };
     }
 
     const now = new Date();
@@ -3287,19 +3462,32 @@ export async function trackListingPresence(input: unknown) {
         },
       });
 
-    await createUserEventOnce({
+    const activeViewerDedupeKey =
+      `listing:${listing.id}:active-viewer:${viewerKey}:${notificationBucket}`;
+    const activeViewerMetadata = {
+      listingTitle: listing.title,
+      source: parsed.data.source || "listing_detail",
+      viewerKey,
+    };
+
+    await createListingActivityUserEventsOnce(activityContext, {
       actorUserId: viewerUserId,
-      dedupeKey: `listing:${listing.id}:active-viewer:${viewerKey}:${notificationBucket}`,
+      dedupeKey: activeViewerDedupeKey,
       entityId: listing.id,
       entityType: "listing",
       eventType: "listing.buyer_intent.active_viewer",
       listingId: listing.id,
-      metadata: {
-        listingTitle: listing.title,
-        source: parsed.data.source || "listing_detail",
-        viewerKey,
-      },
-      userId: listing.userId,
+      metadata: activeViewerMetadata,
+    });
+    await createAgencyListingActivityEventOnce({
+      actorUserId: viewerUserId,
+      body: `A buyer is viewing ${listing.title} right now.`,
+      dedupeKey: activeViewerDedupeKey,
+      eventType: "listing.buyer_intent.active_viewer",
+      listing,
+      metadata: activeViewerMetadata,
+      severity: "action_required",
+      title: "Buyer active now",
     });
 
     if (viewerUserId && listing.userId !== viewerUserId) {
@@ -3314,21 +3502,34 @@ export async function trackListingPresence(input: unknown) {
             eq(listingViewEvents.viewerUserId, viewerUserId),
             eq(listingViewEvents.source, "listing_detail"),
           ),
-        );
+      );
 
       if ([3, 5, 10].includes(buyerViewCount)) {
-        await createUserEventOnce({
+        const repeatViewDedupeKey =
+          `listing:${listing.id}:buyer:${viewerUserId}:repeat-views:${buyerViewCount}`;
+        const repeatViewMetadata = {
+          listingTitle: listing.title,
+          viewCount: buyerViewCount,
+        };
+
+        await createListingActivityUserEventsOnce(activityContext, {
           actorUserId: viewerUserId,
-          dedupeKey: `listing:${listing.id}:buyer:${viewerUserId}:repeat-views:${buyerViewCount}`,
+          dedupeKey: repeatViewDedupeKey,
           entityId: listing.id,
           entityType: "listing",
           eventType: "listing.buyer_intent.repeat_view",
           listingId: listing.id,
-          metadata: {
-            listingTitle: listing.title,
-            viewCount: buyerViewCount,
-          },
-          userId: listing.userId,
+          metadata: repeatViewMetadata,
+        });
+        await createAgencyListingActivityEventOnce({
+          actorUserId: viewerUserId,
+          body: `A buyer has viewed ${listing.title} ${buyerViewCount} times.`,
+          dedupeKey: repeatViewDedupeKey,
+          eventType: "listing.buyer_intent.repeat_view",
+          listing,
+          metadata: repeatViewMetadata,
+          severity: "action_required",
+          title: "Repeat buyer view",
         });
       }
     }
@@ -3347,17 +3548,29 @@ export async function trackListingPresence(input: unknown) {
       );
 
     if (activeViewerCount >= 3) {
-      await createUserEventOnce({
-        dedupeKey: `listing:${listing.id}:active-viewers:${activeViewerCount}:${notificationBucket}`,
+      const activeViewersDedupeKey =
+        `listing:${listing.id}:active-viewers:${activeViewerCount}:${notificationBucket}`;
+      const activeViewersMetadata = {
+        activeViewerCount,
+        listingTitle: listing.title,
+      };
+
+      await createListingActivityUserEventsOnce(activityContext, {
+        dedupeKey: activeViewersDedupeKey,
         entityId: listing.id,
         entityType: "listing",
         eventType: "listing.buyer_intent.active_viewers",
         listingId: listing.id,
-        metadata: {
-          activeViewerCount,
-          listingTitle: listing.title,
-        },
-        userId: listing.userId,
+        metadata: activeViewersMetadata,
+      });
+      await createAgencyListingActivityEventOnce({
+        body: `${listing.title} has ${activeViewerCount.toLocaleString()} active viewers right now.`,
+        dedupeKey: activeViewersDedupeKey,
+        eventType: "listing.buyer_intent.active_viewers",
+        listing,
+        metadata: activeViewersMetadata,
+        severity: "action_required",
+        title: "Buyers active now",
       });
     }
 
@@ -3592,8 +3805,10 @@ export async function trackListingAction(input: unknown) {
     return { ok: false as const };
   }
 
-  if (viewerUserId && listing.userId === viewerUserId) {
-    return { ok: true as const, skippedOwner: true as const };
+  const activityContext = await getListingActivityContext(listing, viewerUserId);
+
+  if (activityContext.isInternalViewer) {
+    return { ok: true as const, skippedInternal: true as const };
   }
 
   await db.insert(listingActionEvents).values({
@@ -3611,19 +3826,37 @@ export async function trackListingAction(input: unknown) {
       parsed.data.actionType,
     )
   ) {
-    await createUserEvent({
+    const contactMetadata = {
+      actionType: parsed.data.actionType,
+      listingTitle: listing.title,
+      source: parsed.data.source || "listing_detail",
+    };
+
+    await createListingActivityUserEvents(activityContext, {
       actorUserId: viewerUserId,
       entityId: listing.id,
       entityType: "listing",
       eventType: "listing.contacted",
       listingId: listing.id,
-      metadata: {
-        actionType: parsed.data.actionType,
-        listingTitle: listing.title,
-        source: parsed.data.source || "listing_detail",
-      },
-      userId: listing.userId,
+      metadata: contactMetadata,
     });
+
+    if (listing.agencyId) {
+      await createAgencyActivityEvent({
+        actionHref: listingActivityActionHref(listing),
+        actionLabel: "Open buyer activity",
+        actorUserId: viewerUserId,
+        agencyId: listing.agencyId,
+        body: `A buyer contacted an agent about ${listing.title}.`,
+        eventType: "listing.contacted",
+        metadata: {
+          ...contactMetadata,
+          listingId: listing.id,
+        },
+        severity: "action_required",
+        title: "Buyer contacted agent",
+      });
+    }
   }
 
   const buyerActivityLabel =
@@ -3634,21 +3867,33 @@ export async function trackListingAction(input: unknown) {
 
   if (buyerActivityLabel && !contactActionAlreadyNotified) {
     const viewerKey = viewerUserId || parsed.data.viewerSessionId;
+    const dedupeKey =
+      `listing:${listing.id}:buyer-activity:${parsed.data.actionType}:${viewerKey}`;
+    const buyerActivityMetadata = {
+      actionType: parsed.data.actionType,
+      listingTitle: listing.title,
+      reason: buyerActivityLabel,
+      source: parsed.data.source || "listing_detail",
+    };
 
-    await createUserEventOnce({
+    await createListingActivityUserEventsOnce(activityContext, {
       actorUserId: viewerUserId,
-      dedupeKey: `listing:${listing.id}:buyer-activity:${parsed.data.actionType}:${viewerKey}`,
+      dedupeKey,
       entityId: listing.id,
       entityType: "listing",
       eventType: "listing.buyer_activity",
       listingId: listing.id,
-      metadata: {
-        actionType: parsed.data.actionType,
-        listingTitle: listing.title,
-        reason: buyerActivityLabel,
-        source: parsed.data.source || "listing_detail",
-      },
-      userId: listing.userId,
+      metadata: buyerActivityMetadata,
+    });
+    await createAgencyListingActivityEventOnce({
+      actorUserId: viewerUserId,
+      body: `${buyerActivityLabel} on ${listing.title}.`,
+      dedupeKey,
+      eventType: "listing.buyer_activity",
+      listing,
+      metadata: buyerActivityMetadata,
+      severity: "info",
+      title: "New buyer activity",
     });
   }
 

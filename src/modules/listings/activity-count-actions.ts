@@ -17,12 +17,16 @@ export async function getUnreadListingBuyerActivityCountAction() {
   if (!(await hasBuyerIntentAccess(userId))) return 0;
 
   const [row] = await sql<{ count: number }[]>`
-    WITH owned_listings AS (
-      SELECT id
-      FROM property_listings
-      WHERE user_id = ${userId}
-        AND status = 'published'
-        AND archived_at IS NULL
+    WITH accessible_listings AS (
+      SELECT DISTINCT pl.id
+      FROM property_listings pl
+      LEFT JOIN property_listing_agents pla
+        ON pla.listing_id = pl.id
+        AND pla.user_id = ${userId}
+        AND pla.removed_at IS NULL
+      WHERE (pl.user_id = ${userId} OR pla.user_id IS NOT NULL)
+        AND pl.status = 'published'
+        AND pl.archived_at IS NULL
     ),
     activity_rows AS (
       SELECT
@@ -30,7 +34,7 @@ export async function getUnreadListingBuyerActivityCountAction() {
         coalesce(lve.viewer_user_id::text, lve.viewer_session_id) AS viewer_key,
         lve.created_at
       FROM listing_view_events lve
-      JOIN owned_listings ol ON ol.id = lve.listing_id
+      JOIN accessible_listings al ON al.id = lve.listing_id
       WHERE lve.viewer_user_id IS NULL OR lve.viewer_user_id <> ${userId}
       UNION ALL
       SELECT
@@ -38,7 +42,7 @@ export async function getUnreadListingBuyerActivityCountAction() {
         coalesce(lae.viewer_user_id::text, lae.viewer_session_id) AS viewer_key,
         lae.created_at
       FROM listing_action_events lae
-      JOIN owned_listings ol ON ol.id = lae.listing_id
+      JOIN accessible_listings al ON al.id = lae.listing_id
       WHERE lae.viewer_user_id IS NULL OR lae.viewer_user_id <> ${userId}
     ),
     viewer_latest AS (
@@ -66,12 +70,16 @@ export async function clearAllListingBuyerActivityAction() {
   if (!userId) return;
 
   await sql`
-    WITH owned_listings AS (
-      SELECT id
-      FROM property_listings
-      WHERE user_id = ${userId}
-        AND status = 'published'
-        AND archived_at IS NULL
+    WITH accessible_listings AS (
+      SELECT DISTINCT pl.id
+      FROM property_listings pl
+      LEFT JOIN property_listing_agents pla
+        ON pla.listing_id = pl.id
+        AND pla.user_id = ${userId}
+        AND pla.removed_at IS NULL
+      WHERE (pl.user_id = ${userId} OR pla.user_id IS NOT NULL)
+        AND pl.status = 'published'
+        AND pl.archived_at IS NULL
     ),
     activity_rows AS (
       SELECT
@@ -79,7 +87,7 @@ export async function clearAllListingBuyerActivityAction() {
         coalesce(lve.viewer_user_id::text, lve.viewer_session_id) AS viewer_key,
         lve.created_at
       FROM listing_view_events lve
-      JOIN owned_listings ol ON ol.id = lve.listing_id
+      JOIN accessible_listings al ON al.id = lve.listing_id
       WHERE lve.viewer_user_id IS NULL OR lve.viewer_user_id <> ${userId}
       UNION ALL
       SELECT
@@ -87,7 +95,7 @@ export async function clearAllListingBuyerActivityAction() {
         coalesce(lae.viewer_user_id::text, lae.viewer_session_id) AS viewer_key,
         lae.created_at
       FROM listing_action_events lae
-      JOIN owned_listings ol ON ol.id = lae.listing_id
+      JOIN accessible_listings al ON al.id = lae.listing_id
       WHERE lae.viewer_user_id IS NULL OR lae.viewer_user_id <> ${userId}
     ),
     viewer_latest AS (

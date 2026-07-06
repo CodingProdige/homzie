@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Listing Buyer Activity | Homzie",
   description:
-    "Monitor realtime buyer activity across your own Homzie listings.",
+    "Monitor realtime buyer activity across Homzie listings you own or are assigned to.",
 };
 
 type ListingActivityOverviewPageProps = {
@@ -734,7 +734,7 @@ function LockedListingActivityState({
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
                 Your listings can stay live for free. Go Pro when you want to see
                 active buyers, buyer events, AI insights, and chat opportunities
-                across the listings you own.
+                across listings you own or are assigned to.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button asChild>
@@ -789,27 +789,35 @@ export default async function ListingActivityOverviewPage({
 
   const [countRows, listingRows, analyticsRows, insightRows] = await Promise.all([
     sql<{ total_rows: number }[]>`
-      SELECT count(*)::int AS total_rows
-      FROM property_listings
-      WHERE user_id = ${userId}
-        AND status = 'published'
-        AND archived_at IS NULL
+      SELECT count(DISTINCT pl.id)::int AS total_rows
+      FROM property_listings pl
+      LEFT JOIN property_listing_agents pla
+        ON pla.listing_id = pl.id
+        AND pla.user_id = ${userId}
+        AND pla.removed_at IS NULL
+      WHERE (pl.user_id = ${userId} OR pla.user_id IS NOT NULL)
+        AND pl.status = 'published'
+        AND pl.archived_at IS NULL
     `,
     sql<ListingActivityOverviewRow[]>`
       WITH listing_page AS (
         SELECT
-          id,
-          title,
-          location,
-          cover_image_url,
-          price_label,
-          status,
-          listed_at
-        FROM property_listings
-        WHERE user_id = ${userId}
-          AND status = 'published'
-          AND archived_at IS NULL
-        ORDER BY listed_at DESC, created_at DESC
+          pl.id,
+          pl.title,
+          pl.location,
+          pl.cover_image_url,
+          pl.price_label,
+          pl.status,
+          pl.listed_at
+        FROM property_listings pl
+        LEFT JOIN property_listing_agents pla
+          ON pla.listing_id = pl.id
+          AND pla.user_id = ${userId}
+          AND pla.removed_at IS NULL
+        WHERE (pl.user_id = ${userId} OR pla.user_id IS NOT NULL)
+          AND pl.status = 'published'
+          AND pl.archived_at IS NULL
+        ORDER BY pl.listed_at DESC, pl.created_at DESC
         LIMIT ${pageSize}
         OFFSET ${offset}
       ),
@@ -925,11 +933,15 @@ export default async function ListingActivityOverviewPage({
     `,
     sql<ListingActivityAnalyticsRow[]>`
       WITH owned_listings AS (
-        SELECT id
-        FROM property_listings
-        WHERE user_id = ${userId}
-          AND status = 'published'
-          AND archived_at IS NULL
+        SELECT DISTINCT pl.id
+        FROM property_listings pl
+        LEFT JOIN property_listing_agents pla
+          ON pla.listing_id = pl.id
+          AND pla.user_id = ${userId}
+          AND pla.removed_at IS NULL
+        WHERE (pl.user_id = ${userId} OR pla.user_id IS NOT NULL)
+          AND pl.status = 'published'
+          AND pl.archived_at IS NULL
       ),
       activity_rows AS (
         SELECT
@@ -1006,11 +1018,15 @@ export default async function ListingActivityOverviewPage({
     `,
     sql<ListingPortfolioInsightRow[]>`
       WITH owned_listings AS (
-        SELECT id, title
-        FROM property_listings
-        WHERE user_id = ${userId}
-          AND status = 'published'
-          AND archived_at IS NULL
+        SELECT DISTINCT pl.id, pl.title
+        FROM property_listings pl
+        LEFT JOIN property_listing_agents pla
+          ON pla.listing_id = pl.id
+          AND pla.user_id = ${userId}
+          AND pla.removed_at IS NULL
+        WHERE (pl.user_id = ${userId} OR pla.user_id IS NOT NULL)
+          AND pl.status = 'published'
+          AND pl.archived_at IS NULL
       ),
       views AS (
         SELECT
@@ -1334,7 +1350,7 @@ export default async function ListingActivityOverviewPage({
                 Realtime buyers on your listings
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Monitor buyer activity across listings you own. This is not the
+                Monitor buyer activity across listings you own or are assigned to. This is not the
                 future global active buyers discovery page.
               </p>
             </div>
@@ -1344,7 +1360,7 @@ export default async function ListingActivityOverviewPage({
 
         <section className="mt-5 grid overflow-hidden rounded-lg border border-border bg-card shadow-sm md:grid-cols-4">
           <AnalyticsStat
-            description="Across listings you own"
+            description="Across listings you own or are assigned to"
             icon={UsersRound}
             label="Potential buyers active now"
             tone={analytics.active_viewer_count > 0 ? "green" : "purple"}
