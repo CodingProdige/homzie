@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
-import { Building2, ReceiptText, UsersRound } from "lucide-react";
+import { Building2, ReceiptText, ShieldOff, UsersRound } from "lucide-react";
 
 import { BackButton } from "@/components/back-button";
 import {
   formatAgencyBillingMoney,
   getAdminAgencyBillingOverview,
+  listAdminAgencyBillingBypassAgencies,
 } from "@/modules/agencies/billing";
 import {
   AdminAgencyBillingSettingsForm,
   type AdminAgencyBillingSettingsView,
 } from "../../admin-agency-billing-settings-form";
+import { AdminAgencyBillingBypassManager } from "../../admin-agency-billing-bypass-manager";
 
 export const metadata: Metadata = {
   title: "Agency Billing Settings | Homzie Admin",
@@ -48,11 +50,19 @@ function SummaryMetric({
 }
 
 export default async function AdminAgencyBillingSettingsPage() {
-  const overview = await getAdminAgencyBillingOverview();
+  const [overview, bypassAgencies] = await Promise.all([
+    getAdminAgencyBillingOverview(),
+    listAdminAgencyBillingBypassAgencies(),
+  ]);
   const settings: AdminAgencyBillingSettingsView = {
     currency: overview.currency,
     seatPriceRands: overview.unitAmountCents / 100,
   };
+  const bypassAgencyViews = bypassAgencies.map((agency) => ({
+    ...agency,
+    billingBypassUpdatedAt:
+      agency.billingBypassUpdatedAt?.toISOString() || null,
+  }));
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
@@ -74,7 +84,7 @@ export default async function AdminAgencyBillingSettingsPage() {
         <AdminAgencyBillingSettingsForm settings={settings} />
       </section>
 
-      <div className="mt-6 grid gap-5 md:grid-cols-3">
+      <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <SummaryMetric
           title="Agencies"
           value={String(overview.agencyCount)}
@@ -84,8 +94,14 @@ export default async function AdminAgencyBillingSettingsPage() {
         <SummaryMetric
           title="Billable seats"
           value={String(overview.billableSeats)}
-          description="Current non-removed agency member seats across the platform."
+          description="Current non-removed seats that are not bypassed."
           icon={<UsersRound className="size-5" />}
+        />
+        <SummaryMetric
+          title="Bypassed"
+          value={String(overview.bypassedSeats)}
+          description={`${overview.billingBypassCount} agencies currently bypass seat billing.`}
+          icon={<ShieldOff className="size-5" />}
         />
         <SummaryMetric
           title="Projected monthly"
@@ -97,6 +113,8 @@ export default async function AdminAgencyBillingSettingsPage() {
           icon={<ReceiptText className="size-5" />}
         />
       </div>
+
+      <AdminAgencyBillingBypassManager agencies={bypassAgencyViews} />
     </main>
   );
 }

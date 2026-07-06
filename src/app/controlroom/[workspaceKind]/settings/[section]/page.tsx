@@ -275,6 +275,14 @@ export default async function ControlRoomSettingsPage({
       };
   const settingsPath = `/controlroom/${kind}/settings`;
   const currentSection = sectionMeta[section];
+  const billingStatusLabel = billingSnapshot?.billingBypassEnabled
+    ? "Billing bypassed"
+    : billingSnapshot?.billingConfigured
+      ? "Billing ready"
+      : "Billing required";
+  const billingDescription = billingSnapshot?.billingBypassEnabled
+    ? "Homzie admin bypass is active for this agency. Agency-funded seats stay connected, but automated seat charges are paused until billing is switched on again."
+    : "Billing starts when the first agency-funded seat is connected. Each invoice covers the maximum seats used in that 30-day cycle, not the seat count on billing day.";
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
@@ -620,14 +628,12 @@ export default async function ControlRoomSettingsPage({
               </p>
               <h2 className="mt-2 text-xl font-semibold">Agency-funded member seats</h2>
               <p className="mt-2 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
-                Billing starts when the first agency-funded seat is connected. Each
-                invoice covers the maximum seats used in that 30-day cycle, not the
-                seat count on billing day.
+                {billingDescription}
               </p>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-normal text-muted-foreground">
               <CreditCard className="size-4 text-primary" />
-              {billingSnapshot.billingConfigured ? "Billing ready" : "Billing required"}
+              {billingStatusLabel}
             </span>
           </div>
 
@@ -673,12 +679,17 @@ export default async function ControlRoomSettingsPage({
           </div>
 
           <p className="mt-4 text-sm font-normal leading-6 text-muted-foreground">
-            {billingSnapshot.billingCycleActive
+            {billingSnapshot.billingBypassEnabled
+              ? `Billing bypass is active, so the current projected invoice is ${formatAgencyBillingMoney(0, billingSnapshot.currency)}.`
+              : billingSnapshot.billingCycleActive
               ? `Current 30-day cycle: ${formatAgencyBillingPeriod(billingSnapshot.periodStart, billingSnapshot.periodEnd)}.`
               : "No active billing cycle yet. The first 30-day cycle starts when an agency-funded seat is connected."}{" "}
             Invited, active, and suspended members reserve agency-funded seats until
             removed. If all agency-funded seats are removed, billing stops after the
             final active cycle is settled.
+            {billingSnapshot.billingBypassReason
+              ? ` Reason: ${billingSnapshot.billingBypassReason}.`
+              : ""}
           </p>
 
           <div className="mt-5">

@@ -228,6 +228,18 @@ export const agencies = pgTable(
     billingOwnerUserId: uuid("billing_owner_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    seatBillingBypassEnabled: boolean("seat_billing_bypass_enabled")
+      .notNull()
+      .default(false),
+    seatBillingBypassReason: text("seat_billing_bypass_reason"),
+    seatBillingBypassUpdatedAt: timestamp("seat_billing_bypass_updated_at", {
+      withTimezone: true,
+    }),
+    seatBillingBypassUpdatedByUserId: uuid(
+      "seat_billing_bypass_updated_by_user_id",
+    ).references(() => users.id, {
+      onDelete: "set null",
+    }),
     settings: jsonb("settings").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -244,6 +256,9 @@ export const agencies = pgTable(
     index("agencies_status_idx").on(table.status),
     index("agencies_created_by_user_id_idx").on(table.createdByUserId),
     index("agencies_billing_owner_user_id_idx").on(table.billingOwnerUserId),
+    index("agencies_seat_billing_bypass_enabled_idx").on(
+      table.seatBillingBypassEnabled,
+    ),
   ],
 );
 

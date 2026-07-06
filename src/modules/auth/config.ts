@@ -8,7 +8,10 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ingestGoogleAvatar } from "@/media/avatar-ingest";
 import { toPublicMediaUrl, toStoredMediaPath } from "@/media/paths";
-import { claimPendingAgencyEmployeeInvitesForUser } from "@/modules/agencies/server";
+import {
+  claimPendingAgencyEmployeeInvitesForUser,
+  claimPendingAgencyMemberInvitesForUser,
+} from "@/modules/agencies/server";
 import { verifyPassword } from "./password";
 import { authCookieOptions, authSessionCookieName } from "./session-cookie";
 
@@ -125,6 +128,10 @@ export const authOptions: NextAuthOptions = {
           email,
           userId: existingUser.id,
         });
+        await claimPendingAgencyMemberInvitesForUser({
+          email,
+          userId: existingUser.id,
+        });
 
         user.id = existingUser.id;
         user.image = toPublicMediaUrl(avatarUrl) || undefined;
@@ -144,6 +151,10 @@ export const authOptions: NextAuthOptions = {
         .returning();
 
       await claimPendingAgencyEmployeeInvitesForUser({
+        email,
+        userId: createdUser.id,
+      });
+      await claimPendingAgencyMemberInvitesForUser({
         email,
         userId: createdUser.id,
       });

@@ -68,6 +68,7 @@ async function getBillableAgencies() {
     INNER JOIN agency_billing_profiles bp ON bp.agency_id = a.id
     WHERE a.status <> 'suspended'
       AND a.agency_type <> 'network'
+      AND a.seat_billing_bypass_enabled = false
       AND bp.status IN ('ready', 'past_due')
       AND bp.billing_cycle_anchor_at IS NOT NULL
       AND bp.provider_customer_id IS NOT NULL

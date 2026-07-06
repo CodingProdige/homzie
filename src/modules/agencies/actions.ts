@@ -30,10 +30,14 @@ import {
 } from "@/modules/agencies/brand-style";
 import { authOptions } from "@/modules/auth/config";
 import {
+  agencyEmployeeRoleLabel,
+  agencyRoleLabel,
+  agencyTypeLabel,
   createAgencyWithOwner,
   getAgencyNameAvailability,
   getPrimaryAgencyWorkspace,
   hasAgencyAdminAccess,
+  type AgencyWorkspace,
 } from "@/modules/agencies/server";
 import { controlRoomPathForWorkspace } from "@/modules/agencies/control-room";
 import {
@@ -41,6 +45,11 @@ import {
   isBillableAgencyMemberStatus,
   recordAgencySeatUsageEvent,
 } from "@/modules/agencies/billing";
+import {
+  absoluteAppUrl,
+  sendTemplatedEmailToAddress,
+  sendTemplatedEmailToUser,
+} from "@/modules/email/server";
 import { profileRoleForAgencyOwner } from "@/modules/users/profile-role";
 
 export type AgencyApplicationState = {
@@ -198,6 +207,7 @@ function revalidateControlRoomPaths(path = "/controlroom") {
   revalidatePath(`${path}/network`);
   revalidatePath(`${path}/leaderboard`);
   revalidatePath(`${path}/settings`);
+  revalidatePath(`${path}/settings/billing`);
   revalidatePath(`${path}/settings/branding`);
   revalidatePath(`${path}/settings/hierarchy`);
 }
@@ -554,6 +564,158 @@ function employeePermissionsForRole(
   };
 }
 
+type InviteRecipientUser = {
+  id: string;
+  name: string;
+};
+
+type InviteSessionUser = {
+  email?: string | null;
+  name?: string | null;
+};
+
+function firstNameFromInviteName(name: string | null | undefined, email: string) {
+  return name?.split(/\s+/)[0] || email.split("@")[0] || "there";
+}
+
+function inviteUrlForRecipient(path: string, existingUser: InviteRecipientUser | null) {
+  if (existingUser) return absoluteAppUrl(path);
+
+  return absoluteAppUrl(`/register?callbackUrl=${encodeURIComponent(path)}`);
+}
+
+function agencyInviteVariables({
+  accessLabel,
+  email,
+  existingUser,
+  invitePath,
+  roleLabel,
+  sessionUser,
+  workspace,
+}: {
+  accessLabel: string;
+  email: string;
+  existingUser: InviteRecipientUser | null;
+  invitePath: string;
+  roleLabel: string;
+  sessionUser: InviteSessionUser | null | undefined;
+  workspace: AgencyWorkspace;
+}) {
+  const recipientName = existingUser?.name || email;
+
+  return {
+    agency: {
+      name: workspace.agency.name,
+      type: agencyTypeLabel(workspace.agency.agencyType),
+      url: absoluteAppUrl(invitePath),
+    },
+    app: {
+      name: "Homzie",
+      url: absoluteAppUrl("/"),
+    },
+    invite: {
+      accessLabel,
+      role: roleLabel,
+      url: inviteUrlForRecipient(invitePath, existingUser),
+    },
+    inviter: {
+      email: sessionUser?.email || "",
+      name: sessionUser?.name || sessionUser?.email || "A Homzie admin",
+    },
+    user: {
+      email,
+      firstName: firstNameFromInviteName(existingUser?.name, email),
+      name: recipientName,
+    },
+  };
+}
+
+async function sendAgencyMemberInviteEmail({
+  email,
+  existingUser,
+  sessionUser,
+  workspace,
+}: {
+  email: string;
+  existingUser: InviteRecipientUser | null;
+  sessionUser: InviteSessionUser | null | undefined;
+  workspace: AgencyWorkspace;
+}) {
+  const invitePath = `${controlRoomPathForWorkspace(workspace)}/members`;
+  const variables = agencyInviteVariables({
+    accessLabel: "agency-funded public agent seat",
+    email,
+    existingUser,
+    invitePath,
+    roleLabel: agencyRoleLabel("agent"),
+    sessionUser,
+    workspace,
+  });
+
+  if (existingUser) {
+    await sendTemplatedEmailToUser({
+      bypassPreferences: true,
+      eventKey: "agency.member.invite",
+      templateKey: "agency.member.invite",
+      userId: existingUser.id,
+      variables,
+    });
+    return;
+  }
+
+  await sendTemplatedEmailToAddress({
+    eventKey: "agency.member.invite",
+    recipientEmail: email,
+    recipientName: firstNameFromInviteName(null, email),
+    templateKey: "agency.member.invite",
+    variables,
+  });
+}
+
+async function sendAgencyEmployeeInviteEmail({
+  email,
+  existingUser,
+  role,
+  sessionUser,
+  workspace,
+}: {
+  email: string;
+  existingUser: InviteRecipientUser | null;
+  role: AgencyEmployeeRole;
+  sessionUser: InviteSessionUser | null | undefined;
+  workspace: AgencyWorkspace;
+}) {
+  const invitePath = `${controlRoomPathForWorkspace(workspace)}/employees`;
+  const variables = agencyInviteVariables({
+    accessLabel: "internal employee",
+    email,
+    existingUser,
+    invitePath,
+    roleLabel: agencyEmployeeRoleLabel(role),
+    sessionUser,
+    workspace,
+  });
+
+  if (existingUser) {
+    await sendTemplatedEmailToUser({
+      bypassPreferences: true,
+      eventKey: "agency.employee.invite",
+      templateKey: "agency.employee.invite",
+      userId: existingUser.id,
+      variables,
+    });
+    return;
+  }
+
+  await sendTemplatedEmailToAddress({
+    eventKey: "agency.employee.invite",
+    recipientEmail: email,
+    recipientName: firstNameFromInviteName(null, email),
+    templateKey: "agency.employee.invite",
+    variables,
+  });
+}
+
 export async function inviteAgencyMemberAction(formData: FormData) {
   const workspace = await requireAgencyManager();
   const session = await getServerSession(authOptions);
@@ -658,6 +820,15 @@ export async function inviteAgencyMemberAction(formData: FormData) {
     metadata: { email, role },
     severity: "info",
     title: "Agency agent updated",
+  });
+
+  await sendAgencyMemberInviteEmail({
+    email,
+    existingUser: existingUser || null,
+    sessionUser: session?.user,
+    workspace,
+  }).catch((error) => {
+    console.error("[email] agency member invite failed", error);
   });
 
   revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
@@ -798,6 +969,16 @@ export async function inviteAgencyEmployeeAction(formData: FormData) {
     metadata: { email, role },
     severity: "info",
     title: "Agency employee updated",
+  });
+
+  await sendAgencyEmployeeInviteEmail({
+    email,
+    existingUser: existingUser || null,
+    role,
+    sessionUser: session?.user,
+    workspace,
+  }).catch((error) => {
+    console.error("[email] agency employee invite failed", error);
   });
 
   revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));

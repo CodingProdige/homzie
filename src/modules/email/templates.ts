@@ -133,6 +133,112 @@ export const defaultEmailTemplates = [
     ],
   },
   {
+    category: "Agencies",
+    description: "Sent when an agency invites a public agent into an agency-funded member seat.",
+    enabled: true,
+    html: `
+      <h1>{{agency.name}} invited you to Homzie</h1>
+      <p>{{inviter.name}} invited you to join {{agency.name}} as a {{invite.role}}.</p>
+      <p>This gives you an agency-funded public agent seat on {{app.name}}.</p>
+      <p><a class="button" href="{{invite.url}}">Accept invite</a></p>
+      <p class="muted">If you already have a Homzie account, sign in with {{user.email}}. Otherwise, create your account with this email and the invite will connect automatically.</p>
+    `,
+    key: "agency.member.invite",
+    name: "Agency-funded agent invite",
+    preheader: "{{agency.name}} invited you to join their Homzie agency roster.",
+    sampleVariables: {
+      agency: {
+        name: "Prime Coast Realty",
+        type: "Independent agency",
+        url: "https://homzie.co.za/controlroom/agency/members",
+      },
+      app: { name: "Homzie", url: "https://homzie.co.za" },
+      invite: {
+        accessLabel: "Agency-funded public agent seat",
+        role: "Agent",
+        url: "https://homzie.co.za/register?callbackUrl=%2Fcontrolroom%2Fagency",
+      },
+      inviter: {
+        email: "owner@example.com",
+        name: "Ava Morgan",
+      },
+      user: {
+        email: "agent@example.com",
+        firstName: "Sam",
+        name: "Sam Agent",
+      },
+    },
+    subject: "{{agency.name}} invited you to Homzie",
+    text: "{{inviter.name}} invited you to join {{agency.name}} as a {{invite.role}} on {{app.name}}. Accept: {{invite.url}}",
+    variables: [
+      ...commonVariables,
+      { key: "agency.name", label: "Agency name" },
+      { key: "agency.type", label: "Agency type" },
+      { key: "agency.url", label: "Agency URL" },
+      { key: "invite.accessLabel", label: "Invite access label" },
+      { key: "invite.role", label: "Invite role" },
+      { key: "invite.url", label: "Invite URL" },
+      { key: "inviter.email", label: "Inviter email" },
+      { key: "inviter.name", label: "Inviter name" },
+      { key: "user.email", label: "Recipient email" },
+      { key: "user.firstName", label: "Recipient first name" },
+      { key: "user.name", label: "Recipient full name" },
+    ],
+  },
+  {
+    category: "Agencies",
+    description: "Sent when an agency or Network HQ invites an internal control-room employee.",
+    enabled: true,
+    html: `
+      <h1>{{agency.name}} added you to their control room</h1>
+      <p>{{inviter.name}} invited you as a {{invite.role}}.</p>
+      <p>You will have {{invite.accessLabel}} access in the {{agency.type}} control room.</p>
+      <p><a class="button" href="{{invite.url}}">Open control room</a></p>
+      <p class="muted">Use {{user.email}} when signing in or creating your account so Homzie can connect the invite automatically.</p>
+    `,
+    key: "agency.employee.invite",
+    name: "Control room employee invite",
+    preheader: "{{agency.name}} invited you to their Homzie control room.",
+    sampleVariables: {
+      agency: {
+        name: "Prime Coast Realty",
+        type: "Branch agency",
+        url: "https://homzie.co.za/controlroom/agency/employees",
+      },
+      app: { name: "Homzie", url: "https://homzie.co.za" },
+      invite: {
+        accessLabel: "internal employee",
+        role: "Marketing",
+        url: "https://homzie.co.za/register?callbackUrl=%2Fcontrolroom%2Fagency",
+      },
+      inviter: {
+        email: "owner@example.com",
+        name: "Ava Morgan",
+      },
+      user: {
+        email: "team@example.com",
+        firstName: "Nia",
+        name: "Nia Team",
+      },
+    },
+    subject: "{{agency.name}} invited you to their Homzie control room",
+    text: "{{inviter.name}} invited you to {{agency.name}} as a {{invite.role}}. Open: {{invite.url}}",
+    variables: [
+      ...commonVariables,
+      { key: "agency.name", label: "Agency name" },
+      { key: "agency.type", label: "Agency type" },
+      { key: "agency.url", label: "Agency URL" },
+      { key: "invite.accessLabel", label: "Invite access label" },
+      { key: "invite.role", label: "Invite role" },
+      { key: "invite.url", label: "Invite URL" },
+      { key: "inviter.email", label: "Inviter email" },
+      { key: "inviter.name", label: "Inviter name" },
+      { key: "user.email", label: "Recipient email" },
+      { key: "user.firstName", label: "Recipient first name" },
+      { key: "user.name", label: "Recipient full name" },
+    ],
+  },
+  {
     category: "Listings",
     description: "Sent to followers when an agent they follow publishes a listing.",
     enabled: true,

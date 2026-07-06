@@ -15,6 +15,7 @@ import {
 } from "@/modules/email/server";
 import {
   claimPendingAgencyEmployeeInvitesForUser,
+  claimPendingAgencyMemberInvitesForUser,
   createAgencyWithOwner,
   getAgencyNameAvailability,
 } from "@/modules/agencies/server";
@@ -253,6 +254,10 @@ export async function registerWithEmail(input: {
 
     if (createdUser) {
       await claimPendingAgencyEmployeeInvitesForUser({
+        email: parsed.data.email,
+        userId: createdUser.id,
+      });
+      await claimPendingAgencyMemberInvitesForUser({
         email: parsed.data.email,
         userId: createdUser.id,
       });

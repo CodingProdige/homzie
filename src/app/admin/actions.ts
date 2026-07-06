@@ -78,6 +78,11 @@ export type AdminAgencyBillingSettingsState = {
   ok: boolean;
 };
 
+export type AdminAgencyBillingBypassState = {
+  message: string;
+  ok: boolean;
+};
+
 export type AdminReservationSettingsState = {
   message: string;
   ok: boolean;
@@ -336,6 +341,141 @@ export async function updateAdminAgencyBillingSettings(
         error instanceof Error
           ? error.message
           : "Could not save agency billing settings.",
+    };
+  }
+}
+
+export async function updateAdminAgencySeatBillingBypass(
+  _previousState: AdminAgencyBillingBypassState,
+  formData: FormData,
+): Promise<AdminAgencyBillingBypassState> {
+  try {
+    const adminUserId = await assertActiveAdmin();
+    const agencyId = formString(formData, "agencyId");
+    const enabled = formBoolean(formData, "enabled");
+    const reason = formString(formData, "reason")
+      .replace(/\s+/g, " ")
+      .slice(0, 240);
+
+    if (!agencyId) {
+      return {
+        ok: false,
+        message: "Choose an agency before changing billing bypass.",
+      };
+    }
+
+    const [agency] = await sql<
+      Array<{
+        agency_type: "branch" | "independent" | "network";
+        id: string;
+        name: string;
+      }>
+    >`
+      SELECT id, name, agency_type
+      FROM agencies
+      WHERE id = ${agencyId}
+      LIMIT 1
+    `;
+
+    if (!agency) {
+      return {
+        ok: false,
+        message: "Could not find that agency.",
+      };
+    }
+
+    if (agency.agency_type === "network") {
+      return {
+        ok: false,
+        message: "Network HQ workspaces do not use agency seat billing.",
+      };
+    }
+
+    await sql.begin(async (tx) => {
+      await tx`
+        UPDATE agencies
+        SET
+          seat_billing_bypass_enabled = ${enabled},
+          seat_billing_bypass_reason = ${enabled ? reason || null : null},
+          seat_billing_bypass_updated_at = now(),
+          seat_billing_bypass_updated_by_user_id = ${adminUserId},
+          updated_at = now()
+        WHERE id = ${agencyId}
+          AND agency_type IN ('branch', 'independent')
+      `;
+
+      if (enabled) {
+        await tx`
+          INSERT INTO agency_billing_profiles (
+            agency_id,
+            billing_cycle_anchor_at,
+            updated_at
+          )
+          VALUES (
+            ${agencyId},
+            NULL,
+            now()
+          )
+          ON CONFLICT (agency_id) DO UPDATE SET
+            billing_cycle_anchor_at = NULL,
+            updated_at = now()
+        `;
+        return;
+      }
+
+      const [seatRow] = await tx<Array<{ current_seats: number | string }>>`
+        SELECT count(*)::int AS current_seats
+        FROM agency_members
+        WHERE agency_id = ${agencyId}
+          AND status <> 'removed'
+      `;
+      const currentSeats = Number(seatRow?.current_seats || 0);
+
+      if (currentSeats > 0) {
+        await tx`
+          INSERT INTO agency_billing_profiles (
+            agency_id,
+            billing_cycle_anchor_at,
+            updated_at
+          )
+          VALUES (
+            ${agencyId},
+            now(),
+            now()
+          )
+          ON CONFLICT (agency_id) DO UPDATE SET
+            billing_cycle_anchor_at = now(),
+            updated_at = now()
+        `;
+      } else {
+        await tx`
+          UPDATE agency_billing_profiles
+          SET
+            billing_cycle_anchor_at = NULL,
+            updated_at = now()
+          WHERE agency_id = ${agencyId}
+        `;
+      }
+    });
+
+    revalidatePath("/admin/settings/agency-billing");
+    revalidatePath("/controlroom");
+    revalidatePath("/controlroom/agency/members");
+    revalidatePath("/controlroom/agency/settings/billing");
+
+    return {
+      ok: true,
+      message: enabled
+        ? `Seat billing bypass is on for ${agency.name}.`
+        : `Seat billing bypass is off for ${agency.name}.`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not update agency seat billing bypass.",
     };
   }
 }

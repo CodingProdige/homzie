@@ -571,6 +571,10 @@ try {
       status agency_status NOT NULL DEFAULT 'pending',
       created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
       billing_owner_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      seat_billing_bypass_enabled boolean NOT NULL DEFAULT false,
+      seat_billing_bypass_reason text,
+      seat_billing_bypass_updated_at timestamptz,
+      seat_billing_bypass_updated_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
       settings jsonb NOT NULL DEFAULT '{}'::jsonb,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
@@ -637,6 +641,26 @@ try {
 
   await sql`
     ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS seat_billing_bypass_enabled boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS seat_billing_bypass_reason text
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS seat_billing_bypass_updated_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ADD COLUMN IF NOT EXISTS seat_billing_bypass_updated_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE agencies
     ADD COLUMN IF NOT EXISTS network_visibility_enabled boolean NOT NULL DEFAULT true
   `;
 
@@ -687,6 +711,10 @@ try {
 
   await sql`
     CREATE INDEX IF NOT EXISTS agencies_billing_owner_user_id_idx ON agencies (billing_owner_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agencies_seat_billing_bypass_enabled_idx ON agencies (seat_billing_bypass_enabled)
   `;
 
   await sql`
@@ -967,6 +995,7 @@ try {
     FROM agencies a
     INNER JOIN agency_seat_usage_events e ON e.agency_id = a.id
     WHERE a.agency_type <> 'network'
+      AND a.seat_billing_bypass_enabled = false
       AND e.event_type = 'seat_started'
       AND EXISTS (
         SELECT 1

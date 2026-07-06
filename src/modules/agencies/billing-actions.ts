@@ -281,6 +281,26 @@ export async function finalizeAgencyBillingSetup(
         updated_at = now()
     `;
 
+    await sql`
+      UPDATE agency_billing_profiles bp
+      SET
+        billing_cycle_anchor_at = coalesce(bp.billing_cycle_anchor_at, now()),
+        updated_at = now()
+      WHERE bp.agency_id = ${workspace.agency.id}
+        AND EXISTS (
+          SELECT 1
+          FROM agency_members am
+          WHERE am.agency_id = bp.agency_id
+            AND am.status <> 'removed'
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM agencies a
+          WHERE a.id = bp.agency_id
+            AND a.seat_billing_bypass_enabled = true
+        )
+    `;
+
     const basePath = controlRoomPathForWorkspace(workspace);
     revalidatePath(`${basePath}/settings/billing`);
     revalidatePath(`${basePath}/members`);

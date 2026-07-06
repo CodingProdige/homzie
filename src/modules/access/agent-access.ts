@@ -33,6 +33,7 @@ export type AgencyFundedSeatAccess = {
   agencyName: string;
   agencySlug: string;
   agencyType: "branch" | "independent";
+  billingBypassEnabled: boolean;
   billingReady: boolean;
   canManageAgencyBilling: boolean;
   controlRoomBillingHref: string;
@@ -45,6 +46,7 @@ type AgencyFundedSeatRow = {
   agency_slug: string;
   agency_type: "branch" | "independent";
   billing_profile_status: string | null;
+  seat_billing_bypass_enabled: boolean | null;
   can_manage_billing: boolean;
   provider_customer_id: string | null;
   provider_payment_method_id: string | null;
@@ -157,6 +159,7 @@ export async function getAgencyFundedSeatAccess(
       a.name AS agency_name,
       a.slug AS agency_slug,
       a.agency_type,
+      a.seat_billing_bypass_enabled,
       am.role,
       am.can_manage_billing,
       bp.status AS billing_profile_status,
@@ -183,7 +186,8 @@ export async function getAgencyFundedSeatAccess(
 
   if (!seat) return null;
 
-  const billingReady = agencyBillingProfileIsReady({
+  const billingBypassEnabled = Boolean(seat.seat_billing_bypass_enabled);
+  const billingReady = billingBypassEnabled || agencyBillingProfileIsReady({
     billing_email: null,
     failure_message: null,
     payment_method_label: null,
@@ -197,6 +201,7 @@ export async function getAgencyFundedSeatAccess(
     agencyName: seat.agency_name,
     agencySlug: seat.agency_slug,
     agencyType: seat.agency_type,
+    billingBypassEnabled,
     billingReady,
     canManageAgencyBilling: seat.can_manage_billing,
     controlRoomBillingHref: "/controlroom/agency/settings/billing",

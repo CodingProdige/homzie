@@ -177,6 +177,14 @@ export default async function MembersPage({ params }: MembersPageProps) {
       useRowHref: false,
     },
   ];
+  const billingStatusLabel = billingSnapshot.billingBypassEnabled
+    ? "Billing bypassed"
+    : billingSnapshot.billingConfigured
+      ? "Billing ready"
+      : "Billing required";
+  const billingDescription = billingSnapshot.billingBypassEnabled
+    ? "Homzie admin bypass is active. Agency-funded seats stay connected, but automated seat charges are paused until billing is switched on again."
+    : "Automated agency billing uses the maximum agency-funded seats used in each 30-day cycle, not the count on billing day.";
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
@@ -214,13 +222,12 @@ export default async function MembersPage({ params }: MembersPageProps) {
             </p>
             <h2 className="mt-2 text-xl font-semibold">Peak-seat billing</h2>
             <p className="mt-2 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
-              Automated agency billing uses the maximum agency-funded seats used in
-              each 30-day cycle, not the count on billing day.
+              {billingDescription}
             </p>
           </div>
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-normal text-muted-foreground">
             <CreditCard className="size-4 text-primary" />
-            {billingSnapshot.billingConfigured ? "Billing ready" : "Billing required"}
+            {billingStatusLabel}
           </span>
         </div>
 
@@ -263,7 +270,13 @@ export default async function MembersPage({ params }: MembersPageProps) {
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm font-normal leading-6 text-muted-foreground">
-            Period: {formatAgencyBillingDate(billingSnapshot.periodStart)} - {formatAgencyBillingDate(billingSnapshot.periodEnd)}. Invited, active, and suspended members reserve agency-funded seats until removed.
+            {billingSnapshot.billingBypassEnabled
+              ? `Billing bypass is active, so the current projected invoice is ${formatAgencyBillingMoney(0, billingSnapshot.currency)}. `
+              : `Period: ${formatAgencyBillingDate(billingSnapshot.periodStart)} - ${formatAgencyBillingDate(billingSnapshot.periodEnd)}. `}
+            Invited, active, and suspended members reserve agency-funded seats until removed.
+            {billingSnapshot.billingBypassReason
+              ? ` Reason: ${billingSnapshot.billingBypassReason}.`
+              : ""}
           </p>
           {!billingSnapshot.billingConfigured && workspace.membership.canManageBilling ? (
             <Button asChild variant="outline" className="font-semibold">

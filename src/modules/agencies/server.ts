@@ -56,6 +56,8 @@ export type AgencyWorkspace = {
     regionPlaceData: unknown;
     regionPlaceId: string | null;
     requestedParentAgencyName: string | null;
+    seatBillingBypassEnabled: boolean;
+    seatBillingBypassReason: string | null;
     slug: string;
     status: "pending" | "active" | "suspended";
     settings: unknown;
@@ -101,6 +103,8 @@ export async function getPrimaryAgencyWorkspace(
       agencyRegionPlaceData: agencies.regionPlaceData,
       agencyRegionPlaceId: agencies.regionPlaceId,
       agencyRequestedParentAgencyName: agencies.requestedParentAgencyName,
+      agencySeatBillingBypassEnabled: agencies.seatBillingBypassEnabled,
+      agencySeatBillingBypassReason: agencies.seatBillingBypassReason,
       agencySettings: agencies.settings,
       agencySlug: agencies.slug,
       agencyStatus: agencies.status,
@@ -148,6 +152,8 @@ export async function getPrimaryAgencyWorkspace(
         agencyRegionPlaceData: agencies.regionPlaceData,
         agencyRegionPlaceId: agencies.regionPlaceId,
         agencyRequestedParentAgencyName: agencies.requestedParentAgencyName,
+        agencySeatBillingBypassEnabled: agencies.seatBillingBypassEnabled,
+        agencySeatBillingBypassReason: agencies.seatBillingBypassReason,
         agencySettings: agencies.settings,
         agencySlug: agencies.slug,
         agencyStatus: agencies.status,
@@ -193,6 +199,8 @@ export async function getPrimaryAgencyWorkspace(
         regionPlaceData: employeeRow.agencyRegionPlaceData,
         regionPlaceId: employeeRow.agencyRegionPlaceId,
         requestedParentAgencyName: employeeRow.agencyRequestedParentAgencyName,
+        seatBillingBypassEnabled: employeeRow.agencySeatBillingBypassEnabled,
+        seatBillingBypassReason: employeeRow.agencySeatBillingBypassReason,
         settings: employeeRow.agencySettings,
         slug: employeeRow.agencySlug,
         status: employeeRow.agencyStatus,
@@ -236,6 +244,8 @@ export async function getPrimaryAgencyWorkspace(
       regionPlaceData: row.agencyRegionPlaceData,
       regionPlaceId: row.agencyRegionPlaceId,
       requestedParentAgencyName: row.agencyRequestedParentAgencyName,
+      seatBillingBypassEnabled: row.agencySeatBillingBypassEnabled,
+      seatBillingBypassReason: row.agencySeatBillingBypassReason,
       settings: row.agencySettings,
       slug: row.agencySlug,
       status: row.agencyStatus,
@@ -563,6 +573,38 @@ export async function claimPendingAgencyEmployeeInvitesForUser({
       AND NOT EXISTS (
         SELECT 1
         FROM agency_employees existing
+        WHERE existing.agency_id = invited.agency_id
+          AND existing.user_id = ${userId}
+          AND existing.id <> invited.id
+      )
+  `;
+}
+
+export async function claimPendingAgencyMemberInvitesForUser({
+  email,
+  userId,
+}: {
+  email: string;
+  userId: string;
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail || !userId) return;
+
+  await rawSql`
+    UPDATE agency_members invited
+    SET
+      accepted_at = coalesce(invited.accepted_at, now()),
+      invited_email = NULL,
+      status = 'active',
+      updated_at = now(),
+      user_id = ${userId}
+    WHERE invited.user_id IS NULL
+      AND invited.status = 'invited'
+      AND lower(invited.invited_email) = ${normalizedEmail}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM agency_members existing
         WHERE existing.agency_id = invited.agency_id
           AND existing.user_id = ${userId}
           AND existing.id <> invited.id

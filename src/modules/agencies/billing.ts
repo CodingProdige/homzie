@@ -35,6 +35,11 @@ type AgencyBillingProfileRow = {
   status: string;
 };
 
+type AgencyBillingBypassRow = {
+  seat_billing_bypass_enabled: boolean | null;
+  seat_billing_bypass_reason: string | null;
+};
+
 type AgencyBillingInvoiceRow = {
   charged_at: SqlDateValue | null;
   credits_cents: number | string;
@@ -89,6 +94,8 @@ function isMissingColumnError(error: unknown, columnName: string) {
 }
 
 export type AgencySeatBillingSnapshot = {
+  billingBypassEnabled: boolean;
+  billingBypassReason: string | null;
   billingCycleActive: boolean;
   billingCycleAnchorAt: Date | null;
   billingConfigured: boolean;
@@ -132,6 +139,23 @@ export type AgencyBillingInvoiceDetail = AgencyBillingInvoice & {
   paymentMethodLabel: string | null;
   region: string | null;
   slug: string;
+};
+
+export type AdminAgencyBillingBypassAgency = {
+  agencyType: "branch" | "independent";
+  billingBypassEnabled: boolean;
+  billingBypassReason: string | null;
+  billingBypassUpdatedAt: Date | null;
+  billingBypassUpdatedByName: string | null;
+  billingConfigured: boolean;
+  billingProfileStatus: string | null;
+  currentSeats: number;
+  id: string;
+  name: string;
+  paymentMethodLabel: string | null;
+  region: string | null;
+  slug: string;
+  status: "active" | "pending" | "suspended";
 };
 
 export function isBillableAgencyMemberStatus(status: AgencyMemberStatus) {
@@ -327,6 +351,22 @@ export async function getAgencyBillingProfile(agencyId: string) {
   return profile || null;
 }
 
+export async function getAgencyBillingBypass(agencyId: string) {
+  const [row] = await sql<AgencyBillingBypassRow[]>`
+    SELECT
+      seat_billing_bypass_enabled,
+      seat_billing_bypass_reason
+    FROM agencies
+    WHERE id = ${agencyId}
+    LIMIT 1
+  `;
+
+  return {
+    enabled: Boolean(row?.seat_billing_bypass_enabled),
+    reason: row?.seat_billing_bypass_reason || null,
+  };
+}
+
 async function getAgencyBillingCycleAnchorFromActiveSeats(agencyId: string) {
   const [row] = await sql<Array<{ anchor_at: SqlDateValue | null }>>`
     SELECT min(e.occurred_at) AS anchor_at
@@ -344,21 +384,24 @@ export async function getAgencyBillingCycleAnchor(agencyId: string) {
   try {
     const [row] = await sql<Array<{ anchor_at: SqlDateValue | null }>>`
       SELECT
-        coalesce(
-          bp.billing_cycle_anchor_at,
-          (
-            SELECT min(e.occurred_at)
-            FROM agency_seat_usage_events e
-            WHERE e.agency_id = ${agencyId}
-              AND e.event_type = 'seat_started'
-              AND EXISTS (
-                SELECT 1
-                FROM agency_members am
-                WHERE am.agency_id = ${agencyId}
-                  AND am.status <> 'removed'
-              )
+        CASE
+          WHEN a.seat_billing_bypass_enabled THEN NULL
+          ELSE coalesce(
+            bp.billing_cycle_anchor_at,
+            (
+              SELECT min(e.occurred_at)
+              FROM agency_seat_usage_events e
+              WHERE e.agency_id = ${agencyId}
+                AND e.event_type = 'seat_started'
+                AND EXISTS (
+                  SELECT 1
+                  FROM agency_members am
+                  WHERE am.agency_id = ${agencyId}
+                    AND am.status <> 'removed'
+                )
+            )
           )
-        ) AS anchor_at
+        END AS anchor_at
       FROM agencies a
       LEFT JOIN agency_billing_profiles bp ON bp.agency_id = a.id
       WHERE a.id = ${agencyId}
@@ -401,7 +444,12 @@ export function agencyBillingProfileIsReady(
 }
 
 export async function hasAgencyBillingReady(agencyId: string) {
-  return agencyBillingProfileIsReady(await getAgencyBillingProfile(agencyId));
+  const [bypass, profile] = await Promise.all([
+    getAgencyBillingBypass(agencyId),
+    getAgencyBillingProfile(agencyId),
+  ]);
+
+  return bypass.enabled || agencyBillingProfileIsReady(profile);
 }
 
 export async function assertAgencyBillingReady(agencyId: string) {
@@ -434,6 +482,10 @@ export async function recordAgencySeatUsageEvent(
   });
 
   if (eventType === "seat_started") {
+    const bypass = await getAgencyBillingBypass(agencyId);
+
+    if (bypass.enabled) return;
+
     try {
       await writer
         .insert(agencyBillingProfiles)
@@ -502,33 +554,40 @@ export async function getAgencySeatBillingSnapshot(
   agencyId: string,
   asOf = new Date(),
 ): Promise<AgencySeatBillingSnapshot> {
-  const [price, profile, currentSeats, billingPeriod] = await Promise.all([
+  const [price, profile, currentSeats, billingPeriod, bypass] = await Promise.all([
     getCurrentAgencySeatPrice(asOf),
     getAgencyBillingProfile(agencyId),
     getAgencyCurrentBillableSeats(agencyId),
     getCurrentAgencyBillingPeriod(agencyId, asOf),
+    getAgencyBillingBypass(agencyId),
   ]);
   const periodStart = billingPeriod?.periodStart || asOf;
   const periodEnd =
     billingPeriod?.periodEnd || new Date(asOf.getTime() + agencyBillingCycleMs);
-  const peakSeats = billingPeriod
+  const peakSeats = !bypass.enabled && billingPeriod
     ? await getAgencyPeakBillableSeatsForPeriod(agencyId, periodStart, periodEnd)
     : 0;
-  const maxBillableSeats = Math.max(currentSeats, peakSeats);
+  const maxBillableSeats = bypass.enabled
+    ? 0
+    : Math.max(currentSeats, peakSeats);
 
   return {
+    billingBypassEnabled: bypass.enabled,
+    billingBypassReason: bypass.reason,
     billingCycleActive: Boolean(billingPeriod),
     billingCycleAnchorAt: billingPeriod?.anchorAt || null,
-    billingConfigured: agencyBillingProfileIsReady(profile),
+    billingConfigured: bypass.enabled || agencyBillingProfileIsReady(profile),
     billingEmail: profile?.billing_email || null,
     currentSeats,
     currency: price.currency,
-    failureMessage: profile?.failure_message || null,
+    failureMessage: bypass.enabled ? null : profile?.failure_message || null,
     maxBillableSeats,
     paymentMethodLabel: profile?.payment_method_label || null,
     periodEnd,
     periodStart,
-    projectedTotalCents: maxBillableSeats * price.unitAmountCents,
+    projectedTotalCents: bypass.enabled
+      ? 0
+      : maxBillableSeats * price.unitAmountCents,
     seatPriceId: price.id,
     unitAmountCents: price.unitAmountCents,
   };
@@ -602,31 +661,139 @@ export async function getAdminAgencyBillingOverview() {
       Array<{
         agency_count: number | string;
         billable_seats: number | string;
+        billing_bypass_count: number | string;
         billing_ready_count: number | string;
+        bypassed_seats: number | string;
       }>
     >`
       SELECT
         count(DISTINCT a.id)::int AS agency_count,
-        count(am.id) FILTER (WHERE am.status <> 'removed')::int AS billable_seats,
+        count(am.id) FILTER (
+          WHERE am.status <> 'removed'
+            AND a.seat_billing_bypass_enabled = false
+        )::int AS billable_seats,
+        count(am.id) FILTER (
+          WHERE am.status <> 'removed'
+            AND a.seat_billing_bypass_enabled = true
+        )::int AS bypassed_seats,
         count(DISTINCT a.id) FILTER (
-          WHERE bp.status = 'ready'
-            AND bp.provider_customer_id IS NOT NULL
-            AND bp.provider_payment_method_id IS NOT NULL
+          WHERE a.seat_billing_bypass_enabled = true
+        )::int AS billing_bypass_count,
+        count(DISTINCT a.id) FILTER (
+          WHERE a.seat_billing_bypass_enabled = true
+            OR (
+              bp.status = 'ready'
+              AND bp.provider_customer_id IS NOT NULL
+              AND bp.provider_payment_method_id IS NOT NULL
+            )
         )::int AS billing_ready_count
       FROM agencies a
       LEFT JOIN agency_members am ON am.agency_id = a.id
       LEFT JOIN agency_billing_profiles bp ON bp.agency_id = a.id
       WHERE a.status <> 'suspended'
+        AND a.agency_type <> 'network'
     `,
   ]);
   const row = totals[0];
+  const billableSeats = Number(row?.billable_seats || 0);
 
   return {
     agencyCount: Number(row?.agency_count || 0),
-    billableSeats: Number(row?.billable_seats || 0),
+    billableSeats,
+    billingBypassCount: Number(row?.billing_bypass_count || 0),
     billingReadyCount: Number(row?.billing_ready_count || 0),
+    bypassedSeats: Number(row?.bypassed_seats || 0),
     currency: price.currency,
-    projectedMonthlyCents: Number(row?.billable_seats || 0) * price.unitAmountCents,
+    projectedMonthlyCents: billableSeats * price.unitAmountCents,
     unitAmountCents: price.unitAmountCents,
   };
+}
+
+export async function listAdminAgencyBillingBypassAgencies(): Promise<
+  AdminAgencyBillingBypassAgency[]
+> {
+  const rows = await sql<
+    Array<{
+      agency_type: "branch" | "independent";
+      billing_profile_status: string | null;
+      current_seats: number | string;
+      id: string;
+      name: string;
+      payment_method_label: string | null;
+      provider_customer_id: string | null;
+      provider_payment_method_id: string | null;
+      region: string | null;
+      seat_billing_bypass_enabled: boolean | null;
+      seat_billing_bypass_reason: string | null;
+      seat_billing_bypass_updated_at: SqlDateValue | null;
+      seat_billing_bypass_updated_by_name: string | null;
+      slug: string;
+      status: "active" | "pending" | "suspended";
+    }>
+  >`
+    SELECT
+      a.id,
+      a.name,
+      a.slug,
+      a.agency_type,
+      a.status,
+      a.region,
+      a.seat_billing_bypass_enabled,
+      a.seat_billing_bypass_reason,
+      a.seat_billing_bypass_updated_at,
+      updated_by.name AS seat_billing_bypass_updated_by_name,
+      count(am.id) FILTER (WHERE am.status <> 'removed')::int AS current_seats,
+      bp.status AS billing_profile_status,
+      bp.payment_method_label,
+      bp.provider_customer_id,
+      bp.provider_payment_method_id
+    FROM agencies a
+    LEFT JOIN agency_members am ON am.agency_id = a.id
+    LEFT JOIN agency_billing_profiles bp ON bp.agency_id = a.id
+    LEFT JOIN users updated_by ON updated_by.id = a.seat_billing_bypass_updated_by_user_id
+    WHERE a.agency_type IN ('branch', 'independent')
+    GROUP BY
+      a.id,
+      updated_by.name,
+      bp.status,
+      bp.payment_method_label,
+      bp.provider_customer_id,
+      bp.provider_payment_method_id
+    ORDER BY
+      a.seat_billing_bypass_enabled DESC,
+      CASE a.status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+      a.name ASC
+    LIMIT 250
+  `;
+
+  return rows.map((row) => {
+    const billingBypassEnabled = Boolean(row.seat_billing_bypass_enabled);
+    const billingConfigured =
+      billingBypassEnabled ||
+      agencyBillingProfileIsReady({
+        billing_email: null,
+        failure_message: null,
+        payment_method_label: row.payment_method_label,
+        provider_customer_id: row.provider_customer_id,
+        provider_payment_method_id: row.provider_payment_method_id,
+        status: row.billing_profile_status || "missing",
+      });
+
+    return {
+      agencyType: row.agency_type,
+      billingBypassEnabled,
+      billingBypassReason: row.seat_billing_bypass_reason || null,
+      billingBypassUpdatedAt: nullableDate(row.seat_billing_bypass_updated_at),
+      billingBypassUpdatedByName: row.seat_billing_bypass_updated_by_name || null,
+      billingConfigured,
+      billingProfileStatus: row.billing_profile_status,
+      currentSeats: Number(row.current_seats || 0),
+      id: row.id,
+      name: row.name,
+      paymentMethodLabel: row.payment_method_label,
+      region: row.region,
+      slug: row.slug,
+      status: row.status,
+    };
+  });
 }
