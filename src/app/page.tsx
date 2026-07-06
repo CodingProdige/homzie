@@ -38,6 +38,11 @@ import {
   users,
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
+import {
+  getAgencyDirectory,
+  publicAgencyTypeLabel,
+  type AgencyDirectoryItem,
+} from "@/modules/agencies/public-directory";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import {
@@ -223,6 +228,49 @@ function listingCountLabel(count: number) {
   return `${count} ${count === 1 ? "listing" : "listings"}`;
 }
 
+function agencyInitials(name: string) {
+  const ignoredWords = new Set([
+    "agency",
+    "agencies",
+    "and",
+    "branch",
+    "estate",
+    "estates",
+    "group",
+    "hq",
+    "independent",
+    "network",
+    "of",
+    "properties",
+    "property",
+    "realty",
+    "the",
+  ]);
+  const parts = name
+    .split(/\s+/)
+    .map((part) => part.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter(Boolean);
+  const meaningfulParts = parts.filter(
+    (part) => !ignoredWords.has(part.toLowerCase()),
+  );
+  const sourceParts = meaningfulParts.length ? meaningfulParts : parts;
+
+  return (
+    sourceParts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "HA"
+  );
+}
+
+const agencyPlaceholderStyle = {
+  accentSoft: "rgba(123, 92, 255, 0.13)",
+  background:
+    "linear-gradient(135deg, #fbfaff 0%, #f4f1ff 45%, #fff1f9 78%, #fff8ea 100%)",
+  borderColor: "rgba(123, 92, 255, 0.28)",
+  color: "var(--homzie-black)",
+} as const;
+
 function profileLocationLabel(location: {
   location: string | null;
   locationCity?: string | null;
@@ -251,7 +299,6 @@ function formatCurrencyCompact(cents: number) {
     style: "currency",
   }).format(amount);
 }
-
 
 async function getHomeListings(countryName?: string) {
   const filters = [
@@ -309,6 +356,42 @@ async function getHomeReels({
     limit: 12,
     viewerUserId,
   });
+}
+
+async function getFeaturedAgencies(countryName?: string): Promise<AgencyDirectoryItem[]> {
+  const agencies = await getAgencyDirectory({});
+  const normalizedCountry = countryName?.trim().toLowerCase() || "";
+
+  return agencies
+    .sort((first, second) => {
+      const firstLocationMatches = Boolean(
+        normalizedCountry &&
+        (first.location || "").toLowerCase().includes(normalizedCountry),
+      );
+      const secondLocationMatches = Boolean(
+        normalizedCountry &&
+        (second.location || "").toLowerCase().includes(normalizedCountry),
+      );
+
+      if (firstLocationMatches !== secondLocationMatches) {
+        return firstLocationMatches ? -1 : 1;
+      }
+
+      if (second.activeListingCount !== first.activeListingCount) {
+        return second.activeListingCount - first.activeListingCount;
+      }
+
+      if (second.agentCount !== first.agentCount) {
+        return second.agentCount - first.agentCount;
+      }
+
+      if (second.branchCount !== first.branchCount) {
+        return second.branchCount - first.branchCount;
+      }
+
+      return first.name.localeCompare(second.name);
+    })
+    .slice(0, 10);
 }
 
 async function getTopAgents(countryName?: string): Promise<TopAgent[]> {
@@ -721,6 +804,120 @@ async function LiveStatsSection() {
   const platformStats = await getPlatformStats();
 
   return <LivePlatformStats initialStats={platformStats} />;
+}
+
+function AgencyHomeCard({ agency }: { agency: AgencyDirectoryItem }) {
+  const badgeStyle = agency.brand.badgeStyle;
+  const hasLogo = Boolean(agency.brand.logoUrl);
+
+  return (
+    <Link
+      href={`/agencies/${agency.slug}`}
+      draggable={false}
+      className="group block w-60 shrink-0 text-card-foreground sm:w-72"
+    >
+      <div
+        className="relative grid aspect-[5/3] place-items-center overflow-hidden rounded-lg border border-border p-6 shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md"
+        style={
+          hasLogo
+            ? {
+                backgroundColor: badgeStyle.backgroundColor,
+                color: badgeStyle.textColor,
+                fontFamily: badgeStyle.fontFamily,
+                fontWeight: Number(badgeStyle.fontWeight),
+              }
+            : {
+                background: agencyPlaceholderStyle.background,
+                borderColor: agencyPlaceholderStyle.borderColor,
+                color: agencyPlaceholderStyle.color,
+              }
+        }
+      >
+        {hasLogo ? (
+          <Image
+            src={agency.brand.logoUrl || ""}
+            alt={`${agency.name} logo`}
+            width={320}
+            height={144}
+            className="max-h-20 w-full object-contain"
+          />
+        ) : (
+          <>
+            <span
+              className="absolute inset-0 opacity-[0.08]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
+                backgroundSize: "28px 28px",
+              }}
+            />
+            <span
+              className="absolute inset-x-0 top-0 h-1"
+              style={{ background: "var(--homzie-gradient)" }}
+            />
+            <span
+              className="absolute left-5 top-5 h-1.5 w-16 rounded-full"
+              style={{ backgroundColor: agencyPlaceholderStyle.accentSoft }}
+            />
+            <span
+              className="absolute bottom-5 right-5 h-1.5 w-24 rounded-full"
+              style={{ backgroundColor: agencyPlaceholderStyle.accentSoft }}
+            />
+            <span className="relative flex flex-col items-center gap-3">
+              <span className="rounded-2xl bg-[image:var(--homzie-gradient)] p-0.5 shadow-[0_14px_32px_rgba(123,92,255,0.22)]">
+                <span className="grid size-20 place-items-center rounded-[0.9rem] bg-white text-3xl font-black leading-none text-brand-black">
+                  {agencyInitials(agency.name)}
+                </span>
+              </span>
+              <span
+                className="h-1.5 w-14 rounded-full bg-[image:var(--homzie-gradient)]"
+              />
+            </span>
+          </>
+        )}
+      </div>
+      <h3 className="mt-2 line-clamp-2 text-sm font-black tracking-tight group-hover:text-primary">
+        {agency.name}
+      </h3>
+      <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
+        {publicAgencyTypeLabel(agency.type)}
+        {agency.location ? ` · ${agency.location}` : ""}
+      </p>
+    </Link>
+  );
+}
+
+async function TopAgenciesSection({ countryLabel }: { countryLabel?: string }) {
+  const agencies = await getFeaturedAgencies(countryLabel);
+
+  return (
+    <section className="page-body mt-10">
+      <SectionHeader
+        actionHref="/agencies"
+        actionLabel="View all agencies"
+        eyebrow={
+          countryLabel
+            ? `Agency brands in ${countryLabel} appear first where available.`
+            : "Browse Network HQs, branch agencies, and independent brands."
+        }
+        title="Agencies near you"
+      />
+      {agencies.length ? (
+        <HorizontalScrollRail>
+          {agencies.map((agency) => (
+            <AgencyHomeCard key={agency.id} agency={agency} />
+          ))}
+        </HorizontalScrollRail>
+      ) : (
+        <SectionEmptyState
+          actionHref="/agencies"
+          actionLabel="Browse agencies"
+          description="Agency brands will appear here once active public agencies are visible."
+          title="No agencies to show yet"
+        />
+      )}
+    </section>
+  );
 }
 
 async function TopAgentsSection({
@@ -1225,6 +1422,26 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </Suspense>
           </div>
         </section>
+
+        <Suspense
+          fallback={
+            <section className="page-body mt-10">
+              <SectionHeader
+                actionHref="/agencies"
+                actionLabel="View all agencies"
+                eyebrow={
+                  countryLabel
+                    ? `Agency brands in ${countryLabel} appear first where available.`
+                    : "Browse Network HQs, branch agencies, and independent brands."
+                }
+                title="Agencies near you"
+              />
+              <RailSkeleton cardClassName="h-44 w-60 sm:w-72" />
+            </section>
+          }
+        >
+          <TopAgenciesSection countryLabel={countryLabel} />
+        </Suspense>
 
         <Suspense
           fallback={
