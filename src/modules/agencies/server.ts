@@ -507,7 +507,7 @@ export async function createAgencyWithOwner({
       regionPlaceId: regionPlaceId || null,
       requestedParentAgencyName: requestedParentAgencyName || null,
       slug,
-      status: "pending",
+      status: "active",
       websiteUrl: websiteUrl || null,
     })
     .returning({ id: agencies.id });

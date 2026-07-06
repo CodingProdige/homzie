@@ -221,7 +221,7 @@ export const agencies = pgTable(
     contactEmail: text("contact_email"),
     contactPhone: text("contact_phone"),
     location: text("location"),
-    status: agencyStatusEnum("status").notNull().default("pending"),
+    status: agencyStatusEnum("status").notNull().default("active"),
     createdByUserId: uuid("created_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

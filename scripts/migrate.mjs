@@ -568,7 +568,7 @@ try {
       contact_email text,
       contact_phone text,
       location text,
-      status agency_status NOT NULL DEFAULT 'pending',
+      status agency_status NOT NULL DEFAULT 'active',
       created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
       billing_owner_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
       seat_billing_bypass_enabled boolean NOT NULL DEFAULT false,
@@ -657,6 +657,18 @@ try {
   await sql`
     ALTER TABLE agencies
     ADD COLUMN IF NOT EXISTS seat_billing_bypass_updated_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE agencies
+    ALTER COLUMN status SET DEFAULT 'active'
+  `;
+
+  await sql`
+    UPDATE agencies
+    SET status = 'active',
+        updated_at = now()
+    WHERE status = 'pending'
   `;
 
   await sql`
