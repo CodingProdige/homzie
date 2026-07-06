@@ -10,6 +10,7 @@ import {
   type AgencyBadgeStyle,
 } from "@/modules/agencies/brand-style";
 import { recordAgencySeatUsageEvent } from "@/modules/agencies/billing";
+import { getActiveAdminSupportAccess } from "@/modules/agencies/admin-support";
 
 type AgencyInsertClient = Pick<typeof db, "insert" | "select">;
 
@@ -64,7 +65,7 @@ export type AgencyWorkspace = {
     websiteUrl: string | null;
   };
   membership: {
-    accessType: "employee" | "member";
+    accessType: "admin_support" | "employee" | "member";
     agencyFunded: boolean;
     canCreateListings: boolean;
     canEditAgencyListings: boolean;
@@ -80,9 +81,100 @@ export type AgencyWorkspace = {
   };
 };
 
+async function getAdminSupportWorkspace(
+  userId: string,
+): Promise<AgencyWorkspace | null> {
+  const supportAccess = await getActiveAdminSupportAccess(userId);
+
+  if (!supportAccess) return null;
+
+  const [row] = await db
+    .select({
+      agencyType: agencies.agencyType,
+      agencyBadgeLabel: agencies.badgeLabel,
+      agencyBillingMode: agencies.billingMode,
+      agencyBrandingPolicy: agencies.brandingPolicy,
+      agencyBranchCode: agencies.branchCode,
+      agencyContactEmail: agencies.contactEmail,
+      agencyContactPhone: agencies.contactPhone,
+      agencyId: agencies.id,
+      agencyLocation: agencies.location,
+      agencyLogoUrl: agencies.logoUrl,
+      agencyName: agencies.name,
+      agencyNetworkVisibilityEnabled: agencies.networkVisibilityEnabled,
+      agencyParentAgencyId: agencies.parentAgencyId,
+      agencyParentLinkStatus: agencies.parentLinkStatus,
+      agencyRegion: agencies.region,
+      agencyRegionPlaceData: agencies.regionPlaceData,
+      agencyRegionPlaceId: agencies.regionPlaceId,
+      agencyRequestedParentAgencyName: agencies.requestedParentAgencyName,
+      agencySeatBillingBypassEnabled: agencies.seatBillingBypassEnabled,
+      agencySeatBillingBypassReason: agencies.seatBillingBypassReason,
+      agencySettings: agencies.settings,
+      agencySlug: agencies.slug,
+      agencyStatus: agencies.status,
+      agencyWebsiteUrl: agencies.websiteUrl,
+    })
+    .from(agencies)
+    .where(eq(agencies.id, supportAccess.agencyId))
+    .limit(1);
+
+  if (!row) return null;
+
+  const canManageListings = row.agencyType !== "network";
+
+  return {
+    agency: {
+      agencyType: row.agencyType,
+      badgeLabel: row.agencyBadgeLabel,
+      billingMode: row.agencyBillingMode,
+      brandingPolicy: row.agencyBrandingPolicy,
+      branchCode: row.agencyBranchCode,
+      contactEmail: row.agencyContactEmail,
+      contactPhone: row.agencyContactPhone,
+      id: row.agencyId,
+      location: row.agencyLocation,
+      logoUrl: row.agencyLogoUrl,
+      name: row.agencyName,
+      networkVisibilityEnabled: row.agencyNetworkVisibilityEnabled,
+      parentAgencyId: row.agencyParentAgencyId,
+      parentLinkStatus: row.agencyParentLinkStatus,
+      region: row.agencyRegion,
+      regionPlaceData: row.agencyRegionPlaceData,
+      regionPlaceId: row.agencyRegionPlaceId,
+      requestedParentAgencyName: row.agencyRequestedParentAgencyName,
+      seatBillingBypassEnabled: row.agencySeatBillingBypassEnabled,
+      seatBillingBypassReason: row.agencySeatBillingBypassReason,
+      settings: row.agencySettings,
+      slug: row.agencySlug,
+      status: row.agencyStatus,
+      websiteUrl: row.agencyWebsiteUrl,
+    },
+    membership: {
+      accessType: "admin_support",
+      agencyFunded: false,
+      canCreateListings: canManageListings,
+      canEditAgencyListings: canManageListings,
+      canManageBranding: true,
+      canManageBilling: row.agencyType !== "network",
+      canManageMembers: true,
+      canPublishListings: canManageListings,
+      canSubmitListingRequests: canManageListings,
+      canViewBuyerActivity: canManageListings,
+      employeeRole: "admin",
+      role: "admin",
+      status: "active",
+    },
+  };
+}
+
 export async function getPrimaryAgencyWorkspace(
   userId: string,
 ): Promise<AgencyWorkspace | null> {
+  const adminSupportWorkspace = await getAdminSupportWorkspace(userId);
+
+  if (adminSupportWorkspace) return adminSupportWorkspace;
+
   const [row] = await db
     .select({
       agencyType: agencies.agencyType,

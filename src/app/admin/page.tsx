@@ -7,16 +7,20 @@ import {
   Building2,
   CircleDollarSign,
   Clapperboard,
+  DoorOpen,
   Eye,
   EyeOff,
   Flag,
+  Network,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
   UsersRound,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { sql } from "@/db";
+import { startAdminAgencySupportAction } from "@/modules/agencies/admin-support-actions";
 import {
   hideDemoProfileAction,
   refreshDemoProfileAction,
@@ -93,6 +97,19 @@ type DemoProfileSummary = {
   updated_at: string;
 };
 
+type SupportAgency = {
+  agency_type: "independent" | "network" | "branch";
+  employee_count: number | string | null;
+  id: string;
+  listing_count: number | string | null;
+  member_count: number | string | null;
+  name: string;
+  parent_link_status: string;
+  region: string | null;
+  status: string;
+  updated_at: string;
+};
+
 function numberFrom(value: number | string | null | undefined) {
   return Number(value || 0);
 }
@@ -114,6 +131,13 @@ function formatMoney(cents: number, currency: string) {
     currency,
     maximumFractionDigits: 0,
   }).format(cents / 100);
+}
+
+function formatAgencyType(type: SupportAgency["agency_type"]) {
+  if (type === "network") return "Network HQ";
+  if (type === "branch") return "Linked branch";
+
+  return "Independent";
 }
 
 async function getDashboardData() {
@@ -238,12 +262,48 @@ async function getDashboardData() {
     LIMIT 1
   `;
 
+  const supportAgencies = await sql<SupportAgency[]>`
+    SELECT
+      a.id,
+      a.name,
+      a.agency_type,
+      a.status,
+      a.parent_link_status,
+      a.region,
+      a.updated_at,
+      COALESCE(member_counts.member_count, 0)::int AS member_count,
+      COALESCE(employee_counts.employee_count, 0)::int AS employee_count,
+      COALESCE(listing_counts.listing_count, 0)::int AS listing_count
+    FROM agencies a
+    LEFT JOIN (
+      SELECT agency_id, count(*)::int AS member_count
+      FROM agency_members
+      WHERE status <> 'removed'
+      GROUP BY agency_id
+    ) member_counts ON member_counts.agency_id = a.id
+    LEFT JOIN (
+      SELECT agency_id, count(*)::int AS employee_count
+      FROM agency_employees
+      WHERE status <> 'removed'
+      GROUP BY agency_id
+    ) employee_counts ON employee_counts.agency_id = a.id
+    LEFT JOIN (
+      SELECT agency_id, count(*)::int AS listing_count
+      FROM property_listings
+      WHERE agency_id IS NOT NULL
+      GROUP BY agency_id
+    ) listing_counts ON listing_counts.agency_id = a.id
+    ORDER BY a.updated_at DESC, a.created_at DESC
+    LIMIT 8
+  `;
+
   return {
     demoProfile,
     metrics,
     recentListings,
     recentOffers,
     recentUsers,
+    supportAgencies,
   };
 }
 
@@ -327,8 +387,14 @@ function EmptyRow({ label }: { label: string }) {
 }
 
 export default async function AdminPage() {
-  const { demoProfile, metrics, recentListings, recentOffers, recentUsers } =
-    await getDashboardData();
+  const {
+    demoProfile,
+    metrics,
+    recentListings,
+    recentOffers,
+    recentUsers,
+    supportAgencies,
+  } = await getDashboardData();
 
   const moderationQueue =
     numberFrom(metrics?.open_reports) +
@@ -532,6 +598,79 @@ export default async function AdminPage() {
               </Button>
             </div>
           ) : null}
+        </section>
+
+        <section
+          id="agency-support"
+          className="mt-8 scroll-mt-20 rounded-lg border border-border bg-card shadow-sm"
+        >
+          <div className="flex flex-col gap-4 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                <ShieldCheck className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+                  Agency support
+                </p>
+                <h2 className="mt-1 text-base font-semibold">
+                  Control room access
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
+                  Open any agency, branch, or Network HQ control room with
+                  audited Homzie admin support access.
+                </p>
+              </div>
+            </div>
+            <Button asChild variant="outline">
+              <Link href="/admin/settings/agency-billing">
+                Agency billing settings
+              </Link>
+            </Button>
+          </div>
+
+          <div className="divide-y divide-border">
+            {supportAgencies.length ? (
+              supportAgencies.map((agency) => (
+                <div key={agency.id} className="px-5 py-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold">
+                          {agency.name}
+                        </p>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase text-primary">
+                          <Network className="size-3" />
+                          {formatAgencyType(agency.agency_type)}
+                        </span>
+                        <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold uppercase text-secondary-foreground">
+                          {agency.status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs font-normal text-muted-foreground">
+                        {agency.region || "No region"} · Updated{" "}
+                        {formatDateTime(agency.updated_at)}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-normal text-muted-foreground">
+                        <span>{formatNumber(agency.member_count)} members</span>
+                        <span>{formatNumber(agency.employee_count)} employees</span>
+                        <span>{formatNumber(agency.listing_count)} listings</span>
+                      </div>
+                    </div>
+                    <form action={startAdminAgencySupportAction}>
+                      <input type="hidden" name="agencyId" value={agency.id} />
+                      <Button type="submit" size="sm" className="w-full sm:w-auto">
+                        <DoorOpen className="size-4" />
+                        Open control room
+                      </Button>
+                    </form>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyRow label="No agency accounts yet." />
+            )}
+          </div>
         </section>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-3">

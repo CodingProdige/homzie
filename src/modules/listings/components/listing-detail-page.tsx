@@ -23,6 +23,7 @@ import {
   Home,
   Lock,
   MapPin,
+  MessageCircle,
   Minus,
   ParkingCircle,
   Percent,
@@ -1586,6 +1587,20 @@ function ListingDescription({ value }: { value: string | null }) {
   );
 }
 
+function whatsappAgentHref(agent: ListingAgentData, listing: ListingDetailData) {
+  if (!agent.whatsappNumber) return null;
+
+  const digits = agent.whatsappNumber.replace(/\D/g, "");
+
+  if (!digits) return null;
+
+  const message = encodeURIComponent(
+    `Hi ${agent.name}, I'm interested in ${listing.title} on Homzie.`,
+  );
+
+  return `https://wa.me/${digits}?text=${message}`;
+}
+
 function AgentProfileCard({
   agent,
   agentHref,
@@ -1603,6 +1618,7 @@ function AgentProfileCard({
 }) {
   const actionsDisabled = listing.isUnavailableForViewer;
   const signupHref = `/register?callbackUrl=${encodeURIComponent(listing.href)}`;
+  const whatsappHref = whatsappAgentHref(agent, listing);
 
   return (
     <div className="relative overflow-hidden rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">
@@ -1668,9 +1684,7 @@ function AgentProfileCard({
             {agent.bio}
           </p>
         ) : null}
-        {agent.contactEmail ||
-        agent.contactPhone ||
-        agent.whatsappNumber ? (
+        {agent.contactEmail || agent.contactPhone ? (
           <div className="mt-4">
             <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Contact agent
@@ -1706,29 +1720,24 @@ function AgentProfileCard({
                 </a>
               )
             ) : null}
-            {agent.whatsappNumber ? (
-              actionsDisabled ? (
-                <span className="text-muted-foreground">
-                  WhatsApp {agent.whatsappNumber}
-                </span>
-              ) : (
-                <a
-                  href={`https://wa.me/${agent.whatsappNumber.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:underline"
-                  onClick={() => onAction?.("whatsapp_agent")}
-                >
-                  WhatsApp {agent.whatsappNumber}
-                </a>
-              )
-            ) : null}
             </div>
           </div>
         ) : null}
         {actionsDisabled ? (
           <div className="mt-5 grid gap-2">
-            <Button className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-semibold text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]" disabled>
+            {whatsappHref ? (
+              <Button
+                className="h-12 w-full rounded-md border border-emerald-500/40 bg-emerald-500/10 text-sm font-semibold text-emerald-700 opacity-60 dark:text-emerald-300"
+                disabled
+              >
+                <MessageCircle className="size-4" />
+                WhatsApp agent
+              </Button>
+            ) : null}
+            <Button
+              className="h-12 w-full rounded-md border-transparent bg-[image:var(--homzie-gradient)] text-sm font-semibold text-white opacity-60 shadow-[0_14px_30px_rgba(123,92,255,0.25)]"
+              disabled
+            >
               <Send className="size-4" />
               Send message
             </Button>
@@ -1739,6 +1748,23 @@ function AgentProfileCard({
           </div>
         ) : (
           <div className="mt-5 grid gap-2">
+            {whatsappHref ? (
+              <Button
+                asChild
+                variant="outline"
+                className="h-12 w-full rounded-md border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+              >
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => onAction?.("whatsapp_agent")}
+                >
+                  <MessageCircle className="size-4" />
+                  WhatsApp agent
+                </a>
+              </Button>
+            ) : null}
             <SendListingMessageButton
               listing={listing}
               onSent={() => onAction?.("contact_agent")}

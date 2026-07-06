@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Clock3,
   Crown,
+  DoorOpen,
   ExternalLink,
   Filter,
   Loader2,
@@ -26,6 +27,7 @@ import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { startAdminAgencySupportAction } from "@/modules/agencies/admin-support-actions";
 import {
   auditIncompleteTrialsAction,
   updateAdminProAccessOverride,
@@ -284,7 +286,26 @@ function StatusBadge({
   );
 }
 
-function DetailItem({
+function EmptyValue() {
+  return <span className="font-normal text-muted-foreground">Not set</span>;
+}
+
+function InfoSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="border-t border-border py-5 first:border-t-0 first:pt-0">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <dl className="mt-3 divide-y divide-border">{children}</dl>
+    </section>
+  );
+}
+
+function InfoRow({
   label,
   value,
 }: {
@@ -292,11 +313,13 @@ function DetailItem({
   value: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-background p-3">
-      <p className="text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
+    <div className="grid gap-1 py-3 text-sm sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-4">
+      <dt className="text-[10px] font-normal uppercase tracking-[0.08em] text-muted-foreground">
         {label}
-      </p>
-      <div className="mt-1 break-words text-sm font-bold">{value || "Not set"}</div>
+      </dt>
+      <dd className="min-w-0 break-words font-semibold">
+        {value || <EmptyValue />}
+      </dd>
     </div>
   );
 }
@@ -410,6 +433,17 @@ function UserDetailsDialog({
   if (!user) return null;
 
   const profilePath = user.username ? `/users/${user.username}` : null;
+  const trial = getTrialState(user);
+  const proOverrideStatus = hasActiveProOverride(user)
+    ? user.proAccessOverrideExpiresAt
+      ? `Enabled until ${formatDateTime(user.proAccessOverrideExpiresAt)}`
+      : "Enabled with no expiry"
+    : user.proAccessOverrideEnabled
+      ? "Expired"
+      : "Not enabled";
+  const trialStatus = trial
+    ? `${trial.isActive ? "Active" : "Used"} · day ${trial.day}/7 · ends ${formatDateTime(trial.endsAt.toISOString())}`
+    : "Not started";
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -466,72 +500,107 @@ function UserDetailsDialog({
               ) : null}
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <DetailItem label="User ID" value={user.id} />
-              <DetailItem label="Display name" value={user.name} />
-              <DetailItem label="Username" value={user.username ? `@${user.username}` : null} />
-              <DetailItem label="Email" value={user.email} />
-              <DetailItem label="Contact email" value={user.contactEmail} />
-              <DetailItem label="Contact phone" value={user.contactPhone} />
-              <DetailItem label="WhatsApp" value={user.whatsappNumber} />
-              <DetailItem label="Location" value={user.location} />
-              <DetailItem label="Account type" value={agencyTypeLabel(user.agencyType)} />
-              <DetailItem label="Agency / Network" value={user.agencyName} />
-              <DetailItem label="Agency role" value={agencyRoleLabel(user.agencyMemberRole)} />
-              <DetailItem label="Agency status" value={user.agencyStatus} />
-              <DetailItem label="Membership status" value={user.agencyMemberStatus} />
-              <DetailItem label="Last online" value={formatLastOnline(user.lastOnlineAt)} />
-              <DetailItem label="Subscription" value={subscriptionLabel(user)} />
-              <DetailItem
-                label="Pro override"
-                value={
-                  hasActiveProOverride(user)
-                    ? user.proAccessOverrideExpiresAt
-                      ? `Enabled until ${formatDateTime(user.proAccessOverrideExpiresAt)}`
-                      : "Enabled with no expiry"
-                    : user.proAccessOverrideEnabled
-                      ? "Expired"
-                      : "Not enabled"
-                }
-              />
-              <DetailItem label="Override reason" value={user.proAccessOverrideReason} />
-              <DetailItem
-                label="Trial"
-                value={
-                  getTrialState(user)
-                    ? `${getTrialState(user)?.isActive ? "Active" : "Used"} · day ${getTrialState(user)?.day}/7 · ends ${formatDateTime(getTrialState(user)!.endsAt.toISOString())}`
-                    : "Not started"
-                }
-              />
-              <DetailItem
-                label="Billing period"
-                value={
-                  user.subscriptionCurrentPeriodEnd
-                    ? `Until ${formatDateTime(user.subscriptionCurrentPeriodEnd)}`
-                    : null
-                }
-              />
-              <DetailItem label="Google place ID" value={user.locationPlaceId} />
-              <DetailItem
-                label="Public contact"
-                value={user.publicContactVisible ? "Visible" : "Hidden"}
-              />
-              <DetailItem label="Listings" value={user.listingCount.toLocaleString("en-ZA")} />
-              <DetailItem label="Reels" value={user.reelCount.toLocaleString("en-ZA")} />
-              <DetailItem label="Created" value={formatDateTime(user.createdAt)} />
-              <DetailItem label="Updated" value={formatDateTime(user.updatedAt)} />
-              <DetailItem
-                label="Override updated"
-                value={
-                  user.proAccessOverrideUpdatedAt
-                    ? formatDateTime(user.proAccessOverrideUpdatedAt)
-                    : null
-                }
-              />
-            </div>
+            {user.agencyId ? (
+              <div className="mt-5 flex flex-col gap-3 border-y border-border py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">Agency support access</p>
+                  <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
+                    Open {user.agencyName || "this agency"} as a Homzie admin
+                    support session.
+                  </p>
+                </div>
+                <form action={startAdminAgencySupportAction}>
+                  <input type="hidden" name="agencyId" value={user.agencyId} />
+                  <Button type="submit" className="w-full sm:w-auto">
+                    <DoorOpen className="size-4" />
+                    Open control room
+                  </Button>
+                </form>
+              </div>
+            ) : null}
 
-            <div className="mt-3">
-              <DetailItem label="Bio" value={user.bio} />
+            <div className="mt-5">
+              <InfoSection title="Profile">
+                <InfoRow label="User ID" value={user.id} />
+                <InfoRow label="Display name" value={user.name} />
+                <InfoRow
+                  label="Username"
+                  value={user.username ? `@${user.username}` : null}
+                />
+                <InfoRow label="Email" value={user.email} />
+                <InfoRow label="Location" value={user.location} />
+                <InfoRow label="Google place ID" value={user.locationPlaceId} />
+                <InfoRow label="Bio" value={user.bio} />
+              </InfoSection>
+
+              <InfoSection title="Contact">
+                <InfoRow label="Contact email" value={user.contactEmail} />
+                <InfoRow label="Contact phone" value={user.contactPhone} />
+                <InfoRow label="WhatsApp" value={user.whatsappNumber} />
+                <InfoRow
+                  label="Public contact"
+                  value={user.publicContactVisible ? "Visible" : "Hidden"}
+                />
+              </InfoSection>
+
+              <InfoSection title="Agency / Account">
+                <InfoRow label="Account type" value={agencyTypeLabel(user.agencyType)} />
+                <InfoRow label="Agency / Network" value={user.agencyName} />
+                <InfoRow label="Agency ID" value={user.agencyId} />
+                <InfoRow label="Agency slug" value={user.agencySlug} />
+                <InfoRow
+                  label="Agency role"
+                  value={agencyRoleLabel(user.agencyMemberRole)}
+                />
+                <InfoRow label="Agency status" value={user.agencyStatus} />
+                <InfoRow
+                  label="Membership status"
+                  value={user.agencyMemberStatus}
+                />
+              </InfoSection>
+
+              <InfoSection title="Billing & Access">
+                <InfoRow label="Subscription" value={subscriptionLabel(user)} />
+                <InfoRow
+                  label="Billing period"
+                  value={
+                    user.subscriptionCurrentPeriodEnd
+                      ? `Until ${formatDateTime(user.subscriptionCurrentPeriodEnd)}`
+                      : null
+                  }
+                />
+                <InfoRow label="Trial" value={trialStatus} />
+                <InfoRow label="Pro override" value={proOverrideStatus} />
+                <InfoRow
+                  label="Override reason"
+                  value={user.proAccessOverrideReason}
+                />
+                <InfoRow
+                  label="Override updated"
+                  value={
+                    user.proAccessOverrideUpdatedAt
+                      ? formatDateTime(user.proAccessOverrideUpdatedAt)
+                      : null
+                  }
+                />
+              </InfoSection>
+
+              <InfoSection title="Activity">
+                <InfoRow
+                  label="Last online"
+                  value={formatLastOnline(user.lastOnlineAt)}
+                />
+                <InfoRow
+                  label="Listings"
+                  value={user.listingCount.toLocaleString("en-ZA")}
+                />
+                <InfoRow
+                  label="Reels"
+                  value={user.reelCount.toLocaleString("en-ZA")}
+                />
+                <InfoRow label="Created" value={formatDateTime(user.createdAt)} />
+                <InfoRow label="Updated" value={formatDateTime(user.updatedAt)} />
+              </InfoSection>
             </div>
 
             <AdminProAccessOverrideForm user={user} />
@@ -799,7 +868,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-left text-sm">
+          <table className="w-max min-w-full whitespace-nowrap text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">User</th>
@@ -867,7 +936,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-nowrap gap-1.5">
                       <StatusBadge
                         value={user.status}
                         tone={user.status === "disabled" ? "warning" : "default"}

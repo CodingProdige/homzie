@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
+import { ShieldCheck } from "lucide-react";
 
 import { AgencyShell } from "@/app/agency/agency-shell";
+import { Button } from "@/components/ui/button";
 import { sql } from "@/db";
 import { toPublicMediaUrl } from "@/media/paths";
 import { getUnreadAgencyActivityCount } from "@/modules/agencies/activity";
+import { stopAdminAgencySupportAction } from "@/modules/agencies/admin-support-actions";
 import { agencyControlRoomLogoPathFromSettings } from "@/modules/agencies/brand-style";
 import {
   controlRoomKindForWorkspace,
@@ -84,13 +87,24 @@ export default async function ControlRoomLayout({
     ? await getUnreadAgencyActivityCount(workspace.agency.id)
     : 0;
   const workspaceLabel = workspace?.agency.name || "Agency workspace";
+  let accessLabel: string | null = null;
+
+  if (workspace?.membership.accessType === "admin_support") {
+    accessLabel = "Homzie support admin";
+  } else if (
+    workspace?.membership.accessType === "employee" &&
+    workspace.membership.employeeRole
+  ) {
+    accessLabel = `${agencyEmployeeRoleLabel(workspace.membership.employeeRole)} employee`;
+  } else if (workspace) {
+    accessLabel = agencyRoleLabel(workspace.membership.role);
+  }
+
   const accountLabel = workspace
-    ? `${agencyTypeLabel(workspace.agency.agencyType)} · ${
-        workspace.membership.accessType === "employee" && workspace.membership.employeeRole
-          ? `${agencyEmployeeRoleLabel(workspace.membership.employeeRole)} employee`
-          : agencyRoleLabel(workspace.membership.role)
-      }`
+    ? `${agencyTypeLabel(workspace.agency.agencyType)} · ${accessLabel}`
     : user?.email || user?.name || "Create workspace";
+  const isAdminSupportMode =
+    workspace?.membership.accessType === "admin_support";
 
   return (
     <AgencyShell
@@ -104,6 +118,34 @@ export default async function ControlRoomLayout({
       roomLabel={controlRoomLabel(kind)}
       workspaceLabel={workspaceLabel}
     >
+      {isAdminSupportMode ? (
+        <section className="border-b border-amber-300/70 bg-amber-500/10 px-4 py-3 text-foreground sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                <ShieldCheck className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Admin support mode</p>
+                <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground">
+                  Managing {workspaceLabel} as{" "}
+                  {user?.email || user?.name || "Homzie admin"}.
+                </p>
+              </div>
+            </div>
+            <form action={stopAdminAgencySupportAction}>
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+              >
+                Exit support
+              </Button>
+            </form>
+          </div>
+        </section>
+      ) : null}
       {children}
     </AgencyShell>
   );
