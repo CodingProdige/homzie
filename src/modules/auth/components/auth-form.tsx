@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkAgencyNameAvailability } from "@/modules/agencies/actions";
 import type { AgencyNetworkOption } from "@/modules/agencies/server";
+import { GoogleAuthButton } from "./google-auth-button";
 import { PasswordInput } from "./password-input";
 import {
   registerWithEmail,
@@ -439,6 +440,8 @@ export function AuthForm({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const googleLabel = isRegister ? "Register with Google" : "Sign in with Google";
+  const showGoogleAuth = !isRegister || accountType === "personal";
 
   useEffect(() => {
     if (!isRegister || accountType !== "agency") {
@@ -538,7 +541,8 @@ export function AuthForm({
   };
 
   return (
-    <form className="mt-10 space-y-6" onSubmit={onSubmit}>
+    <>
+      <form className="mt-10 space-y-6" onSubmit={onSubmit}>
       {isRegister ? (
         <>
           <div className="grid gap-2">
@@ -838,6 +842,19 @@ export function AuthForm({
         <LockKeyhole className="size-4" />
         {isPending ? "Please wait..." : isRegister ? "Create account" : "Sign in"}
       </Button>
-    </form>
+      </form>
+
+      {showGoogleAuth ? (
+        <>
+          <div className="my-8 grid grid-cols-[1fr_auto_1fr] items-center gap-5">
+            <div className="h-px bg-border" />
+            <span className="text-sm font-normal text-muted-foreground">OR</span>
+            <div className="h-px bg-border" />
+          </div>
+
+          <GoogleAuthButton callbackUrl={callbackUrl} label={googleLabel} />
+        </>
+      ) : null}
+    </>
   );
 }

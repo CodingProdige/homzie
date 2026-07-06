@@ -109,6 +109,12 @@ function cleanOptionalText(value: string | undefined, maxLength: number) {
   return (value || "").replace(/\s+/g, " ").trim().slice(0, maxLength) || null;
 }
 
+class AgencyNameUnavailableDuringRegistrationError extends Error {
+  constructor() {
+    super("Agency name unavailable during registration.");
+  }
+}
+
 export async function checkUsernameAvailability(
   value: string,
 ): Promise<UsernameAvailability> {
@@ -238,28 +244,34 @@ export async function registerWithEmail(input: {
     | undefined;
 
   try {
-    [createdUser] = await db
-      .insert(users)
-      .values({
-        name: parsed.data.name,
-        email: parsed.data.email,
-        passwordHash,
-        emailVerified: false,
-        profileRole:
-          parsed.data.accountType === "agency"
-            ? profileRoleForAgencyOwner(parsed.data.agencyType)
-            : defaultProfileRole,
-      })
-      .returning({ id: users.id, name: users.name });
+    createdUser = await db.transaction(async (tx) => {
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          name: parsed.data.name,
+          email: parsed.data.email,
+          passwordHash,
+          emailVerified: false,
+          profileRole:
+            parsed.data.accountType === "agency"
+              ? profileRoleForAgencyOwner(parsed.data.agencyType)
+              : defaultProfileRole,
+        })
+        .returning({ id: users.id, name: users.name });
 
-    if (createdUser) {
+      if (!newUser) {
+        throw new Error("User registration insert returned no user.");
+      }
+
       await claimPendingAgencyEmployeeInvitesForUser({
+        client: tx,
         email: parsed.data.email,
-        userId: createdUser.id,
+        userId: newUser.id,
       });
       await claimPendingAgencyMemberInvitesForUser({
+        client: tx,
         email: parsed.data.email,
-        userId: createdUser.id,
+        userId: newUser.id,
       });
 
       if (parsed.data.accountType === "agency") {
@@ -267,13 +279,14 @@ export async function registerWithEmail(input: {
         const storesRegion = parsed.data.agencyType !== "network";
         const agency = await createAgencyWithOwner({
           agencyType: parsed.data.agencyType,
-          billingOwnerUserId: createdUser.id,
+          billingOwnerUserId: newUser.id,
           billingMode: "self",
           branchCode: isBranchAgency
             ? cleanOptionalText(parsed.data.branchCode, 32)
             : null,
           contactEmail: parsed.data.email,
-          createdByUserId: createdUser.id,
+          client: tx,
+          createdByUserId: newUser.id,
           name: parsed.data.agencyName || parsed.data.name,
           parentAgencyId: resolvedParentAgency?.id || null,
           parentLinkStatus: resolvedParentAgency ? "pending" : "none",
@@ -286,14 +299,14 @@ export async function registerWithEmail(input: {
         });
 
         if (!agency) {
-          return {
-            ok: false,
-            error:
-              "Account created, but that agency name is no longer available. Sign in and choose a more specific agency name.",
-          };
+          throw new AgencyNameUnavailableDuringRegistrationError();
         }
       }
 
+      return newUser;
+    });
+
+    if (createdUser) {
       await sendTemplatedEmailToUser({
         bypassPreferences: true,
         eventKey: "auth.welcome",
@@ -314,7 +327,17 @@ export async function registerWithEmail(input: {
         console.error("[email] welcome failed", error);
       });
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof AgencyNameUnavailableDuringRegistrationError) {
+      return {
+        ok: false,
+        error:
+          "That agency name is no longer available. Use a more specific branch or network name.",
+      };
+    }
+
+    console.error("[auth] email registration failed", error);
+
     return {
       ok: false,
       error: "Could not create your account. Please try again.",

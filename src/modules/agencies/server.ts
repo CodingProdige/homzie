@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, sql as drizzleSql } from "drizzle-orm";
 
 import { db, sql as rawSql } from "@/db";
 import { agencies, agencyEmployees, agencyMembers } from "@/db/schema";
@@ -12,7 +12,8 @@ import {
 import { recordAgencySeatUsageEvent } from "@/modules/agencies/billing";
 import { getActiveAdminSupportAccess } from "@/modules/agencies/admin-support";
 
-type AgencyInsertClient = Pick<typeof db, "insert" | "select">;
+type AgencyDbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type AgencyInsertClient = Pick<AgencyDbExecutor, "select">;
 
 export type EffectiveAgencyBrand = {
   agencyId: string;
@@ -451,6 +452,7 @@ export async function createAgencyWithOwner({
   regionPlaceId,
   requestedParentAgencyName,
   websiteUrl,
+  client = db,
 }: {
   agencyType?: "independent" | "network" | "branch";
   billingOwnerUserId: string;
@@ -469,6 +471,7 @@ export async function createAgencyWithOwner({
   regionPlaceId?: string | null;
   requestedParentAgencyName?: string | null;
   websiteUrl?: string | null;
+  client?: AgencyDbExecutor;
 }) {
   const resolvedBillingMode =
     billingMode || (agencyType === "branch" && parentAgencyId ? "parent" : "self");
@@ -482,11 +485,11 @@ export async function createAgencyWithOwner({
           : "none"
       : "none");
   const slug = canonicalAgencySlug(name);
-  const slugAvailable = await isAgencySlugAvailable(slug);
+  const slugAvailable = await isAgencySlugAvailable(slug, client);
 
   if (!slugAvailable) return null;
 
-  const [agency] = await db
+  const [agency] = await client
     .insert(agencies)
     .values({
       agencyType,
@@ -515,7 +518,7 @@ export async function createAgencyWithOwner({
   if (!agency) return null;
 
   const ownerHasAgencyFundedSeat = agencyType !== "network";
-  const [ownerMember] = await db.insert(agencyMembers).values({
+  const [ownerMember] = await client.insert(agencyMembers).values({
     acceptedAt: new Date(),
     agencyFunded: ownerHasAgencyFundedSeat,
     agencyId: agency.id,
@@ -532,7 +535,7 @@ export async function createAgencyWithOwner({
   }).returning({ id: agencyMembers.id });
 
   if (ownerMember && ownerHasAgencyFundedSeat) {
-    await recordAgencySeatUsageEvent(db, {
+    await recordAgencySeatUsageEvent(client, {
       agencyId: agency.id,
       eventType: "seat_started",
       memberId: ownerMember.id,
@@ -641,9 +644,11 @@ export async function getEffectiveAgencyBrandsForUsers(userIds: string[]) {
 }
 
 export async function claimPendingAgencyEmployeeInvitesForUser({
+  client = db,
   email,
   userId,
 }: {
+  client?: AgencyDbExecutor;
   email: string;
   userId: string;
 }) {
@@ -651,31 +656,37 @@ export async function claimPendingAgencyEmployeeInvitesForUser({
 
   if (!normalizedEmail || !userId) return;
 
-  await rawSql`
-    UPDATE agency_employees invited
-    SET
-      accepted_at = coalesce(invited.accepted_at, now()),
-      invited_email = NULL,
-      status = 'active',
-      updated_at = now(),
-      user_id = ${userId}
-    WHERE invited.user_id IS NULL
-      AND invited.status = 'invited'
-      AND lower(invited.invited_email) = ${normalizedEmail}
-      AND NOT EXISTS (
+  await client
+    .update(agencyEmployees)
+    .set({
+      acceptedAt: drizzleSql`coalesce(${agencyEmployees.acceptedAt}, now())`,
+      invitedEmail: null,
+      status: "active",
+      updatedAt: new Date(),
+      userId,
+    })
+    .where(
+      and(
+        drizzleSql`${agencyEmployees.userId} is null`,
+        eq(agencyEmployees.status, "invited"),
+        drizzleSql`lower(${agencyEmployees.invitedEmail}) = ${normalizedEmail}`,
+        drizzleSql`NOT EXISTS (
         SELECT 1
         FROM agency_employees existing
-        WHERE existing.agency_id = invited.agency_id
+        WHERE existing.agency_id = ${agencyEmployees.agencyId}
           AND existing.user_id = ${userId}
-          AND existing.id <> invited.id
-      )
-  `;
+          AND existing.id <> ${agencyEmployees.id}
+      )`,
+      ),
+    );
 }
 
 export async function claimPendingAgencyMemberInvitesForUser({
+  client = db,
   email,
   userId,
 }: {
+  client?: AgencyDbExecutor;
   email: string;
   userId: string;
 }) {
@@ -683,25 +694,29 @@ export async function claimPendingAgencyMemberInvitesForUser({
 
   if (!normalizedEmail || !userId) return;
 
-  await rawSql`
-    UPDATE agency_members invited
-    SET
-      accepted_at = coalesce(invited.accepted_at, now()),
-      invited_email = NULL,
-      status = 'active',
-      updated_at = now(),
-      user_id = ${userId}
-    WHERE invited.user_id IS NULL
-      AND invited.status = 'invited'
-      AND lower(invited.invited_email) = ${normalizedEmail}
-      AND NOT EXISTS (
+  await client
+    .update(agencyMembers)
+    .set({
+      acceptedAt: drizzleSql`coalesce(${agencyMembers.acceptedAt}, now())`,
+      invitedEmail: null,
+      status: "active",
+      updatedAt: new Date(),
+      userId,
+    })
+    .where(
+      and(
+        drizzleSql`${agencyMembers.userId} is null`,
+        eq(agencyMembers.status, "invited"),
+        drizzleSql`lower(${agencyMembers.invitedEmail}) = ${normalizedEmail}`,
+        drizzleSql`NOT EXISTS (
         SELECT 1
         FROM agency_members existing
-        WHERE existing.agency_id = invited.agency_id
+        WHERE existing.agency_id = ${agencyMembers.agencyId}
           AND existing.user_id = ${userId}
-          AND existing.id <> invited.id
-      )
-  `;
+          AND existing.id <> ${agencyMembers.id}
+      )`,
+      ),
+    );
 }
 
 export function hasAgencyAdminAccess(

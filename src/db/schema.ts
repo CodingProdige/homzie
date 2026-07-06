@@ -2326,7 +2326,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   subscriptions: many(subscriptions),
   errorLogs: many(errorLogs),
-  propertyIdentities: many(propertyIdentities),
   propertyListings: many(propertyListings),
   propertySaleClaims: many(propertySaleClaims),
   propertyListingStatusHistory: many(propertyListingStatusHistory),

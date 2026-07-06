@@ -4,7 +4,6 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { HomzieLogo } from "@/components/homzie-logo";
 
 import { AuthForm } from "./auth-form";
-import { GoogleAuthButton } from "./google-auth-button";
 import { ThemeToggle } from "./theme-toggle";
 import type { AgencyNetworkOption } from "@/modules/agencies/server";
 
@@ -46,9 +45,6 @@ export function AuthShell({
   const description = isRegister
     ? "Create a personal account or set up an agency workspace for your team."
     : "Enter your credentials to access your Homzie account";
-  const googleLabel = isRegister
-    ? "Register with Google"
-    : "Sign in with Google";
 
   return (
     <main className="min-h-screen bg-background text-foreground lg:grid lg:h-screen lg:grid-cols-[minmax(0,1.45fr)_minmax(480px,0.95fr)] lg:overflow-hidden">
@@ -89,14 +85,6 @@ export function AuthShell({
             mode={mode}
             networkOptions={networkOptions}
           />
-
-          <div className="my-8 grid grid-cols-[1fr_auto_1fr] items-center gap-5">
-            <div className="h-px bg-border" />
-            <span className="text-sm font-normal text-muted-foreground">OR</span>
-            <div className="h-px bg-border" />
-          </div>
-
-          <GoogleAuthButton callbackUrl={callbackUrl} label={googleLabel} />
 
           <p className="mt-7 text-center text-sm text-muted-foreground">
             {isRegister ? "Already have an account?" : "New to Homzie?"}{" "}
