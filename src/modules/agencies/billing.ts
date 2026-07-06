@@ -496,7 +496,7 @@ export async function recordAgencySeatUsageEvent(
         })
         .onConflictDoUpdate({
           set: {
-            billingCycleAnchorAt: drizzleSql`coalesce(${agencyBillingProfiles.billingCycleAnchorAt}, ${occurredAt})`,
+            billingCycleAnchorAt: drizzleSql`coalesce(${agencyBillingProfiles.billingCycleAnchorAt}, excluded.billing_cycle_anchor_at)`,
             updatedAt: new Date(),
           },
           target: agencyBillingProfiles.agencyId,

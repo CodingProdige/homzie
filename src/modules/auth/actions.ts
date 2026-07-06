@@ -115,6 +115,45 @@ class AgencyNameUnavailableDuringRegistrationError extends Error {
   }
 }
 
+function databaseErrorCode(error: unknown) {
+  return error && typeof error === "object" && "code" in error
+    ? String((error as { code?: unknown }).code || "")
+    : "";
+}
+
+function databaseConstraintName(error: unknown) {
+  return error && typeof error === "object" && "constraint_name" in error
+    ? String((error as { constraint_name?: unknown }).constraint_name || "")
+    : error && typeof error === "object" && "constraint" in error
+      ? String((error as { constraint?: unknown }).constraint || "")
+      : "";
+}
+
+function registrationFailureMessage(error: unknown, accountType: "agency" | "personal") {
+  const code = databaseErrorCode(error);
+  const constraint = databaseConstraintName(error);
+
+  if (code === "23505") {
+    if (constraint.includes("users_email")) {
+      return "An account already exists for that email address.";
+    }
+
+    if (constraint.includes("agencies_slug")) {
+      return "That agency name is no longer available. Use a more specific branch or network name.";
+    }
+  }
+
+  if (code === "23503") {
+    return accountType === "agency"
+      ? "Could not verify the selected agency setup details. Refresh and try again."
+      : "Could not verify your account details. Refresh and try again.";
+  }
+
+  return accountType === "agency"
+    ? "Could not create your agency workspace. Nothing was saved. Please try again."
+    : "Could not create your account. Please try again.";
+}
+
 export async function checkUsernameAvailability(
   value: string,
 ): Promise<UsernameAvailability> {
@@ -340,7 +379,7 @@ export async function registerWithEmail(input: {
 
     return {
       ok: false,
-      error: "Could not create your account. Please try again.",
+      error: registrationFailureMessage(error, parsed.data.accountType),
     };
   }
 

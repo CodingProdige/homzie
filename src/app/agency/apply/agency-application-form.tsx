@@ -193,7 +193,9 @@ export function AgencyApplicationForm({
 
       {agencyType !== "network" ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <AgencyRegionField />
+          <AgencyRegionField
+            className={agencyType === "branch" ? undefined : "sm:col-span-2"}
+          />
 
           {agencyType === "branch" ? (
             <label className="grid gap-2">

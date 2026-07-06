@@ -9,6 +9,7 @@ import { AnalyticsInfoPopover } from "@/components/analytics-info-popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { checkAgencyNameAvailability } from "@/modules/agencies/actions";
 import type { AgencyNetworkOption } from "@/modules/agencies/server";
 import { GoogleAuthButton } from "./google-auth-button";
@@ -224,7 +225,7 @@ export function FieldLabel({
   );
 }
 
-export function AgencyRegionField() {
+export function AgencyRegionField({ className }: { className?: string } = {}) {
   const [region, setRegion] = useState("");
   const [regionPlaceId, setRegionPlaceId] = useState("");
   const [regionPlaceData, setRegionPlaceData] = useState("");
@@ -239,6 +240,12 @@ export function AgencyRegionField() {
     let isCurrent = true;
     const timeout = window.setTimeout(() => {
       if (region.trim().length < 2) {
+        setPredictions([]);
+        setIsSearching(false);
+        return;
+      }
+
+      if (regionPlaceId) {
         setPredictions([]);
         setIsSearching(false);
         return;
@@ -292,7 +299,7 @@ export function AgencyRegionField() {
       isCurrent = false;
       window.clearTimeout(timeout);
     };
-  }, [hasInteracted, region]);
+  }, [hasInteracted, region, regionPlaceId]);
 
   function clearGoogleMatch() {
     setRegionPlaceId("");
@@ -355,7 +362,7 @@ export function AgencyRegionField() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       <FieldLabel
         htmlFor="region"
         title="Region"
@@ -371,7 +378,7 @@ export function AgencyRegionField() {
           id="region"
           name="region"
           placeholder="Paarl, Western Cape, South Africa"
-          className="h-12 rounded-md pl-12 text-base"
+          className="h-12 rounded-md pl-12 pr-12 text-base"
           value={region}
           onChange={(event) => {
             setRegion(event.target.value);
@@ -747,7 +754,9 @@ export function AuthForm({
 
               {agencyType !== "network" ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <AgencyRegionField />
+                  <AgencyRegionField
+                    className={agencyType === "branch" ? undefined : "sm:col-span-2"}
+                  />
                   {agencyType === "branch" ? (
                     <div className="space-y-2">
                       <FieldLabel

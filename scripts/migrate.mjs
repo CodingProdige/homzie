@@ -753,6 +753,61 @@ try {
   `;
 
   await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS agency_funded boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS can_create_listings boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS can_submit_listing_requests boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS can_publish_listings boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS can_edit_agency_listings boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS can_view_buyer_activity boolean NOT NULL DEFAULT true
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS can_manage_members boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS can_manage_billing boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS invited_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS accepted_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE agency_members
+    ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()
+  `;
+
+  await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS agency_members_agency_user_idx
     ON agency_members (agency_id, user_id)
   `;
@@ -795,6 +850,46 @@ try {
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS can_manage_branding boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS can_manage_listings boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS can_manage_members boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS can_manage_billing boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS can_view_buyer_activity boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS invited_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS accepted_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE agency_employees
+    ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()
   `;
 
   await sql`
