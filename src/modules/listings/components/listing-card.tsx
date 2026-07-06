@@ -16,6 +16,7 @@ import {
   Bookmark,
   Car,
   Heart,
+  LoaderCircle,
   Lock,
   ParkingCircle,
   Play,
@@ -452,6 +453,11 @@ export function ListingEngagementActions({
 
 export function ListingCard({ listing }: { listing: ListingCardData }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [displayedImageUrl, setDisplayedImageUrl] = useState<string | null>(null);
+  const [loadedImageUrls, setLoadedImageUrls] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [loadingImageUrl, setLoadingImageUrl] = useState<string | null>(null);
   const [isVideoPreviewing, setIsVideoPreviewing] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
   const hasTrackedHoverRef = useRef(false);
@@ -488,6 +494,14 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
     listing.location,
   );
   const stats = listingCardStats(listing);
+  const visibleImageUrl = displayedImageUrl || activeImageUrl;
+  const isScrubImageLoading = Boolean(
+    loadingImageUrl &&
+      activeImageUrl &&
+      loadingImageUrl === activeImageUrl &&
+      visibleImageUrl &&
+      loadingImageUrl !== visibleImageUrl,
+  );
 
   function trackCardAction(actionType: "card_click" | "hover") {
     if (!listing.id || isUnavailableButNotReserved) return;
@@ -521,6 +535,42 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
     },
     [],
   );
+
+  function markImageLoaded(imageUrl: string) {
+    setLoadedImageUrls((current) => {
+      if (current.has(imageUrl)) return current;
+
+      return new Set(current).add(imageUrl);
+    });
+    setDisplayedImageUrl(imageUrl);
+    setLoadingImageUrl((current) => (current === imageUrl ? null : current));
+  }
+
+  function markImageFailed(imageUrl: string) {
+    setLoadingImageUrl((current) => (current === imageUrl ? null : current));
+  }
+
+  function selectImageIndex(nextIndex: number) {
+    if (nextIndex === activeImageIndex) return;
+
+    const nextImageUrl = imageUrls[nextIndex] || listing.coverImageUrl || null;
+
+    setActiveImageIndex(nextIndex);
+
+    if (!nextImageUrl) {
+      setLoadingImageUrl(null);
+      return;
+    }
+
+    if (loadedImageUrls.has(nextImageUrl)) {
+      setDisplayedImageUrl(nextImageUrl);
+      setLoadingImageUrl(null);
+      return;
+    }
+
+    setLoadingImageUrl(nextImageUrl);
+    setDisplayedImageUrl((current) => current || activeImageUrl || nextImageUrl);
+  }
 
   function scheduleHoverTracking() {
     if (!listing.id || hasTrackedHoverRef.current || isUnavailableButNotReserved) {
@@ -566,7 +616,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
       0.999999,
     );
 
-    setActiveImageIndex(Math.floor(progress * imageUrls.length));
+    selectImageIndex(Math.floor(progress * imageUrls.length));
   }
 
   const cardContent = (
@@ -576,18 +626,21 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         onPointerMove={handleImagePointerMove}
         onPointerEnter={startVideoPreview}
         onPointerLeave={() => {
-          setActiveImageIndex(0);
+          selectImageIndex(0);
           stopVideoPreview();
         }}
         onFocus={startVideoPreview}
         onBlur={stopVideoPreview}
       >
-        {activeImageUrl ? (
+        {visibleImageUrl ? (
           <Image
-            src={activeImageUrl}
+            src={visibleImageUrl}
             alt={listing.title || "Listing cover"}
             fill
             className={cn("object-cover", isUnavailableButNotReserved && "grayscale")}
+            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            onLoad={() => markImageLoaded(visibleImageUrl)}
+            onError={() => markImageFailed(visibleImageUrl)}
           />
         ) : (
           <div
@@ -599,6 +652,34 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             <Upload className="size-8" />
           </div>
         )}
+        {activeImageUrl && activeImageUrl !== visibleImageUrl ? (
+          <Image
+            key={`scrub-${activeImageUrl}`}
+            src={activeImageUrl}
+            alt=""
+            aria-hidden="true"
+            fill
+            className={cn(
+              "pointer-events-none object-cover opacity-0",
+              isUnavailableButNotReserved && "grayscale",
+            )}
+            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            onLoad={() => markImageLoaded(activeImageUrl)}
+            onError={() => markImageFailed(activeImageUrl)}
+          />
+        ) : null}
+        {isScrubImageLoading ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-[4] grid place-items-center bg-black/25 backdrop-blur-[1px]"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span className="grid size-10 place-items-center rounded-full bg-background/85 text-foreground shadow-lg ring-1 ring-white/40 backdrop-blur">
+              <LoaderCircle className="size-5 animate-spin text-primary" />
+              <span className="sr-only">Loading listing photo</span>
+            </span>
+          </div>
+        ) : null}
         {videoUrl ? (
           <>
             <video
@@ -668,9 +749,13 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             {imageUrls.map((imageUrl, index) => (
               <span
                 key={`${imageUrl}-${index}`}
-                className={`h-1 flex-1 rounded-full ${
-                  index === activeImageIndex ? "bg-white" : "bg-white/45"
-                }`}
+                className={cn(
+                  "h-1 flex-1 rounded-full",
+                  index === activeImageIndex ? "bg-white" : "bg-white/45",
+                  isScrubImageLoading &&
+                    index === activeImageIndex &&
+                    "animate-pulse bg-white/80",
+                )}
               />
             ))}
           </div>
