@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GlobalHeader } from "@/components/global-header";
 import { GlobalFooter } from "@/components/global-footer";
+import { AnalyticsInfoPopover } from "@/components/analytics-info-popover";
 import { cn } from "@/lib/utils";
 import { toPublicMediaUrl } from "@/media/paths";
 import { useCurrency } from "@/modules/currency/currency-provider";
@@ -49,9 +50,10 @@ import { toggleProfileFollow } from "@/modules/reels/actions";
 import { ReelPreviewCard } from "@/modules/reels/components/reel-preview-card";
 import { updateProfileRoleAction } from "@/modules/users/actions";
 import {
+  isAgencyProfileRole,
+  profileRoleIdentityPhrase,
   profileRoleLabel,
   profileRoleOptions,
-  profileRoleSentenceLabel,
   type ProfileRole,
 } from "@/modules/users/profile-role";
 
@@ -545,7 +547,7 @@ function ProfileRoleLine({ profile }: { profile: UserProfile }) {
         className="mt-2 inline-flex max-w-full items-center rounded-full border border-border bg-muted/55 px-3 py-1 text-xs font-semibold text-muted-foreground"
         title={profileRoleLabel(role)}
       >
-        I am a {profileRoleSentenceLabel(role)}
+        I am {profileRoleIdentityPhrase(role)}
       </p>
     );
   }
@@ -570,14 +572,14 @@ function ProfileRoleLine({ profile }: { profile: UserProfile }) {
 
   return (
     <div className="mt-2 flex max-w-full flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-      <span>I am a</span>
-      <DropdownMenu.Root>
+      <span>I am</span>
+      <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger asChild disabled={isPending}>
           <button
             type="button"
-            className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-primary/45 bg-primary/8 px-3 text-xs font-bold text-foreground shadow-sm outline-none transition hover:bg-primary/12 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+            className="inline-flex h-8 w-56 max-w-full items-center justify-between gap-1.5 rounded-full border border-primary/45 bg-primary/8 px-3 text-xs font-bold text-foreground shadow-sm outline-none transition hover:bg-primary/12 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
           >
-            <span className="truncate">{profileRoleSentenceLabel(role)}</span>
+            <span className="truncate">{profileRoleIdentityPhrase(role)}</span>
             <ChevronDown className="size-3.5 shrink-0 text-primary" />
           </button>
         </DropdownMenu.Trigger>
@@ -585,7 +587,7 @@ function ProfileRoleLine({ profile }: { profile: UserProfile }) {
           <DropdownMenu.Content
             align="start"
             sideOffset={8}
-            className="z-[80] min-w-64 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl outline-none"
+            className="z-[80] w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-2xl outline-none"
           >
             {profileRoleOptions.map((option) => (
               <DropdownMenu.Item
@@ -602,10 +604,41 @@ function ProfileRoleLine({ profile }: { profile: UserProfile }) {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
-      {isPending ? <span>Saving</span> : null}
       {notice ? <span className="text-destructive">{notice}</span> : null}
     </div>
   );
+}
+
+function agencyBrandTypeLabel(type: EffectiveAgencyBrand["agencyType"]) {
+  if (type === "network") return "Network HQ";
+  if (type === "branch") return "branch agency";
+
+  return "independent agency";
+}
+
+function agencyBrandInfoDescription(brand: EffectiveAgencyBrand) {
+  const typeLabel = agencyBrandTypeLabel(brand.agencyType);
+  const sourceLabel =
+    brand.source === "network"
+      ? "This branding is inherited from the linked agency network."
+      : "This branding is managed by the agency workspace.";
+
+  return `This badge shows the public agency affiliation for this profile: ${brand.name}, a ${typeLabel}. ${sourceLabel}`;
+}
+
+function contactLabelForProfileRole(role: ProfileRole) {
+  if (isAgencyProfileRole(role)) return "Contact agency";
+
+  switch (role) {
+    case "property_agent":
+      return "Contact agent";
+    case "private_seller":
+      return "Contact seller";
+    case "developer":
+      return "Contact developer";
+    default:
+      return "Contact";
+  }
 }
 
 function ProfileHero({ profile }: { profile: UserProfile }) {
@@ -617,14 +650,7 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
   );
   const [connectionDialogTab, setConnectionDialogTab] =
     useState<ConnectionTab | null>(null);
-  const contactLabel =
-    profile.profileRole === "property_agent"
-      ? "Contact agent"
-      : profile.profileRole === "private_seller"
-        ? "Contact seller"
-        : profile.profileRole === "developer"
-          ? "Contact developer"
-          : "Contact";
+  const contactLabel = contactLabelForProfileRole(profile.profileRole);
 
   return (
     <section className="page-container grid grid-cols-[92px_minmax(0,1fr)] items-start gap-x-4 gap-y-5 py-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-5 sm:py-8 lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-x-5 lg:py-16">
@@ -648,7 +674,23 @@ function ProfileHero({ profile }: { profile: UserProfile }) {
           @{profile.username}
         </p>
         {profile.agencyBrand ? (
-          <AgencyBrandBadge brand={profile.agencyBrand} className="mt-2" />
+          <div className="mt-2 flex max-w-full items-center gap-1.5">
+            <Link
+              href={`/agencies/${profile.agencyBrand.slug}`}
+              className="min-w-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              aria-label={`View ${profile.agencyBrand.name} agency breakdown`}
+            >
+              <AgencyBrandBadge
+                brand={profile.agencyBrand}
+                className="min-w-0 transition hover:border-primary/50"
+              />
+            </Link>
+            <AnalyticsInfoPopover
+              className="shrink-0"
+              title="Agency badge"
+              description={agencyBrandInfoDescription(profile.agencyBrand)}
+            />
+          </div>
         ) : null}
         <ProfileRoleLine profile={profile} />
 

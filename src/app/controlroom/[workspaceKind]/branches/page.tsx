@@ -17,9 +17,9 @@ import {
   parseControlRoomKind,
 } from "@/modules/agencies/control-room";
 import {
-  agencyBillingModeLabel,
   agencyBrandingPolicyLabel,
   getPrimaryAgencyWorkspace,
+  hasAgencyAdminAccess,
 } from "@/modules/agencies/server";
 import { authOptions } from "@/modules/auth/config";
 
@@ -37,7 +37,6 @@ type BranchesPageProps = {
 };
 
 type BranchRow = {
-  billing_mode: "parent" | "self";
   branch_code: string | null;
   branding_policy: "branch_branding_allowed" | "network_branding_enforced";
   created_at: Date;
@@ -89,7 +88,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
     redirect(controlRoomPathForWorkspace(workspace));
   }
 
-  const canManageBranches = workspace.membership.canManageMembers;
+  const canManageBranches = hasAgencyAdminAccess(workspace);
   const branches = await sql<BranchRow[]>`
     SELECT
       a.id,
@@ -99,7 +98,6 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
       a.branch_code,
       a.parent_link_status,
       a.branding_policy,
-      a.billing_mode,
       a.status,
       a.created_at,
       owner.name AS owner_name,
@@ -179,11 +177,10 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
       ),
     },
     {
-      header: "Policy",
+      header: "Branding",
       key: "policy",
       render: (branch) => (
         <div className="text-xs font-normal leading-5 text-muted-foreground">
-          <p>{agencyBillingModeLabel(branch.billing_mode)}</p>
           <p>{agencyBrandingPolicyLabel(branch.branding_policy)}</p>
         </div>
       ),
@@ -246,7 +243,7 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
             Branches
           </h1>
           <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
-            Review branch affiliation requests, linked branches, owners, and operating policies for {workspace.agency.name}. Network links never make the HQ liable for branch seat billing.
+            Review branch affiliation requests, linked branches, owners, and operating policies for {workspace.agency.name}.
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
@@ -259,6 +256,11 @@ export default async function BranchesPage({ params }: BranchesPageProps) {
         <CanonicalTable
           columns={columns}
           emptyState="No linked branches or branch requests yet."
+          getRowHref={(branch) =>
+            branch.parent_link_status === "linked"
+              ? `${controlRoomPathForWorkspace(workspace)}/network/${branch.id}`
+              : ""
+          }
           getRowKey={(branch) => branch.id}
           minWidth="900px"
           rows={branches}

@@ -18,6 +18,7 @@ import { toPublicMediaUrl } from "@/media/paths";
 import { getAgentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
+import { getAgencyBuyerActivityAccessForUser } from "@/modules/listings/agency-buyer-activity";
 import {
   activityBadge,
   activityLabel,
@@ -563,6 +564,7 @@ export default async function ListingViewerActivityPage({
   const currentPage = parsePage(query.page);
   const shouldRefreshInsight = Boolean(query.refreshInsight);
   const fromOverview = query.from === "overview";
+  const fromControlRoom = query.from === "controlroom";
   const pageSize = 25;
   const offset = (currentPage - 1) * pageSize;
   const session = await getServerSession(authOptions);
@@ -574,10 +576,11 @@ export default async function ListingViewerActivityPage({
     );
   }
 
-  const [viewer, listingRows, access] = await Promise.all([
+  const [viewer, listingRows, access, agencyActivityAccess] = await Promise.all([
     getViewerChrome(userId),
     sql<
       {
+        agency_id: string | null;
         cover_image_url: string | null;
         id: string;
         location: string | null;
@@ -587,20 +590,24 @@ export default async function ListingViewerActivityPage({
         user_id: string;
       }[]
     >`
-      SELECT id, user_id, title, location, cover_image_url, price_label, status
+      SELECT id, agency_id, user_id, title, location, cover_image_url, price_label, status
       FROM property_listings
       WHERE id = ${listingId}
       LIMIT 1
     `,
     getAgentAccess(userId),
+    getAgencyBuyerActivityAccessForUser(userId),
   ]);
   const listing = listingRows[0];
+  const hasAgencyActivityAccess = Boolean(
+    agencyActivityAccess && listing?.agency_id === agencyActivityAccess.agencyId,
+  );
 
-  if (!listing || listing.user_id !== userId) {
+  if (!listing || (listing.user_id !== userId && !hasAgencyActivityAccess)) {
     notFound();
   }
 
-  if (!access.canViewBuyerIntent) {
+  if (!access.canViewBuyerIntent && !hasAgencyActivityAccess) {
     return (
       <LockedBuyerIntentPage
         backHref={`/listings/${listingId}/activity`}
@@ -887,18 +894,22 @@ export default async function ListingViewerActivityPage({
   const insightRefreshParams = new URLSearchParams();
 
   if (fromOverview) insightRefreshParams.set("from", "overview");
+  if (fromControlRoom) insightRefreshParams.set("from", "controlroom");
   if (safeCurrentPage > 1) insightRefreshParams.set("page", String(safeCurrentPage));
 
   insightRefreshParams.set("refreshInsight", "1");
 
   const insightRefreshHref = `/listings/${listing.id}/activity/${encodeURIComponent(viewerKey)}?${insightRefreshParams.toString()}`;
-  const listingActivityBackHref = fromOverview
-    ? `/listings/${listing.id}/activity?from=overview`
-    : `/listings/${listing.id}/activity`;
+  const listingActivityBackHref = fromControlRoom
+    ? `/listings/${listing.id}/activity?from=controlroom`
+    : fromOverview
+      ? `/listings/${listing.id}/activity?from=overview`
+      : `/listings/${listing.id}/activity`;
   const timelineHref = (page?: number) => {
     const params = new URLSearchParams();
 
     if (fromOverview) params.set("from", "overview");
+    if (fromControlRoom) params.set("from", "controlroom");
     if (page && page > 1) params.set("page", String(page));
 
     const queryString = params.toString();

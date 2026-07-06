@@ -37,6 +37,7 @@ import {
   type MusicApiSettings,
 } from "@/modules/platform-settings/music-api-settings";
 import { auditIncompleteTrialSubscriptions } from "@/modules/billing/trial-integrity";
+import { setAgencySeatPrice } from "@/modules/agencies/billing";
 import {
   defaultReservationSettings,
   saveStoredReservationSettings,
@@ -68,6 +69,11 @@ export type AdminGoogleAdsSettingsState = {
 
 export type AdminGoogleAdsAutomationState = {
   health: GoogleDsaAutomationHealth | null;
+  message: string;
+  ok: boolean;
+};
+
+export type AdminAgencyBillingSettingsState = {
   message: string;
   ok: boolean;
 };
@@ -282,6 +288,54 @@ export async function auditIncompleteTrialsAction(): Promise<AdminTrialAuditStat
         error instanceof Error
           ? error.message
           : "Could not audit incomplete trials.",
+    };
+  }
+}
+
+export async function updateAdminAgencyBillingSettings(
+  _previousState: AdminAgencyBillingSettingsState,
+  formData: FormData,
+): Promise<AdminAgencyBillingSettingsState> {
+  try {
+    const adminUserId = await assertActiveAdmin();
+    const seatPriceRands = formNumber(formData, "seatPriceRands", 99);
+    const currency = formString(formData, "currency") || "ZAR";
+    const unitAmountCents = Math.round(seatPriceRands * 100);
+
+    if (!Number.isFinite(unitAmountCents) || unitAmountCents <= 0) {
+      return {
+        ok: false,
+        message: "Enter a positive agency seat price.",
+      };
+    }
+
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      return {
+        ok: false,
+        message: "Currency must be a 3-letter code like ZAR.",
+      };
+    }
+
+    await setAgencySeatPrice({
+      adminUserId,
+      currency,
+      unitAmountCents,
+    });
+
+    revalidatePath("/admin/settings/agency-billing");
+    revalidatePath("/controlroom");
+
+    return {
+      ok: true,
+      message: "Agency billing price saved.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not save agency billing settings.",
     };
   }
 }

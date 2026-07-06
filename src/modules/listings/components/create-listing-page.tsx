@@ -57,6 +57,7 @@ import {
   richTextToPlainText,
 } from "@/components/rich-text-editor";
 import { Button } from "@/components/ui/button";
+import { AgentProfileAvatar } from "@/components/agent-profile-avatar";
 import { cn } from "@/lib/utils";
 import {
   trackGoogleAdsConversion,
@@ -186,6 +187,23 @@ type ListingFormMedia = {
   sizeLabel: string;
   sourceUrl?: string;
   type?: string;
+};
+
+export type ListingAssignableAgentOption = {
+  avatarUrl: string | null;
+  name: string;
+  role: "admin" | "agent" | "listing_manager" | "owner";
+  userId: string;
+  username: string | null;
+};
+
+export type AgencyListingFormContext = {
+  agencyId: string;
+  agencyName: string;
+  assignableAgents: ListingAssignableAgentOption[];
+  canPublishListings: boolean;
+  initialAssignedAgentIds?: string[];
+  returnPath: string;
 };
 
 type ListingAutosaveMedia = Omit<ListingFormMedia, "previewUrl">;
@@ -912,6 +930,7 @@ function SubmitButtons({
   mediaBusyLabel = "Uploading",
   onReset,
   onBlockedPublish,
+  publishLabel = "Publish listing",
   publishIssues,
   setIntent,
 }: {
@@ -920,6 +939,7 @@ function SubmitButtons({
   mediaBusyLabel?: string;
   onBlockedPublish: () => void;
   onReset: () => void;
+  publishLabel?: string;
   publishIssues: PublishIssue[];
   setIntent: (intent: "draft" | "published") => void;
 }) {
@@ -968,11 +988,13 @@ function SubmitButtons({
         {isMediaBusy ? (
           mediaBusyLabel
         ) : publishing && !publishBlocked ? (
-          "Publishing"
+          publishLabel === "Publish listing" ? "Publishing" : "Submitting"
         ) : (
           <>
-            <span className="sm:hidden">Publish</span>
-            <span className="hidden sm:inline">Publish listing</span>
+            <span className="sm:hidden">
+              {publishLabel === "Publish listing" ? "Publish" : "Submit"}
+            </span>
+            <span className="hidden sm:inline">{publishLabel}</span>
           </>
         )}
       </Button>
@@ -987,6 +1009,7 @@ function EditSubmitButtons({
   mediaBusyLabel = "Uploading",
   listingId,
   onBlockedPublish,
+  publishLabel = "Publish listing",
   publishIssues,
   setIntent,
 }: {
@@ -996,6 +1019,7 @@ function EditSubmitButtons({
   mediaBusyLabel?: string;
   listingId?: string;
   onBlockedPublish: () => void;
+  publishLabel?: string;
   publishIssues: PublishIssue[];
   setIntent: (intent: "draft" | "published") => void;
 }) {
@@ -1039,8 +1063,10 @@ function EditSubmitButtons({
             {isMediaBusy
               ? mediaBusyLabel
               : publishing && !publishBlocked
-                ? "Publishing"
-                : "Publish listing"}
+                ? publishLabel === "Publish listing"
+                  ? "Publishing"
+                  : "Submitting"
+                : publishLabel}
           </Button>
         </>
       ) : (
@@ -2280,7 +2306,115 @@ function ImportListingFromLinkPanel({
   );
 }
 
+function agencyAgentRoleLabel(role: ListingAssignableAgentOption["role"]) {
+  if (role === "owner") return "Owner";
+  if (role === "admin") return "Admin";
+  if (role === "listing_manager") return "Listing manager";
+
+  return "Agent";
+}
+
+function AgencyListingAssignmentPanel({
+  agencyContext,
+  selectedAgentIds,
+  selectedAgents,
+  onPromote,
+  onToggle,
+}: {
+  agencyContext: AgencyListingFormContext;
+  selectedAgentIds: string[];
+  selectedAgents: ListingAssignableAgentOption[];
+  onPromote: (userId: string) => void;
+  onToggle: (userId: string) => void;
+}) {
+  const leadAgent = selectedAgents[0];
+
+  return (
+    <section className="mt-5 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            Agency listing
+          </p>
+          <h2 className="mt-1 text-lg font-semibold">Assigned agents</h2>
+          <p className="mt-1 max-w-2xl text-sm font-normal leading-6 text-muted-foreground">
+            {agencyContext.agencyName}
+            {leadAgent ? ` · Lead agent: ${leadAgent.name}` : ""}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "rounded-full px-3 py-1 text-xs font-semibold",
+            agencyContext.canPublishListings
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+              : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+          )}
+        >
+          {agencyContext.canPublishListings ? "Can publish" : "Approval required"}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {agencyContext.assignableAgents.map((agent) => {
+          const isSelected = selectedAgentIds.includes(agent.userId);
+          const isLead = selectedAgentIds[0] === agent.userId;
+
+          return (
+            <div
+              key={agent.userId}
+              className={cn(
+                "flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-3 py-3 transition-colors",
+                isSelected && "border-primary/45 bg-primary/5",
+              )}
+            >
+              <AgentProfileAvatar
+                avatarUrl={agent.avatarUrl}
+                name={agent.name}
+                size="md"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{agent.name}</p>
+                <p className="truncate text-xs font-normal text-muted-foreground">
+                  {agent.username ? `@${agent.username}` : "No username"} ·{" "}
+                  {agencyAgentRoleLabel(agent.role)}
+                </p>
+              </div>
+              {isLead ? (
+                <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground">
+                  Lead
+                </span>
+              ) : null}
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {isSelected && !isLead ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-9 px-3 text-xs"
+                    onClick={() => onPromote(agent.userId)}
+                  >
+                    Make lead
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant={isSelected ? "outline" : "default"}
+                  className="h-9 px-3 text-xs"
+                  disabled={isSelected && selectedAgentIds.length === 1}
+                  onClick={() => onToggle(agent.userId)}
+                >
+                  {isSelected ? "Assigned" : "Assign"}
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function CreateListingPage({
+  agencyContext,
   initialCoverIndex = 0,
   initialDraft,
   initialMedia,
@@ -2294,6 +2428,7 @@ export function CreateListingPage({
   profilePath,
   publishedListingId,
 }: {
+  agencyContext?: AgencyListingFormContext;
   initialCoverIndex?: number;
   initialDraft?: Partial<ListingDraft>;
   initialMedia?: ListingFormInitialMedia[];
@@ -2316,6 +2451,20 @@ export function CreateListingPage({
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [publishIntent, setPublishIntent] =
     useState<"draft" | "published">(initialPublishIntent);
+  const [assignedAgentIds, setAssignedAgentIds] = useState<string[]>(() => {
+    if (!agencyContext) return [];
+
+    const assignableIds = new Set(
+      agencyContext.assignableAgents.map((agent) => agent.userId),
+    );
+    const initialIds = (agencyContext.initialAssignedAgentIds || []).filter((id) =>
+      assignableIds.has(id),
+    );
+
+    return initialIds.length
+      ? initialIds
+      : agencyContext.assignableAgents.slice(0, 1).map((agent) => agent.userId);
+  });
   const [media, setMedia] = useState<ListingFormMedia[]>(() =>
     buildInitialMedia(initialMedia),
   );
@@ -2355,8 +2504,11 @@ export function CreateListingPage({
   const isLocationRepairMode =
     isPublishedEdit && !hasCompleteListingLocation(draft);
   const isLocationLocked = isPublishedEdit && !isLocationRepairMode;
-  const profileListingsPath = `${profilePath}?tab=listings`;
-  const backHref = mode === "edit" && listingId ? `/listings/${listingId}` : profileListingsPath;
+  const profileListingsPath = agencyContext?.returnPath || `${profilePath}?tab=listings`;
+  const backHref =
+    mode === "edit" && listingId
+      ? agencyContext?.returnPath || `/listings/${listingId}`
+      : profileListingsPath;
   const listingHref = listingId ? `/listings/${listingId}` : "";
   const activeListingType = listingTypeOptions.find(
     (option) => option.value === draft.listingType,
@@ -2417,10 +2569,42 @@ export function CreateListingPage({
   const isPreparingMedia = mediaPreparationState.active;
   const isMediaBusy = isUploadingMedia || isPreparingMedia;
   const mediaBusyLabel = isUploadingMedia ? "Uploading" : "Preparing media";
+  const publishActionLabel =
+    agencyContext && !agencyContext.canPublishListings
+      ? "Submit for approval"
+      : "Publish listing";
   const publishIssueSteps = useMemo(
     () => new Set(publishIssues.map((issue) => issue.step)),
     [publishIssues],
   );
+  const selectedAgents = useMemo(() => {
+    if (!agencyContext) return [];
+
+    const byUserId = new Map(
+      agencyContext.assignableAgents.map((agent) => [agent.userId, agent]),
+    );
+
+    return assignedAgentIds
+      .map((userId) => byUserId.get(userId))
+      .filter((agent): agent is ListingAssignableAgentOption => Boolean(agent));
+  }, [agencyContext, assignedAgentIds]);
+
+  function toggleAssignedAgent(userId: string) {
+    setAssignedAgentIds((current) => {
+      if (current.includes(userId)) {
+        return current.length === 1 ? current : current.filter((id) => id !== userId);
+      }
+
+      return [...current, userId];
+    });
+  }
+
+  function promoteAssignedAgent(userId: string) {
+    setAssignedAgentIds((current) => [
+      userId,
+      ...current.filter((id) => id !== userId),
+    ]);
+  }
 
   function openPublishRequirements() {
     const firstIssue = publishIssues[0];
@@ -3011,7 +3195,9 @@ export function CreateListingPage({
   if (duplicateListingId) {
     return (
       <ListingDuplicateWarning
-        createAnotherPath="/listings/new"
+        createAnotherPath={
+          agencyContext ? `${agencyContext.returnPath}/new` : "/listings/new"
+        }
         profileListingsPath={profileListingsPath}
       />
     );
@@ -3020,7 +3206,9 @@ export function CreateListingPage({
   if (publishedListingId) {
     return (
       <ListingPublishSuccess
-        createAnotherPath="/listings/new"
+        createAnotherPath={
+          agencyContext ? `${agencyContext.returnPath}/new` : "/listings/new"
+        }
         listingId={publishedListingId}
         listingPath={`/listings/${publishedListingId}`}
       />
@@ -3053,6 +3241,24 @@ export function CreateListingPage({
       >
         {mode === "edit" && listingId ? (
           <input type="hidden" name="listingId" value={listingId} />
+        ) : null}
+        {agencyContext ? (
+          <>
+            <input type="hidden" name="agencyId" value={agencyContext.agencyId} />
+            <input
+              type="hidden"
+              name="agencyReturnPath"
+              value={agencyContext.returnPath}
+            />
+            {assignedAgentIds.map((agentId) => (
+              <input
+                key={agentId}
+                type="hidden"
+                name="assignedAgentIds"
+                value={agentId}
+              />
+            ))}
+          </>
         ) : null}
         <input
           type="hidden"
@@ -3222,6 +3428,7 @@ export function CreateListingPage({
                     intent={publishIntent}
                     listingId={listingId}
                     onBlockedPublish={openPublishRequirements}
+                    publishLabel={publishActionLabel}
                     publishIssues={publishIssues}
                     isMediaBusy={isMediaBusy}
                     mediaBusyLabel={mediaBusyLabel}
@@ -3233,6 +3440,7 @@ export function CreateListingPage({
                   intent={publishIntent}
                   onBlockedPublish={openPublishRequirements}
                   onReset={requestResetForm}
+                  publishLabel={publishActionLabel}
                   publishIssues={publishIssues}
                   isMediaBusy={isMediaBusy}
                   mediaBusyLabel={mediaBusyLabel}
@@ -3423,6 +3631,15 @@ export function CreateListingPage({
               existingImportedMediaSources={existingImportedMediaSources}
               onImported={applyImportedListing}
               summary={importSummary}
+            />
+          ) : null}
+          {agencyContext ? (
+            <AgencyListingAssignmentPanel
+              agencyContext={agencyContext}
+              selectedAgentIds={assignedAgentIds}
+              selectedAgents={selectedAgents}
+              onPromote={promoteAssignedAgent}
+              onToggle={toggleAssignedAgent}
             />
           ) : null}
           <ListingStrengthPanel
@@ -3665,7 +3882,7 @@ export function CreateListingPage({
                       ? publishIntent === "draft"
                         ? "Update draft"
                         : "Update listing"
-                      : "Publish listing"}
+                      : publishActionLabel}
                   </Button>
                 )}
               </div>

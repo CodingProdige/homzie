@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   listingLikes,
+  propertyListingAgents,
   listingSaves,
   propertyListings,
   propertyOffers,
@@ -27,6 +28,7 @@ import {
   getStoredReservationSettings,
 } from "@/modules/platform-settings/reservation-settings";
 import { getAgentAccess } from "@/modules/access/agent-access";
+import { assertCanEditListingForUser } from "@/modules/listings/agency-listing-access";
 
 export type ListingMediaItem = {
   name: string;
@@ -36,20 +38,24 @@ export type ListingMediaItem = {
   type: string;
 };
 
+export type ListingAgentData = {
+  agencyBrand: EffectiveAgencyBrand | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  id: string;
+  listingRole: "co_agent" | "lead";
+  location: string | null;
+  name: string;
+  publicContactVisible: boolean;
+  username: string | null;
+  whatsappNumber: string | null;
+};
+
 export type ListingDetailData = {
-  agent: {
-    agencyBrand: EffectiveAgencyBrand | null;
-    avatarUrl: string | null;
-    bio: string | null;
-    contactEmail: string | null;
-    contactPhone: string | null;
-    id: string;
-    location: string | null;
-    name: string;
-    publicContactVisible: boolean;
-    username: string | null;
-    whatsappNumber: string | null;
-  };
+  agent: ListingAgentData;
+  agents: ListingAgentData[];
   addressVisibility: string;
   askingPriceCents: number | null;
   availableFrom: string | null;
@@ -199,6 +205,7 @@ function listingStatusLabel(status: string) {
   if (status === "published") return "Published";
   if (status === "archived") return "Archived";
   if (status === "reserved") return "Reserved";
+  if (status === "under_offer") return "Under offer";
   if (status === "sold") return "Sold";
   if (status === "sold_externally") return "Sold externally";
   if (status === "draft") return "Draft";
@@ -234,6 +241,81 @@ function parseListingMedia(value: unknown) {
     .filter((item): item is ListingMediaItem => Boolean(item));
 }
 
+async function getListingAssignedAgents({
+  fallbackAgencyBrand,
+  row,
+}: {
+  fallbackAgencyBrand: EffectiveAgencyBrand | null;
+  row: NonNullable<ListingRow>;
+}): Promise<ListingAgentData[]> {
+  const assignments = await db
+    .select({
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+      contactEmail: users.contactEmail,
+      contactPhone: users.contactPhone,
+      id: users.id,
+      listingRole: propertyListingAgents.role,
+      location: users.location,
+      name: users.name,
+      publicContactVisible: users.publicContactVisible,
+      sortOrder: propertyListingAgents.sortOrder,
+      username: users.username,
+      whatsappNumber: users.whatsappNumber,
+    })
+    .from(propertyListingAgents)
+    .innerJoin(users, eq(users.id, propertyListingAgents.userId))
+    .where(
+      and(
+        eq(propertyListingAgents.listingId, row.id),
+        sql`${propertyListingAgents.removedAt} IS NULL`,
+      ),
+    )
+    .orderBy(
+      sql`CASE ${propertyListingAgents.role} WHEN 'lead' THEN 0 ELSE 1 END`,
+      propertyListingAgents.sortOrder,
+      propertyListingAgents.createdAt,
+    );
+
+  if (!assignments.length) {
+    return [
+      {
+        agencyBrand: fallbackAgencyBrand,
+        avatarUrl: toPublicMediaUrl(row.agentAvatarUrl),
+        bio: row.agentBio,
+        contactEmail: row.agentPublicContactVisible ? row.agentContactEmail : null,
+        contactPhone: row.agentPublicContactVisible ? row.agentContactPhone : null,
+        id: row.userId,
+        listingRole: "lead",
+        location: row.agentLocation,
+        name: row.agentName,
+        publicContactVisible: row.agentPublicContactVisible,
+        username: row.agentUsername,
+        whatsappNumber: row.agentPublicContactVisible ? row.agentWhatsappNumber : null,
+      },
+    ];
+  }
+
+  const brandByUserId = await getEffectiveAgencyBrandsForUsers(
+    assignments.map((assignment) => assignment.id),
+  );
+
+  return assignments.map((assignment) => ({
+    agencyBrand: brandByUserId.get(assignment.id) || fallbackAgencyBrand,
+    avatarUrl: toPublicMediaUrl(assignment.avatarUrl),
+    bio: assignment.bio,
+    contactEmail: assignment.publicContactVisible ? assignment.contactEmail : null,
+    contactPhone: assignment.publicContactVisible ? assignment.contactPhone : null,
+    id: assignment.id,
+    listingRole: assignment.listingRole,
+    location: assignment.location,
+    name: assignment.name,
+    publicContactVisible: assignment.publicContactVisible,
+    username: assignment.username,
+    whatsappNumber: assignment.publicContactVisible ? assignment.whatsappNumber : null,
+  }));
+}
+
 function optionLabel<T extends { label: string; value: string }>(
   options: readonly T[],
   value: string,
@@ -254,6 +336,7 @@ async function getListingRow(listingId: string) {
       agentPublicContactVisible: users.publicContactVisible,
       agentUsername: users.username,
       agentWhatsappNumber: users.whatsappNumber,
+      agencyId: propertyListings.agencyId,
       askingPriceCents: propertyListings.askingPriceCents,
       coverImageUrl: propertyListings.coverImageUrl,
       description: propertyListings.description,
@@ -327,6 +410,7 @@ export async function getListingDetail({
   if (
     !isOwner &&
     row.status !== "published" &&
+    row.status !== "under_offer" &&
     row.status !== "reserved" &&
     !savedByViewer
   ) {
@@ -390,6 +474,7 @@ export async function getOwnedListingDetail({
       agentPublicContactVisible: users.publicContactVisible,
       agentUsername: users.username,
       agentWhatsappNumber: users.whatsappNumber,
+      agencyId: propertyListings.agencyId,
       askingPriceCents: propertyListings.askingPriceCents,
       coverImageUrl: propertyListings.coverImageUrl,
       description: propertyListings.description,
@@ -418,6 +503,51 @@ export async function getOwnedListingDetail({
     .limit(1);
 
   if (!row) return null;
+
+  const [{ count: likeCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingLikes)
+    .where(eq(listingLikes.listingId, listingId));
+  const [{ count: saveCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listingSaves)
+    .where(eq(listingSaves.listingId, listingId));
+  const [{ count: offerCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(propertyOffers)
+    .where(eq(propertyOffers.listingId, listingId));
+
+  return await mapListingRow(row, {
+    agencyBrand: (await getEffectiveAgencyBrandsForUsers([row.userId])).get(row.userId) || null,
+    canViewBuyerIntent: true,
+    isOwner: true,
+    isUnavailableForViewer: row.status !== "published",
+    likedByViewer: false,
+    likeCount,
+    offerCount,
+    savedByViewer: false,
+    saveCount,
+  });
+}
+
+export async function getAgencyEditableListingDetail({
+  listingId,
+  userId,
+}: {
+  listingId: string;
+  userId: string;
+}) {
+  const row = await getListingRow(listingId);
+
+  if (!row?.agencyId) return null;
+
+  const editAccess = await assertCanEditListingForUser({
+    agencyId: row.agencyId,
+    listingOwnerUserId: row.userId,
+    userId,
+  });
+
+  if (!editAccess.canEdit) return null;
 
   const [{ count: likeCount }] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -510,21 +640,15 @@ async function mapListingRow(
           settings: reservationSettings,
         })
       : null;
+  const agents = await getListingAssignedAgents({
+    fallbackAgencyBrand: viewerState.agencyBrand,
+    row,
+  });
+  const leadAgent = agents[0];
 
   return {
-    agent: {
-      agencyBrand: viewerState.agencyBrand,
-      avatarUrl: toPublicMediaUrl(row.agentAvatarUrl),
-      bio: row.agentBio,
-      contactEmail: row.agentPublicContactVisible ? row.agentContactEmail : null,
-      contactPhone: row.agentPublicContactVisible ? row.agentContactPhone : null,
-      id: row.userId,
-      location: row.agentLocation,
-      name: row.agentName,
-      publicContactVisible: row.agentPublicContactVisible,
-      username: row.agentUsername,
-      whatsappNumber: row.agentPublicContactVisible ? row.agentWhatsappNumber : null,
-    },
+    agent: leadAgent,
+    agents,
     addressVisibility,
     askingPriceCents: row.askingPriceCents,
     availableFrom: occupancyHidden ? null : stringValue(details.availableFrom) || null,

@@ -125,6 +125,26 @@ try {
   await sql`
     DO $$
     BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'property_listing_agent_role') THEN
+        CREATE TYPE property_listing_agent_role AS ENUM ('lead', 'co_agent');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'agency_listing_request_status') THEN
+        CREATE TYPE agency_listing_request_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
+      END IF;
+    END
+    $$;
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscription_status') THEN
         CREATE TYPE subscription_status AS ENUM ('pending', 'active', 'past_due', 'cancelled', 'expired');
       END IF;
@@ -807,6 +827,244 @@ try {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS agency_billing_profiles (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      provider text NOT NULL DEFAULT 'stripe',
+      status text NOT NULL DEFAULT 'missing',
+      provider_customer_id text,
+      provider_payment_method_id text,
+      payment_method_label text,
+      billing_email text,
+      failure_message text,
+      billing_cycle_anchor_at timestamptz,
+      last_verified_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    ALTER TABLE agency_billing_profiles
+    ADD COLUMN IF NOT EXISTS billing_cycle_anchor_at timestamptz
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS agency_billing_profiles_agency_id_idx
+    ON agency_billing_profiles (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_billing_profiles_status_idx
+    ON agency_billing_profiles (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_billing_profiles_provider_customer_id_idx
+    ON agency_billing_profiles (provider_customer_id)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_billing_prices (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      price_key text NOT NULL DEFAULT 'agency_member_seat',
+      unit_amount_cents integer NOT NULL,
+      currency text NOT NULL DEFAULT 'ZAR',
+      active_from timestamptz NOT NULL,
+      active_to timestamptz,
+      created_by_admin_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_billing_prices_price_key_active_from_idx
+    ON agency_billing_prices (price_key, active_from)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_billing_prices_active_to_idx
+    ON agency_billing_prices (active_to)
+  `;
+
+  await sql`
+    INSERT INTO agency_billing_prices (
+      price_key,
+      unit_amount_cents,
+      currency,
+      active_from
+    )
+    SELECT
+      'agency_member_seat',
+      9900,
+      'ZAR',
+      date_trunc('month', now())
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM agency_billing_prices
+      WHERE price_key = 'agency_member_seat'
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_seat_usage_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      member_id uuid REFERENCES agency_members(id) ON DELETE SET NULL,
+      event_type text NOT NULL,
+      occurred_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_seat_usage_events_agency_id_idx
+    ON agency_seat_usage_events (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_seat_usage_events_member_id_idx
+    ON agency_seat_usage_events (member_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_seat_usage_events_occurred_at_idx
+    ON agency_seat_usage_events (occurred_at)
+  `;
+
+  await sql`
+    INSERT INTO agency_seat_usage_events (
+      agency_id,
+      member_id,
+      event_type,
+      occurred_at
+    )
+    SELECT
+      am.agency_id,
+      am.id,
+      'seat_started',
+      COALESCE(am.accepted_at, am.created_at, now())
+    FROM agency_members am
+    WHERE am.status <> 'removed'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM agency_seat_usage_events e
+        WHERE e.member_id = am.id
+          AND e.event_type = 'seat_started'
+      )
+  `;
+
+  await sql`
+    INSERT INTO agency_billing_profiles (
+      agency_id,
+      billing_cycle_anchor_at,
+      updated_at
+    )
+    SELECT
+      a.id,
+      min(e.occurred_at),
+      now()
+    FROM agencies a
+    INNER JOIN agency_seat_usage_events e ON e.agency_id = a.id
+    WHERE a.agency_type <> 'network'
+      AND e.event_type = 'seat_started'
+      AND EXISTS (
+        SELECT 1
+        FROM agency_members am
+        WHERE am.agency_id = a.id
+          AND am.status <> 'removed'
+      )
+    GROUP BY a.id
+    ON CONFLICT (agency_id) DO UPDATE SET
+      billing_cycle_anchor_at = coalesce(
+        agency_billing_profiles.billing_cycle_anchor_at,
+        excluded.billing_cycle_anchor_at
+      ),
+      updated_at = now()
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_billing_periods (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      price_id uuid REFERENCES agency_billing_prices(id) ON DELETE SET NULL,
+      period_start timestamptz NOT NULL,
+      period_end timestamptz NOT NULL,
+      max_billable_seats integer NOT NULL DEFAULT 0,
+      unit_amount_cents integer NOT NULL DEFAULT 0,
+      subtotal_cents integer NOT NULL DEFAULT 0,
+      credits_cents integer NOT NULL DEFAULT 0,
+      total_cents integer NOT NULL DEFAULT 0,
+      currency text NOT NULL DEFAULT 'ZAR',
+      status text NOT NULL DEFAULT 'open',
+      invoice_number text,
+      invoice_issued_at timestamptz,
+      invoice_due_at timestamptz,
+      provider_payment_intent_id text,
+      provider_charge_id text,
+      failure_message text,
+      charged_at timestamptz,
+      finalized_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE SEQUENCE IF NOT EXISTS agency_invoice_number_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+  `;
+
+  await sql`
+    ALTER TABLE agency_billing_periods
+    ADD COLUMN IF NOT EXISTS invoice_number text
+  `;
+
+  await sql`
+    ALTER TABLE agency_billing_periods
+    ADD COLUMN IF NOT EXISTS invoice_issued_at timestamptz
+  `;
+
+  await sql`
+    ALTER TABLE agency_billing_periods
+    ADD COLUMN IF NOT EXISTS invoice_due_at timestamptz
+  `;
+
+  await sql`
+    UPDATE agency_billing_periods
+    SET
+      invoice_number = 'HAI-' || nextval('agency_invoice_number_seq')::text,
+      invoice_issued_at = coalesce(finalized_at, charged_at, updated_at, created_at, now()),
+      invoice_due_at = coalesce(charged_at, finalized_at, updated_at, created_at, now())
+    WHERE invoice_number IS NULL
+      AND status IN ('finalized', 'paid', 'past_due')
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS agency_billing_periods_agency_period_idx
+    ON agency_billing_periods (agency_id, period_start)
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS agency_billing_periods_invoice_number_idx
+    ON agency_billing_periods (invoice_number)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_billing_periods_status_idx
+    ON agency_billing_periods (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_billing_periods_period_end_idx
+    ON agency_billing_periods (period_end)
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -890,6 +1148,7 @@ try {
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       agent_profile_id uuid REFERENCES agent_profiles(id) ON DELETE SET NULL,
+      agency_id uuid REFERENCES agencies(id) ON DELETE SET NULL,
       property_identity_id uuid REFERENCES property_identities(id) ON DELETE SET NULL,
       listing_type text NOT NULL DEFAULT 'sale',
       property_type text NOT NULL DEFAULT 'free_standing_house',
@@ -926,6 +1185,11 @@ try {
   await sql`
     ALTER TABLE property_listings
     ADD COLUMN IF NOT EXISTS property_identity_id uuid REFERENCES property_identities(id) ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id) ON DELETE SET NULL
   `;
 
   await sql`
@@ -1056,6 +1320,11 @@ try {
   `;
 
   await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_agency_id_idx
+    ON property_listings (agency_id)
+  `;
+
+  await sql`
     CREATE INDEX IF NOT EXISTS property_listings_property_identity_id_idx
     ON property_listings (property_identity_id)
   `;
@@ -1083,6 +1352,145 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS property_listings_sold_at_idx
     ON property_listings (sold_at)
+  `;
+
+  await sql`
+    UPDATE property_listings pl
+    SET agency_id = active_membership.agency_id
+    FROM (
+      SELECT DISTINCT ON (am.user_id)
+        am.user_id,
+        am.agency_id
+      FROM agency_members am
+      INNER JOIN agencies a ON a.id = am.agency_id
+      WHERE am.status = 'active'
+        AND a.status = 'active'
+        AND a.agency_type <> 'network'
+      ORDER BY
+        am.user_id,
+        CASE am.role
+          WHEN 'owner' THEN 0
+          WHEN 'admin' THEN 1
+          WHEN 'listing_manager' THEN 2
+          ELSE 3
+        END,
+        am.created_at DESC
+    ) active_membership
+    WHERE pl.agency_id IS NULL
+      AND pl.user_id = active_membership.user_id
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS property_listing_agents (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      agency_id uuid REFERENCES agencies(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      agent_profile_id uuid REFERENCES agent_profiles(id) ON DELETE SET NULL,
+      role property_listing_agent_role NOT NULL DEFAULT 'co_agent',
+      sort_order integer NOT NULL DEFAULT 0,
+      assigned_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      removed_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listing_agents_listing_id_idx
+    ON property_listing_agents (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listing_agents_agency_id_idx
+    ON property_listing_agents (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listing_agents_user_id_idx
+    ON property_listing_agents (user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listing_agents_removed_at_idx
+    ON property_listing_agents (removed_at)
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS property_listing_agents_active_user_idx
+    ON property_listing_agents (listing_id, user_id)
+    WHERE removed_at IS NULL
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS property_listing_agents_active_lead_idx
+    ON property_listing_agents (listing_id)
+    WHERE removed_at IS NULL AND role = 'lead'
+  `;
+
+  await sql`
+    INSERT INTO property_listing_agents (
+      listing_id,
+      agency_id,
+      user_id,
+      agent_profile_id,
+      role,
+      sort_order,
+      assigned_by_user_id
+    )
+    SELECT
+      pl.id,
+      pl.agency_id,
+      pl.user_id,
+      pl.agent_profile_id,
+      'lead',
+      0,
+      pl.user_id
+    FROM property_listings pl
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM property_listing_agents pla
+      WHERE pla.listing_id = pl.id
+        AND pla.removed_at IS NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS agency_listing_requests (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      agency_id uuid NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+      listing_id uuid NOT NULL REFERENCES property_listings(id) ON DELETE CASCADE,
+      requested_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      reviewed_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      request_type text NOT NULL DEFAULT 'publish',
+      status agency_listing_request_status NOT NULL DEFAULT 'pending',
+      message text,
+      review_note text,
+      requested_at timestamptz NOT NULL DEFAULT now(),
+      reviewed_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_listing_requests_agency_id_idx
+    ON agency_listing_requests (agency_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_listing_requests_listing_id_idx
+    ON agency_listing_requests (listing_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_listing_requests_requested_by_user_id_idx
+    ON agency_listing_requests (requested_by_user_id)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS agency_listing_requests_status_idx
+    ON agency_listing_requests (status)
   `;
 
   await sql`

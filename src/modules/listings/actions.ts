@@ -69,6 +69,12 @@ import {
   type DiscoverListingFilters,
 } from "@/modules/listings/server/discover-listings";
 import { completeListingReservationPayment } from "@/modules/listings/reservations";
+import {
+  assertCanEditListingForUser,
+  createPendingAgencyListingRequest,
+  resolveAgencyListingSubmission,
+  syncListingAgentAssignments,
+} from "@/modules/listings/agency-listing-access";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 const maxListingImageBytes = 15 * 1024 * 1024;
@@ -121,7 +127,13 @@ const completedListingStatuses = new Set([
 function areListingReservationsPaused() {
   return true;
 }
-const activeDuplicateListingStatuses = ["draft", "published", "reserved"];
+const activeDuplicateListingStatuses = [
+  "draft",
+  "pending_approval",
+  "published",
+  "reserved",
+  "under_offer",
+];
 
 type StoredListingMedia = {
   name: string;
@@ -1667,7 +1679,6 @@ export async function createListing(formData: FormData) {
     redirect("/onboarding/username");
   }
 
-  const agentProfile = await getAgentProfileForUser(session.user.id);
   let parsedListing: ReturnType<typeof parseListingFormData>;
 
   try {
@@ -1691,9 +1702,21 @@ export async function createListing(formData: FormData) {
   }
 
   const { data, description } = parsedListing;
+  const agencySubmission = await resolveAgencyListingSubmission({
+    formData,
+    intent: data.publishIntent,
+    userId: session.user.id,
+  });
+  const listingOwnerUserId = agencySubmission?.leadUserId || session.user.id;
+  const agentProfile = agencySubmission
+    ? null
+    : await getAgentProfileForUser(session.user.id);
+  const agentProfileId =
+    agencySubmission?.leadAgentProfileId || agentProfile?.id || null;
+  const finalStatus = agencySubmission?.finalStatus || data.publishIntent;
   const duplicateListing = await findDuplicateActiveListing({
     data,
-    userId: session.user.id,
+    userId: listingOwnerUserId,
   });
 
   if (duplicateListing) {
@@ -1836,7 +1859,8 @@ export async function createListing(formData: FormData) {
       const [createdListing] = await tx
         .insert(propertyListings)
         .values({
-          agentProfileId: agentProfile?.id || null,
+          agentProfileId,
+          agencyId: agencySubmission?.agencyId || null,
           askingPriceCents,
           coverImageUrl,
           description: description || null,
@@ -1897,7 +1921,7 @@ export async function createListing(formData: FormData) {
             zoning: data.zoning || null,
           },
           features: data.features || [],
-          listedAt: data.publishIntent === "published" ? new Date() : undefined,
+          listedAt: finalStatus === "published" ? new Date() : undefined,
           listingType: data.listingType,
           location: data.location,
           mandateEndDate: parseDate(data.mandateEndDate),
@@ -1908,9 +1932,9 @@ export async function createListing(formData: FormData) {
           propertyIdentityId,
           propertyType: data.propertyType,
           ...reservationFields,
-          status: data.publishIntent,
+          status: finalStatus,
           title: data.title,
-          userId: session.user.id,
+          userId: listingOwnerUserId,
         })
         .returning({ id: propertyListings.id });
 
@@ -1921,12 +1945,31 @@ export async function createListing(formData: FormData) {
       await tx.insert(propertyListingStatusHistory).values({
         listingId: createdListing.id,
         reason:
-          data.publishIntent === "published"
+          finalStatus === "pending_approval"
+            ? "Listing created and submitted to agency for approval."
+            : finalStatus === "published"
             ? "Listing created and published."
             : "Listing saved as draft.",
-        toStatus: data.publishIntent,
+        toStatus: finalStatus,
         userId: session.user.id,
       });
+
+      if (agencySubmission) {
+        await syncListingAgentAssignments(tx, {
+          actorUserId: session.user.id,
+          agencyId: agencySubmission.agencyId,
+          assignedAgents: agencySubmission.assignedAgents,
+          listingId: createdListing.id,
+        });
+
+        if (agencySubmission.requestedApproval) {
+          await createPendingAgencyListingRequest(tx, {
+            agencyId: agencySubmission.agencyId,
+            listingId: createdListing.id,
+            requestedByUserId: session.user.id,
+          });
+        }
+      }
 
       return createdListing;
     });
@@ -1955,23 +1998,31 @@ export async function createListing(formData: FormData) {
     redirect("/listings/new?listingError=save-failed");
   }
 
-  if (data.publishIntent === "published") {
+  if (finalStatus === "published") {
     await recordHashtagUsage({
       sourceId: listing.id,
       sourceType: "listing",
       tags: extractHashtags(data.title, plainListingDescription(description)),
-      userId: session.user.id,
+      userId: listingOwnerUserId,
     });
     void notifyFollowersAboutPublishedListing({
       listingId: listing.id,
-      ownerUserId: session.user.id,
+      ownerUserId: listingOwnerUserId,
     }).catch((error) => {
       console.error("[email] listing follower notification failed", error);
     });
   }
 
+  const agencyReturnPath = String(formData.get("agencyReturnPath") || "").trim();
+
+  if (agencySubmission && agencyReturnPath.startsWith("/controlroom/")) {
+    redirect(
+      `${agencyReturnPath}?listingSubmitted=${listing.id}&listingStatus=${finalStatus}`,
+    );
+  }
+
   redirect(
-    data.publishIntent === "published"
+    finalStatus === "published"
       ? `/listings/new?listingPublished=${listing.id}`
       : `/users/${user.username}?tab=listings`,
   );
@@ -2011,23 +2062,31 @@ export async function updateListing(formData: FormData) {
 
   const [existingListing] = await db
     .select({
+      agencyId: propertyListings.agencyId,
+      agentProfileId: propertyListings.agentProfileId,
       details: propertyListings.details,
       listedAt: propertyListings.listedAt,
       lockedAt: propertyListings.lockedAt,
       location: propertyListings.location,
       propertyIdentityId: propertyListings.propertyIdentityId,
       status: propertyListings.status,
+      userId: propertyListings.userId,
     })
     .from(propertyListings)
-    .where(
-      and(
-        eq(propertyListings.id, listingId.data),
-        eq(propertyListings.userId, session.user.id),
-      ),
-    )
+    .where(eq(propertyListings.id, listingId.data))
     .limit(1);
 
   if (!existingListing) {
+    throw new Error("Listing not found.");
+  }
+
+  const editAccess = await assertCanEditListingForUser({
+    agencyId: existingListing.agencyId,
+    listingOwnerUserId: existingListing.userId,
+    userId: session.user.id,
+  });
+
+  if (!editAccess.canEdit) {
     throw new Error("Listing not found.");
   }
 
@@ -2038,7 +2097,6 @@ export async function updateListing(formData: FormData) {
     throw new Error("This listing is locked and can no longer be edited.");
   }
 
-  const agentProfile = await getAgentProfileForUser(session.user.id);
   let parsedListing: ReturnType<typeof parseListingFormData>;
 
   try {
@@ -2064,6 +2122,27 @@ export async function updateListing(formData: FormData) {
   }
 
   const { data, description } = parsedListing;
+  const shouldResolveAgencySubmission = Boolean(
+    existingListing.agencyId || String(formData.get("agencyId") || "").trim(),
+  );
+  const agencySubmission = shouldResolveAgencySubmission
+    ? await resolveAgencyListingSubmission({
+        formData,
+        intent: data.publishIntent,
+        userId: session.user.id,
+      })
+    : null;
+  const listingOwnerUserId =
+    agencySubmission?.leadUserId || existingListing.userId;
+  const fallbackAgentProfile =
+    listingOwnerUserId === session.user.id
+      ? await getAgentProfileForUser(session.user.id)
+      : null;
+  const agentProfileId =
+    agencySubmission?.leadAgentProfileId ||
+    fallbackAgentProfile?.id ||
+    existingListing.agentProfileId ||
+    null;
   const mediaFiles = formData.getAll("mediaFiles");
   const mediaUploadCount = mediaFiles.filter(
     (value) => value instanceof File && value.size > 0,
@@ -2236,7 +2315,13 @@ export async function updateListing(formData: FormData) {
     qualifier: data.priceQualifier,
   });
   const nextStatus =
-    existingListing.status === "reserved" ? "reserved" : data.publishIntent;
+    existingListing.status === "reserved"
+      ? "reserved"
+      : existingListing.status === "published" && data.publishIntent === "published"
+        ? "published"
+        : agencySubmission
+          ? agencySubmission.finalStatus
+          : data.publishIntent;
   try {
     await db.transaction(async (tx) => {
       const propertyIdentityId = canChangePropertyIdentity
@@ -2255,7 +2340,8 @@ export async function updateListing(formData: FormData) {
       await tx
         .update(propertyListings)
         .set({
-          agentProfileId: agentProfile?.id || null,
+          agentProfileId,
+          agencyId: agencySubmission?.agencyId || existingListing.agencyId || null,
           askingPriceCents,
           coverImageUrl,
           description: description || null,
@@ -2332,26 +2418,44 @@ export async function updateListing(formData: FormData) {
           ...reservationFields,
           status: nextStatus,
           title: data.title,
+          userId: listingOwnerUserId,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(propertyListings.id, listingId.data),
-            eq(propertyListings.userId, session.user.id),
-          ),
-        );
+        .where(eq(propertyListings.id, listingId.data));
 
       await tx.insert(propertyListingStatusHistory).values({
         listingId: listingId.data,
         reason:
           existingListing.status === nextStatus
             ? "Listing details updated."
+            : nextStatus === "pending_approval"
+              ? "Listing updated and submitted to agency for approval."
             : nextStatus === "published"
               ? "Listing updated and published."
               : "Listing updated and saved as draft.",
         toStatus: nextStatus,
         userId: session.user.id,
       });
+
+      if (agencySubmission) {
+        await syncListingAgentAssignments(tx, {
+          actorUserId: session.user.id,
+          agencyId: agencySubmission.agencyId,
+          assignedAgents: agencySubmission.assignedAgents,
+          listingId: listingId.data,
+        });
+
+        if (
+          agencySubmission.requestedApproval &&
+          existingListing.status !== "pending_approval"
+        ) {
+          await createPendingAgencyListingRequest(tx, {
+            agencyId: agencySubmission.agencyId,
+            listingId: listingId.data,
+            requestedByUserId: session.user.id,
+          });
+        }
+      }
     });
   } catch (error) {
     console.error("[listings] updateListing database save failed", {
@@ -2381,12 +2485,12 @@ export async function updateListing(formData: FormData) {
     redirect(`/listings/${listingId.data}/edit?listingError=save-failed`);
   }
 
-  if (data.publishIntent === "published") {
+  if (nextStatus === "published") {
     void recordHashtagUsage({
       sourceId: listingId.data,
       sourceType: "listing",
       tags: extractHashtags(data.title, plainListingDescription(description)),
-      userId: session.user.id,
+      userId: listingOwnerUserId,
     }).catch((error) => {
       console.error("[listings] updateListing hashtag recording failed", {
         error,
@@ -2398,7 +2502,7 @@ export async function updateListing(formData: FormData) {
     if (existingListing.status !== "published") {
       void notifyFollowersAboutPublishedListing({
         listingId: listingId.data,
-        ownerUserId: session.user.id,
+        ownerUserId: listingOwnerUserId,
       }).catch((error) => {
         console.error("[email] listing follower notification failed", error);
       });
@@ -2406,11 +2510,21 @@ export async function updateListing(formData: FormData) {
   }
 
   const updateResult =
-    existingListing.status === "draft" && nextStatus === "published"
+    nextStatus === "pending_approval"
+      ? "updated"
+      : existingListing.status === "draft" && nextStatus === "published"
       ? "published"
       : nextStatus === "draft"
         ? "draft"
         : "updated";
+
+  const agencyReturnPath = String(formData.get("agencyReturnPath") || "").trim();
+
+  if (agencySubmission && agencyReturnPath.startsWith("/controlroom/")) {
+    redirect(
+      `${agencyReturnPath}?listingUpdated=${updateResult}&listingStatus=${nextStatus}`,
+    );
+  }
 
   redirect(`/listings/${listingId.data}/edit?listingUpdated=${updateResult}`);
 }

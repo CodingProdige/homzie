@@ -16,6 +16,7 @@ import {
   Home,
   Menu,
   MoreHorizontal,
+  Network,
   Radar,
   Send,
   Settings2,
@@ -28,6 +29,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  BuyerActivityLivePill,
+  BuyerActivitySignalIcon,
+} from "@/components/buyer-activity-signal";
 import { CountryPreferenceSelector } from "@/components/country-preference-selector";
 import { GlobalUserSearchTrigger } from "@/components/global-user-search";
 import { HomzieLogo } from "@/components/homzie-logo";
@@ -51,6 +56,7 @@ const navItems: Array<{
   { href: "/listings", icon: Building2, label: "Listings" },
   { href: "/agents", icon: UsersRound, label: "Agents" },
   { href: "/reels", icon: Clapperboard, label: "Reels" },
+  { href: "/agencies", icon: Network, label: "Agencies" },
   { href: "/about", icon: CircleHelp, label: "About" },
   { href: "/contact", icon: Send, label: "Contact" },
 ];
@@ -376,6 +382,7 @@ export function GlobalHeader({
                     : []),
                 ].map((item) => {
                   const Icon = item.icon;
+                  const isBuyerActivityItem = item.href === "/listings/activity";
 
                   return (
                     <DropdownMenu.Item key={item.label} asChild>
@@ -388,8 +395,17 @@ export function GlobalHeader({
                         )}
                       >
                         <span className="flex min-w-0 items-center gap-3">
-                          <Icon className="size-4 shrink-0" />
+                          {isBuyerActivityItem ? (
+                            <BuyerActivitySignalIcon
+                              active={item.active}
+                              icon={Icon}
+                              size="sm"
+                            />
+                          ) : (
+                            <Icon className="size-4 shrink-0" />
+                          )}
                           <span>{item.label}</span>
+                          {isBuyerActivityItem ? <BuyerActivityLivePill /> : null}
                         </span>
                         {item.label === "Events" && viewerUsername ? (
                           <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground" />
@@ -563,6 +579,7 @@ export function GlobalHeader({
                     {mobileItems.map((item) => {
                       const Icon = item.icon;
                       const isActive = isActiveHref(item.href);
+                      const isBuyerActivityItem = item.href === "/listings/activity";
 
                       return (
                         <Dialog.Close key={item.label} asChild>
@@ -577,8 +594,17 @@ export function GlobalHeader({
                             )}
                           >
                             <span className="flex min-w-0 items-center gap-3">
-                              <Icon className="size-5 shrink-0 text-current" />
+                              {isBuyerActivityItem ? (
+                                <BuyerActivitySignalIcon
+                                  active={isActive}
+                                  icon={Icon}
+                                  size="md"
+                                />
+                              ) : (
+                                <Icon className="size-5 shrink-0 text-current" />
+                              )}
                               <span>{item.label}</span>
+                              {isBuyerActivityItem ? <BuyerActivityLivePill /> : null}
                             </span>
                             {item.label === "Events" && viewerUsername ? (
                               <EventCountBadge className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground" />

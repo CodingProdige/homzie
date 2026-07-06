@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import {
   BadgeCheck,
   CheckCircle2,
+  CreditCard,
   Crown,
   Settings2,
   Share2,
@@ -37,9 +39,18 @@ import {
   agencyBrandingPolicyLabel,
   agencyTypeLabel,
   getPrimaryAgencyWorkspace,
+  hasAgencyAdminAccess,
 } from "@/modules/agencies/server";
+import {
+  formatAgencyBillingDate,
+  formatAgencyBillingMoney,
+  formatAgencyBillingPeriod,
+  getAgencySeatBillingSnapshot,
+  listAgencyBillingInvoices,
+} from "@/modules/agencies/billing";
 import { authOptions } from "@/modules/auth/config";
 import { AgencyBrandingForm } from "./agency-branding-form";
+import { AgencyBillingSetup } from "./agency-billing-setup";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +66,7 @@ type ControlRoomSettingsPageProps = {
   }>;
 };
 
-type SettingsSection = "branding" | "hierarchy" | "ownership" | "permissions";
+type SettingsSection = "billing" | "branding" | "hierarchy" | "ownership" | "permissions";
 
 const sectionMeta: Record<SettingsSection, { description: string; title: string }> = {
   branding: {
@@ -63,8 +74,12 @@ const sectionMeta: Record<SettingsSection, { description: string; title: string 
     title: "Branding",
   },
   hierarchy: {
-    description: "Review network links, branch status, billing posture, and visibility.",
+    description: "Review network links, branch status, operating policies, and visibility.",
     title: "Hierarchy",
+  },
+  billing: {
+    description: "Manage automated billing and review monthly peak agency-funded seat usage.",
+    title: "Billing",
   },
   ownership: {
     description: "Transfer agency or Network HQ ownership to another verified Homzie account.",
@@ -76,9 +91,26 @@ const sectionMeta: Record<SettingsSection, { description: string; title: string 
   },
 };
 
+function invoiceStatusClassName(status: string) {
+  if (status === "paid") {
+    return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  }
+
+  if (status === "past_due") {
+    return "bg-destructive/10 text-destructive";
+  }
+
+  return "bg-primary/10 text-primary";
+}
+
+function invoiceStatusLabel(status: string) {
+  return status.replaceAll("_", " ");
+}
+
 function parseSettingsSection(value: string): SettingsSection | null {
   if (
     value === "branding" ||
+    value === "billing" ||
     value === "hierarchy" ||
     value === "ownership" ||
     value === "permissions"
@@ -149,7 +181,17 @@ export default async function ControlRoomSettingsPage({
     redirect(`${controlRoomPathForWorkspace(workspace)}/settings/${section}`);
   }
 
-  const [parentRows, branchRows, outgoingTransferRows] = await Promise.all([
+  if (section === "billing" && workspace.agency.agencyType === "network") {
+    redirect(`${controlRoomPathForWorkspace(workspace)}/settings`);
+  }
+
+  const [
+    parentRows,
+    branchRows,
+    outgoingTransferRows,
+    billingSnapshot,
+    billingInvoices,
+  ] = await Promise.all([
     workspace.agency.parentAgencyId
       ? sql<ParentAgencyRow[]>`
           SELECT id, name, slug, logo_url, badge_label, settings
@@ -199,6 +241,12 @@ export default async function ControlRoomSettingsPage({
           ORDER BY t.created_at DESC
         `
       : Promise.resolve([] as OutgoingTransferRow[]),
+    section === "billing"
+      ? getAgencySeatBillingSnapshot(workspace.agency.id)
+      : Promise.resolve(null),
+    section === "billing"
+      ? listAgencyBillingInvoices(workspace.agency.id)
+      : Promise.resolve([]),
   ]);
   const parentAgency = parentRows[0] || null;
   const branchUsesNetworkBrand =
@@ -206,9 +254,10 @@ export default async function ControlRoomSettingsPage({
     workspace.agency.brandingPolicy === "network_branding_enforced" &&
     workspace.agency.parentLinkStatus === "linked" &&
     Boolean(parentAgency);
-  const canManageControlRoomBrand = workspace.membership.canManageMembers;
+  const canManageBranchOperations = hasAgencyAdminAccess(workspace);
+  const canManageControlRoomBrand = workspace.membership.canManageBranding;
   const canManagePublicBrand =
-    workspace.membership.canManageMembers && !branchUsesNetworkBrand;
+    workspace.membership.canManageBranding && !branchUsesNetworkBrand;
   const effectivePublicBrand = branchUsesNetworkBrand && parentAgency
     ? {
         badgeLabel: parentAgency.badge_label || parentAgency.name,
@@ -293,17 +342,19 @@ export default async function ControlRoomSettingsPage({
             ) : null}
           </div>
 
-          <div className="rounded-lg border border-border bg-background p-3">
-            <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
-              Billing mode
-            </p>
-            <p className="mt-1 text-sm font-semibold">
-              {agencyBillingModeLabel(workspace.agency.billingMode)}
-            </p>
-            <p className="mt-1 text-xs font-normal text-muted-foreground">
-              Parent billing activates when a branch links to a network.
-            </p>
-          </div>
+          {workspace.agency.agencyType !== "network" ? (
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+                Billing mode
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                {agencyBillingModeLabel(workspace.agency.billingMode)}
+              </p>
+              <p className="mt-1 text-xs font-normal text-muted-foreground">
+                Parent billing activates when a branch links to a network.
+              </p>
+            </div>
+          ) : null}
 
           <div className="rounded-lg border border-border bg-background p-3">
             <p className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
@@ -406,6 +457,7 @@ export default async function ControlRoomSettingsPage({
                 <select
                   name="brandingPolicy"
                   defaultValue={workspace.agency.brandingPolicy}
+                  disabled={!canManageBranchOperations}
                   className="h-11 rounded-md border border-border bg-card px-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                 >
                   <option value="branch_branding_allowed">
@@ -421,11 +473,16 @@ export default async function ControlRoomSettingsPage({
                   <input
                     name="applyToBranches"
                     type="checkbox"
+                    disabled={!canManageBranchOperations}
                     className="size-4 rounded border-border"
                   />
                   Apply to linked branches
                 </label>
-                <Button type="submit" className="h-10 font-semibold">
+                <Button
+                  type="submit"
+                  className="h-10 font-semibold"
+                  disabled={!canManageBranchOperations}
+                >
                   Save rule
                 </Button>
               </div>
@@ -467,7 +524,11 @@ export default async function ControlRoomSettingsPage({
                         </p>
                       </div>
 
-                      {isPending ? (
+                      {!canManageBranchOperations ? (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          View only
+                        </span>
+                      ) : isPending ? (
                         <div className="flex flex-wrap gap-2">
                           <form action={approveBranchLinkAction}>
                             <input
@@ -548,6 +609,186 @@ export default async function ControlRoomSettingsPage({
         </section>
       ) : null}
       </>
+      ) : null}
+
+      {section === "billing" && billingSnapshot ? (
+        <section className="mt-6 scroll-mt-24 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                Automated billing
+              </p>
+              <h2 className="mt-2 text-xl font-semibold">Agency-funded member seats</h2>
+              <p className="mt-2 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
+                Billing starts when the first agency-funded seat is connected. Each
+                invoice covers the maximum seats used in that 30-day cycle, not the
+                seat count on billing day.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-normal text-muted-foreground">
+              <CreditCard className="size-4 text-primary" />
+              {billingSnapshot.billingConfigured ? "Billing ready" : "Billing required"}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Current seats
+              </p>
+              <p className="mt-2 text-2xl font-semibold">
+                {billingSnapshot.currentSeats}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Cycle peak
+              </p>
+              <p className="mt-2 text-2xl font-semibold">
+                {billingSnapshot.maxBillableSeats}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Seat price
+              </p>
+              <p className="mt-2 text-2xl font-semibold">
+                {formatAgencyBillingMoney(
+                  billingSnapshot.unitAmountCents,
+                  billingSnapshot.currency,
+                )}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Projected invoice
+              </p>
+              <p className="mt-2 text-2xl font-semibold">
+                {formatAgencyBillingMoney(
+                  billingSnapshot.projectedTotalCents,
+                  billingSnapshot.currency,
+                )}
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-4 text-sm font-normal leading-6 text-muted-foreground">
+            {billingSnapshot.billingCycleActive
+              ? `Current 30-day cycle: ${formatAgencyBillingPeriod(billingSnapshot.periodStart, billingSnapshot.periodEnd)}.`
+              : "No active billing cycle yet. The first 30-day cycle starts when an agency-funded seat is connected."}{" "}
+            Invited, active, and suspended members reserve agency-funded seats until
+            removed. If all agency-funded seats are removed, billing stops after the
+            final active cycle is settled.
+          </p>
+
+          <div className="mt-5">
+            <AgencyBillingSetup
+              billingConfigured={billingSnapshot.billingConfigured}
+              canManageBilling={workspace.membership.canManageBilling}
+              paymentMethodLabel={billingSnapshot.paymentMethodLabel}
+            />
+          </div>
+
+          {billingSnapshot.failureMessage ? (
+            <p className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+              {billingSnapshot.failureMessage}
+            </p>
+          ) : null}
+
+          <div className="mt-6 overflow-hidden rounded-lg border border-border bg-background">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+                  Homzie invoices
+                </p>
+                <h3 className="mt-1 text-lg font-semibold">Invoice history</h3>
+                <p className="mt-1 text-sm font-normal text-muted-foreground">
+                  Invoices are issued after each monthly seat period closes. The
+                  current projection above is not an invoice yet.
+                </p>
+              </div>
+              <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                {billingInvoices.length} recent
+              </span>
+            </div>
+
+            {billingInvoices.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] border-separate border-spacing-0 text-left text-sm">
+                  <thead className="bg-muted/35 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Invoice</th>
+                    <th className="px-4 py-3 font-semibold">Cycle</th>
+                    <th className="px-4 py-3 font-semibold">Peak seats</th>
+                      <th className="px-4 py-3 font-semibold">Total</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 text-right font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {billingInvoices.map((invoice) => (
+                      <tr key={invoice.id} className="bg-background">
+                        <td className="px-4 py-4 align-top">
+                          <p className="font-semibold">{invoice.invoiceNumber}</p>
+                          <p className="mt-1 text-xs font-normal text-muted-foreground">
+                            Issued{" "}
+                            {invoice.issuedAt
+                              ? formatAgencyBillingDate(invoice.issuedAt)
+                              : "after finalization"}
+                          </p>
+                        </td>
+                        <td className="px-4 py-4 align-top text-muted-foreground">
+                          {formatAgencyBillingPeriod(
+                            invoice.periodStart,
+                            invoice.periodEnd,
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-top font-semibold">
+                          {invoice.maxBillableSeats}
+                        </td>
+                        <td className="px-4 py-4 align-top font-semibold">
+                          {formatAgencyBillingMoney(
+                            invoice.totalCents,
+                            invoice.currency,
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <span
+                            className={[
+                              "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize",
+                              invoiceStatusClassName(invoice.status),
+                            ].join(" ")}
+                          >
+                            {invoiceStatusLabel(invoice.status)}
+                          </span>
+                          {invoice.failureMessage ? (
+                            <p className="mt-2 max-w-xs text-xs font-normal text-destructive">
+                              {invoice.failureMessage}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-4 text-right align-top">
+                          <Button asChild variant="outline" size="sm">
+                            <Link
+                              href={`/controlroom/${kind}/settings/billing/invoices/${invoice.id}`}
+                            >
+                              View invoice
+                            </Link>
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="px-4 py-8 text-sm font-normal text-muted-foreground">
+                No agency invoices have been issued yet. The first invoice appears
+                after the first 30-day seat cycle closes and is finalized.
+              </div>
+            )}
+          </div>
+        </section>
       ) : null}
 
       {section === "ownership" ? (
@@ -664,8 +905,14 @@ export default async function ControlRoomSettingsPage({
           <p>Publish listings: {workspace.membership.canPublishListings ? "Yes" : "No"}</p>
           <p>Edit agency listings: {workspace.membership.canEditAgencyListings ? "Yes" : "No"}</p>
           <p>Buyer activity: {workspace.membership.canViewBuyerActivity ? "Yes" : "No"}</p>
+          <p>Manage branding: {workspace.membership.canManageBranding ? "Yes" : "No"}</p>
           <p>Manage team: {workspace.membership.canManageMembers ? "Yes" : "No"}</p>
-          <p>Manage billing: {workspace.membership.canManageBilling ? "Yes" : "No"}</p>
+          {workspace.agency.agencyType === "network" ? (
+            <p>Manage branches: {canManageBranchOperations ? "Yes" : "No"}</p>
+          ) : null}
+          {workspace.agency.agencyType !== "network" ? (
+            <p>Manage billing: {workspace.membership.canManageBilling ? "Yes" : "No"}</p>
+          ) : null}
           <p>Submit requests: {workspace.membership.canSubmitListingRequests ? "Yes" : "No"}</p>
         </div>
       </section>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { ListOrdered, Trophy, UserRound } from "lucide-react";
+import { Trophy, UserRound } from "lucide-react";
 
 import { CanonicalTable, type CanonicalTableColumn } from "@/components/ui/canonical-table";
 import { sql } from "@/db";
@@ -12,6 +12,7 @@ import {
 } from "@/modules/agencies/control-room";
 import { getPrimaryAgencyWorkspace } from "@/modules/agencies/server";
 import { authOptions } from "@/modules/auth/config";
+import { LeaderboardPeriodSelector } from "./leaderboard-period-selector";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,19 @@ type LeaderboardPageProps = {
   params: Promise<{
     workspaceKind: string;
   }>;
+  searchParams: Promise<{
+    period?: string | string[];
+  }>;
 };
+
+const periodOptions = [
+  { days: 7, key: "7d", label: "Last 7 days" },
+  { days: 30, key: "30d", label: "Last 30 days" },
+  { days: 90, key: "90d", label: "Last 90 days" },
+  { days: null, key: "all", label: "All time" },
+] as const;
+
+type LeaderboardPeriod = (typeof periodOptions)[number];
 
 type BranchLeaderboardRow = {
   active_listings: number | string;
@@ -35,6 +48,7 @@ type BranchLeaderboardRow = {
   offer_count: number | string;
   region: string | null;
   score: number | string;
+  sold_count: number | string;
   view_count: number | string;
 };
 
@@ -46,10 +60,27 @@ type AgentLeaderboardRow = {
   offer_count: number | string;
   role: string;
   score: number | string;
+  sold_count: number | string;
   user_id: string;
   username: string | null;
   view_count: number | string;
 };
+
+function firstSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function leaderboardPeriodFor(value: string | string[] | undefined): LeaderboardPeriod {
+  const key = firstSearchParam(value);
+
+  return periodOptions.find((option) => option.key === key) || periodOptions[1];
+}
+
+function periodStartValue(period: LeaderboardPeriod) {
+  if (!period.days) return null;
+
+  return new Date(Date.now() - period.days * 24 * 60 * 60 * 1000).toISOString();
+}
 
 function scoreLabel(value: number | string) {
   return new Intl.NumberFormat("en-ZA").format(Number(value || 0));
@@ -72,12 +103,18 @@ function rankBadge(index: number) {
   );
 }
 
-export default async function LeaderboardPage({ params }: LeaderboardPageProps) {
-  const [{ workspaceKind }, session] = await Promise.all([
+export default async function LeaderboardPage({
+  params,
+  searchParams,
+}: LeaderboardPageProps) {
+  const [{ workspaceKind }, query, session] = await Promise.all([
     params,
+    searchParams,
     getServerSession(authOptions),
   ]);
   const kind = parseControlRoomKind(workspaceKind);
+  const selectedPeriod = leaderboardPeriodFor(query.period);
+  const periodStart = periodStartValue(selectedPeriod);
 
   if (!kind) redirect("/controlroom");
   if (!session?.user?.id) redirect(`/sign-in?callbackUrl=/controlroom/${kind}/leaderboard`);
@@ -90,6 +127,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
   }
 
   const isNetwork = workspace.agency.agencyType === "network";
+  const controlRoomPath = controlRoomPathForWorkspace(workspace);
   const [branchRows, agentRows] = await Promise.all([
     isNetwork
       ? sql<BranchLeaderboardRow[]>`
@@ -111,7 +149,10 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
             SELECT
               bm.branch_id,
               pl.id,
-              pl.status
+              pl.outcome_at,
+              pl.sold_at,
+              pl.status,
+              pl.updated_at
             FROM branch_members bm
             INNER JOIN property_listings pl ON pl.user_id = bm.user_id
           ),
@@ -119,7 +160,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
             SELECT bl.branch_id, count(lve.id)::int AS view_count
             FROM branch_listings bl
             INNER JOIN listing_view_events lve ON lve.listing_id = bl.id
-            WHERE lve.created_at >= now() - interval '30 days'
+            WHERE (${periodStart}::timestamptz IS NULL OR lve.created_at >= ${periodStart}::timestamptz)
             GROUP BY bl.branch_id
           ),
           branch_actions AS (
@@ -129,28 +170,47 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
               count(*) FILTER (WHERE lae.action_type = 'offer_started')::int AS offer_count
             FROM branch_listings bl
             INNER JOIN listing_action_events lae ON lae.listing_id = bl.id
-            WHERE lae.created_at >= now() - interval '30 days'
+            WHERE (${periodStart}::timestamptz IS NULL OR lae.created_at >= ${periodStart}::timestamptz)
             GROUP BY bl.branch_id
+          ),
+          branch_metrics AS (
+            SELECT
+              bm.branch_id,
+              bm.branch_name,
+              bm.region,
+              count(DISTINCT bm.user_id)::int AS agent_count,
+              count(DISTINCT bl.id) FILTER (WHERE bl.status = 'published')::int AS active_listings,
+              count(DISTINCT bl.id) FILTER (
+                WHERE bl.status IN ('sold', 'sold_externally')
+                  AND (
+                    ${periodStart}::timestamptz IS NULL
+                    OR coalesce(bl.sold_at, bl.outcome_at, bl.updated_at) >= ${periodStart}::timestamptz
+                  )
+              )::int AS sold_count,
+              coalesce(max(bv.view_count), 0)::int AS view_count,
+              coalesce(max(ba.action_count), 0)::int AS action_count,
+              coalesce(max(ba.offer_count), 0)::int AS offer_count,
+              (
+                count(DISTINCT bl.id) FILTER (
+                  WHERE bl.status IN ('sold', 'sold_externally')
+                    AND (
+                      ${periodStart}::timestamptz IS NULL
+                      OR coalesce(bl.sold_at, bl.outcome_at, bl.updated_at) >= ${periodStart}::timestamptz
+                    )
+                ) * 25
+                + coalesce(max(ba.offer_count), 0) * 8
+                + coalesce(max(ba.action_count), 0) * 2
+                + coalesce(max(bv.view_count), 0)
+              )::int AS score
+            FROM branch_members bm
+            LEFT JOIN branch_listings bl ON bl.branch_id = bm.branch_id
+            LEFT JOIN branch_views bv ON bv.branch_id = bm.branch_id
+            LEFT JOIN branch_actions ba ON ba.branch_id = bm.branch_id
+            GROUP BY bm.branch_id, bm.branch_name, bm.region
           )
-          SELECT
-            bm.branch_id,
-            bm.branch_name,
-            bm.region,
-            count(DISTINCT bm.user_id)::int AS agent_count,
-            count(DISTINCT bl.id) FILTER (WHERE bl.status = 'published')::int AS active_listings,
-            coalesce(max(bv.view_count), 0)::int AS view_count,
-            coalesce(max(ba.action_count), 0)::int AS action_count,
-            coalesce(max(ba.offer_count), 0)::int AS offer_count,
-            (
-              coalesce(max(bv.view_count), 0)
-              + coalesce(max(ba.action_count), 0) * 2
-              + coalesce(max(ba.offer_count), 0) * 5
-            )::int AS score
-          FROM branch_members bm
-          LEFT JOIN branch_listings bl ON bl.branch_id = bm.branch_id
-          LEFT JOIN branch_views bv ON bv.branch_id = bm.branch_id
-          LEFT JOIN branch_actions ba ON ba.branch_id = bm.branch_id
-          GROUP BY bm.branch_id, bm.branch_name, bm.region
+          SELECT *
+          FROM branch_metrics
+          WHERE score > 0
           ORDER BY score DESC, view_count DESC, branch_name ASC
         `
       : Promise.resolve([] as BranchLeaderboardRow[]),
@@ -163,7 +223,10 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
           u.username,
           u.email,
           pl.id AS listing_id,
-          pl.status
+          pl.outcome_at,
+          pl.sold_at,
+          pl.status,
+          pl.updated_at
         FROM agency_members am
         INNER JOIN users u ON u.id = am.user_id
         LEFT JOIN property_listings pl ON pl.user_id = am.user_id
@@ -175,7 +238,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
         SELECT al.user_id, count(lve.id)::int AS view_count
         FROM agent_listings al
         INNER JOIN listing_view_events lve ON lve.listing_id = al.listing_id
-        WHERE lve.created_at >= now() - interval '30 days'
+        WHERE (${periodStart}::timestamptz IS NULL OR lve.created_at >= ${periodStart}::timestamptz)
         GROUP BY al.user_id
       ),
       agent_actions AS (
@@ -185,28 +248,47 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
           count(*) FILTER (WHERE lae.action_type = 'offer_started')::int AS offer_count
         FROM agent_listings al
         INNER JOIN listing_action_events lae ON lae.listing_id = al.listing_id
-        WHERE lae.created_at >= now() - interval '30 days'
+        WHERE (${periodStart}::timestamptz IS NULL OR lae.created_at >= ${periodStart}::timestamptz)
+        GROUP BY al.user_id
+      ),
+      agent_metrics AS (
+        SELECT
+          al.user_id,
+          max(al.agent_name) AS agent_name,
+          max(al.username) AS username,
+          max(al.email) AS email,
+          max(al.role) AS role,
+          count(DISTINCT al.listing_id) FILTER (WHERE al.status = 'published')::int AS active_listings,
+          count(DISTINCT al.listing_id) FILTER (
+            WHERE al.status IN ('sold', 'sold_externally')
+              AND (
+                ${periodStart}::timestamptz IS NULL
+                OR coalesce(al.sold_at, al.outcome_at, al.updated_at) >= ${periodStart}::timestamptz
+              )
+          )::int AS sold_count,
+          coalesce(max(av.view_count), 0)::int AS view_count,
+          coalesce(max(aa.action_count), 0)::int AS action_count,
+          coalesce(max(aa.offer_count), 0)::int AS offer_count,
+          (
+            count(DISTINCT al.listing_id) FILTER (
+              WHERE al.status IN ('sold', 'sold_externally')
+                AND (
+                  ${periodStart}::timestamptz IS NULL
+                  OR coalesce(al.sold_at, al.outcome_at, al.updated_at) >= ${periodStart}::timestamptz
+                )
+            ) * 25
+            + coalesce(max(aa.offer_count), 0) * 8
+            + coalesce(max(aa.action_count), 0) * 2
+            + coalesce(max(av.view_count), 0)
+          )::int AS score
+        FROM agent_listings al
+        LEFT JOIN agent_views av ON av.user_id = al.user_id
+        LEFT JOIN agent_actions aa ON aa.user_id = al.user_id
         GROUP BY al.user_id
       )
-      SELECT
-        al.user_id,
-        max(al.agent_name) AS agent_name,
-        max(al.username) AS username,
-        max(al.email) AS email,
-        max(al.role) AS role,
-        count(DISTINCT al.listing_id) FILTER (WHERE al.status = 'published')::int AS active_listings,
-        coalesce(max(av.view_count), 0)::int AS view_count,
-        coalesce(max(aa.action_count), 0)::int AS action_count,
-        coalesce(max(aa.offer_count), 0)::int AS offer_count,
-        (
-          coalesce(max(av.view_count), 0)
-          + coalesce(max(aa.action_count), 0) * 2
-          + coalesce(max(aa.offer_count), 0) * 5
-        )::int AS score
-      FROM agent_listings al
-      LEFT JOIN agent_views av ON av.user_id = al.user_id
-      LEFT JOIN agent_actions aa ON aa.user_id = al.user_id
-      GROUP BY al.user_id
+      SELECT *
+      FROM agent_metrics
+      WHERE score > 0
       ORDER BY score DESC, view_count DESC, agent_name ASC
     `,
   ]);
@@ -233,6 +315,16 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
       header: "Score",
       key: "score",
       render: (row) => <span className="font-semibold">{scoreLabel(row.score)}</span>,
+    },
+    {
+      header: "Outcomes",
+      key: "outcomes",
+      render: (row) => (
+        <div className="text-sm font-normal text-muted-foreground">
+          <p>{scoreLabel(row.sold_count)} sold</p>
+          <p>{scoreLabel(row.offer_count)} offer starts</p>
+        </div>
+      ),
     },
     {
       header: "Activity",
@@ -280,6 +372,16 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
       render: (row) => <span className="font-semibold">{scoreLabel(row.score)}</span>,
     },
     {
+      header: "Outcomes",
+      key: "outcomes",
+      render: (row) => (
+        <div className="text-sm font-normal text-muted-foreground">
+          <p>{scoreLabel(row.sold_count)} sold</p>
+          <p>{scoreLabel(row.offer_count)} offer starts</p>
+        </div>
+      ),
+    },
+    {
       header: "Activity",
       key: "activity",
       render: (row) => (
@@ -311,14 +413,15 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
             Leaderboard
           </h1>
           <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
-            Rank performance using buyer views, high-intent actions, offer starts, active listings, and team footprint over the last 30 days.
-            Independent agencies see their agents only; Network HQ workspaces also see branch rankings.
+            Rank measured performance from sold listings, offer starts, buyer views, and high-intent actions for {selectedPeriod.label.toLowerCase()}.
+            Independent agencies see agents only; Network HQ workspaces also see branch rankings.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
-          <ListOrdered className="size-4 text-primary" />
-          Last 30 days
-        </span>
+        <LeaderboardPeriodSelector
+          basePath={`${controlRoomPath}/leaderboard`}
+          currentPeriod={selectedPeriod.key}
+          periods={periodOptions}
+        />
       </div>
 
       {isNetwork ? (
@@ -329,9 +432,9 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
           </div>
           <CanonicalTable
             columns={branchColumns}
-            emptyState="No linked branch performance yet."
+            emptyState={`No linked branch performance for ${selectedPeriod.label.toLowerCase()}.`}
             getRowKey={(row) => row.branch_id}
-            minWidth="760px"
+            minWidth="860px"
             rows={branchRows}
           />
         </section>
@@ -344,9 +447,9 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
         </div>
         <CanonicalTable
           columns={agentColumns}
-          emptyState="No agent performance yet."
+          emptyState={`No agent performance for ${selectedPeriod.label.toLowerCase()}.`}
           getRowKey={(row) => row.user_id}
-          minWidth="760px"
+          minWidth="860px"
           rows={agentRows}
         />
       </section>

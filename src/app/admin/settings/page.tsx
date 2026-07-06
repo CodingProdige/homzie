@@ -6,6 +6,7 @@ import {
   Mail,
   Megaphone,
   Music,
+  ReceiptText,
   SearchCheck,
   UserRoundCog,
 } from "lucide-react";
@@ -36,6 +37,13 @@ const settingsItems = [
     label: "Ads",
     description:
       "Control platform ad pricing, channel availability, and the forecast model users see in Ads Center.",
+  },
+  {
+    href: "/admin/settings/agency-billing",
+    icon: ReceiptText,
+    label: "Agency Billing",
+    description:
+      "Set agency-funded member seat pricing and review automated billing exposure.",
   },
   {
     href: "/admin/broadcasts",

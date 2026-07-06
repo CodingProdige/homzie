@@ -7,14 +7,29 @@ import { Mail, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inviteAgencyMemberAction } from "@/modules/agencies/actions";
 
-export function InviteMemberDialog() {
+export function InviteMemberDialog({
+  billingReady,
+  billingSettingsHref,
+}: {
+  billingReady: boolean;
+  billingSettingsHref: string;
+}) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button className="h-11 px-5 font-semibold">
+        <Button
+          className="h-11 px-5 font-semibold"
+          disabled={!billingReady}
+          title={
+            billingReady
+              ? "Invite agent"
+              : "Update agency billing before inviting agency-funded agents."
+          }
+        >
           <UserPlus className="size-4" />
           Invite agent
         </Button>
@@ -25,13 +40,13 @@ export function InviteMemberDialog() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-                Paid agent roster
+                Agency-funded roster
               </p>
               <Dialog.Title className="mt-2 text-2xl font-semibold">
                 Invite agent
               </Dialog.Title>
               <Dialog.Description className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
-                Invite an existing or new Homzie user profile to join this agency as a paid public agent.
+                Invite an existing or new Homzie user profile to join this agency as an agency-funded public agent.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -44,12 +59,27 @@ export function InviteMemberDialog() {
           <form
             ref={formRef}
             action={async (formData) => {
-              await inviteAgencyMemberAction(formData);
-              formRef.current?.reset();
-              setOpen(false);
+              setError(null);
+
+              try {
+                await inviteAgencyMemberAction(formData);
+                formRef.current?.reset();
+                setOpen(false);
+              } catch (actionError) {
+                setError(
+                  actionError instanceof Error
+                    ? actionError.message
+                    : "Could not invite this agent.",
+                );
+              }
             }}
             className="mt-5"
           >
+            {!billingReady ? (
+              <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-800">
+                Update agency billing before inviting agency-funded agents. Open {billingSettingsHref}.
+              </p>
+            ) : null}
             <label className="text-sm font-semibold">
               Agent email
               <span className="mt-2 flex h-11 items-center gap-2 rounded-md border border-border bg-background px-3">
@@ -63,6 +93,12 @@ export function InviteMemberDialog() {
                 />
               </span>
             </label>
+
+            {error ? (
+              <p className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+                {error}
+              </p>
+            ) : null}
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Dialog.Close asChild>

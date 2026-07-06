@@ -21,6 +21,7 @@ const footerSections = [
     title: "Explore",
     links: [
       { href: "/agents", label: "Agents" },
+      { href: "/agencies", label: "Agencies" },
       { href: "/reels", label: "Reels" },
       { href: "/listings", label: "Listings" },
     ],

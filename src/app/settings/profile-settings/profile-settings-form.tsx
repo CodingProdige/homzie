@@ -28,8 +28,8 @@ import { cn } from "@/lib/utils";
 import type { UsernameAvailability } from "@/modules/auth/actions";
 import { normalizeUsername } from "@/modules/auth/username";
 import {
+  profileRoleIdentityPhrase,
   profileRoleOptions,
-  profileRoleSentenceLabel,
   type ProfileRole,
 } from "@/modules/users/profile-role";
 import { SettingsPageHeader } from "../settings-page-header";
@@ -1107,7 +1107,7 @@ export function ProfileSettingsForm({
             >
               <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-3">
                 <span className="text-sm font-semibold text-muted-foreground">
-                  I am a
+                  I am
                 </span>
                 <input type="hidden" name="profileRole" value={profileRole} />
                 <DropdownMenu.Root>
@@ -1117,7 +1117,7 @@ export function ProfileSettingsForm({
                       className="inline-flex h-10 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/8 px-3 text-left text-sm font-bold text-foreground outline-none transition hover:bg-primary/12 focus-visible:ring-2 focus-visible:ring-primary"
                     >
                       <span className="truncate">
-                        {profileRoleSentenceLabel(profileRole)}
+                        {profileRoleIdentityPhrase(profileRole)}
                       </span>
                       <ChevronDown className="size-4 shrink-0 text-primary" />
                     </button>

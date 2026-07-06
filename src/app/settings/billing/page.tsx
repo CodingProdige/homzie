@@ -7,6 +7,7 @@ import {
   CreditCard,
   HelpCircle,
   LockKeyhole,
+  ShieldCheck,
   TrendingUp,
 } from "lucide-react";
 import type Stripe from "stripe";
@@ -18,6 +19,10 @@ import {
   getUserAdBillingSummary,
   listUserAdInvoices,
 } from "@/modules/ads/billing";
+import {
+  getAgencyFundedSeatAccess,
+  type AgencyFundedSeatAccess,
+} from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import {
   agentSubscriptionPrice,
@@ -513,6 +518,56 @@ function BillingIssueNotice({ issue }: { issue: BillingIssue }) {
   );
 }
 
+function AgencyFundedAccessNotice({
+  seat,
+}: {
+  seat: AgencyFundedSeatAccess;
+}) {
+  return (
+    <section className="rounded-lg border border-primary/20 bg-primary/10 p-5 shadow-sm sm:p-6">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+            Agency-funded seat
+          </p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight">
+            {seat.billingReady
+              ? `Your agent access is covered by ${seat.agencyName}.`
+              : "Agency billing setup required."}
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm font-normal leading-6 text-muted-foreground">
+            {seat.billingReady
+              ? "You do not need a personal Agent Pro subscription while this agency-funded seat is active. Seat billing is handled through automated agency billing."
+              : `${seat.agencyName} has linked you as an agency-funded seat, but buyer intent tools unlock only after the agency billing profile is ready.`}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          {seat.canManageAgencyBilling ? (
+            <Button asChild>
+              <Link href={seat.controlRoomBillingHref}>
+                <CreditCard className="size-4" />
+                {seat.billingReady ? "Open agency billing" : "Set up agency billing"}
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild variant="outline">
+            <Link href={`/agencies/${seat.agencySlug}`}>
+              <ShieldCheck className="size-4" />
+              View agency
+            </Link>
+          </Button>
+        </div>
+      </div>
+      {!seat.canManageAgencyBilling && !seat.billingReady ? (
+        <p className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-800">
+          Ask an agency billing manager to add billing information before this
+          agency-funded access can unlock buyer intent tools.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function CurrentPlanCard({ billing }: { billing: BillingData | null }) {
   return (
     <section className="rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
@@ -893,7 +948,10 @@ export default async function BillingSettingsPage() {
     .orderBy(desc(subscriptions.createdAt))
     .limit(1);
 
-  const billing = await getBillingData(user.id);
+  const [billing, agencyFundedSeat] = await Promise.all([
+    getBillingData(user.id),
+    getAgencyFundedSeatAccess(user.id),
+  ]);
   const [adsBillingSummary, adInvoices] = await Promise.all([
     getUserAdBillingSummary(user.id),
     listUserAdInvoices(user.id, 8),
@@ -912,7 +970,11 @@ export default async function BillingSettingsPage() {
       <SettingsPageHeader title="Billing" />
 
       <div className="flex w-full flex-col gap-5 py-6">
-        {!billing ? <CompactAgentUpgradeCta trialEligible={trialEligible} /> : null}
+        {agencyFundedSeat ? (
+          <AgencyFundedAccessNotice seat={agencyFundedSeat} />
+        ) : !billing ? (
+          <CompactAgentUpgradeCta trialEligible={trialEligible} />
+        ) : null}
         {billing?.issue ? <BillingIssueNotice issue={billing.issue} /> : null}
 
         {billing ? (

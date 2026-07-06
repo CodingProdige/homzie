@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import {
   BadgeCheck,
   ChevronRight,
+  CreditCard,
   Crown,
   Palette,
   Settings2,
@@ -35,12 +36,18 @@ type ControlRoomSettingsPageProps = {
   }>;
 };
 
-const settingsItems = [
+const baseSettingsItems = [
   {
-    description: "Review parent network links, branch status, billing posture, and visibility.",
+    description: "Review parent network links, branch status, operating policies, and visibility.",
     href: "hierarchy",
     icon: Share2,
     label: "Hierarchy",
+  },
+  {
+    description: "Manage automated billing and monthly agency-funded seat usage.",
+    href: "billing",
+    icon: CreditCard,
+    label: "Billing",
   },
   {
     description: "Manage logo, badge label, Network HQ branding rules, and branch brand locks.",
@@ -90,6 +97,9 @@ export default async function ControlRoomSettingsPage({
   }
 
   const basePath = `/controlroom/${kind}/settings`;
+  const settingsItems = baseSettingsItems.filter(
+    (item) => item.href !== "billing" || workspace.agency.agencyType !== "network",
+  );
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">

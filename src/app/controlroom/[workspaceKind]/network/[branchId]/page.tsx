@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { Building2, Home, Network, UsersRound, type LucideIcon } from "lucide-react";
+import { Building2, UsersRound } from "lucide-react";
 
 import { BackButton } from "@/components/back-button";
+import { AgentProfileAvatar } from "@/components/agent-profile-avatar";
 import {
   CanonicalTable,
   type CanonicalTableColumn,
@@ -46,6 +47,7 @@ type BranchSummary = {
 
 type BranchAgentRow = {
   active_listings: number | string;
+  avatar_url: string | null;
   email: string | null;
   name: string;
   role: string;
@@ -104,18 +106,20 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
     redirect(`${controlRoomPathForWorkspace(workspace)}/network/${branchId}`);
   }
 
-  if (workspace.agency.agencyType === "network") {
-    redirect(`${controlRoomPathForWorkspace(workspace)}/branches`);
-  }
-
-  if (
-    workspace.agency.parentLinkStatus !== "linked" ||
-    !workspace.agency.parentAgencyId
-  ) {
-    redirect(`${controlRoomPathForWorkspace(workspace)}/network`);
-  }
-
   const basePath = controlRoomPathForWorkspace(workspace);
+  const isNetworkWorkspace = workspace.agency.agencyType === "network";
+  const parentNetworkId = isNetworkWorkspace
+    ? workspace.agency.id
+    : workspace.agency.parentLinkStatus === "linked"
+      ? workspace.agency.parentAgencyId
+      : null;
+
+  if (!parentNetworkId) {
+    redirect(`${basePath}/network`);
+  }
+
+  const backHref = isNetworkWorkspace ? `${basePath}/branches` : `${basePath}/network`;
+  const backLabel = isNetworkWorkspace ? "Back to branches" : "Back to network";
   const [branch] = await sql<BranchSummary[]>`
     WITH branch_members AS (
       SELECT
@@ -130,7 +134,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
         AND am.status = 'active'
       WHERE a.id = ${branchId}
         AND a.agency_type = 'branch'
-        AND a.parent_agency_id = ${workspace.agency.parentAgencyId}
+        AND a.parent_agency_id = ${parentNetworkId}
         AND a.parent_link_status = 'linked'
     ),
     branch_listings AS (
@@ -180,6 +184,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
         u.name,
         u.username,
         u.email,
+        u.avatar_url,
         am.role,
         count(pl.id) FILTER (WHERE pl.status = 'published')::int AS active_listings
       FROM agency_members am
@@ -219,11 +224,14 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       header: "Agent",
       key: "agent",
       render: (agent) => (
-        <div className="min-w-0">
-          <p className="truncate font-semibold">{agent.name}</p>
-          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
-            {agent.username ? `@${agent.username}` : agent.email || "No contact"}
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          <AgentProfileAvatar avatarUrl={agent.avatar_url} name={agent.name} />
+          <div className="min-w-0">
+            <p className="truncate font-semibold">{agent.name}</p>
+            <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
+              {agent.username ? `@${agent.username}` : agent.email || "No contact"}
+            </p>
+          </div>
         </div>
       ),
     },
@@ -279,32 +287,29 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       ),
     },
   ];
-  const stats: Array<{ icon: LucideIcon; label: string; value: string }> = [
+  const stats: Array<{ detail?: string; label: string; value: string }> = [
     {
-      icon: UsersRound,
       label: "Members",
       value: `${numberLabel(branch.member_count)} active`,
     },
     {
-      icon: Home,
       label: "Listings",
       value: `${numberLabel(branch.active_listings)} active`,
     },
     {
-      icon: Building2,
       label: "Sold",
       value: `${numberLabel(branch.sold_count)} listings`,
     },
     {
-      icon: Network,
       label: "Buyer activity",
-      value: `${numberLabel(branch.view_count)} views · ${numberLabel(branch.action_count)} actions`,
+      value: `${numberLabel(branch.view_count)} views`,
+      detail: `${numberLabel(branch.action_count)} actions`,
     },
   ];
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
-      <BackButton href={`${basePath}/network`} label="Back to network" className="mb-4" />
+      <BackButton href={backHref} label={backLabel} className="mb-4" />
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -321,19 +326,19 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
       </div>
 
       <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ icon: Icon, label, value }) => (
-          <div key={label} className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                <Icon className="size-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-normal uppercase tracking-[0.08em] text-muted-foreground">
-                  {label}
-                </p>
-                <p className="mt-1 truncate text-lg font-semibold">{value}</p>
-              </div>
-            </div>
+        {stats.map(({ detail, label, value }) => (
+          <div key={label} className="min-w-0 rounded-lg border border-border bg-card p-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              {label}
+            </p>
+            <p className="mt-2 break-words text-base font-semibold leading-tight">
+              {value}
+            </p>
+            {detail ? (
+              <p className="mt-1 text-sm font-normal leading-tight text-muted-foreground">
+                {detail}
+              </p>
+            ) : null}
           </div>
         ))}
       </section>
@@ -346,6 +351,7 @@ export default async function BranchDetailPage({ params }: BranchDetailPageProps
         <CanonicalTable
           columns={agentColumns}
           emptyState="This branch has no active agents yet."
+          getRowHref={(agent) => (agent.username ? `/users/${agent.username}` : "")}
           getRowKey={(agent) => agent.user_id}
           minWidth="620px"
           rows={agents}

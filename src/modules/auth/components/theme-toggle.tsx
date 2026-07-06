@@ -15,6 +15,10 @@ const modes: Array<{ mode: ThemeMode; icon: typeof Sun; label: string }> = [
   { mode: "dark", icon: Moon, label: "Dark mode" },
 ];
 
+function isThemeMode(value: string | null): value is ThemeMode {
+  return value === "dark" || value === "light";
+}
+
 function applyTheme(mode: ThemeMode) {
   const shouldUseDark = mode === "dark";
 
@@ -29,23 +33,30 @@ function persistTheme(mode: ThemeMode) {
 }
 
 export function ThemeToggle() {
-  const [mode, setMode] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") {
-      return "light";
-    }
-
-    const storedMode = window.localStorage.getItem("homzie-theme");
-    return storedMode === "dark" || storedMode === "light"
-      ? storedMode
-      : "light";
-  });
+  const [mode, setMode] = useState<ThemeMode | null>(null);
 
   useEffect(() => {
-    applyTheme(mode);
-  }, [mode]);
+    const storedMode = window.localStorage.getItem(themeCookieName);
+    const nextMode = document.documentElement.classList.contains("dark")
+      ? "dark"
+      : isThemeMode(storedMode)
+      ? storedMode
+      : "light";
+
+    applyTheme(nextMode);
+
+    const frameId = window.requestAnimationFrame(() => {
+      setMode(nextMode);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, []);
 
   const updateMode = (nextMode: ThemeMode) => {
     setMode(nextMode);
+    applyTheme(nextMode);
     persistTheme(nextMode);
   };
 

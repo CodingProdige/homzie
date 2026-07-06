@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { ArrowUpRight, Building2, Network, Unlink } from "lucide-react";
+import { ArrowUpRight, Network, Unlink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -285,12 +284,6 @@ export default async function NetworkPage({ params }: NetworkPageProps) {
               </p>
               <h2 className="mt-2 text-2xl font-semibold">Linked branches</h2>
             </div>
-            <Button asChild variant="outline">
-              <Link href={`${basePath}/leaderboard`}>
-                <Building2 className="size-4" />
-                Leaderboard
-              </Link>
-            </Button>
           </div>
           <CanonicalTable
             columns={columns}

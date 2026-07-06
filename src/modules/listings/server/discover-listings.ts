@@ -58,7 +58,7 @@ type DiscoverListingOptions = {
   viewerUserId?: string | null;
 };
 
-const visibleListingStatuses = ["published"] as const;
+const visibleListingStatuses = ["published", "under_offer"] as const;
 
 function publicListingVisibilityFilter() {
   return sql`coalesce(${propertyListings.details}->>'listingVisibility', 'public') = 'public'`;

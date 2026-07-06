@@ -70,6 +70,14 @@ export const agencyOwnershipTransferStatusEnum = pgEnum(
   "agency_ownership_transfer_status",
   ["pending", "accepted", "declined", "cancelled", "expired"],
 );
+export const propertyListingAgentRoleEnum = pgEnum("property_listing_agent_role", [
+  "lead",
+  "co_agent",
+]);
+export const agencyListingRequestStatusEnum = pgEnum(
+  "agency_listing_request_status",
+  ["pending", "approved", "rejected", "cancelled"],
+);
 export const subscriptionStatusEnum = pgEnum("subscription_status", [
   "pending",
   "active",
@@ -347,6 +355,121 @@ export const agencyOwnershipTransfers = pgTable(
   ],
 );
 
+export const agencyBillingProfiles = pgTable(
+  "agency_billing_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("stripe"),
+    status: text("status").notNull().default("missing"),
+    providerCustomerId: text("provider_customer_id"),
+    providerPaymentMethodId: text("provider_payment_method_id"),
+    paymentMethodLabel: text("payment_method_label"),
+    billingEmail: text("billing_email"),
+    failureMessage: text("failure_message"),
+    billingCycleAnchorAt: timestamp("billing_cycle_anchor_at", {
+      withTimezone: true,
+    }),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("agency_billing_profiles_agency_id_idx").on(table.agencyId),
+    index("agency_billing_profiles_status_idx").on(table.status),
+    index("agency_billing_profiles_provider_customer_id_idx").on(
+      table.providerCustomerId,
+    ),
+  ],
+);
+
+export const agencyBillingPrices = pgTable(
+  "agency_billing_prices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    priceKey: text("price_key").notNull().default("agency_member_seat"),
+    unitAmountCents: integer("unit_amount_cents").notNull(),
+    currency: text("currency").notNull().default("ZAR"),
+    activeFrom: timestamp("active_from", { withTimezone: true }).notNull(),
+    activeTo: timestamp("active_to", { withTimezone: true }),
+    createdByAdminId: uuid("created_by_admin_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("agency_billing_prices_price_key_active_from_idx").on(
+      table.priceKey,
+      table.activeFrom,
+    ),
+    index("agency_billing_prices_active_to_idx").on(table.activeTo),
+  ],
+);
+
+export const agencySeatUsageEvents = pgTable(
+  "agency_seat_usage_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id").references(() => agencyMembers.id, {
+      onDelete: "set null",
+    }),
+    eventType: text("event_type").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("agency_seat_usage_events_agency_id_idx").on(table.agencyId),
+    index("agency_seat_usage_events_member_id_idx").on(table.memberId),
+    index("agency_seat_usage_events_occurred_at_idx").on(table.occurredAt),
+  ],
+);
+
+export const agencyBillingPeriods = pgTable(
+  "agency_billing_periods",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    priceId: uuid("price_id").references(() => agencyBillingPrices.id, {
+      onDelete: "set null",
+    }),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    maxBillableSeats: integer("max_billable_seats").notNull().default(0),
+    unitAmountCents: integer("unit_amount_cents").notNull().default(0),
+    subtotalCents: integer("subtotal_cents").notNull().default(0),
+    creditsCents: integer("credits_cents").notNull().default(0),
+    totalCents: integer("total_cents").notNull().default(0),
+    currency: text("currency").notNull().default("ZAR"),
+    status: text("status").notNull().default("open"),
+    invoiceNumber: text("invoice_number"),
+    invoiceIssuedAt: timestamp("invoice_issued_at", { withTimezone: true }),
+    invoiceDueAt: timestamp("invoice_due_at", { withTimezone: true }),
+    providerPaymentIntentId: text("provider_payment_intent_id"),
+    providerChargeId: text("provider_charge_id"),
+    failureMessage: text("failure_message"),
+    chargedAt: timestamp("charged_at", { withTimezone: true }),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("agency_billing_periods_agency_period_idx").on(
+      table.agencyId,
+      table.periodStart,
+    ),
+    uniqueIndex("agency_billing_periods_invoice_number_idx").on(table.invoiceNumber),
+    index("agency_billing_periods_status_idx").on(table.status),
+    index("agency_billing_periods_period_end_idx").on(table.periodEnd),
+  ],
+);
+
 export const passwordResetTokens = pgTable(
   "password_reset_tokens",
   {
@@ -412,6 +535,9 @@ export const propertyListings = pgTable(
     agentProfileId: uuid("agent_profile_id").references(() => agentProfiles.id, {
       onDelete: "set null",
     }),
+    agencyId: uuid("agency_id").references(() => agencies.id, {
+      onDelete: "set null",
+    }),
     propertyIdentityId: uuid("property_identity_id").references(
       () => propertyIdentities.id,
       {
@@ -451,6 +577,7 @@ export const propertyListings = pgTable(
   (table) => [
     index("property_listings_user_id_idx").on(table.userId),
     index("property_listings_agent_profile_id_idx").on(table.agentProfileId),
+    index("property_listings_agency_id_idx").on(table.agencyId),
     index("property_listings_property_identity_id_idx").on(table.propertyIdentityId),
     index("property_listings_status_idx").on(table.status),
     index("property_listings_is_demo_content_idx").on(table.isDemoContent),
@@ -459,6 +586,74 @@ export const propertyListings = pgTable(
     ),
     index("property_listings_outcome_at_idx").on(table.outcomeAt),
     index("property_listings_sold_at_idx").on(table.soldAt),
+  ],
+);
+
+export const propertyListingAgents = pgTable(
+  "property_listing_agents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    agencyId: uuid("agency_id").references(() => agencies.id, {
+      onDelete: "cascade",
+    }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    agentProfileId: uuid("agent_profile_id").references(() => agentProfiles.id, {
+      onDelete: "set null",
+    }),
+    role: propertyListingAgentRoleEnum("role").notNull().default("co_agent"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    assignedByUserId: uuid("assigned_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("property_listing_agents_listing_id_idx").on(table.listingId),
+    index("property_listing_agents_agency_id_idx").on(table.agencyId),
+    index("property_listing_agents_user_id_idx").on(table.userId),
+    index("property_listing_agents_removed_at_idx").on(table.removedAt),
+  ],
+);
+
+export const agencyListingRequests = pgTable(
+  "agency_listing_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => propertyListings.id, { onDelete: "cascade" }),
+    requestedByUserId: uuid("requested_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    requestType: text("request_type").notNull().default("publish"),
+    status: agencyListingRequestStatusEnum("status").notNull().default("pending"),
+    message: text("message"),
+    reviewNote: text("review_note"),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("agency_listing_requests_agency_id_idx").on(table.agencyId),
+    index("agency_listing_requests_listing_id_idx").on(table.listingId),
+    index("agency_listing_requests_requested_by_user_id_idx").on(
+      table.requestedByUserId,
+    ),
+    index("agency_listing_requests_status_idx").on(table.status),
   ],
 );
 
@@ -2111,6 +2306,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   receivedAgencyOwnershipTransfers: many(agencyOwnershipTransfers, {
     relationName: "agencyOwnershipTransferRecipient",
   }),
+  agencyBillingPricesCreated: many(agencyBillingPrices, {
+    relationName: "agencyBillingPriceCreator",
+  }),
   subscriptions: many(subscriptions),
   errorLogs: many(errorLogs),
   propertyIdentities: many(propertyIdentities),
@@ -2160,6 +2358,9 @@ export const agenciesRelations = relations(agencies, ({ one, many }) => ({
   }),
   members: many(agencyMembers),
   employees: many(agencyEmployees),
+  listings: many(propertyListings),
+  listingAgents: many(propertyListingAgents),
+  listingRequests: many(agencyListingRequests),
   activityEvents: many(agencyActivityEvents, {
     relationName: "agencyActivityRecipient",
   }),
@@ -2167,7 +2368,60 @@ export const agenciesRelations = relations(agencies, ({ one, many }) => ({
     relationName: "agencyActivityActor",
   }),
   ownershipTransfers: many(agencyOwnershipTransfers),
+  billingProfile: one(agencyBillingProfiles),
+  billingPeriods: many(agencyBillingPeriods),
+  seatUsageEvents: many(agencySeatUsageEvents),
 }));
+
+export const agencyBillingProfilesRelations = relations(
+  agencyBillingProfiles,
+  ({ one }) => ({
+    agency: one(agencies, {
+      fields: [agencyBillingProfiles.agencyId],
+      references: [agencies.id],
+    }),
+  }),
+);
+
+export const agencyBillingPricesRelations = relations(
+  agencyBillingPrices,
+  ({ one, many }) => ({
+    createdByAdmin: one(users, {
+      fields: [agencyBillingPrices.createdByAdminId],
+      references: [users.id],
+      relationName: "agencyBillingPriceCreator",
+    }),
+    billingPeriods: many(agencyBillingPeriods),
+  }),
+);
+
+export const agencySeatUsageEventsRelations = relations(
+  agencySeatUsageEvents,
+  ({ one }) => ({
+    agency: one(agencies, {
+      fields: [agencySeatUsageEvents.agencyId],
+      references: [agencies.id],
+    }),
+    member: one(agencyMembers, {
+      fields: [agencySeatUsageEvents.memberId],
+      references: [agencyMembers.id],
+    }),
+  }),
+);
+
+export const agencyBillingPeriodsRelations = relations(
+  agencyBillingPeriods,
+  ({ one }) => ({
+    agency: one(agencies, {
+      fields: [agencyBillingPeriods.agencyId],
+      references: [agencies.id],
+    }),
+    price: one(agencyBillingPrices, {
+      fields: [agencyBillingPeriods.priceId],
+      references: [agencyBillingPrices.id],
+    }),
+  }),
+);
 
 export const agencyActivityEventsRelations = relations(
   agencyActivityEvents,
@@ -2385,10 +2639,16 @@ export const propertyListingsRelations = relations(propertyListings, ({ one, man
     fields: [propertyListings.agentProfileId],
     references: [agentProfiles.id],
   }),
+  agency: one(agencies, {
+    fields: [propertyListings.agencyId],
+    references: [agencies.id],
+  }),
   propertyIdentity: one(propertyIdentities, {
     fields: [propertyListings.propertyIdentityId],
     references: [propertyIdentities.id],
   }),
+  assignedAgents: many(propertyListingAgents),
+  listingRequests: many(agencyListingRequests),
   errorLogs: many(errorLogs),
   saleClaim: one(propertySaleClaims),
   statusHistory: many(propertyListingStatusHistory),
@@ -2399,6 +2659,58 @@ export const propertyListingsRelations = relations(propertyListings, ({ one, man
   viewEvents: many(listingViewEvents),
   reels: many(reels),
 }));
+
+export const propertyListingAgentsRelations = relations(
+  propertyListingAgents,
+  ({ one }) => ({
+    listing: one(propertyListings, {
+      fields: [propertyListingAgents.listingId],
+      references: [propertyListings.id],
+    }),
+    agency: one(agencies, {
+      fields: [propertyListingAgents.agencyId],
+      references: [agencies.id],
+    }),
+    user: one(users, {
+      fields: [propertyListingAgents.userId],
+      references: [users.id],
+      relationName: "propertyListingAssignedAgent",
+    }),
+    agentProfile: one(agentProfiles, {
+      fields: [propertyListingAgents.agentProfileId],
+      references: [agentProfiles.id],
+    }),
+    assignedByUser: one(users, {
+      fields: [propertyListingAgents.assignedByUserId],
+      references: [users.id],
+      relationName: "propertyListingAgentAssigner",
+    }),
+  }),
+);
+
+export const agencyListingRequestsRelations = relations(
+  agencyListingRequests,
+  ({ one }) => ({
+    agency: one(agencies, {
+      fields: [agencyListingRequests.agencyId],
+      references: [agencies.id],
+    }),
+    listing: one(propertyListings, {
+      fields: [agencyListingRequests.listingId],
+      references: [propertyListings.id],
+    }),
+    requestedByUser: one(users, {
+      fields: [agencyListingRequests.requestedByUserId],
+      references: [users.id],
+      relationName: "agencyListingRequestRequester",
+    }),
+    reviewedByUser: one(users, {
+      fields: [agencyListingRequests.reviewedByUserId],
+      references: [users.id],
+      relationName: "agencyListingRequestReviewer",
+    }),
+  }),
+);
 
 export const errorLogsRelations = relations(errorLogs, ({ one }) => ({
   listing: one(propertyListings, {
@@ -2700,6 +3012,14 @@ export type AgencyEmployee = typeof agencyEmployees.$inferSelect;
 export type NewAgencyEmployee = typeof agencyEmployees.$inferInsert;
 export type AgencyOwnershipTransfer = typeof agencyOwnershipTransfers.$inferSelect;
 export type NewAgencyOwnershipTransfer = typeof agencyOwnershipTransfers.$inferInsert;
+export type AgencyBillingProfile = typeof agencyBillingProfiles.$inferSelect;
+export type NewAgencyBillingProfile = typeof agencyBillingProfiles.$inferInsert;
+export type AgencyBillingPrice = typeof agencyBillingPrices.$inferSelect;
+export type NewAgencyBillingPrice = typeof agencyBillingPrices.$inferInsert;
+export type AgencySeatUsageEvent = typeof agencySeatUsageEvents.$inferSelect;
+export type NewAgencySeatUsageEvent = typeof agencySeatUsageEvents.$inferInsert;
+export type AgencyBillingPeriod = typeof agencyBillingPeriods.$inferSelect;
+export type NewAgencyBillingPeriod = typeof agencyBillingPeriods.$inferInsert;
 export type AgencyActivityEvent = typeof agencyActivityEvents.$inferSelect;
 export type NewAgencyActivityEvent = typeof agencyActivityEvents.$inferInsert;
 export type Subscription = typeof subscriptions.$inferSelect;

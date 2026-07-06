@@ -6,7 +6,7 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -33,8 +33,15 @@ import {
   createAgencyWithOwner,
   getAgencyNameAvailability,
   getPrimaryAgencyWorkspace,
+  hasAgencyAdminAccess,
 } from "@/modules/agencies/server";
 import { controlRoomPathForWorkspace } from "@/modules/agencies/control-room";
+import {
+  assertAgencyBillingReady,
+  isBillableAgencyMemberStatus,
+  recordAgencySeatUsageEvent,
+} from "@/modules/agencies/billing";
+import { profileRoleForAgencyOwner } from "@/modules/users/profile-role";
 
 export type AgencyApplicationState = {
   error?: string;
@@ -187,9 +194,12 @@ function revalidateControlRoomPaths(path = "/controlroom") {
   revalidatePath(path);
   revalidatePath(`${path}/branches`);
   revalidatePath(`${path}/activity`);
+  revalidatePath(`${path}/employees`);
   revalidatePath(`${path}/network`);
   revalidatePath(`${path}/leaderboard`);
   revalidatePath(`${path}/settings`);
+  revalidatePath(`${path}/settings/branding`);
+  revalidatePath(`${path}/settings/hierarchy`);
 }
 
 export async function checkAgencyNameAvailability(
@@ -305,6 +315,14 @@ export async function createAgencyApplicationAction(
     };
   }
 
+  await db
+    .update(users)
+    .set({
+      profileRole: profileRoleForAgencyOwner(agencyType),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId));
+
   const controlRoomPath = agencyTypeControlRoomPath(agencyType);
 
   revalidateControlRoomPaths(controlRoomPath);
@@ -324,7 +342,8 @@ async function requireNetworkManager() {
   if (
     !workspace ||
     workspace.agency.agencyType !== "network" ||
-    !workspace.membership.canManageMembers
+    workspace.membership.status !== "active" ||
+    !hasAgencyAdminAccess(workspace)
   ) {
     throw new Error("Only Network HQ owners and admins can manage branch links.");
   }
@@ -459,14 +478,39 @@ async function requireAgencyManager() {
 
   const workspace = await getPrimaryAgencyWorkspace(userId);
 
-  if (!workspace || !workspace.membership.canManageMembers) {
+  if (
+    !workspace ||
+    workspace.membership.status !== "active" ||
+    !workspace.membership.canManageMembers
+  ) {
     throw new Error("Only agency owners and admins can manage agency settings.");
   }
 
   return workspace;
 }
 
-type AgencyEmployeeInviteRole =
+async function requireAgencyBrandManager() {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    throw new Error("Sign in before managing agency branding.");
+  }
+
+  const workspace = await getPrimaryAgencyWorkspace(userId);
+
+  if (
+    !workspace ||
+    workspace.membership.status !== "active" ||
+    !workspace.membership.canManageBranding
+  ) {
+    throw new Error("Only users with branding access can manage agency branding.");
+  }
+
+  return workspace;
+}
+
+export type AgencyEmployeeRole =
   | "admin"
   | "finance"
   | "listing_coordinator"
@@ -474,7 +518,7 @@ type AgencyEmployeeInviteRole =
   | "viewer";
 type ManageableAgencyStatus = "active" | "removed" | "suspended";
 
-function formAgencyEmployeeRole(value: string): AgencyEmployeeInviteRole {
+function formAgencyEmployeeRole(value: string): AgencyEmployeeRole {
   if (
     value === "admin" ||
     value === "listing_coordinator" ||
@@ -497,10 +541,11 @@ function formMemberStatus(value: string): ManageableAgencyStatus {
 }
 
 function employeePermissionsForRole(
-  role: AgencyEmployeeInviteRole,
+  role: AgencyEmployeeRole,
+  { allowBilling = true }: { allowBilling?: boolean } = {},
 ) {
   return {
-    canManageBilling: role === "admin" || role === "finance",
+    canManageBilling: allowBilling && (role === "admin" || role === "finance"),
     canManageBranding: role === "admin" || role === "marketing",
     canManageListings: role === "admin" || role === "listing_coordinator",
     canManageMembers: role === "admin",
@@ -515,6 +560,12 @@ export async function inviteAgencyMemberAction(formData: FormData) {
   const email = formString(formData, "email").toLowerCase();
   const role = "agent" as const;
 
+  if (workspace.agency.agencyType === "network") {
+    throw new Error("Network HQ workspaces cannot invite agency-funded agents.");
+  }
+
+  await assertAgencyBillingReady(workspace.agency.id);
+
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Enter a valid agent email address.");
   }
@@ -527,7 +578,7 @@ export async function inviteAgencyMemberAction(formData: FormData) {
 
   const existingMembership = existingUser
     ? await db
-        .select({ id: agencyMembers.id })
+        .select({ id: agencyMembers.id, status: agencyMembers.status })
         .from(agencyMembers)
         .where(
           and(
@@ -556,17 +607,43 @@ export async function inviteAgencyMemberAction(formData: FormData) {
     userId: existingUser?.id || null,
   };
 
-  if (existingMembership[0]) {
-    await db
-      .update(agencyMembers)
-      .set(values)
-      .where(eq(agencyMembers.id, existingMembership[0].id));
-  } else {
-    await db.insert(agencyMembers).values({
-      ...values,
-      agencyId: workspace.agency.id,
-    });
-  }
+  await db.transaction(async (tx) => {
+    const existing = existingMembership[0];
+
+    if (existing) {
+      await tx
+        .update(agencyMembers)
+        .set(values)
+        .where(eq(agencyMembers.id, existing.id));
+
+      if (
+        !isBillableAgencyMemberStatus(existing.status) &&
+        isBillableAgencyMemberStatus(values.status)
+      ) {
+        await recordAgencySeatUsageEvent(tx, {
+          agencyId: workspace.agency.id,
+          eventType: "seat_started",
+          memberId: existing.id,
+        });
+      }
+    } else {
+      const [member] = await tx
+        .insert(agencyMembers)
+        .values({
+          ...values,
+          agencyId: workspace.agency.id,
+        })
+        .returning({ id: agencyMembers.id });
+
+      if (member && isBillableAgencyMemberStatus(values.status)) {
+        await recordAgencySeatUsageEvent(tx, {
+          agencyId: workspace.agency.id,
+          eventType: "seat_started",
+          memberId: member.id,
+        });
+      }
+    }
+  });
 
   await notifyAgencyActivity({
     actionHref: `${controlRoomPathForWorkspace(workspace)}/members`,
@@ -575,8 +652,8 @@ export async function inviteAgencyMemberAction(formData: FormData) {
     actorUserId: session?.user?.id || null,
     agencyId: workspace.agency.id,
     body: existingUser
-      ? `${existingUser.name} was linked as a paid agency agent.`
-      : `${email} was invited as a paid agency agent.`,
+      ? `${existingUser.name} was linked as an agency-funded agent.`
+      : `${email} was invited as an agency-funded agent.`,
     eventType: "agency.member.invited",
     metadata: { email, role },
     severity: "info",
@@ -591,10 +668,14 @@ export async function updateAgencyMemberStatusAction(formData: FormData) {
   const memberId = formString(formData, "memberId");
   const status = formMemberStatus(formString(formData, "status"));
 
+  if (workspace.agency.agencyType === "network") {
+    throw new Error("Network HQ workspaces cannot manage agency-funded agent seats.");
+  }
+
   if (!memberId) return;
 
   const [member] = await db
-    .select({ role: agencyMembers.role })
+    .select({ role: agencyMembers.role, status: agencyMembers.status })
     .from(agencyMembers)
     .where(and(eq(agencyMembers.id, memberId), eq(agencyMembers.agencyId, workspace.agency.id)))
     .limit(1);
@@ -603,10 +684,39 @@ export async function updateAgencyMemberStatusAction(formData: FormData) {
     throw new Error("Agency owners cannot be removed from the members page.");
   }
 
-  await db
-    .update(agencyMembers)
-    .set({ status, updatedAt: new Date() })
-    .where(and(eq(agencyMembers.id, memberId), eq(agencyMembers.agencyId, workspace.agency.id)));
+  if (
+    !isBillableAgencyMemberStatus(member.status) &&
+    isBillableAgencyMemberStatus(status)
+  ) {
+    await assertAgencyBillingReady(workspace.agency.id);
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(agencyMembers)
+      .set({ status, updatedAt: new Date() })
+      .where(and(eq(agencyMembers.id, memberId), eq(agencyMembers.agencyId, workspace.agency.id)));
+
+    if (
+      !isBillableAgencyMemberStatus(member.status) &&
+      isBillableAgencyMemberStatus(status)
+    ) {
+      await recordAgencySeatUsageEvent(tx, {
+        agencyId: workspace.agency.id,
+        eventType: "seat_started",
+        memberId,
+      });
+    } else if (
+      isBillableAgencyMemberStatus(member.status) &&
+      !isBillableAgencyMemberStatus(status)
+    ) {
+      await recordAgencySeatUsageEvent(tx, {
+        agencyId: workspace.agency.id,
+        eventType: "seat_ended",
+        memberId,
+      });
+    }
+  });
 
   revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
 }
@@ -616,6 +726,11 @@ export async function inviteAgencyEmployeeAction(formData: FormData) {
   const session = await getServerSession(authOptions);
   const email = formString(formData, "email").toLowerCase();
   const role = formAgencyEmployeeRole(formString(formData, "role"));
+  const allowBilling = workspace.agency.agencyType !== "network";
+
+  if (!allowBilling && (role === "finance" || role === "listing_coordinator")) {
+    throw new Error("Network HQ workspaces use viewer, marketing, or admin employee roles.");
+  }
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Enter a valid employee email address.");
@@ -627,22 +742,29 @@ export async function inviteAgencyEmployeeAction(formData: FormData) {
     .where(eq(users.email, email))
     .limit(1);
 
-  const existingEmployee = existingUser
-    ? await db
-        .select({ id: agencyEmployees.id })
-        .from(agencyEmployees)
-        .where(
-          and(
-            eq(agencyEmployees.agencyId, workspace.agency.id),
-            eq(agencyEmployees.userId, existingUser.id),
-          ),
-        )
-        .limit(1)
-    : [];
+  if (existingUser?.id === session?.user?.id) {
+    throw new Error("You already have access to this control room.");
+  }
+
+  const existingEmployee = await db
+    .select({ id: agencyEmployees.id })
+    .from(agencyEmployees)
+    .where(
+      and(
+        eq(agencyEmployees.agencyId, workspace.agency.id),
+        existingUser
+          ? or(
+              eq(agencyEmployees.userId, existingUser.id),
+              eq(agencyEmployees.invitedEmail, email),
+            )
+          : eq(agencyEmployees.invitedEmail, email),
+      ),
+    )
+    .limit(1);
 
   const values = {
     acceptedAt: existingUser ? new Date() : null,
-    ...employeePermissionsForRole(role),
+    ...employeePermissionsForRole(role, { allowBilling }),
     invitedByUserId: session?.user?.id || null,
     invitedEmail: existingUser ? null : email,
     role,
@@ -683,14 +805,90 @@ export async function inviteAgencyEmployeeAction(formData: FormData) {
 
 export async function updateAgencyEmployeeStatusAction(formData: FormData) {
   const workspace = await requireAgencyManager();
+  const session = await getServerSession(authOptions);
   const employeeId = formString(formData, "employeeId");
   const status = formMemberStatus(formString(formData, "status"));
 
   if (!employeeId) return;
 
+  const [employee] = await db
+    .select({
+      userId: agencyEmployees.userId,
+      status: agencyEmployees.status,
+    })
+    .from(agencyEmployees)
+    .where(
+      and(
+        eq(agencyEmployees.id, employeeId),
+        eq(agencyEmployees.agencyId, workspace.agency.id),
+      ),
+    )
+    .limit(1);
+
+  if (!employee) return;
+
+  if (employee.userId && employee.userId === session?.user?.id && status !== "active") {
+    throw new Error("Ask another admin to change your own employee access.");
+  }
+
+  if (status === "active" && !employee.userId) {
+    throw new Error("Pending invites become active when the invited user signs in.");
+  }
+
   await db
     .update(agencyEmployees)
-    .set({ status, updatedAt: new Date() })
+    .set({
+      acceptedAt: status === "active" ? new Date() : undefined,
+      status,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(agencyEmployees.id, employeeId),
+        eq(agencyEmployees.agencyId, workspace.agency.id),
+      ),
+    );
+
+  revalidateControlRoomPaths(controlRoomPathForWorkspace(workspace));
+}
+
+export async function updateAgencyEmployeeRoleAction(formData: FormData) {
+  const workspace = await requireAgencyManager();
+  const session = await getServerSession(authOptions);
+  const employeeId = formString(formData, "employeeId");
+  const role = formAgencyEmployeeRole(formString(formData, "role"));
+  const allowBilling = workspace.agency.agencyType !== "network";
+
+  if (!employeeId) return;
+
+  if (!allowBilling && (role === "finance" || role === "listing_coordinator")) {
+    throw new Error("Network HQ workspaces use viewer, marketing, or admin employee roles.");
+  }
+
+  const [employee] = await db
+    .select({ userId: agencyEmployees.userId })
+    .from(agencyEmployees)
+    .where(
+      and(
+        eq(agencyEmployees.id, employeeId),
+        eq(agencyEmployees.agencyId, workspace.agency.id),
+      ),
+    )
+    .limit(1);
+
+  if (!employee) return;
+
+  if (employee.userId && employee.userId === session?.user?.id) {
+    throw new Error("Ask another admin to change your own employee role.");
+  }
+
+  await db
+    .update(agencyEmployees)
+    .set({
+      role,
+      ...employeePermissionsForRole(role, { allowBilling }),
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(agencyEmployees.id, employeeId),
@@ -702,7 +900,7 @@ export async function updateAgencyEmployeeStatusAction(formData: FormData) {
 }
 
 export async function updateAgencyBrandIdentityAction(formData: FormData) {
-  const workspace = await requireAgencyManager();
+  const workspace = await requireAgencyBrandManager();
   const publicLogoFile = formFile(formData, "publicLogoFile");
   const controlRoomLogoFile = formFile(formData, "controlRoomLogoFile");
   const publicBrandLocked =
@@ -1092,11 +1290,18 @@ export async function acceptAgencyOwnershipTransferAction(formData: FormData) {
     throw new Error("This ownership transfer belongs to another email address.");
   }
 
+  const [transferAgency] = await db
+    .select({ agencyType: agencies.agencyType })
+    .from(agencies)
+    .where(eq(agencies.id, transfer.agencyId))
+    .limit(1);
+  const allowBilling = transferAgency?.agencyType !== "network";
+
   await db.transaction(async (tx) => {
     await tx
       .update(agencyMembers)
       .set({
-        canManageBilling: true,
+        canManageBilling: allowBilling,
         canManageMembers: true,
         role: "admin",
         updatedAt: new Date(),
@@ -1119,16 +1324,17 @@ export async function acceptAgencyOwnershipTransferAction(formData: FormData) {
       )
       .limit(1);
 
+    const ownerHasAgencyFundedSeat = allowBilling;
     const ownerPermissions = {
       acceptedAt: new Date(),
-      agencyFunded: true,
-      canCreateListings: true,
-      canEditAgencyListings: true,
-      canManageBilling: true,
+      agencyFunded: ownerHasAgencyFundedSeat,
+      canCreateListings: ownerHasAgencyFundedSeat,
+      canEditAgencyListings: ownerHasAgencyFundedSeat,
+      canManageBilling: allowBilling,
       canManageMembers: true,
-      canPublishListings: true,
-      canSubmitListingRequests: true,
-      canViewBuyerActivity: true,
+      canPublishListings: ownerHasAgencyFundedSeat,
+      canSubmitListingRequests: ownerHasAgencyFundedSeat,
+      canViewBuyerActivity: ownerHasAgencyFundedSeat,
       role: "owner" as const,
       status: "active" as const,
       updatedAt: new Date(),
@@ -1150,7 +1356,7 @@ export async function acceptAgencyOwnershipTransferAction(formData: FormData) {
     await tx
       .update(agencies)
       .set({
-        billingOwnerUserId: currentUser.id,
+        ...(allowBilling ? { billingOwnerUserId: currentUser.id } : {}),
         updatedAt: new Date(),
       })
       .where(eq(agencies.id, transfer.agencyId));

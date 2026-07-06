@@ -14,9 +14,14 @@ import {
   sendTemplatedEmailToUser,
 } from "@/modules/email/server";
 import {
+  claimPendingAgencyEmployeeInvitesForUser,
   createAgencyWithOwner,
   getAgencyNameAvailability,
 } from "@/modules/agencies/server";
+import {
+  defaultProfileRole,
+  profileRoleForAgencyOwner,
+} from "@/modules/users/profile-role";
 import { authOptions } from "./config";
 import { hashPassword } from "./password";
 import { authCookieOptions, authSessionCookieName } from "./session-cookie";
@@ -239,10 +244,19 @@ export async function registerWithEmail(input: {
         email: parsed.data.email,
         passwordHash,
         emailVerified: false,
+        profileRole:
+          parsed.data.accountType === "agency"
+            ? profileRoleForAgencyOwner(parsed.data.agencyType)
+            : defaultProfileRole,
       })
       .returning({ id: users.id, name: users.name });
 
     if (createdUser) {
+      await claimPendingAgencyEmployeeInvitesForUser({
+        email: parsed.data.email,
+        userId: createdUser.id,
+      });
+
       if (parsed.data.accountType === "agency") {
         const isBranchAgency = parsed.data.agencyType === "branch";
         const storesRegion = parsed.data.agencyType !== "network";

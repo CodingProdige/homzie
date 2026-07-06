@@ -7,6 +7,7 @@ import type Stripe from "stripe";
 import { db } from "@/db";
 import { agentProfiles, subscriptions, users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
+import { getAgencyFundedSeatAccess } from "@/modules/access/agent-access";
 import { getAgentProfileForUser } from "@/modules/agents/queries";
 import { type AgentPlanInterval } from "./plans";
 import {
@@ -120,6 +121,10 @@ async function ensureAgentProfile(user: {
   return createdProfile;
 }
 
+function agencyFundedSeatCheckoutError(agencyName: string) {
+  return `Your agent access is covered by ${agencyName} as an agency-funded seat. Agency seat billing is managed in the control room, so you do not need a personal Agent Pro subscription.`;
+}
+
 export async function startAgentSubscriptionCheckout(
   interval: AgentPlanInterval = "month",
 ): Promise<StartAgentCheckoutResult> {
@@ -169,6 +174,15 @@ export async function startAgentSubscriptionCheckout(
     return {
       ok: false,
       error: "Choose a valid agent plan.",
+    };
+  }
+
+  const agencyFundedSeat = await getAgencyFundedSeatAccess(user.id);
+
+  if (agencyFundedSeat) {
+    return {
+      ok: false,
+      error: agencyFundedSeatCheckoutError(agencyFundedSeat.agencyName),
     };
   }
 
@@ -339,6 +353,15 @@ export async function finalizeAgentSubscriptionCheckout(
     return {
       ok: false,
       error: "Could not find your profile.",
+    };
+  }
+
+  const agencyFundedSeat = await getAgencyFundedSeatAccess(user.id);
+
+  if (agencyFundedSeat) {
+    return {
+      ok: false,
+      error: agencyFundedSeatCheckoutError(agencyFundedSeat.agencyName),
     };
   }
 

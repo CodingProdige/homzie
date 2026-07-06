@@ -16,6 +16,7 @@ import { toPublicMediaUrl } from "@/media/paths";
 import { getAgentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
+import { getAgencyBuyerActivityAccessForUser } from "@/modules/listings/agency-buyer-activity";
 import { clearListingBuyerActivityAction } from "@/modules/listings/activity-count-actions";
 import {
   activityBadge,
@@ -76,8 +77,17 @@ export default async function ListingActivityPage({
   const query = searchParams ? await searchParams : {};
   const currentPage = parsePage(query.page);
   const fromOverview = query.from === "overview";
-  const backHref = fromOverview ? "/listings/activity" : `/listings/${listingId}`;
-  const backLabel = fromOverview ? "Back to listing activity" : "Back to listing";
+  const fromControlRoom = query.from === "controlroom";
+  const backHref = fromControlRoom
+    ? "/controlroom/agency/buyer-activity"
+    : fromOverview
+      ? "/listings/activity"
+      : `/listings/${listingId}`;
+  const backLabel = fromControlRoom
+    ? "Back to buyer activity"
+    : fromOverview
+      ? "Back to listing activity"
+      : "Back to listing";
   const pageSize = 25;
   const offset = (currentPage - 1) * pageSize;
   const session = await getServerSession(authOptions);
@@ -87,10 +97,11 @@ export default async function ListingActivityPage({
     redirect(`/sign-in?callbackUrl=/listings/${listingId}/activity`);
   }
 
-  const [viewer, listingRows, access] = await Promise.all([
+  const [viewer, listingRows, access, agencyActivityAccess] = await Promise.all([
     getViewerChrome(userId),
     sql<
       {
+        agency_id: string | null;
         cover_image_url: string | null;
         id: string;
         location: string | null;
@@ -100,20 +111,24 @@ export default async function ListingActivityPage({
         user_id: string;
       }[]
     >`
-      SELECT id, user_id, title, location, cover_image_url, price_label, status
+      SELECT id, agency_id, user_id, title, location, cover_image_url, price_label, status
       FROM property_listings
       WHERE id = ${listingId}
       LIMIT 1
     `,
     getAgentAccess(userId),
+    getAgencyBuyerActivityAccessForUser(userId),
   ]);
   const listing = listingRows[0];
+  const hasAgencyActivityAccess = Boolean(
+    agencyActivityAccess && listing?.agency_id === agencyActivityAccess.agencyId,
+  );
 
-  if (!listing || listing.user_id !== userId) {
+  if (!listing || (listing.user_id !== userId && !hasAgencyActivityAccess)) {
     notFound();
   }
 
-  if (!access.canViewBuyerIntent) {
+  if (!access.canViewBuyerIntent && !hasAgencyActivityAccess) {
     return (
       <LockedBuyerIntentPage
         backHref={`/listings/${listingId}`}
@@ -270,6 +285,7 @@ export default async function ListingActivityPage({
     const params = new URLSearchParams();
 
     if (fromOverview) params.set("from", "overview");
+    if (fromControlRoom) params.set("from", "controlroom");
     if (page && page > 1) params.set("page", String(page));
 
     const queryString = params.toString();

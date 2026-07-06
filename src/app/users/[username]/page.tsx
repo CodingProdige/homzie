@@ -8,6 +8,7 @@ import { db, sql as rawSql } from "@/db";
 import {
   listingLikes,
   listingSaves,
+  propertyListingAgents,
   propertyListings,
   reelReshares,
   reelSaves,
@@ -118,6 +119,27 @@ function countNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value);
 
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function profileListingAssignmentCondition(userId: string) {
+  return sql`(
+    exists (
+      select 1
+      from ${propertyListingAgents}
+      where ${propertyListingAgents.listingId} = ${propertyListings.id}
+        and ${propertyListingAgents.userId} = ${userId}
+        and ${propertyListingAgents.removedAt} is null
+    )
+    or (
+      ${propertyListings.userId} = ${userId}
+      and not exists (
+        select 1
+        from ${propertyListingAgents}
+        where ${propertyListingAgents.listingId} = ${propertyListings.id}
+          and ${propertyListingAgents.removedAt} is null
+      )
+    )
+  )`;
 }
 
 type ProfileConnectionRow = {
@@ -365,6 +387,7 @@ async function getProfileListings({
   userId: string;
   viewerUserId?: string | null;
 }) {
+  const profileListingCondition = profileListingAssignmentCondition(userId);
   const rows = await db
     .select({
       askingPriceCents: propertyListings.askingPriceCents,
@@ -414,9 +437,9 @@ async function getProfileListings({
     .from(propertyListings)
     .where(
       isOwner
-        ? eq(propertyListings.userId, userId)
+        ? profileListingCondition
         : and(
-            eq(propertyListings.userId, userId),
+            profileListingCondition,
             eq(propertyListings.status, "published"),
           ),
     )
@@ -448,7 +471,7 @@ async function getProfileListings({
 
     return {
       askingPriceCents: listing.askingPriceCents,
-      agencyBrand: agencyBrands.get(listing.userId) || null,
+      agencyBrand: agencyBrands.get(userId) || null,
       bathrooms: listingNumber(details.bathrooms),
       bedrooms: listingNumber(details.bedrooms),
       buyerIncentive:
@@ -653,6 +676,7 @@ async function getSavedListings({
 }
 
 async function getProfileSocialStats(userId: string) {
+  const profileListingCondition = profileListingAssignmentCondition(userId);
   const [
     [{ count: publishedReels }],
     [{ count: visibleListings }],
@@ -668,7 +692,7 @@ async function getProfileSocialStats(userId: string) {
       .from(propertyListings)
       .where(
         and(
-          eq(propertyListings.userId, userId),
+          profileListingCondition,
           eq(propertyListings.status, "published"),
         ),
       ),

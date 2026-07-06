@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { sql } from "@/db";
 import { hasBuyerIntentAccess } from "@/modules/access/agent-access";
 import { authOptions } from "@/modules/auth/config";
+import { getAgencyBuyerActivityAccessForUser } from "@/modules/listings/agency-buyer-activity";
 
 export async function getUnreadListingBuyerActivityCountAction() {
   const session = await getServerSession(authOptions);
@@ -128,12 +129,18 @@ export async function clearListingBuyerActivityAction(formData: FormData) {
 
   if (!userId || !listingId) return;
 
+  const agencyAccess = await getAgencyBuyerActivityAccessForUser(userId);
+  const agencyId = agencyAccess?.agencyId || null;
+
   await sql`
-    WITH owned_listing AS (
+    WITH accessible_listing AS (
       SELECT id
       FROM property_listings
       WHERE id = ${listingId}
-        AND user_id = ${userId}
+        AND (
+          user_id = ${userId}
+          OR (${agencyId}::uuid IS NOT NULL AND agency_id = ${agencyId})
+        )
       LIMIT 1
     ),
     activity_rows AS (
@@ -142,7 +149,7 @@ export async function clearListingBuyerActivityAction(formData: FormData) {
         coalesce(lve.viewer_user_id::text, lve.viewer_session_id) AS viewer_key,
         lve.created_at
       FROM listing_view_events lve
-      JOIN owned_listing ol ON ol.id = lve.listing_id
+      JOIN accessible_listing al ON al.id = lve.listing_id
       WHERE lve.viewer_user_id IS NULL OR lve.viewer_user_id <> ${userId}
       UNION ALL
       SELECT
@@ -150,7 +157,7 @@ export async function clearListingBuyerActivityAction(formData: FormData) {
         coalesce(lae.viewer_user_id::text, lae.viewer_session_id) AS viewer_key,
         lae.created_at
       FROM listing_action_events lae
-      JOIN owned_listing ol ON ol.id = lae.listing_id
+      JOIN accessible_listing al ON al.id = lae.listing_id
       WHERE lae.viewer_user_id IS NULL OR lae.viewer_user_id <> ${userId}
     ),
     viewer_latest AS (

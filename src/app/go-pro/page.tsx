@@ -124,7 +124,7 @@ const agencyRows = [
   {
     icon: Building2,
     title: "Independent agencies",
-    text: "Pay for linked agent seats, control local branding, invite paid agents, and manage your own workspace.",
+    text: "Pay for linked agency-funded agent seats, control local branding, invite agency-funded agents, and manage your own workspace.",
   },
   {
     icon: UsersRound,
@@ -408,7 +408,7 @@ export default async function GoProPage() {
             </h2>
             <p className="mt-4 text-sm font-normal leading-7 text-muted-foreground sm:text-base">
               Individual agents can subscribe to Pro directly. Agencies can pay
-              for linked agent seats from the control room, manage branding, and
+              for linked agency-funded agent seats from the control room, manage branding, and
               keep billing where the business expects it.
             </p>
             <div className="homzie-hover-lift mt-6 rounded-lg border border-border bg-card p-5">
@@ -492,7 +492,7 @@ export default async function GoProPage() {
               ],
               [
                 "Do agencies and Network HQs use the same billing?",
-                "No. Agencies and branches pay for their own linked agent seats. Network HQs manage brand and branch oversight, not branch seat billing.",
+                "No. Agencies and branches pay for their own linked agency-funded agent seats. Network HQs manage brand and branch oversight, not branch seat billing.",
               ],
               [
                 "Is this replacing the broader for-agents page?",

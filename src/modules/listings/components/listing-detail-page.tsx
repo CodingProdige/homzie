@@ -60,7 +60,10 @@ import {
   ListingSaveButton,
 } from "@/modules/listings/components/listing-card";
 import { mandateTypeOptions } from "@/modules/listings/options";
-import type { ListingDetailData } from "@/modules/listings/server/listing-data";
+import type {
+  ListingAgentData,
+  ListingDetailData,
+} from "@/modules/listings/server/listing-data";
 import {
   createOfferMessageAction,
   startListingInquiryAction,
@@ -1584,11 +1587,13 @@ function ListingDescription({ value }: { value: string | null }) {
 }
 
 function AgentProfileCard({
+  agent,
   agentHref,
   listing,
   locked,
   onAction,
 }: {
+  agent: ListingAgentData;
   agentHref: string;
   listing: ListingDetailData;
   locked?: boolean;
@@ -1610,21 +1615,21 @@ function AgentProfileCard({
       >
         <div className="flex items-start gap-4">
           <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-sm font-semibold text-primary ring-4 ring-primary/10">
-            {listing.agent.avatarUrl ? (
+            {agent.avatarUrl ? (
               <Image
-                src={listing.agent.avatarUrl}
+                src={agent.avatarUrl}
                 alt=""
                 width={64}
                 height={64}
                 className="size-full object-cover"
               />
             ) : (
-              listing.agent.name.slice(0, 2).toUpperCase()
+              agent.name.slice(0, 2).toUpperCase()
             )}
           </div>
           <div className="min-w-0 flex-1 pt-1">
             <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-lg font-semibold">{listing.agent.name}</p>
+              <p className="truncate text-lg font-semibold">{agent.name}</p>
               <span
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded-full [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 ring-2 ring-background"
                 title="Verified Homzie agent"
@@ -1633,81 +1638,88 @@ function AgentProfileCard({
               </span>
             </div>
             <p className="truncate text-xs font-normal text-muted-foreground">
-              {listing.agent.username
-                ? `@${listing.agent.username}`
+              {agent.username
+                ? `@${agent.username}`
                 : "Homzie agent"}
+              {agent.listingRole === "lead" ? " · Lead agent" : " · Co-agent"}
             </p>
-            {listing.agent.location ? (
+            {agent.location ? (
               <p className="mt-2 truncate text-xs font-normal text-muted-foreground">
-                {listing.agent.location}
+                {agent.location}
               </p>
             ) : null}
-            {listing.agent.agencyBrand ? (
-              <AgencyBrandBadge
-                brand={listing.agent.agencyBrand}
-                className="mt-2"
-                size="sm"
-              />
+            {agent.agencyBrand ? (
+              <Link
+                href={`/agencies/${agent.agencyBrand.slug}`}
+                className="mt-2 inline-flex max-w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                aria-label={`View ${agent.agencyBrand.name} agency breakdown`}
+              >
+                <AgencyBrandBadge
+                  brand={agent.agencyBrand}
+                  className="transition hover:border-primary/50"
+                  size="sm"
+                />
+              </Link>
             ) : null}
           </div>
         </div>
-        {listing.agent.bio ? (
+        {agent.bio ? (
           <p className="mt-4 whitespace-pre-line text-sm font-medium leading-6 text-foreground/80">
-            {listing.agent.bio}
+            {agent.bio}
           </p>
         ) : null}
-        {listing.agent.contactEmail ||
-        listing.agent.contactPhone ||
-        listing.agent.whatsappNumber ? (
+        {agent.contactEmail ||
+        agent.contactPhone ||
+        agent.whatsappNumber ? (
           <div className="mt-4">
             <p className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
               Contact agent
             </p>
             <div className="mt-1 flex max-w-full flex-col items-start gap-1 text-sm font-bold text-primary">
-            {listing.agent.contactEmail ? (
+            {agent.contactEmail ? (
               actionsDisabled ? (
                 <span className="max-w-full break-all text-muted-foreground">
-                  {listing.agent.contactEmail}
+                  {agent.contactEmail}
                 </span>
               ) : (
                 <a
-                  href={`mailto:${listing.agent.contactEmail}`}
+                  href={`mailto:${agent.contactEmail}`}
                   className="max-w-full break-all hover:underline"
                   onClick={() => onAction?.("email_agent")}
                 >
-                  {listing.agent.contactEmail}
+                  {agent.contactEmail}
                 </a>
               )
             ) : null}
-            {listing.agent.contactPhone ? (
+            {agent.contactPhone ? (
               actionsDisabled ? (
                 <span className="text-muted-foreground">
-                  {listing.agent.contactPhone}
+                  {agent.contactPhone}
                 </span>
               ) : (
                 <a
-                  href={`tel:${listing.agent.contactPhone}`}
+                  href={`tel:${agent.contactPhone}`}
                   className="hover:underline"
                   onClick={() => onAction?.("call_agent")}
                 >
-                  {listing.agent.contactPhone}
+                  {agent.contactPhone}
                 </a>
               )
             ) : null}
-            {listing.agent.whatsappNumber ? (
+            {agent.whatsappNumber ? (
               actionsDisabled ? (
                 <span className="text-muted-foreground">
-                  WhatsApp {listing.agent.whatsappNumber}
+                  WhatsApp {agent.whatsappNumber}
                 </span>
               ) : (
                 <a
-                  href={`https://wa.me/${listing.agent.whatsappNumber.replace(/\D/g, "")}`}
+                  href={`https://wa.me/${agent.whatsappNumber.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noreferrer"
                   className="hover:underline"
                   onClick={() => onAction?.("whatsapp_agent")}
                 >
-                  WhatsApp {listing.agent.whatsappNumber}
+                  WhatsApp {agent.whatsappNumber}
                 </a>
               )
             ) : null}
@@ -1836,9 +1848,8 @@ export function ListingDetailPage({
     mandateTypeOptions.find((option) => option.value === listing.mandateType) ||
     mandateTypeOptions[0];
   const MandateIcon = mandateOption.icon;
-  const agentHref = listing.agent.username
-    ? `/users/${listing.agent.username}`
-    : "/agents";
+  const agentHref = (agent: ListingAgentData) =>
+    agent.username ? `/users/${agent.username}` : "/agents";
   const detailStats = listingDetailStats(listing);
   const ownershipCosts = [
     {
@@ -2388,12 +2399,28 @@ export function ListingDetailPage({
               </div>
             </div>
 
-            <AgentProfileCard
-              agentHref={agentHref}
-              listing={listing}
-              locked={!viewerSignedIn}
-              onAction={recordListingAction}
-            />
+            <div className="space-y-3">
+              {listing.agents.length > 1 ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                    Listing agents
+                  </p>
+                  <p className="mt-1 text-sm font-normal text-muted-foreground">
+                    {listing.agents.length} agents assigned to this listing.
+                  </p>
+                </div>
+              ) : null}
+              {listing.agents.map((agent) => (
+                <AgentProfileCard
+                  key={agent.id}
+                  agent={agent}
+                  agentHref={agentHref(agent)}
+                  listing={listing}
+                  locked={!viewerSignedIn}
+                  onAction={recordListingAction}
+                />
+              ))}
+            </div>
 
             {listing.mandateVisible ? (
               <div className="rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm">

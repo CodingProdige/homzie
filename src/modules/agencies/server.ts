@@ -9,6 +9,7 @@ import {
   agencyBadgeStyleFromSettings,
   type AgencyBadgeStyle,
 } from "@/modules/agencies/brand-style";
+import { recordAgencySeatUsageEvent } from "@/modules/agencies/billing";
 
 type AgencyInsertClient = Pick<typeof db, "insert" | "select">;
 
@@ -19,6 +20,7 @@ export type EffectiveAgencyBrand = {
   badgeStyle: AgencyBadgeStyle;
   logoUrl: string | null;
   name: string;
+  slug: string;
   source: "agency" | "network";
 };
 
@@ -30,6 +32,7 @@ type EffectiveAgencyBrandRow = {
   name: string;
   source: "agency" | "network";
   settings: unknown;
+  slug: string;
   user_id: string;
 };
 
@@ -63,6 +66,7 @@ export type AgencyWorkspace = {
     agencyFunded: boolean;
     canCreateListings: boolean;
     canEditAgencyListings: boolean;
+    canManageBranding: boolean;
     canManageBilling: boolean;
     canManageMembers: boolean;
     canPublishListings: boolean;
@@ -199,6 +203,7 @@ export async function getPrimaryAgencyWorkspace(
         agencyFunded: false,
         canCreateListings: false,
         canEditAgencyListings: employeeRow.canManageListings,
+        canManageBranding: employeeRow.canManageBranding,
         canManageBilling: employeeRow.canManageBilling,
         canManageMembers: employeeRow.canManageMembers,
         canPublishListings: employeeRow.canManageListings,
@@ -241,6 +246,7 @@ export async function getPrimaryAgencyWorkspace(
       agencyFunded: row.agencyFunded,
       canCreateListings: row.canCreateListings,
       canEditAgencyListings: row.canEditAgencyListings,
+      canManageBranding: row.canManageMembers,
       canManageBilling: row.canManageBilling,
       canManageMembers: row.canManageMembers,
       canPublishListings: row.canPublishListings,
@@ -384,7 +390,7 @@ export async function createAgencyWithOwner({
       agencyType,
       billingMode: resolvedBillingMode,
       brandingPolicy: brandingPolicy || "branch_branding_allowed",
-      billingOwnerUserId,
+      billingOwnerUserId: agencyType === "network" ? null : billingOwnerUserId,
       branchCode: branchCode || null,
       contactEmail: contactEmail || null,
       contactPhone: contactPhone || null,
@@ -406,21 +412,30 @@ export async function createAgencyWithOwner({
 
   if (!agency) return null;
 
-  await db.insert(agencyMembers).values({
+  const ownerHasAgencyFundedSeat = agencyType !== "network";
+  const [ownerMember] = await db.insert(agencyMembers).values({
     acceptedAt: new Date(),
-    agencyFunded: true,
+    agencyFunded: ownerHasAgencyFundedSeat,
     agencyId: agency.id,
-    canCreateListings: true,
-    canEditAgencyListings: true,
-    canManageBilling: true,
+    canCreateListings: ownerHasAgencyFundedSeat,
+    canEditAgencyListings: ownerHasAgencyFundedSeat,
+    canManageBilling: agencyType !== "network",
     canManageMembers: true,
-    canPublishListings: true,
-    canSubmitListingRequests: true,
-    canViewBuyerActivity: true,
+    canPublishListings: ownerHasAgencyFundedSeat,
+    canSubmitListingRequests: ownerHasAgencyFundedSeat,
+    canViewBuyerActivity: ownerHasAgencyFundedSeat,
     role: "owner",
     status: "active",
     userId: createdByUserId,
-  });
+  }).returning({ id: agencyMembers.id });
+
+  if (ownerMember && ownerHasAgencyFundedSeat) {
+    await recordAgencySeatUsageEvent(db, {
+      agencyId: agency.id,
+      eventType: "seat_started",
+      memberId: ownerMember.id,
+    });
+  }
 
   return agency;
 }
@@ -457,6 +472,14 @@ export async function getEffectiveAgencyBrandsForUsers(userIds: string[]) {
           THEN parent.name
         ELSE a.name
       END AS name,
+      CASE
+        WHEN a.agency_type = 'branch'
+          AND a.branding_policy = 'network_branding_enforced'
+          AND a.parent_link_status = 'linked'
+          AND parent.id IS NOT NULL
+          THEN parent.slug
+        ELSE a.slug
+      END AS slug,
       CASE
         WHEN a.agency_type = 'branch'
           AND a.branding_policy = 'network_branding_enforced'
@@ -508,9 +531,54 @@ export async function getEffectiveAgencyBrandsForUsers(userIds: string[]) {
         badgeStyle: agencyBadgeStyleFromSettings(row.settings),
         logoUrl: toPublicMediaUrl(row.logo_url),
         name: row.name,
+        slug: row.slug,
         source: row.source,
       },
     ]),
+  );
+}
+
+export async function claimPendingAgencyEmployeeInvitesForUser({
+  email,
+  userId,
+}: {
+  email: string;
+  userId: string;
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail || !userId) return;
+
+  await rawSql`
+    UPDATE agency_employees invited
+    SET
+      accepted_at = coalesce(invited.accepted_at, now()),
+      invited_email = NULL,
+      status = 'active',
+      updated_at = now(),
+      user_id = ${userId}
+    WHERE invited.user_id IS NULL
+      AND invited.status = 'invited'
+      AND lower(invited.invited_email) = ${normalizedEmail}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM agency_employees existing
+        WHERE existing.agency_id = invited.agency_id
+          AND existing.user_id = ${userId}
+          AND existing.id <> invited.id
+      )
+  `;
+}
+
+export function hasAgencyAdminAccess(
+  workspace: AgencyWorkspace | null | undefined,
+) {
+  return Boolean(
+    workspace &&
+      workspace.membership.status === "active" &&
+      (workspace.membership.role === "owner" ||
+        workspace.membership.role === "admin" ||
+        workspace.membership.employeeRole === "admin"),
   );
 }
 

@@ -6,11 +6,30 @@ import Link from "next/link";
 import { Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { AgencyBadgeStyle } from "@/modules/agencies/brand-style";
+import { AgencyBrandBadge } from "@/modules/agencies/components/agency-brand-badge";
+
+type AgencySearchResult = {
+  agencyType: "branch" | "independent" | "network";
+  badgeLabel: string;
+  badgeStyle: AgencyBadgeStyle;
+  id: string;
+  location: string | null;
+  logoUrl: string | null;
+  name: string;
+  slug: string;
+  typeLabel: string;
+};
 
 type UserSearchResult = {
   avatarUrl: string | null;
   name: string;
   username: string;
+};
+
+type SearchResults = {
+  agencies: AgencySearchResult[];
+  users: UserSearchResult[];
 };
 
 const globalSearchSessionKey = "homzie.globalSearch.query";
@@ -42,6 +61,30 @@ function userSearchResults(value: unknown): UserSearchResult[] {
   });
 }
 
+function agencySearchResults(value: unknown): AgencySearchResult[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is AgencySearchResult => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+
+    const result = item as Partial<AgencySearchResult>;
+
+    return (
+      (result.agencyType === "branch" ||
+        result.agencyType === "independent" ||
+        result.agencyType === "network") &&
+      typeof result.badgeLabel === "string" &&
+      Boolean(result.badgeStyle) &&
+      typeof result.id === "string" &&
+      (typeof result.location === "string" || result.location === null) &&
+      (typeof result.logoUrl === "string" || result.logoUrl === null) &&
+      typeof result.name === "string" &&
+      typeof result.slug === "string" &&
+      typeof result.typeLabel === "string"
+    );
+  });
+}
+
 export function GlobalUserSearchTrigger({
   className,
   display = "icon",
@@ -57,7 +100,10 @@ export function GlobalUserSearchTrigger({
 
     return window.sessionStorage.getItem(globalSearchSessionKey) || "";
   });
-  const [results, setResults] = useState<UserSearchResult[]>([]);
+  const [results, setResults] = useState<SearchResults>({
+    agencies: [],
+    users: [],
+  });
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle",
   );
@@ -83,7 +129,7 @@ export function GlobalUserSearchTrigger({
       const trimmedQuery = query.trim();
 
       if (trimmedQuery.length < 2) {
-        setResults([]);
+        setResults({ agencies: [], users: [] });
         setStatus("idle");
         return;
       }
@@ -97,14 +143,18 @@ export function GlobalUserSearchTrigger({
         .then((response) => (response.ok ? response.json() : null))
         .then((payload: unknown) => {
           if (!payload || typeof payload !== "object") {
-            setResults([]);
+            setResults({ agencies: [], users: [] });
             setStatus("error");
             return;
           }
 
-          const nextResults = (payload as { users?: unknown }).users;
+          const nextAgencies = (payload as { agencies?: unknown }).agencies;
+          const nextUsers = (payload as { users?: unknown }).users;
 
-          setResults(userSearchResults(nextResults));
+          setResults({
+            agencies: agencySearchResults(nextAgencies),
+            users: userSearchResults(nextUsers),
+          });
           setStatus("ready");
         })
         .catch((error: unknown) => {
@@ -112,7 +162,7 @@ export function GlobalUserSearchTrigger({
             return;
           }
 
-          setResults([]);
+          setResults({ agencies: [], users: [] });
           setStatus("error");
         });
     }, 180);
@@ -134,7 +184,7 @@ export function GlobalUserSearchTrigger({
             ? "flex min-h-12 w-full justify-start rounded-md px-3 text-base font-semibold"
             : undefined)
         }
-        aria-label="Search users"
+        aria-label="Search Homzie"
         aria-expanded={open}
         onClick={() => {
           onOpen?.();
@@ -154,7 +204,7 @@ export function GlobalUserSearchTrigger({
                 ref={inputRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search usernames"
+                placeholder="Search users, agencies, networks"
                 autoComplete="off"
                 className="h-12 min-w-0 flex-1 bg-transparent text-base font-normal outline-none placeholder:text-muted-foreground"
               />
@@ -181,7 +231,7 @@ export function GlobalUserSearchTrigger({
             <div className="overflow-hidden rounded-lg border border-border bg-background shadow-xl">
               {query.trim().length < 2 ? (
                 <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
-                  Type at least 2 characters to search usernames.
+                  Type at least 2 characters to search users and agency brands.
                 </p>
               ) : status === "loading" ? (
                 <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
@@ -191,44 +241,82 @@ export function GlobalUserSearchTrigger({
                 <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
                   Search is unavailable right now.
                 </p>
-              ) : results.length ? (
+              ) : results.users.length || results.agencies.length ? (
                 <div className="divide-y divide-border">
-                  {results.map((user) => (
-                    <Link
-                      key={user.username}
-                      href={`/users/${user.username}`}
-                      className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
-                      onClick={() => setOpen(false)}
-                    >
-                      <span className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--homzie-gradient)] p-0.5">
-                        {user.avatarUrl ? (
-                          <Image
-                            src={user.avatarUrl}
-                            alt={user.name}
-                            width={44}
-                            height={44}
-                            className="size-full rounded-full border-2 border-background object-cover"
+                  {results.agencies.length ? (
+                    <div>
+                      <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Agencies
+                      </p>
+                      {results.agencies.map((agency) => (
+                        <Link
+                          key={agency.id}
+                          href={`/agencies/${agency.slug}`}
+                          className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                          onClick={() => setOpen(false)}
+                        >
+                          <AgencyBrandBadge
+                            brand={agency}
+                            className="max-w-40 shrink-0"
+                            size="sm"
                           />
-                        ) : (
-                          <span className="flex size-full items-center justify-center rounded-full border-2 border-background bg-brand-midnight text-sm font-semibold text-white">
-                            {initialsFromName(user.name)}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold">
+                              {agency.name}
+                            </span>
+                            <span className="block truncate text-xs font-normal text-muted-foreground">
+                              {agency.typeLabel}
+                              {agency.location ? ` · ${agency.location}` : ""}
+                            </span>
                           </span>
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">
-                          {user.name}
-                        </span>
-                        <span className="block truncate text-xs font-normal text-muted-foreground">
-                          @{user.username}
-                        </span>
-                      </span>
-                    </Link>
-                  ))}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {results.users.length ? (
+                    <div>
+                      <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Users
+                      </p>
+                      {results.users.map((user) => (
+                        <Link
+                          key={user.username}
+                          href={`/users/${user.username}`}
+                          className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                          onClick={() => setOpen(false)}
+                        >
+                          <span className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--homzie-gradient)] p-0.5">
+                            {user.avatarUrl ? (
+                              <Image
+                                src={user.avatarUrl}
+                                alt={user.name}
+                                width={44}
+                                height={44}
+                                className="size-full rounded-full border-2 border-background object-cover"
+                              />
+                            ) : (
+                              <span className="flex size-full items-center justify-center rounded-full border-2 border-background bg-brand-midnight text-sm font-semibold text-white">
+                                {initialsFromName(user.name)}
+                              </span>
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold">
+                              {user.name}
+                            </span>
+                            <span className="block truncate text-xs font-normal text-muted-foreground">
+                              @{user.username}
+                            </span>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <p className="px-4 py-5 text-sm font-normal text-muted-foreground">
-                  No users found.
+                  No users or agencies found.
                 </p>
               )}
             </div>

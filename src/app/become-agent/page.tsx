@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { desc, eq } from "drizzle-orm";
@@ -12,8 +13,10 @@ import {
 
 import { BackButton } from "@/components/back-button";
 import { HomzieLogo } from "@/components/homzie-logo";
+import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { subscriptions, users } from "@/db/schema";
+import { getAgencyFundedSeatAccess } from "@/modules/access/agent-access";
 import { hasAgentProAccess } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import { StartAgentCheckoutButton } from "@/modules/billing/components/start-agent-checkout-button";
@@ -71,9 +74,12 @@ export default async function BecomeAgentPage() {
     redirect("/onboarding/username?callbackUrl=/become-agent");
   }
 
-  const hasProAccess = await hasAgentProAccess(session.user.id);
+  const [agencyFundedSeat, hasProAccess] = await Promise.all([
+    getAgencyFundedSeatAccess(session.user.id),
+    hasAgentProAccess(session.user.id),
+  ]);
 
-  if (hasProAccess) {
+  if (hasProAccess && !agencyFundedSeat) {
     redirect(`/users/${user.username}?agent=active`);
   }
 
@@ -108,13 +114,22 @@ export default async function BecomeAgentPage() {
               <span className="block">on your listings.</span>
             </h1>
             <p className="mt-5 max-w-lg break-words text-sm leading-7 text-white/78 sm:text-base">
-              {trialEligible
-                ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()}, then pay `
-                : "Subscribe instantly for "}
-              <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
-              /month to see active buyers, buyer timelines, AI insights, and
-              listing performance signals while your listings and reels stay
-              free to publish.
+              {agencyFundedSeat ? (
+                <>
+                  Your Agent Pro access is handled through{" "}
+                  {agencyFundedSeat.agencyName} as an agency-funded seat.
+                </>
+              ) : (
+                <>
+                  {trialEligible
+                    ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()}, then pay `
+                    : "Subscribe instantly for "}
+                  <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
+                  /month to see active buyers, buyer timelines, AI insights, and
+                  listing performance signals while your listings and reels stay
+                  free to publish.
+                </>
+              )}
             </p>
           </div>
 
@@ -149,7 +164,70 @@ export default async function BecomeAgentPage() {
 
         <div className="relative z-10 flex min-h-screen min-w-0 items-center px-4 pb-8 sm:px-10 lg:px-10 lg:py-8 xl:px-14">
           <div className="homzie-fade-up homzie-delay-1 w-full min-w-0 overflow-hidden rounded-lg bg-white p-6 text-brand-black shadow-2xl shadow-black/25 sm:p-10 lg:p-8 xl:p-10">
-            <>
+            {agencyFundedSeat ? (
+              <>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-bold text-primary">
+                      Agency-funded seat
+                    </p>
+                    <h2 className="mt-3 text-3xl font-bold tracking-tight">
+                      {agencyFundedSeat.billingReady
+                        ? "Your access is covered."
+                        : "Agency billing setup required."}
+                    </h2>
+                    <p className="mt-4 text-sm font-normal leading-6 text-muted-foreground">
+                      {agencyFundedSeat.billingReady
+                        ? `Your agent access is covered by ${agencyFundedSeat.agencyName}. You do not need a personal Agent Pro subscription.`
+                        : `${agencyFundedSeat.agencyName} has linked you as an agency-funded seat, but agency billing must be completed before buyer intent tools unlock.`}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-primary">
+                    <Sparkles className="size-3.5" />
+                    Agency billing
+                  </span>
+                </div>
+
+                <div className="mt-8 space-y-4 border-y border-border py-8">
+                  {[
+                    "No personal Agent Pro subscription is needed while you are linked to this agency-funded seat.",
+                    "Agency-funded access is billed through automated agency seat billing, not through your personal billing page.",
+                    agencyFundedSeat.billingReady
+                      ? "Buyer intent tools are available while the agency billing profile remains ready."
+                      : "Buyer intent tools unlock once the agency owner saves billing information.",
+                  ].map((benefit) => (
+                    <p key={benefit} className="flex gap-3 text-sm leading-6">
+                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-primary text-primary">
+                        <Check className="size-3.5" />
+                      </span>
+                      <span>{benefit}</span>
+                    </p>
+                  ))}
+                </div>
+
+                <div className="mt-8 grid gap-3">
+                  {agencyFundedSeat.canManageAgencyBilling ? (
+                    <Button asChild className="h-11">
+                      <Link href={agencyFundedSeat.controlRoomBillingHref}>
+                        {agencyFundedSeat.billingReady
+                          ? "Open agency billing"
+                          : "Set up agency billing"}
+                      </Link>
+                    </Button>
+                  ) : null}
+                  <Button asChild variant="outline" className="h-11">
+                    <Link href={`/users/${user.username}`}>Back to profile</Link>
+                  </Button>
+                  {!agencyFundedSeat.canManageAgencyBilling &&
+                  !agencyFundedSeat.billingReady ? (
+                    <p className="text-center text-xs font-medium text-muted-foreground">
+                      Ask an agency billing manager to complete billing setup.
+                    </p>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-bold text-primary">Homzie Pro</p>
@@ -193,7 +271,8 @@ export default async function BecomeAgentPage() {
                       : "Your next subscription will start immediately after checkout."}
                   </p>
                 </div>
-            </>
+              </>
+            )}
           </div>
         </div>
       </section>

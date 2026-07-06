@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   BarChart3,
   Bell,
-  ClipboardCheck,
   CreditCard,
   ListOrdered,
   Home,
@@ -24,6 +23,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  BuyerActivityLivePill,
+  BuyerActivitySignalIcon,
+} from "@/components/buyer-activity-signal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/modules/auth/components/theme-toggle";
@@ -39,24 +42,38 @@ type AgencyShellProps = {
   workspaceLabel: string;
 };
 
+type AgencyNavChildItem = {
+  href: string;
+  label: string;
+};
+
+type AgencyNavLinkItem = {
+  badgeCount?: number;
+  href?: string;
+  icon: LucideIcon;
+  kind?: "link";
+  label: string;
+  planned?: boolean;
+  signal?: "buyerActivity";
+};
+
+type AgencyNavGroupItem = {
+  children: AgencyNavChildItem[];
+  icon: LucideIcon;
+  kind: "group";
+  label: string;
+};
+
+type AgencyNavItem = AgencyNavLinkItem | AgencyNavGroupItem;
+
 function agencyNavItems(
   basePath: string,
   agencyType: AgencyShellProps["agencyType"],
   activityCount: number,
-): Array<{
-  badgeCount?: number;
-  href?: string;
-  icon: LucideIcon;
-  label: string;
-  planned?: boolean;
-}> {
-  const items: Array<{
-    badgeCount?: number;
-    href?: string;
-    icon: LucideIcon;
-    label: string;
-    planned?: boolean;
-  }> = [{ href: basePath, icon: BarChart3, label: "Dashboard" }];
+): AgencyNavItem[] {
+  const items: AgencyNavItem[] = [
+    { href: basePath, icon: BarChart3, label: "Dashboard" },
+  ];
 
   if (agencyType === "network") {
     items.push({ href: `${basePath}/branches`, icon: Network, label: "Branches" });
@@ -64,18 +81,44 @@ function agencyNavItems(
 
   if (agencyType === "branch" || agencyType === "independent") {
     items.push({ href: `${basePath}/network`, icon: Network, label: "Network" });
+    items.push({
+      children: [
+        { href: `${basePath}/listings`, label: "All listings" },
+        { href: `${basePath}/listing-requests`, label: "Requests" },
+      ],
+      icon: Home,
+      kind: "group",
+      label: "Listings",
+    });
   }
 
   items.push(
     { href: `${basePath}/leaderboard`, icon: ListOrdered, label: "Leaderboard" },
     { badgeCount: activityCount, href: `${basePath}/activity`, icon: Bell, label: "Activity" },
-    { href: `${basePath}/members`, icon: UsersRound, label: "Members" },
-    { href: `${basePath}/employees`, icon: ShieldCheck, label: "Employees" },
-    { icon: ClipboardCheck, label: "Listing Requests", planned: true },
-    { icon: Radar, label: "Buyer Activity", planned: true },
-    { icon: CreditCard, label: "Billing", planned: true },
-    { href: `${basePath}/settings`, icon: Settings, label: "Settings" },
   );
+
+  if (agencyType !== "network") {
+    items.push({ href: `${basePath}/members`, icon: UsersRound, label: "Members" });
+  }
+
+  items.push(
+    { href: `${basePath}/employees`, icon: ShieldCheck, label: "Employees" },
+  );
+
+  if (agencyType !== "network") {
+    items.push({
+      href: `${basePath}/buyer-activity`,
+      icon: Radar,
+      label: "Buyer Activity",
+      signal: "buyerActivity",
+    });
+  }
+
+  if (agencyType !== "network") {
+    items.push({ href: `${basePath}/settings/billing`, icon: CreditCard, label: "Billing" });
+  }
+
+  items.push({ href: `${basePath}/settings`, icon: Settings, label: "Settings" });
 
   return items;
 }
@@ -119,10 +162,65 @@ function AgencyNav({
   onNavigate?: () => void;
   pathname: string;
 }) {
+  function isActiveHref(href: string) {
+    if (href === basePath || href === `${basePath}/settings`) {
+      return pathname === href;
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
   return (
     <nav className="space-y-1" aria-label="Agency pages">
       {agencyNavItems(basePath, agencyType, activityCount).map((item) => {
         const Icon = item.icon;
+
+        if (item.kind === "group") {
+          const isGroupActive = item.children.some((child) =>
+            isActiveHref(child.href),
+          );
+
+          return (
+            <div
+              key={item.label}
+              className={cn(
+                "rounded-md",
+                isGroupActive && "bg-primary/8 text-primary",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-normal text-muted-foreground",
+                  isGroupActive && "text-primary",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </div>
+              <div className="mb-1 ml-[1.18rem] space-y-1 border-l border-border/80 pl-3">
+                {item.children.map((child) => {
+                  const isChildActive = isActiveHref(child.href);
+
+                  return (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      aria-current={isChildActive ? "page" : undefined}
+                      onClick={onNavigate}
+                      className={cn(
+                        "flex h-9 min-w-0 items-center rounded-md px-3 text-xs font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none",
+                        isChildActive &&
+                          "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus-visible:bg-primary/15 focus-visible:text-primary",
+                      )}
+                    >
+                      <span className="truncate">{child.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
 
         if (!item.href) {
           return (
@@ -131,7 +229,11 @@ function AgencyNav({
               className="flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-sm font-normal text-muted-foreground/60"
               title="Coming soon"
             >
-              <Icon className="size-4 shrink-0" />
+              {item.signal === "buyerActivity" ? (
+                <BuyerActivitySignalIcon icon={Icon} size="sm" />
+              ) : (
+                <Icon className="size-4 shrink-0" />
+              )}
               <span className="truncate">{item.label}</span>
               <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[9px] font-normal uppercase text-muted-foreground">
                 Soon
@@ -140,10 +242,7 @@ function AgencyNav({
           );
         }
 
-        const isDashboardActive =
-          item.href === basePath
-            ? pathname === basePath
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const isDashboardActive = isActiveHref(item.href);
 
         return (
           <Link
@@ -157,8 +256,17 @@ function AgencyNav({
                 "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary focus-visible:bg-primary/15 focus-visible:text-primary",
             )}
           >
-            <Icon className="size-4 shrink-0" />
+            {item.signal === "buyerActivity" ? (
+              <BuyerActivitySignalIcon
+                active={isDashboardActive}
+                icon={Icon}
+                size="sm"
+              />
+            ) : (
+              <Icon className="size-4 shrink-0" />
+            )}
             <span className="truncate">{item.label}</span>
+            {item.signal === "buyerActivity" ? <BuyerActivityLivePill /> : null}
             {item.badgeCount ? (
               <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none text-white">
                 {item.badgeCount > 99 ? "99+" : item.badgeCount}

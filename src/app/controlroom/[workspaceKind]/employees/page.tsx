@@ -1,25 +1,20 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { Mail, ShieldCheck, ShieldBan, UserCheck, UserPlus, XCircle } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { CanonicalTable, type CanonicalTableColumn } from "@/components/ui/canonical-table";
 import { sql } from "@/db";
-import {
-  inviteAgencyEmployeeAction,
-  updateAgencyEmployeeStatusAction,
-} from "@/modules/agencies/actions";
 import {
   controlRoomKindForWorkspace,
   controlRoomPathForWorkspace,
   parseControlRoomKind,
 } from "@/modules/agencies/control-room";
-import {
-  agencyEmployeeRoleLabel,
-  getPrimaryAgencyWorkspace,
-} from "@/modules/agencies/server";
+import { getPrimaryAgencyWorkspace } from "@/modules/agencies/server";
 import { authOptions } from "@/modules/auth/config";
+import {
+  EmployeeManagement,
+  type EmployeeManagementRow,
+} from "./employee-management";
 
 export const dynamic = "force-dynamic";
 
@@ -33,72 +28,6 @@ type EmployeesPageProps = {
     workspaceKind: string;
   }>;
 };
-
-type EmployeeRole = "admin" | "finance" | "listing_coordinator" | "marketing" | "viewer";
-
-type EmployeeRow = {
-  can_manage_billing: boolean;
-  can_manage_branding: boolean;
-  can_manage_listings: boolean;
-  can_manage_members: boolean;
-  can_view_buyer_activity: boolean;
-  email: string | null;
-  id: string;
-  invited_email: string | null;
-  name: string | null;
-  role: EmployeeRole;
-  status: "active" | "invited" | "removed" | "suspended";
-  username: string | null;
-};
-
-function statusBadge(status: EmployeeRow["status"]) {
-  const tone =
-    status === "active"
-      ? "bg-emerald-500/10 text-emerald-700"
-      : status === "invited"
-        ? "bg-primary/10 text-primary"
-        : status === "suspended"
-          ? "bg-amber-500/15 text-amber-700"
-          : "bg-muted text-muted-foreground";
-
-  return (
-    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${tone}`}>
-      {status}
-    </span>
-  );
-}
-
-function roleOption(value: EmployeeRole, title: string, helper: string) {
-  return (
-    <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-background p-3 text-sm font-bold transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/8">
-      <input
-        type="radio"
-        name="role"
-        value={value}
-        defaultChecked={value === "viewer"}
-        className="mt-1 accent-primary"
-      />
-      <span>
-        <span className="block font-semibold">{title}</span>
-        <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">
-          {helper}
-        </span>
-      </span>
-    </label>
-  );
-}
-
-function permissionList(employee: EmployeeRow) {
-  const permissions = [
-    employee.can_manage_members ? "members" : null,
-    employee.can_manage_listings ? "listings" : null,
-    employee.can_manage_branding ? "branding" : null,
-    employee.can_manage_billing ? "billing" : null,
-    employee.can_view_buyer_activity ? "buyer activity" : null,
-  ].filter(Boolean);
-
-  return permissions.length ? permissions.join(", ") : "view only";
-}
 
 export default async function EmployeesPage({ params }: EmployeesPageProps) {
   const [{ workspaceKind }, session] = await Promise.all([
@@ -118,10 +47,12 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
   }
 
   const canManage = workspace.membership.canManageMembers;
-  const employees = await sql<EmployeeRow[]>`
+  const includeBillingAccess = workspace.agency.agencyType !== "network";
+  const employees = await sql<EmployeeManagementRow[]>`
     SELECT
       ae.id,
       ae.invited_email,
+      ae.user_id,
       ae.role,
       ae.status,
       ae.can_manage_branding,
@@ -142,89 +73,6 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
       coalesce(u.name, ae.invited_email) ASC
   `;
 
-  const columns: Array<CanonicalTableColumn<EmployeeRow>> = [
-    {
-      header: "Employee",
-      key: "employee",
-      render: (employee) => (
-        <div className="min-w-0">
-          <p className="truncate font-semibold">
-            {employee.name || employee.invited_email || "Pending employee"}
-          </p>
-          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
-            {employee.username ? `@${employee.username}` : employee.email || employee.invited_email}
-          </p>
-        </div>
-      ),
-    },
-    {
-      header: "Role",
-      key: "role",
-      render: (employee) => (
-        <div>
-          <p className="font-semibold">{agencyEmployeeRoleLabel(employee.role)}</p>
-          <p className="mt-1 text-xs font-normal text-muted-foreground">
-            Unpaid internal access
-          </p>
-        </div>
-      ),
-    },
-    {
-      header: "Status",
-      key: "status",
-      render: (employee) => statusBadge(employee.status),
-    },
-    {
-      header: "Access",
-      key: "access",
-      render: (employee) => (
-        <p className="max-w-xs text-sm font-normal leading-6 text-muted-foreground">
-          {permissionList(employee)}
-        </p>
-      ),
-    },
-    {
-      className: "w-56",
-      header: "Actions",
-      key: "actions",
-      render: (employee) => {
-        if (!canManage) {
-          return <span className="text-xs font-normal text-muted-foreground">View only</span>;
-        }
-
-        return (
-          <div className="flex flex-wrap gap-2">
-            <form action={updateAgencyEmployeeStatusAction}>
-              <input type="hidden" name="employeeId" value={employee.id} />
-              <input
-                type="hidden"
-                name="status"
-                value={employee.status === "suspended" ? "active" : "suspended"}
-              />
-              <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-semibold">
-                {employee.status === "suspended" ? (
-                  <UserCheck className="size-4" />
-                ) : (
-                  <ShieldBan className="size-4" />
-                )}
-                {employee.status === "suspended" ? "Reactivate" : "Suspend"}
-              </Button>
-            </form>
-            <form action={updateAgencyEmployeeStatusAction}>
-              <input type="hidden" name="employeeId" value={employee.id} />
-              <input type="hidden" name="status" value="removed" />
-              <Button size="sm" type="submit" variant="outline" className="h-8 px-2 text-xs font-semibold">
-                <XCircle className="size-4" />
-                Remove
-              </Button>
-            </form>
-          </div>
-        );
-      },
-      useRowHref: false,
-    },
-  ];
-
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -236,7 +84,9 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
             Employees
           </h1>
           <p className="mt-3 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
-            Employees are unpaid internal users. They can access control room operations based on role, but they do not appear as agents, do not receive public branding, and do not count as paid seats.
+            {workspace.agency.agencyType === "network"
+              ? "Employees are internal users who help manage branch oversight, network branding, and control room operations."
+              : "Employees are unpaid internal users. They can access control room operations based on role, but they do not appear as agents, do not receive public branding, and do not count as agency-funded seats."}
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-normal text-muted-foreground shadow-sm">
@@ -245,46 +95,12 @@ export default async function EmployeesPage({ params }: EmployeesPageProps) {
         </span>
       </div>
 
-      {canManage ? (
-        <form action={inviteAgencyEmployeeAction} className="mt-8 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-            <label className="min-w-0 flex-1 text-sm font-semibold">
-              Employee email
-              <span className="mt-2 flex h-11 items-center gap-2 rounded-md border border-border bg-background px-3">
-                <Mail className="size-4 shrink-0 text-muted-foreground" />
-                <input
-                  required
-                  type="email"
-                  name="email"
-                  placeholder="employee@example.com"
-                  className="min-w-0 flex-1 bg-transparent text-sm font-normal outline-none placeholder:text-muted-foreground"
-                />
-              </span>
-            </label>
-            <Button type="submit" className="h-11 px-5 font-semibold">
-              <UserPlus className="size-4" />
-              Invite employee
-            </Button>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-5">
-            {roleOption("viewer", "Viewer", "Can view allowed workspace pages.")}
-            {roleOption("listing_coordinator", "Listing coordinator", "Can manage listing operations.")}
-            {roleOption("marketing", "Marketing", "Can manage branding and buyer activity.")}
-            {roleOption("finance", "Finance", "Can manage billing access.")}
-            {roleOption("admin", "Admin", "Can manage employees and settings.")}
-          </div>
-        </form>
-      ) : null}
-
-      <section className="mt-8">
-        <CanonicalTable
-          columns={columns}
-          emptyState="No internal employees yet."
-          getRowKey={(employee) => employee.id}
-          minWidth="760px"
-          rows={employees}
-        />
-      </section>
+      <EmployeeManagement
+        canManage={canManage}
+        currentUserId={session.user.id}
+        employees={employees}
+        includeBillingAccess={includeBillingAccess}
+      />
     </main>
   );
 }
