@@ -23,7 +23,6 @@ import {
   Home,
   Lock,
   MapPin,
-  MessageCircle,
   Minus,
   ParkingCircle,
   Percent,
@@ -1601,6 +1600,18 @@ function whatsappAgentHref(agent: ListingAgentData, listing: ListingDetailData) 
   return `https://wa.me/${digits}?text=${message}`;
 }
 
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="16" fill="currentColor" />
+      <path
+        fill="#fff"
+        d="M16.1 7.1a8.7 8.7 0 0 0-7.4 13.3L7.7 25l4.8-1.2a8.7 8.7 0 1 0 3.6-15.7Zm0 1.6a7.1 7.1 0 0 1 6.1 10.8 7.1 7.1 0 0 1-8.3 2.8l-.3-.1-2.8.7.8-2.7-.2-.3a7.1 7.1 0 0 1 4.7-11.2Zm-3 3.7c-.2 0-.5.1-.7.4-.2.3-.9.9-.9 2.1 0 1.3.9 2.5 1 2.7.2.2 1.8 2.8 4.4 3.8 2.2.9 2.6.7 3.1.7.5 0 1.6-.7 1.8-1.3.2-.6.2-1.1.1-1.3-.1-.1-.2-.2-.5-.4l-1.8-.9c-.3-.1-.5-.1-.7.2l-.8 1c-.1.2-.3.2-.6.1-.3-.1-1.1-.4-2.1-1.3-.8-.7-1.3-1.6-1.5-1.9-.2-.3 0-.4.1-.6l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.9c-.2-.4-.4-.4-.6-.4Z"
+      />
+    </svg>
+  );
+}
+
 function AgentProfileCard({
   agent,
   agentHref,
@@ -1727,10 +1738,10 @@ function AgentProfileCard({
           <div className="mt-5 grid gap-2">
             {whatsappHref ? (
               <Button
-                className="h-12 w-full rounded-md border border-emerald-500/40 bg-emerald-500/10 text-sm font-semibold text-emerald-700 opacity-60 dark:text-emerald-300"
+                className="h-12 w-full rounded-md border border-[#25D366]/40 bg-[#25D366]/10 text-sm font-semibold text-[#128C7E] opacity-60 dark:text-[#25D366]"
                 disabled
               >
-                <MessageCircle className="size-4" />
+                <WhatsAppIcon className="size-5" />
                 WhatsApp agent
               </Button>
             ) : null}
@@ -1752,7 +1763,7 @@ function AgentProfileCard({
               <Button
                 asChild
                 variant="outline"
-                className="h-12 w-full rounded-md border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                className="h-12 w-full rounded-md border-[#25D366]/50 bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 hover:text-[#075E54] dark:text-[#25D366] dark:hover:text-[#25D366]"
               >
                 <a
                   href={whatsappHref}
@@ -1760,7 +1771,7 @@ function AgentProfileCard({
                   rel="noreferrer"
                   onClick={() => onAction?.("whatsapp_agent")}
                 >
-                  <MessageCircle className="size-4" />
+                  <WhatsAppIcon className="size-5 text-[#25D366]" />
                   WhatsApp agent
                 </a>
               </Button>
