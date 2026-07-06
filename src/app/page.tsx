@@ -818,8 +818,8 @@ function AgencyHomeCard({ agency }: { agency: AgencyDirectoryItem }) {
     >
       <div
         className={[
-          "relative grid aspect-[5/3] overflow-hidden rounded-lg border border-border shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md",
-          hasLogo ? "p-0" : "place-items-center p-6",
+          "relative grid aspect-[2.2/1] overflow-hidden rounded-lg border border-border shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md",
+          hasLogo ? "p-0" : "place-items-center p-4",
         ].join(" ")}
         style={
           hasLogo
@@ -866,9 +866,9 @@ function AgencyHomeCard({ agency }: { agency: AgencyDirectoryItem }) {
               className="absolute bottom-5 right-5 h-1.5 w-24 rounded-full"
               style={{ backgroundColor: agencyPlaceholderStyle.accentSoft }}
             />
-            <span className="relative flex flex-col items-center gap-3">
+            <span className="relative flex flex-col items-center gap-2">
               <span className="rounded-2xl bg-[image:var(--homzie-gradient)] p-0.5 shadow-[0_14px_32px_rgba(123,92,255,0.22)]">
-                <span className="grid size-20 place-items-center rounded-[0.9rem] bg-white text-3xl font-black leading-none text-brand-black">
+                <span className="grid size-16 place-items-center rounded-[0.9rem] bg-white text-2xl font-black leading-none text-brand-black">
                   {agencyInitials(agency.name)}
                 </span>
               </span>
