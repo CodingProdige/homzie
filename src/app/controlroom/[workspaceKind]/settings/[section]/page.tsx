@@ -51,6 +51,8 @@ import {
 import { authOptions } from "@/modules/auth/config";
 import { AgencyBrandingForm } from "./agency-branding-form";
 import { AgencyBillingSetup } from "./agency-billing-setup";
+import { WorkspaceAccountTypeForm } from "./workspace-account-type-form";
+import { getWorkspaceTypeEligibility } from "@/modules/agencies/workspace-type";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +68,13 @@ type ControlRoomSettingsPageProps = {
   }>;
 };
 
-type SettingsSection = "billing" | "branding" | "hierarchy" | "ownership" | "permissions";
+type SettingsSection = "account" | "billing" | "branding" | "hierarchy" | "ownership" | "permissions";
 
 const sectionMeta: Record<SettingsSection, { description: string; title: string }> = {
+  account: {
+    description: "Correct an accidental workspace signup without silently losing agency data.",
+    title: "Account type",
+  },
   branding: {
     description: "Manage logo, badge label, Network HQ branding rules, and branch brand locks.",
     title: "Branding",
@@ -109,6 +115,7 @@ function invoiceStatusLabel(status: string) {
 
 function parseSettingsSection(value: string): SettingsSection | null {
   if (
+    value === "account" ||
     value === "branding" ||
     value === "billing" ||
     value === "hierarchy" ||
@@ -191,6 +198,8 @@ export default async function ControlRoomSettingsPage({
     outgoingTransferRows,
     billingSnapshot,
     billingInvoices,
+    independentEligibility,
+    personalEligibility,
   ] = await Promise.all([
     workspace.agency.parentAgencyId
       ? sql<ParentAgencyRow[]>`
@@ -247,6 +256,20 @@ export default async function ControlRoomSettingsPage({
     section === "billing"
       ? listAgencyBillingInvoices(workspace.agency.id)
       : Promise.resolve([]),
+    section === "account" && workspace.membership.role === "owner"
+      ? getWorkspaceTypeEligibility({
+          agencyId: workspace.agency.id,
+          ownerUserId: session.user.id,
+          targetType: "independent",
+        })
+      : Promise.resolve(null),
+    section === "account" && workspace.membership.role === "owner"
+      ? getWorkspaceTypeEligibility({
+          agencyId: workspace.agency.id,
+          ownerUserId: session.user.id,
+          targetType: "personal",
+        })
+      : Promise.resolve(null),
   ]);
   const parentAgency = parentRows[0] || null;
   const branchUsesNetworkBrand =
@@ -305,6 +328,37 @@ export default async function ControlRoomSettingsPage({
           {agencyTypeLabel(workspace.agency.agencyType)}
         </span>
       </div>
+
+      {section === "account" ? (
+        <section className="mt-6 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            Current account
+          </p>
+          <h2 className="mt-2 text-xl font-semibold">
+            {agencyTypeLabel(workspace.agency.agencyType)}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-normal leading-6 text-muted-foreground">
+            Independent agency keeps this workspace and its brand. Personal agent
+            closes an eligible unused workspace and keeps your individual profile.
+            Changes are blocked while dependent agency data still exists.
+          </p>
+
+          <div className="mt-5 border-t border-border pt-5">
+            {workspace.membership.role === "owner" && independentEligibility && personalEligibility ? (
+              <WorkspaceAccountTypeForm
+                agencyId={workspace.agency.id}
+                currentType={workspace.agency.agencyType}
+                independentReasons={independentEligibility.reasons}
+                personalReasons={personalEligibility.reasons}
+              />
+            ) : (
+              <p className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                Only the current workspace owner can change the account type.
+              </p>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       {section === "hierarchy" ? (
       <section

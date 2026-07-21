@@ -31,7 +31,9 @@ import { startAdminAgencySupportAction } from "@/modules/agencies/admin-support-
 import {
   auditIncompleteTrialsAction,
   updateAdminProAccessOverride,
+  updateAdminWorkspaceAccountType,
   type AdminProAccessOverrideState,
+  type AdminWorkspaceAccountTypeState,
 } from "../actions";
 
 export type AdminUserRow = {
@@ -421,6 +423,59 @@ function AdminProAccessOverrideForm({ user }: { user: AdminUserRow }) {
   );
 }
 
+function AdminWorkspaceAccountTypeForm({ user }: { user: AdminUserRow }) {
+  const initialState: AdminWorkspaceAccountTypeState = { message: "", ok: true };
+  const [state, formAction, isPending] = useActionState(
+    updateAdminWorkspaceAccountType,
+    initialState,
+  );
+
+  if (!user.agencyId || user.agencyMemberRole !== "owner" || user.agencyType === "branch") {
+    return null;
+  }
+
+  return (
+    <form action={formAction} className="mt-5 rounded-lg border border-border bg-muted/20 p-4">
+      <input type="hidden" name="userId" value={user.id} />
+      <input type="hidden" name="agencyId" value={user.agencyId} />
+      <div>
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <UserRound className="size-4 text-primary" />
+          Correct account type
+        </p>
+        <p className="mt-1 max-w-xl text-xs font-normal leading-5 text-muted-foreground">
+          Conversions use the same dependency checks as the owner settings. They
+          will not remove branches, people, listings, transfers, or configured billing.
+        </p>
+      </div>
+
+      <label className="mt-4 grid gap-1 text-xs font-semibold">
+        New account type
+        <select
+          name="targetType"
+          defaultValue={user.agencyType === "network" ? "independent" : "personal"}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {user.agencyType === "network" ? (
+            <option value="independent">Independent agency</option>
+          ) : null}
+          <option value="personal">Personal agent account</option>
+        </select>
+      </label>
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className={cn("text-xs font-bold", state.message ? (state.ok ? "text-emerald-700" : "text-destructive") : "text-muted-foreground")}>
+          {state.message || "The server will check eligibility before making changes."}
+        </p>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+          Change account type
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function UserDetailsDialog({
   onOpenChange,
   open,
@@ -604,6 +659,7 @@ function UserDetailsDialog({
             </div>
 
             <AdminProAccessOverrideForm user={user} />
+            <AdminWorkspaceAccountTypeForm user={user} />
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-normal text-muted-foreground">

@@ -10,6 +10,7 @@ import {
   Palette,
   Settings2,
   Share2,
+  UserRoundCog,
 } from "lucide-react";
 
 import {
@@ -37,6 +38,12 @@ type ControlRoomSettingsPageProps = {
 };
 
 const baseSettingsItems = [
+  {
+    description: "Correct an accidental Network HQ or agency signup and review conversion requirements.",
+    href: "account",
+    icon: UserRoundCog,
+    label: "Account type",
+  },
   {
     description: "Review parent network links, branch status, operating policies, and visibility.",
     href: "hierarchy",
