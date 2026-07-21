@@ -39,6 +39,10 @@ import {
 import { auditIncompleteTrialSubscriptions } from "@/modules/billing/trial-integrity";
 import { setAgencySeatPrice } from "@/modules/agencies/billing";
 import {
+  convertWorkspaceAccountType,
+  type WorkspaceAccountType,
+} from "@/modules/agencies/workspace-type";
+import {
   defaultReservationSettings,
   saveStoredReservationSettings,
   type ReservationSettings,
@@ -111,6 +115,49 @@ export type AdminProAccessOverrideState = {
   message: string;
   ok: boolean;
 };
+
+export type AdminWorkspaceAccountTypeState = {
+  message: string;
+  ok: boolean;
+};
+
+export async function updateAdminWorkspaceAccountType(
+  _previousState: AdminWorkspaceAccountTypeState,
+  formData: FormData,
+): Promise<AdminWorkspaceAccountTypeState> {
+  try {
+    await assertActiveAdmin();
+
+    const agencyId = formString(formData, "agencyId");
+    const ownerUserId = formString(formData, "userId");
+    const requestedType = formString(formData, "targetType");
+    const targetType: WorkspaceAccountType | null =
+      requestedType === "independent" || requestedType === "personal"
+        ? requestedType
+        : null;
+
+    if (!agencyId || !ownerUserId || !targetType) {
+      return { message: "Choose a valid account type.", ok: false };
+    }
+
+    await convertWorkspaceAccountType({ agencyId, ownerUserId, targetType });
+    revalidatePath("/admin/users");
+    revalidatePath("/controlroom");
+
+    return {
+      message:
+        targetType === "personal"
+          ? "The unused agency workspace was closed and the user is now personal."
+          : "The Network HQ is now an independent agency.",
+      ok: true,
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Could not change the account type.",
+      ok: false,
+    };
+  }
+}
 
 export type AdminModerationUpdateState = {
   message: string;

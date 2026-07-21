@@ -51,6 +51,10 @@ import {
   sendTemplatedEmailToUser,
 } from "@/modules/email/server";
 import { profileRoleForAgencyOwner } from "@/modules/users/profile-role";
+import {
+  convertWorkspaceAccountType,
+  type WorkspaceAccountType,
+} from "@/modules/agencies/workspace-type";
 
 export type AgencyApplicationState = {
   error?: string;
@@ -61,6 +65,55 @@ export type AgencyNameAvailability = {
   message: string;
   slug: string;
 };
+
+export type WorkspaceAccountTypeActionState = {
+  message: string;
+  ok: boolean;
+};
+
+export async function changeWorkspaceAccountTypeAction(
+  _previousState: WorkspaceAccountTypeActionState,
+  formData: FormData,
+): Promise<WorkspaceAccountTypeActionState> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return { message: "Sign in before changing the workspace type.", ok: false };
+  }
+
+  const agencyId = formString(formData, "agencyId");
+  const requestedType = formString(formData, "targetType");
+  const targetType: WorkspaceAccountType | null =
+    requestedType === "independent" || requestedType === "personal"
+      ? requestedType
+      : null;
+
+  if (!agencyId || !targetType) {
+    return { message: "Choose a valid account type.", ok: false };
+  }
+
+  try {
+    await convertWorkspaceAccountType({
+      agencyId,
+      ownerUserId: session.user.id,
+      targetType,
+    });
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Could not change the account type.",
+      ok: false,
+    };
+  }
+
+  revalidatePath("/controlroom");
+  revalidatePath("/admin/users");
+
+  if (targetType === "personal") {
+    redirect("/settings?accountTypeChanged=personal");
+  }
+
+  redirect("/controlroom/agency/settings/account");
+}
 
 function formString(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
