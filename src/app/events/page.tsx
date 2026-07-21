@@ -94,6 +94,8 @@ export default async function EventsPage() {
                   {group.map((event) => {
                     const href = event.conversationId
                       ? `/messages?conversation=${event.conversationId}`
+                      : event.eventType === "profile.followed" && event.actor.username
+                        ? `/users/${encodeURIComponent(event.actor.username)}`
                       : event.listingHref
                         ? event.listingHref
                         : event.reelId
