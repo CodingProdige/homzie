@@ -1,5 +1,6 @@
 import { sql } from "@/db";
 import { getStripe } from "@/modules/billing/stripe";
+import type Stripe from "stripe";
 
 export type WorkspaceAccountType = "independent" | "personal";
 
@@ -60,18 +61,35 @@ async function schedulePersonalSubscriptionEnd(
   if (!localSubscription) return null;
 
   const stripe = await getStripe();
-  const stripeSubscription = await stripe.subscriptions.retrieve(
-    localSubscription.stripeSubscriptionId,
-  );
+  let stripeSubscription: Stripe.Subscription;
+
+  try {
+    stripeSubscription = await stripe.subscriptions.retrieve(
+      localSubscription.stripeSubscriptionId,
+    );
+  } catch (error) {
+    console.error("[agency-billing-transition] could not retrieve Stripe subscription", error);
+    throw new Error("Could not verify the personal Stripe subscription.");
+  }
 
   if (stripeSubscription.status === "canceled") return null;
 
-  const updated = (await stripe.subscriptions.update(stripeSubscription.id, {
-    cancel_at_period_end: true,
-  })) as typeof stripeSubscription & {
+  let updated: Stripe.Subscription & {
     cancel_at?: number | null;
     current_period_end?: number | null;
   };
+
+  try {
+    updated = (await stripe.subscriptions.update(stripeSubscription.id, {
+      cancel_at_period_end: true,
+    })) as Stripe.Subscription & {
+      cancel_at?: number | null;
+      current_period_end?: number | null;
+    };
+  } catch (error) {
+    console.error("[agency-billing-transition] could not schedule Stripe cancellation", error);
+    throw new Error("Could not schedule the personal Stripe subscription cancellation.");
+  }
   const paidThrough =
     updated.cancel_at ||
     updated.current_period_end ||
@@ -87,7 +105,7 @@ async function schedulePersonalSubscriptionEnd(
 
   await sql`
     UPDATE subscriptions
-    SET cancelled_at = ${activatesAt}, updated_at = now()
+    SET cancelled_at = ${activatesAt.toISOString()}::timestamptz, updated_at = now()
     WHERE id = ${localSubscription.localSubscriptionId}
   `;
 
