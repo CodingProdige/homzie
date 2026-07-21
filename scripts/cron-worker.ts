@@ -1,5 +1,6 @@
 import { sql } from "../src/db";
 import { sendDueBroadcastCampaigns } from "../src/modules/broadcasts/server";
+import { processDueAgencyBillingTransitions } from "../src/modules/agencies/workspace-type";
 
 const defaultIntervalMs = 60 * 1000;
 const minimumIntervalMs = 60 * 1000;
@@ -93,6 +94,14 @@ async function runScheduledBroadcasts() {
   });
 }
 
+async function runAgencyBillingTransitions() {
+  const completedAgencyIds = await processDueAgencyBillingTransitions();
+
+  if (completedAgencyIds.length) {
+    log("Activated due agency billing transitions", { completedAgencyIds });
+  }
+}
+
 async function run() {
   log("Cron worker started", {
     batchLimit,
@@ -101,7 +110,10 @@ async function run() {
 
   while (!isShuttingDown) {
     try {
-      await runScheduledBroadcasts();
+      await Promise.all([
+        runScheduledBroadcasts(),
+        runAgencyBillingTransitions(),
+      ]);
     } catch (error) {
       logError("Cron job failed", error);
     }

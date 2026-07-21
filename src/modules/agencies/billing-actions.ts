@@ -12,6 +12,7 @@ import {
   getStripePublishableKey,
   getStripeRuntimeConfig,
 } from "@/modules/billing/stripe";
+import { scheduleAwaitingAgencyBillingTransition } from "@/modules/agencies/workspace-type";
 
 type AgencyBillingSetupResult =
   | {
@@ -292,6 +293,7 @@ export async function finalizeAgencyBillingSetup(
           FROM agency_members am
           WHERE am.agency_id = bp.agency_id
             AND am.status <> 'removed'
+            AND am.agency_funded = true
         )
         AND NOT EXISTS (
           SELECT 1
@@ -300,6 +302,8 @@ export async function finalizeAgencyBillingSetup(
             AND a.seat_billing_bypass_enabled = true
         )
     `;
+
+    await scheduleAwaitingAgencyBillingTransition(workspace.agency.id);
 
     const basePath = controlRoomPathForWorkspace(workspace);
     revalidatePath(`${basePath}/settings/billing`);

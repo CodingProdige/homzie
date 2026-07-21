@@ -10,6 +10,7 @@ import {
   Building2,
   CalendarDays,
   Clock3,
+  CreditCard,
   Crown,
   DoorOpen,
   ExternalLink,
@@ -30,8 +31,10 @@ import { cn } from "@/lib/utils";
 import { startAdminAgencySupportAction } from "@/modules/agencies/admin-support-actions";
 import {
   auditIncompleteTrialsAction,
+  scheduleAdminAgencyBillingTransition,
   updateAdminProAccessOverride,
   updateAdminWorkspaceAccountType,
+  type AdminAgencyBillingTransitionState,
   type AdminProAccessOverrideState,
   type AdminWorkspaceAccountTypeState,
 } from "../actions";
@@ -476,6 +479,47 @@ function AdminWorkspaceAccountTypeForm({ user }: { user: AdminUserRow }) {
   );
 }
 
+function AdminAgencyBillingTransitionForm({ user }: { user: AdminUserRow }) {
+  const initialState: AdminAgencyBillingTransitionState = { message: "", ok: true };
+  const [state, formAction, isPending] = useActionState(
+    scheduleAdminAgencyBillingTransition,
+    initialState,
+  );
+
+  if (
+    !user.agencyId ||
+    user.agencyType !== "independent" ||
+    user.agencyMemberRole !== "owner" ||
+    !["active", "past_due", "pending"].includes(user.activeSubscriptionStatus || "")
+  ) {
+    return null;
+  }
+
+  return (
+    <form action={formAction} className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+      <input type="hidden" name="userId" value={user.id} />
+      <input type="hidden" name="agencyId" value={user.agencyId} />
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <CreditCard className="size-4 text-amber-700 dark:text-amber-300" />
+        Move personal billing to agency
+      </p>
+      <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
+        Schedules the personal Stripe subscription to end at its paid-through date.
+        The owner becomes an agency-funded seat on that date, preventing double billing.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className={cn("text-xs font-bold", state.message ? (state.ok ? "text-emerald-700" : "text-destructive") : "text-muted-foreground")}>
+          {state.message || "Agency billing will take precedence after the paid personal period."}
+        </p>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+          Schedule transition
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function UserDetailsDialog({
   onOpenChange,
   open,
@@ -660,6 +704,7 @@ function UserDetailsDialog({
 
             <AdminProAccessOverrideForm user={user} />
             <AdminWorkspaceAccountTypeForm user={user} />
+            <AdminAgencyBillingTransitionForm user={user} />
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-normal text-muted-foreground">

@@ -40,6 +40,7 @@ import { auditIncompleteTrialSubscriptions } from "@/modules/billing/trial-integ
 import { setAgencySeatPrice } from "@/modules/agencies/billing";
 import {
   convertWorkspaceAccountType,
+  scheduleIndependentOwnerBillingTransition,
   type WorkspaceAccountType,
 } from "@/modules/agencies/workspace-type";
 import {
@@ -120,6 +121,43 @@ export type AdminWorkspaceAccountTypeState = {
   message: string;
   ok: boolean;
 };
+
+export type AdminAgencyBillingTransitionState = {
+  message: string;
+  ok: boolean;
+};
+
+export async function scheduleAdminAgencyBillingTransition(
+  _previousState: AdminAgencyBillingTransitionState,
+  formData: FormData,
+): Promise<AdminAgencyBillingTransitionState> {
+  try {
+    await assertActiveAdmin();
+    const agencyId = formString(formData, "agencyId");
+    const ownerUserId = formString(formData, "userId");
+
+    if (!agencyId || !ownerUserId) {
+      return { message: "A user and independent agency are required.", ok: false };
+    }
+
+    const activatesAt = await scheduleIndependentOwnerBillingTransition({
+      agencyId,
+      ownerUserId,
+    });
+    revalidatePath("/admin/users");
+    revalidatePath("/controlroom");
+
+    return {
+      message: `Personal billing will end and agency billing will take over on ${activatesAt.toLocaleDateString("en-ZA")}.`,
+      ok: true,
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Could not schedule the billing transition.",
+      ok: false,
+    };
+  }
+}
 
 export async function updateAdminWorkspaceAccountType(
   _previousState: AdminWorkspaceAccountTypeState,
