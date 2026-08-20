@@ -400,7 +400,7 @@ export function AdminSeoSettingsForm({
   );
   const [ogHeadline, setOgHeadline] = useState(settings.defaultOgHeadline);
   const [ogSubtitle, setOgSubtitle] = useState(settings.defaultOgSubtitle);
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://homzie.co.za").replace(
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://homzieproperty.com").replace(
     /\/$/,
     "",
   );

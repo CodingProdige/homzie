@@ -1588,7 +1588,7 @@ async function fetchWithTimeout(url: string, timeoutMs: number) {
       headers: {
         accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "user-agent":
-          "Mozilla/5.0 (compatible; HomzieListingImporter/1.0; +https://homzie.co.za)",
+          "Mozilla/5.0 (compatible; HomzieListingImporter/1.0; +https://homzieproperty.com)",
       },
       signal: controller.signal,
     });

@@ -47,7 +47,7 @@ function sendGridWebhookUrl() {
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://homzie.co.za";
+    "https://homzieproperty.com";
 
   return `${baseUrl.replace(/\/$/, "")}/api/sendgrid/events`;
 }

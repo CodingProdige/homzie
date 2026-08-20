@@ -42,7 +42,7 @@ export const defaultGoogleAdsSettings: GoogleAdsSettings = {
   homzieFundedEnabled: false,
   homzieFundedPageFeedLabel: "homzie-funded-listings",
   homzieFundedPageFeedToken: "",
-  siteDomain: "homzie.co.za",
+  siteDomain: "homzieproperty.com",
   languageCode: "en",
   pageFeedLabel: "homzie-promoted-listings",
   pageFeedToken: "",

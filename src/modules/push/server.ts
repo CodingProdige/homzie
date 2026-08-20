@@ -50,7 +50,7 @@ function configureWebPush() {
   const privateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
   const subject =
     process.env.WEB_PUSH_VAPID_SUBJECT ||
-    `mailto:${process.env.ADMIN_EMAIL || "hello@homzie.co.za"}`;
+    `mailto:${process.env.ADMIN_EMAIL || "hello@homzieproperty.com"}`;
 
   if (!publicKey || !privateKey) return false;
 

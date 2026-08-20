@@ -143,11 +143,12 @@ Use these values in the root `.env` file for local development:
 ```dotenv
 APP_URL=http://localhost:3000
 AUTH_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 AUTH_SECRET=replace-with-a-long-random-secret
 
-DOMAIN=homzie.co.za
+DOMAIN=homzieproperty.com
 ADMIN_HOSTNAME=admin.localhost
-CADDY_EMAIL=admin@homzie.co.za
+CADDY_EMAIL=admin@homzieproperty.com
 
 POSTGRES_DB=homzie
 POSTGRES_USER=homzie
@@ -163,7 +164,7 @@ THUMBNAIL_STORAGE_PATH=./storage/thumbnails
 EXPORT_STORAGE_PATH=./storage/exports
 BACKUP_STORAGE_PATH=./storage/backups
 
-ADMIN_EMAIL=admin@homzie.co.za
+ADMIN_EMAIL=admin@homzieproperty.com
 ADMIN_PASSWORD=change-me-now
 ADMIN_NAME=Homzie Admin
 
@@ -177,13 +178,14 @@ Local storage directories should be created before upload or media workflows are
 Use these values in `/mnt/c/Homzie/config/homzie.env` for production, replacing secrets with real strong values:
 
 ```dotenv
-APP_URL=https://homzie.co.za
-AUTH_URL=https://homzie.co.za
+APP_URL=https://homzieproperty.com
+AUTH_URL=https://homzieproperty.com
+NEXT_PUBLIC_SITE_URL=https://homzieproperty.com
 AUTH_SECRET=replace-with-a-long-random-production-secret
 
-DOMAIN=homzie.co.za
-ADMIN_HOSTNAME=admin.homzie.co.za
-CADDY_EMAIL=admin@homzie.co.za
+DOMAIN=homzieproperty.com
+ADMIN_HOSTNAME=admin.homzieproperty.com
+CADDY_EMAIL=admin@homzieproperty.com
 
 POSTGRES_DB=homzie
 POSTGRES_USER=homzie
@@ -199,7 +201,7 @@ THUMBNAIL_STORAGE_PATH=/mnt/c/Homzie/storage/thumbnails
 EXPORT_STORAGE_PATH=/mnt/c/Homzie/storage/exports
 BACKUP_STORAGE_PATH=/mnt/c/Homzie/storage/backups
 
-ADMIN_EMAIL=admin@homzie.co.za
+ADMIN_EMAIL=admin@homzieproperty.com
 ADMIN_PASSWORD=replace-with-a-strong-admin-password
 ADMIN_NAME=Homzie Admin
 
@@ -207,6 +209,18 @@ CLOUDFLARE_TUNNEL_TOKEN=replace-with-cloudflare-tunnel-token
 ```
 
 Production containers should receive only the environment values they need. Keep the canonical production file outside the deployable app directory.
+
+## Domain Cutover
+
+The public canonical domain is `https://homzieproperty.com`. The Caddy configuration sends `homzie.co.za`, `www.homzie.co.za`, and `www.homzieproperty.com` to it with permanent redirects, preserving each path and query string.
+
+Before deploying the domain change:
+
+1. In Cloudflare, add public hostnames for `homzieproperty.com`, `www.homzieproperty.com`, `homzie.co.za`, and `www.homzie.co.za` to the existing tunnel, all pointing to the Caddy service on port `80`. Keep the old hostnames active so their redirects can be served.
+2. Update the production environment file with the production values above, including `NEXT_PUBLIC_SITE_URL`. This value is compiled into browser code, so rebuild the images after changing it.
+3. Add `https://homzieproperty.com/api/auth/callback/google` to the Google OAuth client's authorized redirect URIs, and keep the previous URI during the transition.
+4. Update Stripe's webhook endpoint, SendGrid link branding/sender authentication, Google Maps browser key referrers, and any analytics/Search Console properties to include the new domain. Configure the `admin@`, `no-reply@`, and `support@` mailboxes before using the new email addresses.
+5. Submit `https://homzieproperty.com/sitemap.xml` in Search Console after deploy. Do not remove the old domain until its redirects have been live long enough for search engines and saved links to move over.
 
 ## Media Mounts
 
@@ -353,8 +367,8 @@ Use this checklist when validating or reproducing a production deploy manually.
 8. Run `npm run build`.
 9. Run database migrations.
 10. Rebuild and restart Docker Compose with project name `homzie_selfhost`.
-11. Confirm the web app responds at `https://homzie.co.za`.
-12. Confirm admin responds at `https://admin.homzie.co.za`.
+11. Confirm the web app responds at `https://homzieproperty.com`.
+12. Confirm `https://homzie.co.za` and `https://www.homzie.co.za` permanently redirect to the matching new-domain URL.
 13. Confirm `/media/*` routes still serve existing media.
 14. Confirm PostgreSQL and Redis data survived the restart.
 15. Confirm Cloudflare Tunnel is connected.

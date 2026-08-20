@@ -74,7 +74,7 @@ function contactRecipient() {
       process.env.CONTACT_TO_EMAIL ||
       process.env.SUPPORT_EMAIL ||
       process.env.SENDGRID_FROM_EMAIL ||
-      "support@homzie.co.za",
+      "support@homzieproperty.com",
     name: "Homzie Support",
   };
 }
@@ -128,7 +128,7 @@ export async function sendContactMessage(
         process.env.NEXT_PUBLIC_APP_URL ||
         process.env.APP_URL ||
         process.env.NEXTAUTH_URL ||
-        "https://homzie.co.za",
+        "https://homzieproperty.com",
     },
     contact: {
       email: parsed.data.email,

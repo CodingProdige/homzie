@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: "Manage the Homzie demo agent profile and showcase data.",
 };
 
-const demoEmail = "demo.agent@homzie.co.za";
+const demoEmail = "demo.agent@homzieproperty.com";
 const defaultPassword = "HomzieDemo2026!";
 
 type DemoProfileRow = {

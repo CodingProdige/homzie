@@ -127,7 +127,7 @@ export default function TermsOfServicePage() {
           title: "Governing law and contact",
           body: [
             "These terms are governed by the laws of South Africa, unless mandatory law requires otherwise.",
-            "Questions about these terms, billing, subscriptions, or account access can be sent to support@homzie.co.za or submitted through the contact page.",
+            "Questions about these terms, billing, subscriptions, or account access can be sent to support@homzieproperty.com or submitted through the contact page.",
             "Our support location is 6 Christelle Str, Denneburg, Paarl, Western Cape, South Africa, 7646.",
           ],
         },

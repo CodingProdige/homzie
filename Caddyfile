@@ -1,6 +1,12 @@
 :80 {
 	encode zstd gzip
 
+	@legacyDomains host homzie.co.za www.homzie.co.za
+	redir @legacyDomains https://homzieproperty.com{uri} 308
+
+	@canonicalWww host www.homzieproperty.com
+	redir @canonicalWww https://homzieproperty.com{uri} 308
+
 	handle_path /media/* {
 		root * /data/media
 		file_server

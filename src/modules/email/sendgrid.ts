@@ -24,7 +24,7 @@ function getConfiguredSender(): SendGridEmailAddress {
     process.env.SENDGRID_FROM_EMAIL ||
     process.env.CONTACT_FROM_EMAIL ||
     process.env.SUPPORT_EMAIL ||
-    "hello@homzie.co.za";
+    "hello@homzieproperty.com";
 
   return {
     email,

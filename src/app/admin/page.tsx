@@ -257,7 +257,7 @@ async function getDashboardData() {
       ) AS sold_value_cents
     FROM users u
     WHERE u.is_demo = true
-      AND u.email = 'demo.agent@homzie.co.za'
+      AND u.email = 'demo.agent@homzieproperty.com'
     ORDER BY u.updated_at DESC
     LIMIT 1
   `;

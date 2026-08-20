@@ -24,7 +24,7 @@ export type DefaultEmailTemplate = {
 
 const commonVariables: EmailTemplateVariable[] = [
   { key: "app.name", label: "App name", fallback: "Homzie" },
-  { key: "app.url", label: "App URL", fallback: "https://homzie.co.za" },
+  { key: "app.url", label: "App URL", fallback: "https://homzieproperty.com" },
 ];
 
 const notificationVariables: EmailTemplateVariable[] = [
@@ -70,15 +70,15 @@ const notificationEventEmailTemplates = notificationRegistry.map((event) => ({
     actor: { name: "Sarah Parker", username: "sarahparker" },
     agency: {
       actionLabel: "Review request",
-      actionUrl: "https://homzie.co.za/controlroom/networkhq/branches",
+      actionUrl: "https://homzieproperty.com/controlroom/networkhq/branches",
       name: "Century 21",
       networkName: "Century 21",
       requestingName: "Century 21 Paarl",
-      url: "https://homzie.co.za/controlroom/networkhq/branches",
+      url: "https://homzieproperty.com/controlroom/networkhq/branches",
     },
-    app: { name: "Homzie", url: "https://homzie.co.za" },
+    app: { name: "Homzie", url: "https://homzieproperty.com" },
     conversation: {
-      url: "https://homzie.co.za/messages?conversation=00000000-0000-0000-0000-000000000000",
+      url: "https://homzieproperty.com/messages?conversation=00000000-0000-0000-0000-000000000000",
     },
     event: {
       activeViewerCount: 3,
@@ -88,14 +88,14 @@ const notificationEventEmailTemplates = notificationRegistry.map((event) => ({
     },
     listing: {
       title: "Spacious 3-bedroom home",
-      url: "https://homzie.co.za/property/for-sale/western-cape/paarl/spacious-home-00000000",
+      url: "https://homzieproperty.com/property/for-sale/western-cape/paarl/spacious-home-00000000",
     },
     message: { preview: "Hi, is this property still available?" },
-    notification: { url: "https://homzie.co.za/events" },
+    notification: { url: "https://homzieproperty.com/events" },
     offer: { amount: "of R 3,500,000" },
     reel: {
       title: "a property reel",
-      url: "https://homzie.co.za/reels/00000000-0000-0000-0000-000000000000",
+      url: "https://homzieproperty.com/reels/00000000-0000-0000-0000-000000000000",
     },
     user: { firstName: "Dillon", name: "Dillon Jurgens" },
   },
@@ -119,8 +119,8 @@ export const defaultEmailTemplates = [
     name: "Welcome after registration",
     preheader: "Your Homzie account is ready.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
-      dashboardUrl: "https://homzie.co.za",
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
+      dashboardUrl: "https://homzieproperty.com",
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
     subject: "Welcome to {{app.name}}, {{user.firstName}}",
@@ -149,9 +149,9 @@ export const defaultEmailTemplates = [
     name: "Admin granted Pro access",
     preheader: "Homzie Pro is active on your profile. Jump in while you have it.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       pro: {
-        activityUrl: "https://homzie.co.za/listings/activity",
+        activityUrl: "https://homzieproperty.com/listings/activity",
         expiresLabel: "31 Jul 2026",
       },
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
@@ -184,13 +184,13 @@ export const defaultEmailTemplates = [
       agency: {
         name: "Prime Coast Realty",
         type: "Independent agency",
-        url: "https://homzie.co.za/controlroom/agency/members",
+        url: "https://homzieproperty.com/controlroom/agency/members",
       },
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       invite: {
         accessLabel: "Agency-funded public agent seat",
         role: "Agent",
-        url: "https://homzie.co.za/register?callbackUrl=%2Fcontrolroom%2Fagency",
+        url: "https://homzieproperty.com/register?callbackUrl=%2Fcontrolroom%2Fagency",
       },
       inviter: {
         email: "owner@example.com",
@@ -237,13 +237,13 @@ export const defaultEmailTemplates = [
       agency: {
         name: "Prime Coast Realty",
         type: "Branch agency",
-        url: "https://homzie.co.za/controlroom/agency/employees",
+        url: "https://homzieproperty.com/controlroom/agency/employees",
       },
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       invite: {
         accessLabel: "internal employee",
         role: "Marketing",
-        url: "https://homzie.co.za/register?callbackUrl=%2Fcontrolroom%2Fagency",
+        url: "https://homzieproperty.com/register?callbackUrl=%2Fcontrolroom%2Fagency",
       },
       inviter: {
         email: "owner@example.com",
@@ -288,12 +288,12 @@ export const defaultEmailTemplates = [
     preheader: "{{agent.name}} published {{listing.title}}.",
     sampleVariables: {
       agent: { name: "Ava Morgan", username: "avamorgan" },
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       listing: {
         location: "Camps Bay, Cape Town",
         priceLabel: "R 4,250,000",
         title: "Modern coastal home",
-        url: "https://homzie.co.za/property/for-sale/western-cape/paarl/3-bedroom-house-in-val-de-vie-00000000",
+        url: "https://homzieproperty.com/property/for-sale/western-cape/paarl/3-bedroom-house-in-val-de-vie-00000000",
       },
       user: { firstName: "Sam", name: "Sam Buyer" },
     },
@@ -335,15 +335,15 @@ export const defaultEmailTemplates = [
     preheader: "{{listing.title}} has been reserved. Documentation is required.",
     sampleVariables: {
       agent: { name: "Ava Morgan", username: "avamorgan" },
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       listing: {
         location: "Camps Bay, Cape Town",
         title: "Modern coastal home",
-        url: "https://homzie.co.za/property/for-sale/western-cape/paarl/3-bedroom-house-in-val-de-vie-00000000",
+        url: "https://homzieproperty.com/property/for-sale/western-cape/paarl/3-bedroom-house-in-val-de-vie-00000000",
       },
       reservation: {
         adminUrl:
-          "https://homzie.co.za/admin/reservations?reservation=00000000-0000-0000-0000-000000000000",
+          "https://homzieproperty.com/admin/reservations?reservation=00000000-0000-0000-0000-000000000000",
         amount: "R 10,000",
         totalPaid: "R 10,840",
       },
@@ -378,9 +378,9 @@ export const defaultEmailTemplates = [
     name: "New message",
     preheader: "{{sender.name}} sent you a message on {{app.name}}.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       conversation: {
-        url: "https://homzie.co.za/messages?conversation=00000000-0000-0000-0000-000000000000",
+        url: "https://homzieproperty.com/messages?conversation=00000000-0000-0000-0000-000000000000",
       },
       message: { preview: "Hi, is this property still available?" },
       sender: { name: "Mia Patel", username: "miapatel" },
@@ -412,10 +412,10 @@ export const defaultEmailTemplates = [
     preheader: "{{agent.name}} posted a new property reel.",
     sampleVariables: {
       agent: { name: "Ava Morgan", username: "avamorgan" },
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       reel: {
         caption: "A quick walk-through of a bright three-bedroom home.",
-        url: "https://homzie.co.za/users/avamorgan/reels",
+        url: "https://homzieproperty.com/users/avamorgan/reels",
       },
       user: { firstName: "Sam", name: "Sam Buyer" },
     },
@@ -444,8 +444,8 @@ export const defaultEmailTemplates = [
     name: "Agent trial started",
     preheader: "Your Homzie agent trial is active.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
-      billingUrl: "https://homzie.co.za/settings/billing",
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
+      billingUrl: "https://homzieproperty.com/settings/billing",
       subscription: { trialEndsAt: "18 June 2026" },
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
@@ -473,8 +473,8 @@ export const defaultEmailTemplates = [
     name: "Trial setup incomplete",
     preheader: "Add a payment method to activate your Homzie Agent trial.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
-      billingUrl: "https://homzie.co.za/settings/billing",
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
+      billingUrl: "https://homzieproperty.com/settings/billing",
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
     subject: "Complete your {{app.name}} trial setup",
@@ -499,8 +499,8 @@ export const defaultEmailTemplates = [
     name: "Subscription active",
     preheader: "Your Homzie Agent subscription is active.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
-      profileUrl: "https://homzie.co.za/users/dillon",
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
+      profileUrl: "https://homzieproperty.com/users/dillon",
       subscription: { amount: "R 349", interval: "month" },
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
@@ -528,8 +528,8 @@ export const defaultEmailTemplates = [
     name: "Payment failed",
     preheader: "Your Homzie payment needs attention.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
-      billingUrl: "https://homzie.co.za/settings/billing",
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
+      billingUrl: "https://homzieproperty.com/settings/billing",
       invoice: { amount: "R 349", message: "Please update your payment method." },
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
@@ -556,8 +556,8 @@ export const defaultEmailTemplates = [
     name: "Invoice paid",
     preheader: "Your Homzie payment was received.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
-      billingUrl: "https://homzie.co.za/settings/billing",
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
+      billingUrl: "https://homzieproperty.com/settings/billing",
       invoice: { amount: "R 349" },
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
@@ -584,13 +584,13 @@ export const defaultEmailTemplates = [
     name: "Campaign published",
     preheader: "Your Homzie campaign is live.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       campaign: {
         budget: "R 1,000",
         channels: "Homzie and Google",
         name: "Listing promotion",
       },
-      campaignsUrl: "https://homzie.co.za/settings/ads-center/campaigns",
+      campaignsUrl: "https://homzieproperty.com/settings/ads-center/campaigns",
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
     subject: "Your {{app.name}} campaign is live",
@@ -616,12 +616,12 @@ export const defaultEmailTemplates = [
     name: "Campaign needs attention",
     preheader: "A Homzie campaign needs attention.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       campaign: {
         issue: "Google feed sync needs attention.",
         name: "Listing promotion",
       },
-      campaignsUrl: "https://homzie.co.za/settings/ads-center/campaigns",
+      campaignsUrl: "https://homzieproperty.com/settings/ads-center/campaigns",
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
     subject: "Campaign needs attention on {{app.name}}",
@@ -649,7 +649,7 @@ export const defaultEmailTemplates = [
     name: "Support contact received",
     preheader: "{{contact.name}} sent a contact message.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       contact: {
         email: "agent@example.com",
         message: "I need help with my account.",
@@ -682,7 +682,7 @@ export const defaultEmailTemplates = [
     name: "Support contact confirmation",
     preheader: "The Homzie team received your message.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       contact: { name: "Dillon Jurgens", subject: "Account help" },
     },
     subject: "We received your Homzie message",
@@ -707,10 +707,10 @@ export const defaultEmailTemplates = [
     name: "Password reset link",
     preheader: "Use this secure link to reset your Homzie password.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       reset: {
         expiresIn: "30 minutes",
-        url: "https://homzie.co.za/reset-password?token=sample",
+        url: "https://homzieproperty.com/reset-password?token=sample",
       },
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
@@ -737,7 +737,7 @@ export const defaultEmailTemplates = [
     name: "Password changed",
     preheader: "Your Homzie password was changed.",
     sampleVariables: {
-      app: { name: "Homzie", url: "https://homzie.co.za" },
+      app: { name: "Homzie", url: "https://homzieproperty.com" },
       user: { firstName: "Dillon", name: "Dillon Jurgens" },
     },
     subject: "Your {{app.name}} password was changed",

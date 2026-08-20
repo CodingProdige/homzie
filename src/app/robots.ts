@@ -1,9 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getStoredSeoSettings } from "@/modules/seo/settings";
+import { getSiteUrl } from "@/modules/site/url";
 
-const siteUrl = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://homzie.co.za"
-).replace(/\/$/, "");
+const siteUrl = getSiteUrl();
 
 const sitemaps = [
   `${siteUrl}/sitemap.xml`,

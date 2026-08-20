@@ -4,6 +4,8 @@ x-homzie-build-args: &homzie-build-args
   AUTH_URL: ${AUTH_URL:-}
   DATABASE_URL: ${DATABASE_URL}
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+
+  NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
   NEXT_DEPLOYMENT_ID: ${NEXT_DEPLOYMENT_ID:-}
   NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
@@ -155,7 +157,7 @@ services:
       - --lt-cred-mech
       - --use-auth-secret
       - --static-auth-secret=${TURN_SHARED_SECRET}
-      - --realm=${TURN_REALM:-homzie.co.za}
+      - --realm=${TURN_REALM:-homzieproperty.com}
       - --external-ip=${TURN_EXTERNAL_IP}
       - --min-port=${TURN_MIN_PORT:-49160}
       - --max-port=${TURN_MAX_PORT:-49200}

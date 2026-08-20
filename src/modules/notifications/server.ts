@@ -37,11 +37,11 @@ const sampleVariables = {
   actor: { name: "Sarah Parker", username: "sarahparker" },
   agency: {
     actionLabel: "Review request",
-    actionUrl: "https://homzie.co.za/controlroom/networkhq/branches",
+    actionUrl: "https://homzieproperty.com/controlroom/networkhq/branches",
     name: "Century 21",
     networkName: "Century 21",
     requestingName: "Century 21 Paarl",
-    url: "https://homzie.co.za/controlroom/networkhq/branches",
+    url: "https://homzieproperty.com/controlroom/networkhq/branches",
   },
   event: {
     activeViewerCount: 3,
@@ -50,7 +50,7 @@ const sampleVariables = {
   },
   listing: { title: "Spacious 3-bedroom home" },
   message: { preview: "Hi, is this property still available?" },
-  notification: { url: "https://homzie.co.za/events" },
+  notification: { url: "https://homzieproperty.com/events" },
   offer: { amount: "of R 3,500,000" },
   reel: { title: "a property reel" },
 };

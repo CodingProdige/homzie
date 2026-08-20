@@ -1137,7 +1137,7 @@ export async function updateAdminModerationItem(
 }
 
 const demoProfileUsername = "avamorgandemo";
-const demoProfileEmail = "demo.agent@homzie.co.za";
+const demoProfileEmail = "demo.agent@homzieproperty.com";
 const defaultDemoProfilePassword = "HomzieDemo2026!";
 const demoSubscriptionReference = "demo:homzie-agent-pro";
 

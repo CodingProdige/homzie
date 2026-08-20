@@ -102,7 +102,7 @@ export default function CommunityGuidelinesPage() {
         {
           title: "Contact",
           body: [
-            "Questions about these guidelines or reports about platform abuse can be sent to support@homzie.co.za or submitted through the contact page.",
+            "Questions about these guidelines or reports about platform abuse can be sent to support@homzieproperty.com or submitted through the contact page.",
           ],
         },
       ]}
