@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import Script from "next/script";
 import { CountryPreferenceBootstrap } from "@/components/country-preference-bootstrap";
 import { GoogleAnalyticsPageView } from "@/components/google-analytics-page-view";
+import { MetaPixelPageView } from "@/components/meta-pixel-page-view";
 import { authOptions } from "@/modules/auth/config";
 import { CurrencyProvider } from "@/modules/currency/currency-provider";
 import { BrowserNotificationPrompt } from "@/modules/push/components/browser-notification-prompt";
@@ -87,6 +88,9 @@ const googleAnalyticsId =
 const googleAdsId =
   process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-18217057293";
 const googleTagId = googleAnalyticsId || googleAdsId;
+const rawMetaPixelId =
+  process.env.NEXT_PUBLIC_META_PIXEL_ID || "1090379437274334";
+const metaPixelId = /^\d+$/.test(rawMetaPixelId) ? rawMetaPixelId : null;
 const themeCookieName = "homzie-theme";
 const validThemeModes = new Set(["light", "dark"]);
 
@@ -136,6 +140,30 @@ export default async function RootLayout({
                 <GoogleAnalyticsPageView measurementId={googleAnalyticsId} />
               </Suspense>
             ) : null}
+          </>
+        ) : null}
+        {metaPixelId ? (
+          <>
+            <Script id="meta-pixel" strategy="afterInteractive">
+              {`
+                !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+                fbq('init', '${metaPixelId}');
+                fbq('track', 'PageView');
+              `}
+            </Script>
+            <noscript>
+              {/* Meta requires this literal 1×1 fallback when JavaScript is disabled. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt=""
+                height="1"
+                src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
+                width="1"
+              />
+            </noscript>
+            <Suspense fallback={null}>
+              <MetaPixelPageView pixelId={metaPixelId} />
+            </Suspense>
           </>
         ) : null}
         <CurrencyProvider>
