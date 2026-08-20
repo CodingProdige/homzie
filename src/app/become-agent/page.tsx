@@ -30,27 +30,27 @@ import { CurrencySelector } from "@/modules/currency/currency-selector";
 const features = [
   {
     icon: Home,
-    title: "Publish freely",
-    description: "Keep listings and reels open while Pro unlocks demand.",
+    title: "Publish free, no card",
+    description: "Your profile, listings, and property reels are already free to publish.",
   },
   {
     icon: Clapperboard,
-    title: "See buyer intent",
-    description: "Unlock live activity, timelines, and buyer insights.",
+    title: "Understand activity",
+    description: "Unlock anonymized live activity, listing trends, and AI insights.",
   },
   {
     icon: TrendingUp,
-    title: "Follow up faster",
-    description: "Act while interest is live, not after it goes cold.",
+    title: "Connect by choice",
+    description: "Respond when an interested buyer starts a conversation with you.",
   },
 ];
 
 const planBenefits = [
-  "Keep your public agent profile, listings, and reels live while Pro unlocks the demand layer behind them.",
-  "See active buyers, returning viewers, listing activity, and buyer timelines across listings you own.",
-  "Unlock AI buyer insights and listing performance guidance so you know what activity actually means.",
-  "Start conversations from buyer-intent surfaces while the buyer is active or recently engaged.",
-  "Access listing buyer activity overview pages and owner-only live buyer panels.",
+  "Your public agent profile, listings, and property reels remain free to publish whether or not you upgrade.",
+  "See anonymized live activity and listing-level trends across listings you own.",
+  "Unlock AI listing insights and performance guidance so you know what activity actually means.",
+  "Start conversations with buyers who choose to contact you through Homzie.",
+  "Access listing activity overview pages and owner-only activity panels.",
   "Stay eligible for future agency-funded seats, branch control room access, and paid visibility features.",
 ];
 
@@ -109,9 +109,9 @@ export default async function BecomeAgentPage() {
               Homzie Agents
             </p>
             <h1 className="mt-4 max-w-full text-3xl font-bold leading-[1.05] tracking-tight min-[420px]:text-4xl sm:text-5xl lg:text-6xl">
-              <span className="block">Unlock live</span>
-              <span className="homzie-gradient-text block">buyer intent</span>
-              <span className="block">on your listings.</span>
+              <span className="block">Upgrade to</span>
+              <span className="homzie-gradient-text block">Homzie Pro</span>
+              <span className="block">when you need more insight.</span>
             </h1>
             <p className="mt-5 max-w-lg break-words text-sm leading-7 text-white/78 sm:text-base">
               {agencyFundedSeat ? (
@@ -121,13 +121,12 @@ export default async function BecomeAgentPage() {
                 </>
               ) : (
                 <>
-                  {trialEligible
-                    ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()}, then pay `
-                    : "Subscribe instantly for "}
+                  Your profile, listings, and reels stay free to publish. {trialEligible
+                    ? `Add a card through Stripe to start a ${agentSubscriptionTrialLabel.toLowerCase()}, then pay `
+                    : "This optional Pro upgrade starts after Stripe checkout for "}
                   <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
-                  /month to see active buyers, buyer timelines, AI insights, and
-                  listing performance signals while your listings and reels stay
-                  free to publish.
+                  /month for anonymized listing activity, AI insights, and buyer
+                  conversations.
                 </>
               )}
             </p>
@@ -230,11 +229,11 @@ export default async function BecomeAgentPage() {
               <>
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-bold text-primary">Homzie Pro</p>
+                    <p className="text-sm font-bold text-primary">Optional Homzie Pro upgrade</p>
                     <p className="mt-2 text-sm font-normal text-muted-foreground">
                       {trialEligible
-                        ? `${agentSubscriptionTrialLabel} on monthly and yearly plans.`
-                        : "Monthly and yearly plans start billing immediately on this account."}
+                        ? `A card is required for the ${agentSubscriptionTrialLabel.toLowerCase()} on monthly and yearly plans.`
+                        : "A card is required. Monthly and yearly plans start billing immediately on this account."}
                     </p>
                     <div className="mt-4 flex items-end gap-2">
                       <span className="text-5xl font-bold tracking-tight sm:text-6xl">
@@ -267,7 +266,7 @@ export default async function BecomeAgentPage() {
                   <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
                     <LockKeyhole className="size-4" />
                     {trialEligible
-                      ? `${agentSubscriptionTrialLabel}. Cancel anytime before your first charge.`
+                      ? `Card required. ${agentSubscriptionTrialLabel}. Cancel anytime before your first charge.`
                       : "Your next subscription will start immediately after checkout."}
                   </p>
                 </div>

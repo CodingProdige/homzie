@@ -63,8 +63,13 @@ import {
   trackGoogleAdsConversion,
   trackGoogleEvent,
 } from "@/modules/analytics/gtag";
-import { CurrencySelector } from "@/modules/currency/currency-selector";
-import { useCurrency } from "@/modules/currency/currency-provider";
+import {
+  BASE_CURRENCY,
+  formatCurrencyAmount,
+  supportedCurrencies,
+  type SupportedCurrency,
+} from "@/modules/currency/currency";
+import { countryOptionForName } from "@/modules/location/country-preference";
 import { ListingCard, type ListingCardData } from "@/modules/listings/components/listing-card";
 import {
   archiveListing,
@@ -241,6 +246,7 @@ export type ListingDraft = {
   landSizeHectares: string;
   leaseExpiryDate: string;
   listingReference: string;
+  listingCurrency: SupportedCurrency;
   listingVisibility: string;
   listingType: ListingType;
   location: string;
@@ -453,6 +459,7 @@ const initialDraft: ListingDraft = {
   landSizeHectares: "",
   leaseExpiryDate: "",
   listingReference: "",
+  listingCurrency: BASE_CURRENCY,
   listingVisibility: "public",
   listingType: "sale",
   location: "",
@@ -1761,28 +1768,23 @@ function movedMediaIndex(
 function formatListingPrice(
   value: string,
   listingType: ListingType,
-  formatPriceCents: (cents: number) => string,
+  currency: SupportedCurrency,
 ) {
   const amount = Number(value);
 
   if (!Number.isFinite(amount) || amount <= 0) return "Price not set";
 
-  const formatted = formatPriceCents(Math.round(amount * 100));
+  const formatted = formatCurrencyAmount(amount, currency);
 
   return listingType === "rental" ? `${formatted}/month` : formatted;
 }
 
-function formatEditableCurrencyValue(
-  value: string,
-  convertFromZarAmount: (amountZar: number) => number,
-) {
+function formatNativeCurrencyValue(value: string) {
   const amount = parseListingNumberInput(value);
 
   if (amount === null) return "";
 
-  const converted = convertFromZarAmount(amount);
-
-  return formatGroupedMoney(converted);
+  return formatGroupedMoney(amount);
 }
 
 function inferMoneyEditingDecimalSeparator(value: string) {
@@ -1829,33 +1831,18 @@ function formatMoneyEditingValue(value: string) {
   return `${formatGroupedNumber(wholeValue, 0)}.${decimalDigits}`;
 }
 
-function editableCurrencyToZarValue(
-  value: string,
-  convertToZarAmount: (amount: number) => number,
-) {
-  const amount = parseListingNumberInput(value);
-
-  if (amount === null) return "";
-
-  return formatPlainNumber(convertToZarAmount(amount), 2);
-}
-
 function CurrencyAmountInput({
   className,
-  convertFromZarAmount,
-  convertToZarAmount,
   onValueChange,
   placeholder,
   value,
 }: {
   className?: string;
-  convertFromZarAmount: (amountZar: number) => number;
-  convertToZarAmount: (amount: number) => number;
   onValueChange: (value: string) => void;
   placeholder?: string;
   value: string;
 }) {
-  const formattedValue = formatEditableCurrencyValue(value, convertFromZarAmount);
+  const formattedValue = formatNativeCurrencyValue(value);
   const [displayValue, setDisplayValue] = useState(formattedValue);
   const focusedRef = useRef(false);
 
@@ -1877,7 +1864,8 @@ function CurrencyAmountInput({
         const nextDisplayValue = formatMoneyEditingValue(event.target.value);
 
         setDisplayValue(nextDisplayValue);
-        onValueChange(editableCurrencyToZarValue(nextDisplayValue, convertToZarAmount));
+        const amount = parseListingNumberInput(nextDisplayValue);
+        onValueChange(amount === null ? "" : formatPlainNumber(amount, 2));
       }}
       onBlur={() => {
         focusedRef.current = false;
@@ -1891,7 +1879,7 @@ function CurrencyAmountInput({
         }
 
         setDisplayValue(formatGroupedMoney(amount));
-        onValueChange(formatPlainNumber(convertToZarAmount(amount), 2));
+        onValueChange(formatPlainNumber(amount, 2));
       }}
       placeholder={placeholder}
       className={className}
@@ -1912,8 +1900,6 @@ function isReducedPrice(askingPrice: string, previousAskingPrice: string) {
 }
 
 function ListingCostInput({
-  convertFromZarAmount,
-  convertToZarAmount,
   currency,
   description,
   draftKey,
@@ -1922,9 +1908,7 @@ function ListingCostInput({
   setDraft,
   value,
 }: {
-  convertFromZarAmount: (amountZar: number) => number;
-  convertToZarAmount: (amount: number) => number;
-  currency: string;
+  currency: SupportedCurrency;
   description?: string;
   draftKey: keyof ListingDraft;
   label: string;
@@ -1942,8 +1926,6 @@ function ListingCostInput({
       </span>
       <CurrencyAmountInput
         value={value}
-        convertFromZarAmount={convertFromZarAmount}
-        convertToZarAmount={convertToZarAmount}
         onValueChange={(nextValue) => updateDraft(setDraft, draftKey, nextValue)}
         placeholder={placeholder || "0.00"}
         className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
@@ -3298,6 +3280,7 @@ export function CreateListingPage({
         <input type="hidden" name="coverIndex" value={coverIndex} />
         <input type="hidden" name="addressVisibility" value={draft.addressVisibility} />
         <input type="hidden" name="askingPrice" value={draft.askingPrice} />
+        <input type="hidden" name="listingCurrency" value={draft.listingCurrency} />
         <input type="hidden" name="availableFrom" value={draft.availableFrom} />
         <input type="hidden" name="bathrooms" value={draft.bathrooms} />
         <input type="hidden" name="bedrooms" value={draft.bedrooms} />
@@ -5108,39 +5091,66 @@ function PricingStep({
   draft: ListingDraft;
   setDraft: Dispatch<SetStateAction<ListingDraft>>;
 }) {
-  const { convertFromZarAmount, convertToZarAmount, currency, formatPriceCents } =
-    useCurrency();
   const showReducedPrice = isReducedPrice(
     draft.askingPrice,
     draft.previousAskingPrice,
   );
-  const askingPricePlaceholder = formatEditableCurrencyValue(
-    draft.listingType === "rental" ? "25000" : "4500000",
-    convertFromZarAmount,
-  );
+  const countryCurrency = countryOptionForName(draft.country)?.currency;
+  const askingPricePlaceholder = draft.listingType === "rental" ? "25,000" : "4,500,000";
 
   return (
     <div className="space-y-6">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
         <div className="min-w-0">
           <h2 className="text-base font-semibold">Pricing</h2>
           <p className="mt-1 text-sm font-normal text-muted-foreground">
-            Enter the amount buyers should see in the selected currency. Homzie
-            handles conversion and storage behind the scenes.
+            Set the listing&apos;s real currency and enter the local amount. Buyers may
+            see an approximate conversion alongside it.
           </p>
         </div>
-        <CurrencySelector className="shrink-0 self-start" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-medium">
+          <span className="inline-flex items-center">Listing currency</span>
+          <select
+            value={draft.listingCurrency}
+            onChange={(event) => {
+              const listingCurrency = event.target.value as SupportedCurrency;
+
+              setDraft((current) => ({
+                ...current,
+                listingCurrency,
+                reservationAmount:
+                  listingCurrency === BASE_CURRENCY
+                    ? current.reservationAmount
+                    : "",
+                reservationEnabled:
+                  listingCurrency === BASE_CURRENCY
+                    ? current.reservationEnabled
+                    : false,
+              }));
+            }}
+            className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
+          >
+            {supportedCurrencies.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.flag} {option.code} — {option.label}
+              </option>
+            ))}
+          </select>
+          {countryCurrency && countryCurrency !== draft.listingCurrency ? (
+            <span className="mt-1 block text-xs font-normal text-muted-foreground">
+              The local currency for {draft.country} is usually {countryCurrency}.
+            </span>
+          ) : null}
+        </label>
+        <label className="block text-sm font-medium">
           <span className="inline-flex items-center">
-            Asking price ({currency})
+            Asking price ({draft.listingCurrency})
             <RequiredAsterisk />
           </span>
           <CurrencyAmountInput
             value={draft.askingPrice}
-            convertFromZarAmount={convertFromZarAmount}
-            convertToZarAmount={convertToZarAmount}
             onValueChange={(value) => updateDraft(setDraft, "askingPrice", value)}
             placeholder={askingPricePlaceholder}
             className="mt-2 h-12 w-full rounded-md border border-border bg-background px-4 text-sm font-normal outline-none transition-colors focus:border-primary"
@@ -5148,7 +5158,7 @@ function PricingStep({
         </label>
         <label className="block text-sm font-medium">
           <span className="inline-flex items-center gap-1.5">
-            Previous price ({currency})
+            Previous price ({draft.listingCurrency})
             <AnalyticsInfoPopover
               title="Previous price"
               description="Use this when the listing has been reduced. It only appears as Reduced from when it is higher than the asking price."
@@ -5156,8 +5166,6 @@ function PricingStep({
           </span>
           <CurrencyAmountInput
             value={draft.previousAskingPrice}
-            convertFromZarAmount={convertFromZarAmount}
-            convertToZarAmount={convertToZarAmount}
             onValueChange={(value) =>
               updateDraft(setDraft, "previousAskingPrice", value)
             }
@@ -5209,9 +5217,7 @@ function PricingStep({
         </p>
         <div className="mt-4 grid gap-4">
           <ListingCostInput
-            convertFromZarAmount={convertFromZarAmount}
-            convertToZarAmount={convertToZarAmount}
-            currency={currency}
+            currency={draft.listingCurrency}
             description="Recurring local government or municipal charges associated with owning the property. In South Africa this is usually rates and taxes."
             draftKey="localTaxes"
             label="Local taxes"
@@ -5220,9 +5226,7 @@ function PricingStep({
             value={draft.localTaxes}
           />
           <ListingCostInput
-            convertFromZarAmount={convertFromZarAmount}
-            convertToZarAmount={convertToZarAmount}
-            currency={currency}
+            currency={draft.listingCurrency}
             description="Recurring body corporate, HOA, estate, strata, levy or community charges paid by the owner or occupant."
             draftKey="communityFees"
             label="Community fees"
@@ -5231,9 +5235,7 @@ function PricingStep({
             value={draft.communityFees}
           />
           <ListingCostInput
-            convertFromZarAmount={convertFromZarAmount}
-            convertToZarAmount={convertToZarAmount}
-            currency={currency}
+            currency={draft.listingCurrency}
             description="Estimated monthly utilities such as electricity, water, refuse, gas, internet or other recurring services."
             draftKey="utilitiesEstimate"
             label="Utilities estimate"
@@ -5241,9 +5243,7 @@ function PricingStep({
             value={draft.utilitiesEstimate}
           />
           <ListingCostInput
-            convertFromZarAmount={convertFromZarAmount}
-            convertToZarAmount={convertToZarAmount}
-            currency={currency}
+            currency={draft.listingCurrency}
             description="Estimated property insurance or building cover cost where it is useful for buyers to budget ownership costs."
             draftKey="insuranceEstimate"
             label="Insurance estimate"
@@ -5251,9 +5251,7 @@ function PricingStep({
             value={draft.insuranceEstimate}
           />
           <ListingCostInput
-            convertFromZarAmount={convertFromZarAmount}
-            convertToZarAmount={convertToZarAmount}
-            currency={currency}
+            currency={draft.listingCurrency}
             description="Estimated once-off transfer, registration or closing costs. Use the local equivalent for the listing market."
             draftKey="transferCostsEstimate"
             label="Transfer costs estimate"
@@ -5341,7 +5339,7 @@ function PricingStep({
           {formatListingPrice(
             draft.askingPrice,
             draft.listingType,
-            formatPriceCents,
+            draft.listingCurrency,
           )}
         </p>
         {showReducedPrice ? (
@@ -5351,7 +5349,7 @@ function PricingStep({
               {formatListingPrice(
                 draft.previousAskingPrice,
                 draft.listingType,
-                formatPriceCents,
+                draft.listingCurrency,
               )}
             </span>
           </p>
@@ -5829,7 +5827,7 @@ function MandateStep({
           />
         </label>
       </div>
-      {draft.propertyCategory === "development" ? (
+      {draft.propertyCategory === "development" && draft.listingCurrency === BASE_CURRENCY ? (
       <div className="border-t border-border pt-5">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
           Reservation deposit
@@ -5843,8 +5841,6 @@ function MandateStep({
             Reservation amount (ZAR)
             <CurrencyAmountInput
               value={draft.reservationAmount}
-              convertFromZarAmount={(amount) => amount}
-              convertToZarAmount={(amount) => amount}
               onValueChange={(value) =>
                 updateDraft(setDraft, "reservationAmount", value)
               }
@@ -5870,6 +5866,10 @@ function MandateStep({
           </label>
         </div>
       </div>
+      ) : draft.propertyCategory === "development" ? (
+        <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm font-normal leading-6 text-muted-foreground">
+          Reservation deposits are currently available only for ZAR listings.
+        </div>
       ) : null}
       <div className="rounded-lg border border-primary/15 bg-primary/5 p-4 text-sm font-normal leading-6 text-muted-foreground">
         Listings cannot simply disappear from performance history after outcomes
@@ -6186,6 +6186,7 @@ function ListingPreview({
     isPrivate: draft.listingVisibility === "profile_private",
     imageUrls,
     landSizeHectares: draft.landSizeHectares,
+    listingCurrency: draft.listingCurrency,
     listingType: draft.listingType,
     listingTypeLabel: activeListingType,
     location:

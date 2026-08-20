@@ -16,8 +16,9 @@ import {
   sql,
 } from "drizzle-orm";
 import {
-  BadgeCheck,
   ChevronRight,
+  Clapperboard,
+  Globe2,
   LocateFixed,
   MessageCircle,
   Search,
@@ -142,16 +143,38 @@ const heroImage =
   "https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1600&q=85";
 const heroValueSignals = [
   {
-    icon: BadgeCheck,
-    label: "FREE LISTINGS",
-  },
-  {
-    icon: MessageCircle,
-    label: "LIVE BUYER CHAT",
+    icon: Clapperboard,
+    label: "PROPERTY REELS",
   },
   {
     icon: UserRoundCheck,
-    label: "AGENT BRAND GROWTH",
+    label: "FOLLOW AGENTS",
+  },
+  {
+    icon: MessageCircle,
+    label: "DIRECT CONNECTIONS",
+  },
+];
+const discoveryPillars = [
+  {
+    icon: Clapperboard,
+    label: "Watch",
+    text: "Discover homes through short-form property reels, not just static cards.",
+  },
+  {
+    icon: UserRoundCheck,
+    label: "Follow",
+    text: "Keep the agents, listings, and local knowledge you trust in one place.",
+  },
+  {
+    icon: Globe2,
+    label: "Discover",
+    text: "Explore homes and people across markets without changing platforms.",
+  },
+  {
+    icon: MessageCircle,
+    label: "Connect",
+    text: "Start a conversation when you are ready, with the context already attached.",
   },
 ];
 const homeDiscoverListingsPageSize = 24;
@@ -438,7 +461,7 @@ async function getTopAgents(countryName?: string): Promise<TopAgent[]> {
 
   const soldRows = await db
     .select({
-      soldPriceCents: propertyListings.soldPriceCents,
+      soldPriceComparableZarCents: propertyListings.soldPriceComparableZarCents,
       status: propertyListings.status,
       userId: propertyListings.userId,
     })
@@ -487,7 +510,7 @@ async function getTopAgents(countryName?: string): Promise<TopAgent[]> {
 
     if (listing.status === "sold") {
       current.soldCount += 1;
-      current.totalSoldValueCents += listing.soldPriceCents || 0;
+      current.totalSoldValueCents += listing.soldPriceComparableZarCents || 0;
     }
 
     totalsByUserId.set(listing.userId, current);
@@ -523,27 +546,27 @@ async function getTopAgents(countryName?: string): Promise<TopAgent[]> {
       };
     })
     .filter((agent) => agent.username)
-    .sort((first, second) => {
-      const firstLocationMatches =
-        countryName && first.location.toLowerCase().includes(countryName.toLowerCase());
-      const secondLocationMatches =
+      .sort((first, second) => {
+        const firstLocationMatches =
+          countryName && first.location.toLowerCase().includes(countryName.toLowerCase());
+        const secondLocationMatches =
         countryName && second.location.toLowerCase().includes(countryName.toLowerCase());
 
       if (firstLocationMatches !== secondLocationMatches) {
         return firstLocationMatches ? -1 : 1;
       }
 
-      if (second.totalSoldValueCents !== first.totalSoldValueCents) {
-        return second.totalSoldValueCents - first.totalSoldValueCents;
-      }
+        if (second.activeListingCount !== first.activeListingCount) {
+          return second.activeListingCount - first.activeListingCount;
+        }
 
-      if (second.activeListingCount !== first.activeListingCount) {
-        return second.activeListingCount - first.activeListingCount;
-      }
+        if (second.soldCount !== first.soldCount) {
+          return second.soldCount - first.soldCount;
+        }
 
-      return second.soldCount - first.soldCount;
-    })
-    .slice(0, 10);
+        return first.name.localeCompare(second.name);
+      })
+      .slice(0, 10);
 }
 
 function buildHomeListingStats(listings: HomeListingSummary[]) {
@@ -937,8 +960,8 @@ async function TopAgentsSection({
       <SectionHeader
         actionHref="/agents"
         actionLabel="View all agents"
-        eyebrow="Ranked by recorded sold value over the past year."
-        title="Top agents near you"
+        eyebrow="Selected for active work, public profiles, and recent listings."
+        title="Featured agents"
       />
       {topAgents.length ? (
         <HorizontalScrollRail>
@@ -964,8 +987,8 @@ async function TopAgentsSection({
         <SectionEmptyState
           actionHref="/agents"
           actionLabel="Browse agents"
-          description="Agents will appear here once they add listings, publish reels, or mark themselves as agents."
-          title="No top agents to rank yet"
+          description="Be among the first agents to build a public Homzie profile, publish listings, and share property reels."
+          title="Be early on Homzie"
         />
       )}
     </section>
@@ -1020,6 +1043,7 @@ async function PromotedHomeSections({
                     location: listing.location,
                     mandateType: listing.mandateType,
                     parking: listing.parking,
+                    listingCurrency: listing.listingCurrency,
                     priceCents: listing.priceCents,
                     priceLabel: listing.priceLabel,
                     propertyTypeLabel: listing.propertyTypeLabel,
@@ -1232,8 +1256,8 @@ async function AgentReelsSection({
       <SectionHeader
         actionHref="/reels"
         actionLabel="View all reels"
-        eyebrow="Get inspired by agents. Watch, connect and find your next home."
-        title="Agent Reels"
+        eyebrow="Watch homes through short-form property content from the people listing them."
+        title="Property Reels"
       />
       {homeReels.length ? (
         <HorizontalScrollRail>
@@ -1246,9 +1270,9 @@ async function AgentReelsSection({
       ) : (
         <SectionEmptyState
           actionHref="/reels"
-          actionLabel="Open reels"
-          description="Property reels will appear here once agents begin publishing video."
-          title="No agent reels yet"
+          actionLabel="Create a reel"
+          description="The first property reels are being created now. Publish yours and help define a more visual way to discover homes."
+          title="Be first to the feed"
         />
       )}
     </section>
@@ -1385,26 +1409,30 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 ))}
               </div>
               <h1 className="text-balance text-4xl font-black leading-[1.04] tracking-tight text-brand-black dark:text-foreground sm:text-6xl lg:text-7xl">
-                <span className="block">Find homes.</span>
+                <span className="block">Property discovery.</span>
                 <span className="homzie-gradient-text block pb-2 text-5xl sm:text-6xl lg:text-7xl">
-                  Chat live. List free.
+                  Rebuilt around people.
                 </span>
               </h1>
               <p className="mx-auto mt-4 max-w-3xl text-balance text-sm font-semibold leading-6 text-muted-foreground sm:mt-6 sm:text-lg sm:leading-8">
-                South Africa&apos;s first platform where{" "}
-                <span className="font-bold text-brand-black dark:text-foreground">
-                  buyers discover homes
-                </span>
-                ,{" "}
-                <span className="font-bold text-brand-black dark:text-foreground">
-                  sellers chat live
-                </span>
-                , and{" "}
-                <span className="font-bold text-brand-black dark:text-foreground">
-                  agents list for free
-                </span>{" "}
-                &mdash; all in one place.
+                Watch property reels, follow the agents behind the listings, and
+                discover homes across markets. When you&apos;re ready, connect directly
+                with the person who knows the property.
               </p>
+              <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row sm:items-center">
+                <Button asChild className="h-11 px-5 text-sm sm:h-12">
+                  <Link href={appendCountryPreference("/listings", countryPreference)}>
+                    Explore properties
+                    <ChevronRight className="size-4" />
+                  </Link>
+                </Button>
+                <Button asChild className="h-11 px-5 text-sm sm:h-12" variant="outline">
+                  <Link href="/for-agents">
+                    List free as an agent
+                    <UserRoundCheck className="size-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
 
             <PropertySearchBar
@@ -1423,6 +1451,41 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             >
               <LiveStatsSection />
             </Suspense>
+          </div>
+        </section>
+
+        <section className="page-body -mt-2 relative z-20 sm:-mt-6">
+          <div className="overflow-hidden rounded-lg border border-border bg-card p-4 shadow-xl shadow-primary/5 sm:p-5">
+            <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                  Watch · Follow · Discover · Connect
+                </p>
+                <h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">
+                  A property network built around people, not just portals.
+                </h2>
+              </div>
+              <Link
+                href="/for-agents"
+                className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary hover:underline"
+              >
+                For real estate agents
+                <ChevronRight className="size-4" />
+              </Link>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {discoveryPillars.map(({ icon: Icon, label, text }) => (
+                <article key={label} className="rounded-md bg-muted/45 p-3 sm:p-4">
+                  <span className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary">
+                    <Icon className="size-4" />
+                  </span>
+                  <h3 className="mt-3 text-sm font-black">{label}</h3>
+                  <p className="mt-1 text-xs font-medium leading-5 text-muted-foreground">
+                    {text}
+                  </p>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -1452,8 +1515,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <SectionHeader
                 actionHref="/agents"
                 actionLabel="View all agents"
-                eyebrow="Ranked by recorded sold value over the past year."
-                title="Top agents near you"
+                eyebrow="Selected for active work, public profiles, and recent listings."
+                title="Featured agents"
               />
               <RailSkeleton />
             </section>
@@ -1507,8 +1570,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <SectionHeader
                 actionHref="/reels"
                 actionLabel="View all reels"
-                eyebrow="Get inspired by agents. Watch, connect and find your next home."
-                title="Agent Reels"
+                eyebrow="Watch homes through short-form property content from the people listing them."
+                title="Property Reels"
               />
               <RailSkeleton cardClassName="h-64 w-44 sm:w-52" />
             </section>

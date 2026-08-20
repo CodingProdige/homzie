@@ -641,6 +641,7 @@ export async function getReelOwnerListings(reelId: string) {
     .select({
       coverImageUrl: propertyListings.coverImageUrl,
       id: propertyListings.id,
+      listingCurrency: propertyListings.listingCurrency,
       location: propertyListings.location,
       priceCents: propertyListings.askingPriceCents,
       priceLabel: propertyListings.priceLabel,
@@ -769,6 +770,7 @@ export async function linkReelListing(input: unknown) {
     .select({
       coverImageUrl: propertyListings.coverImageUrl,
       id: propertyListings.id,
+      listingCurrency: propertyListings.listingCurrency,
       location: propertyListings.location,
       priceCents: propertyListings.askingPriceCents,
       priceLabel: propertyListings.priceLabel,
@@ -801,6 +803,7 @@ export async function linkReelListing(input: unknown) {
     linkedListing: {
       coverImageUrl: toPublicMediaUrl(listing.coverImageUrl),
       id: listing.id,
+      listingCurrency: listing.listingCurrency,
       location: listing.location,
       priceCents: listing.priceCents,
       priceLabel: listing.priceLabel,

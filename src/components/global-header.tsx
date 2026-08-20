@@ -56,6 +56,7 @@ const navItems: Array<{
   { href: "/listings", icon: Building2, label: "Listings" },
   { href: "/agents", icon: UsersRound, label: "Agents" },
   { href: "/reels", icon: Clapperboard, label: "Reels" },
+  { href: "/for-agents", icon: UserRound, label: "For agents" },
   { href: "/agencies", icon: Network, label: "Agencies" },
   { href: "/about", icon: CircleHelp, label: "About" },
   { href: "/contact", icon: Send, label: "Contact" },
@@ -98,11 +99,13 @@ export function GlobalHeader({
   const profileHref = viewerUsername ? `/users/${viewerUsername}` : "/sign-in";
   const listFreeHref = viewerUsername
     ? "/listings/new"
-    : "/sign-up?callbackUrl=/listings/new";
+    : "/register?callbackUrl=/listings/new";
+  const forAgentsHref = "/for-agents";
   const messagesHref = "/messages";
   const eventsHref = viewerUsername ? "/events" : "/sign-in";
   const isProfileActive = isActiveHref(profileHref);
   const isListFreeActive = isActiveHref("/listings/new");
+  const isForAgentsActive = isActiveHref(forAgentsHref);
   const isMessagesActive = isActiveHref(messagesHref);
   const isEventsActive = isActiveHref("/events");
   const isAgencyActive = isActiveHref("/controlroom") || isActiveHref("/agency");
@@ -484,6 +487,23 @@ export function GlobalHeader({
               {viewerUsername ? (
                 <MessageCountBadge className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground" />
               ) : null}
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            asChild
+            className={cn(
+              "hidden px-3 xl:inline-flex",
+              isForAgentsActive && "bg-primary/10 text-primary",
+            )}
+          >
+            <Link
+              href={forAgentsHref}
+              aria-current={isForAgentsActive ? "page" : undefined}
+              prefetch={isForAgentsActive ? false : undefined}
+            >
+              <UserRound className="size-4" />
+              For agents
             </Link>
           </Button>
           <Button

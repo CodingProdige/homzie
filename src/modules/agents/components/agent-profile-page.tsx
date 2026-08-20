@@ -361,8 +361,8 @@ function AgentPlatformBanner() {
           <p className="text-sm font-semibold text-brand-pink">Agent creator platform</p>
           <h2 className="mt-1 text-xl font-bold">Publish listings, post reels, and link every video to a property.</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
-            Agents subscribe from {agentProfile.subscriptionPrice} to manage their profile, upload listings,
-            publish reels, capture leads, book viewings, and boost visibility.
+            Create a free profile to upload listings and publish reels. Homzie Pro
+            adds advanced activity, performance, and growth tools when you need them.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">

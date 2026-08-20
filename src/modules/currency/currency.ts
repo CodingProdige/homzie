@@ -199,6 +199,15 @@ export function isSupportedCurrency(value: string): value is SupportedCurrency {
   return supportedCurrencies.some((currency) => currency.code === value);
 }
 
+export function normalizeSupportedCurrency(
+  value: string | null | undefined,
+  fallback: SupportedCurrency = BASE_CURRENCY,
+): SupportedCurrency {
+  const candidate = value?.trim().toUpperCase();
+
+  return candidate && isSupportedCurrency(candidate) ? candidate : fallback;
+}
+
 export function convertFromZar(
   amountZar: number,
   currency: SupportedCurrency,
@@ -215,6 +224,28 @@ export function convertToZar(
   const rate = rates[currency] || fallbackCurrencyRates[currency] || 1;
 
   return amount / rate;
+}
+
+export function convertCurrencyAmount(
+  amount: number,
+  fromCurrency: SupportedCurrency,
+  toCurrency: SupportedCurrency,
+  rates: CurrencyRates,
+) {
+  if (fromCurrency === toCurrency) return amount;
+
+  return convertFromZar(convertToZar(amount, fromCurrency, rates), toCurrency, rates);
+}
+
+export function convertCurrencyCents(
+  cents: number,
+  fromCurrency: SupportedCurrency,
+  toCurrency: SupportedCurrency,
+  rates: CurrencyRates,
+) {
+  return Math.round(
+    convertCurrencyAmount(cents / 100, fromCurrency, toCurrency, rates) * 100,
+  );
 }
 
 export function formatCurrencyAmount(

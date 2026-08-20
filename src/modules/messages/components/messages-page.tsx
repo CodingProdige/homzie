@@ -1388,6 +1388,12 @@ function OfferBubble({
 
   const listing = message.attachments[0];
   const canRespond = !mine && offer.status === "pending";
+  const statusLabel =
+    offer.status === "accepted"
+      ? "Acknowledged"
+      : offer.status === "declined"
+        ? "Declined"
+        : "Awaiting response";
   const statusClassName =
     offer.status === "accepted"
       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
@@ -1405,7 +1411,7 @@ function OfferBubble({
       {listing?.previewImageUrl ? (
         <Image
           src={listing.previewImageUrl}
-          alt={listing.title || "Listing offer"}
+          alt={listing.title || "Listing proposed price"}
           width={320}
           height={180}
           className="aspect-[16/9] w-full object-cover"
@@ -1413,7 +1419,7 @@ function OfferBubble({
       ) : null}
       <div className="p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-          Property offer
+          Proposed price
         </p>
         <p className="mt-1 text-lg font-semibold">
           {offerLabel(offer.amountCents, offer.currency)}
@@ -1423,13 +1429,16 @@ function OfferBubble({
             {listing.title}
           </p>
         ) : null}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Starts a conversation and is not binding.
+        </p>
         <span
           className={cn(
             "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize",
             statusClassName,
           )}
         >
-          {offer.status}
+          {statusLabel}
         </span>
         {canRespond ? (
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -1439,7 +1448,7 @@ function OfferBubble({
               disabled={pending}
               onClick={() => onRespond?.(offer.id, "accepted")}
             >
-              Accept
+              Acknowledge
             </Button>
             <Button
               type="button"

@@ -34,9 +34,9 @@ import {
 } from "@/app/for-agents/agent-landing-tracking";
 
 export const metadata: Metadata = {
-  title: "Go Pro | See Buyer Intent Live",
+  title: "Homzie Pro | Optional Listing-Activity Upgrade",
   description:
-    "Listings, reels, and agent profiles are free on Homzie. Go Pro to unlock live buyer activity, buyer intent, AI insights, and chat opportunities.",
+    "Agent profiles, listings, and property reels are free on Homzie. Homzie Pro is an optional paid upgrade for anonymized listing activity, AI insights, and buyer conversations.",
 };
 
 const checkoutPath = "/become-agent";
@@ -52,7 +52,7 @@ function TrialButton({
   location,
   variant = "default",
   className,
-  children = "Start 7-day free trial",
+  children = "Start 7-day Pro trial",
 }: {
   href: string;
   location: string;
@@ -76,37 +76,37 @@ const freeFeatures = [
   "Post property reels",
   "Basic listing management",
   "Public discovery on Homzie",
+  "No payment card required",
 ];
 
 const proFeatures = [
-  "Live buyer activity",
-  "Active viewer panels",
-  "Buyer activity timelines",
-  "AI buyer and listing insights",
-  "Chat with interested buyers",
+  "Live, anonymized listing activity",
+  "Listing-level activity trends",
+  "AI listing-performance insights",
+  "Conversations with contact-ready buyers",
   "Listing buyer activity overview",
 ];
 
 const proUnlocks = [
   {
     icon: Eye,
-    title: "See active buyers",
-    text: "Know which signed-in buyers are viewing your listings and who keeps returning.",
+    title: "See activity as it happens",
+    text: "Track anonymized live activity and returning interest across the listings you own.",
   },
   {
     icon: BarChart3,
-    title: "Understand intent",
-    text: "Read timelines that show views, saves, likes, photo browsing, bond calculator usage, and offer starts.",
+    title: "Understand listing interest",
+    text: "Review listing-level trends from views, saves, likes, photo browsing, calculator use, and proposed-price starts.",
   },
   {
     icon: MessageCircle,
-    title: "Act while interest is hot",
-    text: "Start the right conversation while the buyer is active instead of waiting for a cold enquiry.",
+    title: "Connect by choice",
+    text: "Start a conversation when an interested buyer chooses to contact you through Homzie.",
   },
   {
     icon: Sparkles,
     title: "Use AI insight",
-    text: "Get plain-language summaries of buyer behaviour and listing performance so you know what to improve.",
+    text: "Get plain-language summaries of listing activity and performance so you know what to improve.",
   },
 ];
 
@@ -114,10 +114,10 @@ const comparisonRows = [
   ["Agent profile", true, true],
   ["Listings and reels", true, true],
   ["Basic listing management", true, true],
-  ["Live buyer activity", false, true],
-  ["Buyer timelines", false, true],
-  ["AI intent insights", false, true],
-  ["Chat from buyer intent surfaces", false, true],
+  ["Anonymized live listing activity", false, true],
+  ["Listing-level activity trends", false, true],
+  ["AI listing insights", false, true],
+  ["Contact-ready buyer conversations", false, true],
 ] as const;
 
 const agencyRows = [
@@ -152,9 +152,9 @@ function CheckMark({ active }: { active: boolean }) {
 
 function BuyerIntentMockup() {
   const rows = [
-    ["Sarah Parker", "High", "2m ago"],
-    ["James M.", "High", "5m ago"],
-    ["Lindiwe N.", "Low", "18m ago"],
+    ["Anonymous activity", "4 viewers", "2m ago"],
+    ["New message", "Contact-ready", "5m ago"],
+    ["Saved this listing", "Interest signal", "18m ago"],
   ];
 
   return (
@@ -162,9 +162,9 @@ function BuyerIntentMockup() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
-            Buyer activity
+            Live listing activity
           </p>
-          <p className="mt-1 text-2xl font-semibold">5 active viewers</p>
+          <p className="mt-1 text-2xl font-semibold">5 viewers active now</p>
         </div>
         <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
           Live
@@ -191,8 +191,8 @@ function BuyerIntentMockup() {
       <div className="mt-4 rounded-lg border border-primary/15 bg-primary/5 p-3">
         <p className="text-sm font-semibold">AI insight</p>
         <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">
-          You have returning buyers on your strongest listing. Follow up while
-          activity is live.
+          Your strongest listing has returning activity. Review the trend and
+          respond when a buyer starts a conversation.
         </p>
       </div>
     </div>
@@ -223,12 +223,13 @@ export default async function GoProPage() {
                 Upgrade your demand layer
               </p>
               <h1 className="mt-4 text-5xl font-semibold leading-[0.95] tracking-tight sm:text-7xl">
-                Go Pro. See Buyer Intent Live.
+                Optional Pro. See Listing Activity Live.
               </h1>
               <p className="mt-6 max-w-2xl text-base font-normal leading-8 text-muted-foreground sm:text-lg">
-                Listings, reels, and your agent profile are free. Homzie Pro
-                unlocks the buyer demand layer: active buyers, listing activity,
-                buyer timelines, AI insights, and chat opportunities.
+                Publishing is already free: create your profile, publish listings,
+                and post property reels with no payment card. Homzie Pro is an
+                optional paid upgrade for anonymized listing activity, AI insights,
+                and conversations with buyers who choose to contact you.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <TrialButton
@@ -236,18 +237,18 @@ export default async function GoProPage() {
                   location="hero"
                   className="h-12 px-6 text-sm font-semibold sm:h-14"
                 />
-                <TrialButton
-                  href="#plans"
-                  location="compare"
-                  variant="outline"
+                <Button
+                  asChild
                   className="h-12 px-6 text-sm font-semibold sm:h-14"
+                  size="lg"
+                  variant="outline"
                 >
-                  Compare plans
-                </TrialButton>
+                  <a href="#plans">Compare free and Pro</a>
+                </Button>
               </div>
               <p className="mt-4 text-xs font-normal text-muted-foreground">
-                Card required. You are only charged after the 7-day trial unless
-                you cancel first.
+                A card is required to start the Stripe-backed 7-day Pro trial.
+                You are only charged after the trial unless you cancel first.
               </p>
             </div>
 
@@ -259,13 +260,13 @@ export default async function GoProPage() {
                       <Radar className="size-7" />
                     </span>
                     <h2 className="mt-8 text-2xl font-semibold leading-tight">
-                      Unlock buyer-intent tools that drive real action.
+                      Unlock listing-activity tools that drive better action.
                     </h2>
                     <div className="mt-6 grid gap-3">
                       {[
-                        "See who is actively interested",
-                        "Message buyers in real time",
-                        "Win more deals faster",
+                        "Follow anonymous activity trends",
+                        "Respond when a buyer starts a conversation",
+                        "Understand listing performance",
                       ].map((item) => (
                         <p
                           key={item}
@@ -291,10 +292,11 @@ export default async function GoProPage() {
           <AgentPricingViewedTracker />
           <div className="grid gap-4 lg:grid-cols-2">
             <article className="homzie-hover-lift rounded-lg border border-border bg-card p-6 shadow-sm">
-              <p className="text-sm font-normal text-muted-foreground">Free</p>
+              <p className="text-sm font-normal text-muted-foreground">Free publishing</p>
               <h2 className="mt-3 text-4xl font-semibold">R0</h2>
               <p className="mt-2 text-sm font-normal text-muted-foreground">
-                Everything you need to start building your public property brand.
+                No payment card needed. Everything you need to build your public
+                property brand is already available for free.
               </p>
               <div className="mt-6 grid gap-3">
                 {freeFeatures.map((feature) => (
@@ -304,13 +306,19 @@ export default async function GoProPage() {
                   </p>
                 ))}
               </div>
+              <Button asChild className="mt-7 w-full" variant="outline">
+                <a href="/for-agents">
+                  Start publishing free
+                  <ArrowRight className="size-4" />
+                </a>
+              </Button>
             </article>
 
             <article className="homzie-hover-lift relative overflow-hidden rounded-lg border border-primary bg-card p-6 shadow-xl shadow-primary/10">
               <span className="absolute right-5 top-5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
                 Most popular
               </span>
-              <p className="text-sm font-semibold text-primary">Pro</p>
+              <p className="text-sm font-semibold text-primary">Optional paid upgrade</p>
               <div className="mt-3 flex flex-wrap items-end gap-2">
                 <h2 className="text-4xl font-semibold">
                   <CurrencyAmount cents={agentSubscriptionPrice.amountCents} />
@@ -320,8 +328,8 @@ export default async function GoProPage() {
                 </p>
               </div>
               <p className="mt-2 text-sm font-normal text-muted-foreground">
-                Unlock the demand tools that turn listing attention into
-                conversations.
+                Unlock the demand tools that turn listing activity into better
+                follow-up and buyer conversations.
               </p>
               <div className="mt-6 grid gap-3">
                 {proFeatures.map((feature) => (
@@ -337,7 +345,7 @@ export default async function GoProPage() {
                 className="mt-7 w-full"
               />
               <p className="mt-3 text-center text-xs font-normal text-muted-foreground">
-                {agentSubscriptionTrialLabel}. Cancel before your first charge.
+                Card required for the {agentSubscriptionTrialLabel.toLowerCase()}. Cancel before your first charge.
               </p>
             </article>
           </div>
@@ -484,7 +492,11 @@ export default async function GoProPage() {
             {[
               [
                 "Can I create listings without Pro?",
-                "Yes. Listings, reels, your public agent profile, and agent performance are free. Pro unlocks realtime buyer intent, AI listing insight, and chat opportunities.",
+                "Yes. Your public agent profile, listings, property reels, and basic listing management are free. No payment card is required. Pro is an optional upgrade for listing-activity tools and AI insights.",
+              ],
+              [
+                "Does the Pro trial require a card?",
+                "Yes. Stripe securely collects a card to start the 7-day Pro trial. You are charged only if you continue after the trial, and you can cancel before the first charge.",
               ],
               [
                 "What happens if my agency pays for me?",
@@ -513,10 +525,11 @@ export default async function GoProPage() {
 
           <div className="homzie-hover-lift mt-8 rounded-lg border border-border bg-card p-6 text-center shadow-xl shadow-primary/5">
             <LockKeyhole className="mx-auto size-6 text-primary" />
-            <h2 className="mt-4 text-2xl font-semibold">Ready to see buyer intent?</h2>
+            <h2 className="mt-4 text-2xl font-semibold">Ready for deeper listing insight?</h2>
             <p className="mx-auto mt-2 max-w-2xl text-sm font-normal leading-7 text-muted-foreground">
-              Start with a 7-day trial, publish freely, and unlock the buyer
-              signals that make follow-up feel obvious.
+              Your free publishing tools remain available either way. Start the
+              optional 7-day Pro trial to unlock anonymized listing activity and
+              AI performance insight.
             </p>
             <TrialButton
               href={href}

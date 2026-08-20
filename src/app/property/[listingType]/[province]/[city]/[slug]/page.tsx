@@ -5,6 +5,7 @@ import { cache } from "react";
 
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
+import { normalizeSupportedCurrency } from "@/modules/currency/currency";
 import { ListingDetailPage } from "@/modules/listings/components/listing-detail-page";
 import {
   getListingDetail,
@@ -87,7 +88,7 @@ function listingJsonLd(listing: ListingDetailData) {
               ? "https://schema.org/InStock"
               : "https://schema.org/OutOfStock",
           price: (listing.askingPriceCents / 100).toFixed(0),
-          priceCurrency: "ZAR",
+          priceCurrency: normalizeSupportedCurrency(listing.listingCurrency),
           url: listingUrl,
         }
       : undefined;

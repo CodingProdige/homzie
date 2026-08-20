@@ -383,7 +383,7 @@ export function StartAgentCheckoutButton({
               <h3 className="mt-2 text-2xl font-bold">Complete checkout</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {checkout.trialApplied
-                  ? "Start your 7-day free trial inside Homzie. Stripe securely stores your card and only charges when the trial ends unless you cancel first."
+                  ? "Start your 7-day Homzie Pro trial. Stripe securely stores your card and only charges when the trial ends unless you cancel first."
                   : "Complete your subscription inside Homzie. Stripe securely stores your card and starts billing immediately on this account."}
               </p>
             </div>

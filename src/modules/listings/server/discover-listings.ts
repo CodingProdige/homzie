@@ -270,10 +270,10 @@ function discoverWhere(filters: ReturnType<typeof normalizeDiscoverListingFilter
         )
       : undefined,
     filters.minPrice
-      ? sql`${propertyListings.askingPriceCents} >= ${Number(filters.minPrice) * 100}`
+      ? sql`${propertyListings.askingPriceComparableZarCents} >= ${Number(filters.minPrice) * 100}`
       : undefined,
     filters.maxPrice
-      ? sql`${propertyListings.askingPriceCents} <= ${Number(filters.maxPrice) * 100}`
+      ? sql`${propertyListings.askingPriceComparableZarCents} <= ${Number(filters.maxPrice) * 100}`
       : undefined,
     filters.bedrooms
       ? sql`nullif(${propertyListings.details}->>'bedrooms', '')::numeric >= ${Number(filters.bedrooms)}`
@@ -389,7 +389,8 @@ export async function getDiscoverListingFilterOptions({
   ].filter((filter): filter is SQL => Boolean(filter));
   const rows = await db
     .select({
-      askingPriceCents: propertyListings.askingPriceCents,
+      askingPriceComparableZarCents:
+        propertyListings.askingPriceComparableZarCents,
       details: propertyListings.details,
       location: propertyListings.location,
     })
@@ -422,8 +423,8 @@ export async function getDiscoverListingFilterOptions({
     floorSizes.push(numberValue(details.floorSize));
     erfSizes.push(numberValue(details.erfSize));
     prices.push(
-      typeof row.askingPriceCents === "number"
-        ? Math.round(row.askingPriceCents / 100)
+      typeof row.askingPriceComparableZarCents === "number"
+        ? Math.round(row.askingPriceComparableZarCents / 100)
         : null,
     );
   });
@@ -460,6 +461,7 @@ export async function getDiscoverListings({
   const rows = await db
     .select({
       askingPriceCents: propertyListings.askingPriceCents,
+      listingCurrency: propertyListings.listingCurrency,
       coverImageUrl: propertyListings.coverImageUrl,
       details: propertyListings.details,
       features: propertyListings.features,
@@ -621,6 +623,7 @@ export async function getDiscoverListings({
         loadingBays: numberValue(details.loadingBays),
         parking: numberValue(details.parking),
         previousPriceCents: numberValue(details.previousAskingPriceCents),
+        listingCurrency: listing.listingCurrency,
         priceCents: listing.askingPriceCents,
         priceLabel: listing.priceLabel,
         propertyCategory:

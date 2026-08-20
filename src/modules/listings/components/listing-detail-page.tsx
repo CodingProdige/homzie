@@ -54,10 +54,13 @@ import {
   trackGoogleAdsConversion,
   trackGoogleEvent,
 } from "@/modules/analytics/gtag";
+import {
+  formatCurrencyAmount,
+  normalizeSupportedCurrency,
+} from "@/modules/currency/currency";
 import { useCurrency } from "@/modules/currency/currency-provider";
 import {
   getListingLiveIntentAction,
-  getListingOfferStatsAction,
   trackListingPresence,
   trackListingAction,
   trackListingView,
@@ -82,6 +85,10 @@ import {
   formatPlainNumber,
   parseListingNumberInput,
 } from "@/modules/listings/numeric-values";
+import {
+  formatListingArea,
+  type ListingAreaUnit,
+} from "@/modules/listings/measurements";
 
 function featureHashtag(value: string) {
   return `#${value.replace(/\s+/g, "")}`;
@@ -99,6 +106,7 @@ function hasPositiveMetric(value: number | null | undefined) {
 
 type DetailStatData = {
   icon: typeof BedDouble;
+  secondaryValue?: string;
   value: string;
 };
 
@@ -108,18 +116,43 @@ function compactDetailStats(
   return stats.filter((item): item is DetailStatData => Boolean(item));
 }
 
+function listingDetailAreaStat({
+  icon,
+  label,
+  unit,
+  value,
+}: {
+  icon: typeof BedDouble;
+  label: string;
+  unit: ListingAreaUnit;
+  value: unknown;
+}): DetailStatData | null {
+  const area = formatListingArea(value, unit);
+
+  return area
+    ? {
+        icon,
+        secondaryValue: area.imperial,
+        value: `${area.metric} ${label}`,
+      }
+    : null;
+}
+
 function listingDetailStats(listing: ListingDetailData) {
   if (listing.propertyCategory === "commercial") {
     return compactDetailStats([
-      hasPositiveMetric(listing.grossLettableArea)
-        ? {
-            icon: Ruler,
-            value: `${formatMetric(listing.grossLettableArea)}m² GLA`,
-          }
-        : {
-            icon: Ruler,
-            value: `${formatMetric(listing.floorSize)}m² floor`,
-          },
+      listingDetailAreaStat({
+        icon: Ruler,
+        label: "GLA",
+        unit: "square-meters",
+        value: listing.grossLettableArea,
+      }) ||
+        listingDetailAreaStat({
+          icon: Ruler,
+          label: "floor",
+          unit: "square-meters",
+          value: listing.floorSize,
+        }),
       hasPositiveMetric(listing.parking)
         ? {
             icon: ParkingCircle,
@@ -132,35 +165,35 @@ function listingDetailStats(listing: ListingDetailData) {
             value: `${formatMetric(listing.loadingBays)} loading bays`,
           }
         : null,
-      hasPositiveMetric(listing.erfSize)
-        ? {
-            icon: Trees,
-            value: `${formatMetric(listing.erfSize)}m² erf`,
-          }
-        : null,
+      listingDetailAreaStat({
+        icon: Trees,
+        label: "erf",
+        unit: "square-meters",
+        value: listing.erfSize,
+      }),
     ]);
   }
 
   if (listing.propertyCategory === "land" || listing.propertyCategory === "farm") {
     return compactDetailStats([
-      hasPositiveMetric(listing.landSizeHectares)
-        ? {
-            icon: Trees,
-            value: `${formatMetric(listing.landSizeHectares)} ha`,
-          }
-        : null,
-      hasPositiveMetric(listing.erfSize)
-        ? {
-            icon: Trees,
-            value: `${formatMetric(listing.erfSize)}m² land`,
-          }
-        : null,
-      hasPositiveMetric(listing.floorSize)
-        ? {
-            icon: Ruler,
-            value: `${formatMetric(listing.floorSize)}m² floor`,
-          }
-        : null,
+      listingDetailAreaStat({
+        icon: Trees,
+        label: "land",
+        unit: "hectares",
+        value: listing.landSizeHectares,
+      }),
+      listingDetailAreaStat({
+        icon: Trees,
+        label: "land",
+        unit: "square-meters",
+        value: listing.erfSize,
+      }),
+      listingDetailAreaStat({
+        icon: Ruler,
+        label: "floor",
+        unit: "square-meters",
+        value: listing.floorSize,
+      }),
       hasPositiveMetric(listing.parking)
         ? {
             icon: ParkingCircle,
@@ -170,14 +203,24 @@ function listingDetailStats(listing: ListingDetailData) {
     ]);
   }
 
-  return [
+  return compactDetailStats([
     { icon: BedDouble, value: `${formatMetric(listing.bedrooms)} beds` },
     { icon: Bath, value: `${formatBathroomCount(listing.bathrooms)} baths` },
     { icon: Car, value: `${formatMetric(listing.garages)} garages` },
     { icon: ParkingCircle, value: `${formatMetric(listing.parking)} parking` },
-    { icon: Ruler, value: `${formatMetric(listing.floorSize)}m² floor` },
-    { icon: Trees, value: `${formatMetric(listing.erfSize)}m² erf` },
-  ];
+    listingDetailAreaStat({
+      icon: Ruler,
+      label: "floor",
+      unit: "square-meters",
+      value: listing.floorSize,
+    }),
+    listingDetailAreaStat({
+      icon: Trees,
+      label: "erf",
+      unit: "square-meters",
+      value: listing.erfSize,
+    }),
+  ]);
 }
 
 function formatDate(value: string) {
@@ -214,68 +257,15 @@ function formatOfferAmount(value: string) {
   }).format(Number(digits));
 }
 
-function clampPercent(value: number) {
-  return Math.min(100, Math.max(0, value));
-}
-
-type ListingOfferStats = {
-  averageAmountCents: number | null;
-  count: number;
-  currency: string;
-  maxAmountCents: number | null;
-  minAmountCents: number | null;
-};
-
-function getOfferStrengthScore({
-  amountCents,
-  askingPriceCents,
-  stats,
-}: {
-  amountCents: number;
-  askingPriceCents: number | null;
-  stats: ListingOfferStats | null;
-}) {
-  if (
-    stats?.count &&
-    stats.minAmountCents !== null &&
-    stats.maxAmountCents !== null
-  ) {
-    if (stats.maxAmountCents > stats.minAmountCents) {
-      return clampPercent(
-        ((amountCents - stats.minAmountCents) /
-          (stats.maxAmountCents - stats.minAmountCents)) *
-          100,
-      );
-    }
-
-    return amountCents >= stats.maxAmountCents ? 85 : 30;
-  }
-
-  if (askingPriceCents && askingPriceCents > 0) {
-    const deltaRatio = (amountCents - askingPriceCents) / askingPriceCents;
-
-    return clampPercent(50 + deltaRatio * 500);
-  }
-
-  return 50;
-}
-
 function OfferStrengthInsight({
   amountCents,
   askingPriceCents,
-  loading,
-  stats,
 }: {
   amountCents: number;
   askingPriceCents: number | null;
-  loading: boolean;
-  stats: ListingOfferStats | null;
 }) {
   if (!amountCents) return null;
 
-  const score = getOfferStrengthScore({ amountCents, askingPriceCents, stats });
-  const strength =
-    score >= 75 ? "Hot" : score >= 40 ? "Medium" : "Cold";
   const deltaPercent =
     askingPriceCents && askingPriceCents > 0
       ? ((amountCents - askingPriceCents) / askingPriceCents) * 100
@@ -288,20 +278,15 @@ function OfferStrengthInsight({
         : deltaPercent > 0
           ? `${Math.abs(deltaPercent).toFixed(1)}% increase above asking`
           : `${Math.abs(deltaPercent).toFixed(1)}% deduction from asking`;
-  const statsLabel = loading
-    ? "Checking competing offers..."
-    : stats?.count
-      ? `Compared with ${stats.count} active ${stats.count === 1 ? "offer" : "offers"} in ${stats.currency}.`
-      : "No active competing offers in this currency yet.";
 
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-            Offer strength
+            Price context
           </p>
-          <p className="mt-1 text-sm font-semibold">{strength}</p>
+          <p className="mt-1 text-sm font-semibold">Compared with the asking price</p>
         </div>
         {deltaLabel ? (
           <span className="rounded-full bg-background px-2.5 py-1 text-[11px] font-normal text-muted-foreground">
@@ -309,21 +294,8 @@ function OfferStrengthInsight({
           </span>
         ) : null}
       </div>
-      <div className="mt-3">
-        <div className="relative h-2 rounded-full bg-gradient-to-r from-sky-400 via-amber-400 to-rose-500">
-          <span
-            className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow-md"
-            style={{ left: `${score}%` }}
-          />
-        </div>
-        <div className="mt-2 flex justify-between text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
-          <span>Cold</span>
-          <span>Medium</span>
-          <span>Hot</span>
-        </div>
-      </div>
       <p className="mt-2 text-xs font-normal leading-5 text-muted-foreground">
-        {statsLabel}
+        A proposed price starts a conversation; it is not a binding agreement.
       </p>
     </div>
   );
@@ -357,15 +329,24 @@ function createListingViewInstanceId() {
 
 function DetailStat({
   icon: Icon,
+  secondaryValue,
   value,
 }: {
   icon: typeof BedDouble;
+  secondaryValue?: string;
   value: string;
 }) {
   return (
     <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-foreground">
       <Icon className="size-5 shrink-0 text-muted-foreground" />
-      <span>{value}</span>
+      <span className="min-w-0">
+        <span className="block">{value}</span>
+        {secondaryValue ? (
+          <span className="block text-xs font-normal text-muted-foreground">
+            {secondaryValue}
+          </span>
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -374,7 +355,7 @@ function ListingOfferCountPill({ countLabel }: { countLabel: string }) {
   return (
     <span
       className="inline-flex h-9 items-center gap-2 rounded-full border border-border bg-background/90 px-3 text-sm font-semibold shadow-sm backdrop-blur"
-      title="Offers made on this listing"
+      title="Interest shared on this listing"
     >
       <HandCoins className="size-4" />
       <span>{countLabel}</span>
@@ -511,11 +492,11 @@ function trendMeta(current: number, previous: number) {
 }
 
 function liveActivityLabel(activity: LiveIntentActivity) {
-  if (activity.activityType === "view") return "viewing the listing";
+  if (activity.activityType === "view") return "viewed the listing";
 
   switch (activity.actionType) {
     case "bond_calculator":
-      return "opened bond calculator";
+      return "opened mortgage calculator";
     case "gallery_next":
     case "gallery_previous":
       return "browsed photos";
@@ -526,7 +507,9 @@ function liveActivityLabel(activity: LiveIntentActivity) {
     case "media_video_play":
       return "played listing video";
     case "place_offer":
-      return "started an offer";
+      return "shared a proposed price";
+    case "contact_agent":
+      return "sent you a message";
     case "save":
       return "saved the listing";
     case "share":
@@ -556,7 +539,7 @@ function liveActivityBadge(activity: LiveIntentActivity) {
     case "whatsapp_agent":
       return {
         className: "bg-blue-50 text-blue-700",
-        label: "Contact",
+        label: activity.actionType === "contact_agent" ? "Message" : "Contact",
       };
     case "like":
       return {
@@ -567,7 +550,7 @@ function liveActivityBadge(activity: LiveIntentActivity) {
     case "reserve_now":
       return {
         className: "bg-rose-50 text-rose-600",
-        label: "Offer",
+        label: "Interest",
       };
     case "save":
       return {
@@ -633,19 +616,15 @@ function BuyerAvatar({
 function IntentViewerRow({
   buyer,
   listingId,
-  tone,
 }: {
   buyer: LiveIntentBuyer;
   listingId: string;
-  tone: "high" | "low";
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5 border-b border-border/70 px-2.5 py-2 last:border-b-0 sm:gap-3 sm:px-3 sm:py-3">
       <span className="relative shrink-0">
         <BuyerAvatar buyer={buyer} size="sm" />
-        {tone === "high" ? (
-          <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card bg-emerald-500 sm:size-3.5" />
-        ) : null}
+        <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card bg-emerald-500 sm:size-3.5" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold sm:text-sm">{buyer.name}</p>
@@ -659,7 +638,7 @@ function IntentViewerRow({
         <ChatNowButton
           listingId={listingId}
           recipientUserId={buyer.id}
-          surface={tone === "high" ? "intent-high" : "intent-low"}
+          surface="intent-high"
         />
       </div>
     </div>
@@ -728,8 +707,8 @@ function ActivityFeedRow({ activity }: { activity: LiveIntentActivity }) {
 
 function LockedOwnerLiveIntentPanel() {
   const sampleRows = [
-    { label: "Returning buyer", meta: "Viewed multiple times" },
-    { label: "Active buyer", meta: "Browsing listing now" },
+    { label: "Anonymous activity", meta: "Returning views recorded" },
+    { label: "Contact-ready buyer", meta: "Started a conversation" },
   ];
 
   return (
@@ -741,18 +720,18 @@ function LockedOwnerLiveIntentPanel() {
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
                   <span className="size-2.5 rounded-full bg-primary shadow-[0_0_12px_rgba(123,92,255,0.7)] sm:size-3" />
-                  Buyer activity
+                  Listing activity
                 </span>
                 <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
                   Live
                 </span>
               </div>
               <h2 className="mt-2 text-lg font-semibold tracking-tight sm:mt-3 sm:text-3xl">
-                Buyer intent is being captured
+                Activity is being captured
               </h2>
               <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-emerald-600 sm:mt-2 sm:gap-2 sm:text-sm">
                 <TrendingUp className="size-3.5 sm:size-4" />
-                <span className="min-w-0 truncate">Unlock to see who is serious</span>
+                <span className="min-w-0 truncate">Unlock anonymous activity trends</span>
               </p>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -760,7 +739,7 @@ function LockedOwnerLiveIntentPanel() {
               <div>
                 <p className="text-[11px] font-semibold sm:text-sm">Live listing views</p>
                 <p className="mt-0.5 text-[11px] font-normal text-muted-foreground sm:text-xs">
-                  Buyer activity
+                  Anonymous activity
                 </p>
               </div>
             </div>
@@ -775,10 +754,10 @@ function LockedOwnerLiveIntentPanel() {
                   </span>
                   <div className="min-w-0">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600 sm:text-sm">
-                      High intent
+                      Contact-ready
                     </h3>
                     <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
-                      Serious buyers showing strong interest
+                      People who choose to start a conversation
                     </p>
                   </div>
                 </div>
@@ -814,10 +793,10 @@ function LockedOwnerLiveIntentPanel() {
                   </span>
                   <div className="min-w-0">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-blue-600 sm:text-sm">
-                      Low intent
+                      Anonymous activity
                     </h3>
                     <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
-                      Browsing and exploring
+                      Passive browsing stays anonymous
                     </p>
                   </div>
                 </div>
@@ -826,7 +805,7 @@ function LockedOwnerLiveIntentPanel() {
                 </span>
               </div>
               <div className="rounded-lg border border-blue-100 bg-card p-3 text-xs font-normal leading-5 text-muted-foreground sm:p-4 sm:text-sm">
-                First-time active buyers will appear here once unlocked.
+                View aggregate activity without identifying passive viewers.
               </div>
             </div>
           </div>
@@ -837,13 +816,13 @@ function LockedOwnerLiveIntentPanel() {
             <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
               <Lock className="size-5" />
             </span>
-            <h3 className="mt-3 text-lg font-semibold">Unlock buyer activity</h3>
+            <h3 className="mt-3 text-lg font-semibold">Unlock listing activity</h3>
             <p className="mt-2 text-sm font-normal leading-6 text-muted-foreground">
-              Keep publishing listings for free. Upgrade when you want to see
-              active buyers, returning viewers, and AI-assisted intent signals.
+              Keep publishing listings for free. Upgrade when you want anonymous
+              activity trends, performance signals, and AI-assisted summaries.
             </p>
             <Button asChild className="mt-5 h-11 w-full">
-              <Link href="/become-agent">Start 7-day free trial</Link>
+              <Link href="/go-pro">Explore Homzie Pro</Link>
             </Button>
             <Button asChild className="mt-2 h-10 w-full" variant="outline">
               <Link href="/go-pro">View Pro features</Link>
@@ -865,20 +844,9 @@ function OwnerLiveIntentPanel({
   if (!intent?.ok) return null;
 
   const buyers = intent.buyers;
-  const highIntentBuyers = buyers.filter((buyer) => buyer.viewCount > 1);
-  const lowIntentBuyers = buyers.filter((buyer) => buyer.viewCount <= 1);
-  const visibleHighIntentBuyers = highIntentBuyers.slice(0, 8);
-  const visibleLowIntentBuyers = lowIntentBuyers.slice(0, 8);
-  const recentActivity: LiveIntentActivity[] = (
-    intent.recentActivities?.length
-      ? intent.recentActivities
-      : buyers.map((buyer) => ({
-          actionType: null,
-          activityType: "view" as const,
-          buyer,
-          createdAt: buyer.lastSeenAt,
-        }))
-  )
+  const contactReadyBuyers = buyers;
+  const visibleContactReadyBuyers = contactReadyBuyers.slice(0, 8);
+  const recentActivity: LiveIntentActivity[] = (intent.recentActivities || [])
     .sort(
       (left, right) =>
         new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
@@ -899,7 +867,7 @@ function OwnerLiveIntentPanel({
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary sm:gap-2 sm:text-xs">
                 <span className="size-2.5 rounded-full bg-primary shadow-[0_0_12px_rgba(123,92,255,0.7)] sm:size-3" />
-                Buyer activity
+                Listing activity
               </span>
               <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-primary sm:px-3 sm:py-1 sm:text-xs">
                 Live
@@ -966,21 +934,21 @@ function OwnerLiveIntentPanel({
                 </span>
                 <div className="min-w-0">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600 sm:text-sm">
-                    High intent
+                    Contact-ready buyers
                   </h3>
                   <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
-                    Serious buyers showing strong interest
+                    These people chose to message you about this listing.
                   </p>
                 </div>
               </div>
               <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-rose-500 text-[11px] font-semibold text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
-                {highIntentBuyers.length}
+                {contactReadyBuyers.length}
               </span>
             </div>
 
             <div className="overflow-hidden rounded-lg border border-rose-100 bg-card">
-              {visibleHighIntentBuyers.length ? (
-                visibleHighIntentBuyers.map((buyer) => (
+              {visibleContactReadyBuyers.length ? (
+                visibleContactReadyBuyers.map((buyer) => (
                   <div
                     key={buyer.id}
                     className="transition hover:bg-rose-50/45"
@@ -988,21 +956,20 @@ function OwnerLiveIntentPanel({
                     <IntentViewerRow
                       buyer={buyer}
                       listingId={listingId}
-                      tone="high"
                     />
                   </div>
                 ))
               ) : (
                 <p className="p-3 text-xs font-normal text-muted-foreground sm:p-4 sm:text-sm">
-                  Repeat active buyers will appear here.
+                  Contact-ready buyers will appear here after they start a conversation.
                 </p>
               )}
-              {highIntentBuyers.length > visibleHighIntentBuyers.length ? (
+              {contactReadyBuyers.length > visibleContactReadyBuyers.length ? (
                 <Link
                   href={`/listings/${listingId}/activity`}
                   className="flex items-center justify-center gap-1 border-t border-rose-100 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
                 >
-                  View all {highIntentBuyers.length}
+                  View all {contactReadyBuyers.length}
                   <ArrowRight className="size-3" />
                 </Link>
               ) : null}
@@ -1018,46 +985,21 @@ function OwnerLiveIntentPanel({
                 </span>
                 <div className="min-w-0">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-blue-600 sm:text-sm">
-                    Low intent
+                    Anonymous activity
                   </h3>
                   <p className="mt-0.5 text-xs font-normal leading-5 text-muted-foreground sm:mt-1 sm:text-sm">
-                    Browsing and exploring
+                    Passive browsing remains anonymous by default.
                   </p>
                 </div>
               </div>
               <span className="grid h-6 w-6 min-w-6 shrink-0 place-items-center rounded-full bg-blue-500 text-[11px] font-semibold text-white sm:h-8 sm:w-8 sm:min-w-8 sm:text-sm">
-                {lowIntentBuyers.length}
+                {intent.activeViewerCount}
               </span>
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-blue-100 bg-card">
-              {visibleLowIntentBuyers.length ? (
-                visibleLowIntentBuyers.map((buyer) => (
-                  <div
-                    key={buyer.id}
-                    className="transition hover:bg-blue-50/45"
-                  >
-                    <IntentViewerRow
-                      buyer={buyer}
-                      listingId={listingId}
-                      tone="low"
-                    />
-                  </div>
-                ))
-              ) : (
-                <p className="p-3 text-xs font-normal leading-5 text-muted-foreground sm:p-4 sm:text-sm">
-                  First-time active buyers will appear here.
-                </p>
-              )}
-              {lowIntentBuyers.length > visibleLowIntentBuyers.length ? (
-                <Link
-                  href={`/listings/${listingId}/activity`}
-                  className="flex items-center justify-center gap-1 border-t border-blue-100 px-3 py-2 text-xs font-semibold text-blue-600 transition hover:bg-blue-50"
-                >
-                  View all {lowIntentBuyers.length}
-                  <ArrowRight className="size-3" />
-                </Link>
-              ) : null}
+            <div className="rounded-lg border border-blue-100 bg-card p-3 text-xs font-normal leading-5 text-muted-foreground sm:p-4 sm:text-sm">
+              See aggregate active viewers, views, returning activity, and time on
+              listing. Passive viewers are not shown as people or profiles.
             </div>
           </div>
         </div>
@@ -1065,9 +1007,9 @@ function OwnerLiveIntentPanel({
         <div className="mt-3 grid overflow-hidden rounded-lg border border-border sm:mt-4 md:grid-cols-3">
           <BuyerActivityStat
             icon={RefreshCcw}
-            label="People who came back to view again"
+            label="People who chose to start a conversation"
             tone="purple"
-            value={`${intent.returningViewerCount || 0} returning viewers`}
+            value={`${contactReadyBuyers.length} contact-ready`}
           />
           <BuyerActivityStat
             icon={Clock3}
@@ -1077,16 +1019,16 @@ function OwnerLiveIntentPanel({
           />
           <BuyerActivityStat
             icon={TrendingUp}
-            label="More activity than similar listings"
+            label="Listing activity trend"
             tone="green"
-            value={highIntentBuyers.length ? "High interest" : "Building interest"}
+            value={totalViews24h ? "Activity recorded" : "Waiting for activity"}
           />
         </div>
 
         <div className="mt-3 min-w-0 rounded-lg border border-border p-2.5 sm:mt-4 sm:p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[10px] font-semibold uppercase tracking-wide text-primary sm:text-xs">
-              Recent activity feed
+              Recent contact activity
             </h3>
             <Link
               href={`/listings/${listingId}/activity`}
@@ -1105,7 +1047,7 @@ function OwnerLiveIntentPanel({
             ))
           ) : (
             <p className="border-t border-border py-2 text-xs font-normal text-muted-foreground">
-              Active buyer activity will appear here.
+              Messages from buyers will appear here after they choose to contact you.
             </p>
           )}
         </div>
@@ -1115,7 +1057,7 @@ function OwnerLiveIntentPanel({
         <span className="inline-flex min-w-0 items-start gap-2">
           <Lock className="mt-0.5 size-4 shrink-0" />
           <span className="min-w-0">
-            Buyer activity is private and you control who you message.
+            Passive viewing is anonymous. Contact details appear only after a buyer chooses to start a conversation.
           </span>
         </span>
       </div>
@@ -1217,7 +1159,7 @@ function BondCalculatorDialog({
       <Dialog.Trigger asChild>
         <Button variant="outline" className={triggerClassName} onClick={onOpen}>
           <Calculator className="size-4" />
-          Bond calculator
+          Mortgage calculator
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -1226,7 +1168,7 @@ function BondCalculatorDialog({
           <div className="flex items-start justify-between gap-4">
             <div>
               <Dialog.Title className="text-lg font-semibold">
-                Bond calculator
+                Mortgage calculator
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
                 Estimate repayments using this listing&apos;s price.
@@ -1351,16 +1293,14 @@ function BondCalculatorDialog({
 }
 
 function MakeOfferDialog({
-  currencyPrefix,
   listing,
   onOfferStarted,
 }: {
-  currencyPrefix: string;
   listing: ListingDetailData;
   onOfferStarted?: () => void;
 }) {
   const router = useRouter();
-  const { currency } = useCurrency();
+  const listingCurrency = normalizeSupportedCurrency(listing.listingCurrency);
   const [amount, setAmount] = useState(
     listing.askingPriceCents
       ? formatOfferAmount(String(Math.round(listing.askingPriceCents / 100)))
@@ -1368,37 +1308,14 @@ function MakeOfferDialog({
   );
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
-  const [offerStats, setOfferStats] = useState<ListingOfferStats | null>(null);
-  const [offerStatsPending, startOfferStatsTransition] = useTransition();
   const [pending, startTransition] = useTransition();
   const amountCents = amountToCents(amount);
-
-  useEffect(() => {
-    let active = true;
-
-    startOfferStatsTransition(async () => {
-      try {
-        const stats = await getListingOfferStatsAction({
-          currency,
-          listingId: listing.id,
-        });
-
-        if (active) setOfferStats(stats);
-      } catch {
-        if (active) setOfferStats(null);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [currency, listing.id]);
 
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
         <Button variant="outline" onClick={onOfferStarted}>
-          Place offer
+          Send interest
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -1407,11 +1324,11 @@ function MakeOfferDialog({
           <div className="flex items-start justify-between gap-4">
             <div>
               <Dialog.Title className="text-lg font-semibold">
-                Make an offer
+                Share your interest
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
-                Your offer will start a direct conversation with the agent and
-                attach this listing.
+                Share a proposed price and start a direct conversation with the
+                agent. This does not itself create a binding agreement.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -1430,10 +1347,12 @@ function MakeOfferDialog({
             </div>
 
             <label className="grid gap-2">
-              <span className="text-sm font-semibold">Offer amount</span>
+              <span className="text-sm font-semibold">
+                Proposed price ({listingCurrency})
+              </span>
               <div className="flex h-12 items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary/25">
                 <span className="text-sm font-semibold text-primary">
-                  {currencyPrefix}
+                  {listingCurrency}
                 </span>
                 <input
                   type="text"
@@ -1443,13 +1362,14 @@ function MakeOfferDialog({
                   className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
                 />
               </div>
+              <span className="text-xs font-normal text-muted-foreground">
+                This listing is priced in {listingCurrency}. Any displayed currency conversion is an estimate.
+              </span>
             </label>
 
             <OfferStrengthInsight
               amountCents={amountCents}
               askingPriceCents={listing.askingPriceCents}
-              loading={offerStatsPending}
-              stats={offerStats}
             />
 
             <label className="grid gap-2">
@@ -1476,13 +1396,12 @@ function MakeOfferDialog({
                   try {
                     const result = await createOfferMessageAction({
                       amountCents,
-                      currency,
                       listingId: listing.id,
                       note,
                     });
 
                     trackGoogleEvent("offer_submitted", {
-                      currency,
+                      currency: listingCurrency,
                       event_category: "listing",
                       event_label: listing.id,
                       listing_id: listing.id,
@@ -1496,13 +1415,13 @@ function MakeOfferDialog({
                     setError(
                       offerError instanceof Error
                         ? offerError.message
-                        : "Could not send this offer.",
+                        : "Could not send your interest.",
                     );
                   }
                 });
               }}
             >
-              {pending ? "Sending offer..." : "Send offer"}
+              {pending ? "Sending interest..." : "Send interest"}
             </Button>
           </div>
         </Dialog.Content>
@@ -1836,7 +1755,8 @@ export function ListingDetailPage({
   const [liveIntent, setLiveIntent] = useState<LiveIntentState | null>(null);
   const [, startLiveIntentTransition] = useTransition();
   const trackedListingViewRef = useRef<string | null>(null);
-  const { formatPriceCents, formatPriceLabel } = useCurrency();
+  const { currency, formatPriceCentsFromCurrency } = useCurrency();
+  const listingCurrency = normalizeSupportedCurrency(listing.listingCurrency);
   const mediaItems = useMemo(
     () => {
       const seen = new Set<string>();
@@ -1867,18 +1787,26 @@ export function ListingDetailPage({
   const activeMedia = mediaItems[safeActiveMediaIndex] || null;
   const activeMediaIsVideo = Boolean(activeMedia?.type.startsWith("video/"));
   const showGalleryControls = mediaItems.length > 1;
-  const formattedPrice =
+  const nativeFormattedPrice =
     listing.askingPriceCents && listing.askingPriceCents > 0
-      ? formatPriceCents(listing.askingPriceCents)
-      : formatPriceLabel(listing.priceLabel) || "Price not set";
-  const currencyPrefix =
-    formatPriceCents(0).replace(/[0-9.,\s]+/g, "").trim() || "R";
+      ? formatCurrencyAmount(listing.askingPriceCents / 100, listingCurrency)
+      : listing.priceLabel || "Price not set";
+  const convertedFormattedPrice =
+    currency !== listingCurrency && listing.askingPriceCents && listing.askingPriceCents > 0
+      ? formatPriceCentsFromCurrency(listing.askingPriceCents, listingCurrency)
+      : null;
   const price =
     listing.listingType === "rental" &&
     listing.askingPriceCents &&
     listing.askingPriceCents > 0
-      ? `${formattedPrice}/month`
-      : formattedPrice;
+      ? `${nativeFormattedPrice}/month`
+      : nativeFormattedPrice;
+  const convertedPrice =
+    convertedFormattedPrice && listing.listingType === "rental"
+      ? `${convertedFormattedPrice}/month`
+      : convertedFormattedPrice;
+  const formatNativePriceCents = (cents: number) =>
+    formatCurrencyAmount(cents / 100, listingCurrency);
   const showBondCalculator =
     !listing.isUnavailableForViewer &&
     listing.listingType !== "rental" &&
@@ -1900,31 +1828,31 @@ export function ListingDetailPage({
     {
       label: "Local taxes",
       value: listing.localTaxesCents
-        ? formatPriceCents(listing.localTaxesCents)
+        ? formatNativePriceCents(listing.localTaxesCents)
         : "",
     },
     {
       label: "Community fees",
       value: listing.communityFeesCents
-        ? formatPriceCents(listing.communityFeesCents)
+        ? formatNativePriceCents(listing.communityFeesCents)
         : "",
     },
     {
       label: "Utilities estimate",
       value: listing.utilitiesEstimateCents
-        ? formatPriceCents(listing.utilitiesEstimateCents)
+        ? formatNativePriceCents(listing.utilitiesEstimateCents)
         : "",
     },
     {
       label: "Insurance estimate",
       value: listing.insuranceEstimateCents
-        ? formatPriceCents(listing.insuranceEstimateCents)
+        ? formatNativePriceCents(listing.insuranceEstimateCents)
         : "",
     },
     {
       label: "Transfer costs estimate",
       value: listing.transferCostsEstimateCents
-        ? formatPriceCents(listing.transferCostsEstimateCents)
+        ? formatNativePriceCents(listing.transferCostsEstimateCents)
         : "",
     },
     {
@@ -2102,7 +2030,6 @@ export function ListingDetailPage({
   ) : null;
   const placeOfferAction = canUseListingActions && listing.listingType !== "rental" ? (
     <MakeOfferDialog
-      currencyPrefix={currencyPrefix}
       listing={listing}
       onOfferStarted={() => recordListingAction("place_offer")}
     />
@@ -2444,6 +2371,7 @@ export function ListingDetailPage({
                 <DetailStat
                   key={stat.value}
                   icon={stat.icon}
+                  secondaryValue={stat.secondaryValue}
                   value={stat.value}
                 />
               ))}
@@ -2538,7 +2466,7 @@ export function ListingDetailPage({
                           Buying tools
                         </p>
                         <h2 className="mt-1 text-xl font-semibold">
-                          Bond calculator
+                          Mortgage calculator
                         </h2>
                         <p className="mt-1 text-sm font-normal leading-6 text-muted-foreground">
                           Estimate the repayment, once-off costs and income guide for this listing.
@@ -2551,7 +2479,7 @@ export function ListingDetailPage({
                         buyerIncentive={listing.buyerIncentive}
                         onOpen={() => recordListingAction("bond_calculator")}
                         transferCostsEstimateCents={listing.transferCostsEstimateCents}
-                        formatPriceCents={formatPriceCents}
+                        formatPriceCents={formatNativePriceCents}
                         triggerClassName="w-full border-transparent [background:var(--homzie-gradient)] text-white shadow-lg shadow-primary/20 hover:opacity-95 sm:w-auto"
                       />
                       <p className="mt-2 text-center text-[11px] font-normal text-muted-foreground sm:text-right">
@@ -2574,11 +2502,16 @@ export function ListingDetailPage({
               <p className={listing.priceQualifier ? "mt-1 text-3xl font-semibold" : "text-3xl font-semibold"}>
                 {price}
               </p>
+              {convertedPrice ? (
+                <p className="mt-1 text-xs font-medium text-muted-foreground">
+                  ≈ {convertedPrice} at the selected display currency
+                </p>
+              ) : null}
               {showReducedPrice ? (
                 <p className="mt-1 text-sm font-semibold text-red-600">
                   Reduced from{" "}
                   <span className="text-muted-foreground line-through">
-                    {formatPriceCents(Number(listing.previousAskingPriceCents))}
+                    {formatNativePriceCents(Number(listing.previousAskingPriceCents))}
                   </span>
                 </p>
               ) : null}
@@ -2650,11 +2583,16 @@ export function ListingDetailPage({
               <p className="truncate text-lg font-semibold">
                 {price}
               </p>
+              {convertedPrice ? (
+                <p className="truncate text-[10px] font-medium text-muted-foreground">
+                  ≈ {convertedPrice} display estimate
+                </p>
+              ) : null}
               {showReducedPrice ? (
                 <p className="truncate text-xs font-semibold text-red-600">
                   Reduced from{" "}
                   <span className="text-muted-foreground line-through">
-                    {formatPriceCents(Number(listing.previousAskingPriceCents))}
+                    {formatNativePriceCents(Number(listing.previousAskingPriceCents))}
                   </span>
                 </p>
               ) : null}

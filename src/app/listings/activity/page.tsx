@@ -32,9 +32,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Listing Buyer Activity | Homzie",
+  title: "Listing Activity | Homzie",
   description:
-    "Monitor realtime buyer activity across Homzie listings you own or are assigned to.",
+    "Monitor realtime listing activity across Homzie listings you own or are assigned to.",
 };
 
 type ListingActivityOverviewPageProps = {
@@ -187,11 +187,11 @@ function portfolioInsightFacts(insight: ListingPortfolioInsightRow) {
 
   return {
     actionLine: `${formatCompact(insight.action_events_7d)} actions, including ${formatCompact(insight.high_intent_events_7d)} high-intent actions in the last 7 days`,
-    activityLine: `${formatCompact(insight.active_now)} active viewers now, ${formatCompact(insight.unique_buyers_7d)} unique buyer groups in the last 7 days`,
+    activityLine: `${formatCompact(insight.active_now)} active viewers now, ${formatCompact(insight.unique_buyers_7d)} unique activity groups in the last 7 days`,
     conversionLine: `${conversionRate}% high-intent action rate from listing views`,
-    lowActivityLine: `${formatCompact(insight.zero_activity_listings_7d)} published listings had no buyer activity in the last 7 days`,
-    mediaLine: `${formatCompact(insight.photo_events_7d)} photo browsing events and ${formatCompact(insight.calculator_events_7d)} bond calculator opens in the last 7 days`,
-    offerLine: `${formatCompact(insight.offer_events_7d)} offer-start events in the last 7 days`,
+    lowActivityLine: `${formatCompact(insight.zero_activity_listings_7d)} published listings had no activity in the last 7 days`,
+    mediaLine: `${formatCompact(insight.photo_events_7d)} photo browsing events and ${formatCompact(insight.calculator_events_7d)} mortgage calculator opens in the last 7 days`,
+    offerLine: `${formatCompact(insight.offer_events_7d)} proposed-price starts in the last 7 days`,
     topListing,
     trendLine: trend.label,
     viewsLine: `${formatCompact(insight.views_24h)} views in the last 24 hours, ${formatCompact(insight.views_7d)} views in the last 7 days`,
@@ -224,7 +224,7 @@ function deterministicPortfolioInsight(insight: ListingPortfolioInsightRow) {
   const suggestions: string[] = [];
 
   if (insight.views_7d === 0) {
-    return "Your published listings have not recorded enough buyer activity yet to diagnose performance. Start by improving the first photo, title clarity, and share distribution so your listings can collect meaningful signals.";
+    return "Your published listings have not recorded enough activity yet to diagnose performance. Start by improving the first photo, title clarity, and share distribution so your listings can collect meaningful signals.";
   }
 
   if (insight.high_intent_events_7d === 0) {
@@ -605,7 +605,7 @@ function ListingPortfolioInsightPanel({
 }
 
 function latestEventLabel(row: ListingActivityOverviewRow) {
-  if (!row.latest_activity_type) return "No buyer activity yet";
+  if (!row.latest_activity_type) return "No listing activity yet";
 
   const label = activityLabel({
     action_type: row.latest_action_type,
@@ -726,19 +726,19 @@ function LockedListingActivityState({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                Listing buyer activity
+                Listing activity
               </p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-4xl">
                 Unlock realtime activity across your listings
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
                 Your listings can stay live for free. Go Pro when you want to see
-                active buyers, buyer events, AI insights, and chat opportunities
+                anonymous activity trends, listing events, AI insights, and chat opportunities
                 across listings you own or are assigned to.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button asChild>
-                  <Link href="/become-agent">Start 7-day free trial</Link>
+                  <Link href="/go-pro">Explore Homzie Pro</Link>
                 </Button>
                 <Button asChild variant="outline">
                   <Link href="/go-pro">View Pro features</Link>
@@ -864,7 +864,11 @@ export default async function ListingActivityOverviewPage({
           ar.activity_type,
           ar.action_type,
           ar.created_at,
-          u.name AS actor_name
+          CASE
+            WHEN ar.activity_type = 'action' AND ar.action_type = 'contact_agent'
+              THEN u.name
+            ELSE NULL
+          END AS actor_name
         FROM activity_rows ar
         LEFT JOIN users u ON u.id = ar.viewer_user_id
         ORDER BY ar.listing_id, ar.created_at DESC
@@ -1267,10 +1271,10 @@ export default async function ListingActivityOverviewPage({
             <span className="hidden md:inline"> active</span>
           </TruncatedText>
           <TruncatedText
-            title={plural(row.active_buyer_count, "signed-in buyer", "signed-in buyers")}
+            title={plural(row.active_buyer_count, "signed-in activity group", "signed-in activity groups")}
             className="mt-0.5 hidden text-xs text-muted-foreground md:block"
           >
-            {plural(row.active_buyer_count, "buyer")}
+            {plural(row.active_buyer_count, "group")}
           </TruncatedText>
         </>
       ),
@@ -1344,14 +1348,14 @@ export default async function ListingActivityOverviewPage({
             <div className="min-w-0">
               <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 <Radar className="size-4" />
-                Listing buyer activity
+                Listing activity
               </p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-4xl">
-                Realtime buyers on your listings
+                Realtime activity on your listings
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Monitor buyer activity across listings you own or are assigned to. This is not the
-                future global active buyers discovery page.
+                Monitor activity across listings you own or are assigned to. Passive
+                browsing is shown only in aggregate; people appear after they choose to contact you.
               </p>
             </div>
             <ActivityRealtimeRefresh clearSearchParams={["refreshInsight"]} />
@@ -1362,19 +1366,19 @@ export default async function ListingActivityOverviewPage({
           <AnalyticsStat
             description="Across listings you own or are assigned to"
             icon={UsersRound}
-            label="Potential buyers active now"
+            label="Active viewers now"
             tone={analytics.active_viewer_count > 0 ? "green" : "purple"}
             value={plural(analytics.active_viewer_count, "viewer")}
           />
           <AnalyticsStat
-            description={plural(analytics.active_buyer_count, "signed-in buyer", "signed-in buyers")}
+            description={plural(analytics.active_buyer_count, "signed-in activity group", "signed-in activity groups")}
             icon={Radar}
-            label="Signed-in buyers active"
+            label="Signed-in activity"
             tone={analytics.active_buyer_count > 0 ? "green" : "purple"}
             value={plural(analytics.active_buyer_count, "buyer")}
           />
           <AnalyticsStat
-            description="Unread buyer groups"
+            description="Unread anonymous or contact activity"
             icon={Eye}
             label="New listing activity"
             tone={analytics.unread_viewer_count > 0 ? "red" : "purple"}
@@ -1410,7 +1414,7 @@ export default async function ListingActivityOverviewPage({
                   disabled={analytics.unread_viewer_count <= 0}
                   className="h-8 rounded-full px-3 text-xs"
                 >
-                  Clear all
+                  Mark activity read
                 </Button>
               </form>
               <p className="text-xs font-normal text-muted-foreground">

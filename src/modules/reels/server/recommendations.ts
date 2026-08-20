@@ -45,6 +45,7 @@ type RecommendedReelRow = {
   likeCount: number | string;
   listingAskingPriceCents: number | null;
   listingCoverImageUrl: string | null;
+  listingCurrency: string | null;
   listingId: string | null;
   listingLocation: string | null;
   listingPriceLabel: string | null;
@@ -273,6 +274,7 @@ function mapFeedItem({
       ? {
           coverImageUrl: toPublicMediaUrl(row.listingCoverImageUrl),
           id: row.listingId,
+          listingCurrency: row.listingCurrency,
           location: row.listingLocation,
           priceCents: row.listingAskingPriceCents,
           priceLabel: row.listingPriceLabel,
@@ -284,7 +286,8 @@ function mapFeedItem({
     location: reelLocation(row.editMetadata, row.listingReference),
     posterUrl: reelPosterUrl(row.editMetadata),
     price: row.listingPriceLabel || undefined,
-    priceZarCents: row.listingAskingPriceCents,
+    priceCents: row.listingAskingPriceCents,
+    listingCurrency: row.listingCurrency,
     recommendationReasons:
       process.env.NODE_ENV === "development" ? row.recommendationReasons : undefined,
     resharedByViewer: Boolean(row.viewerReshared),
@@ -369,6 +372,7 @@ async function getCandidateRows({
       likeCount: sql<number>`coalesce((select count(*)::int from ${reelLikes} where ${reelLikes.reelId} = ${reels.id}), 0)`,
       listingAskingPriceCents: propertyListings.askingPriceCents,
       listingCoverImageUrl: propertyListings.coverImageUrl,
+      listingCurrency: propertyListings.listingCurrency,
       listingId: reels.listingId,
       listingLocation: propertyListings.location,
       listingPriceLabel: propertyListings.priceLabel,

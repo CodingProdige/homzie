@@ -34,9 +34,11 @@ import { ListingPreviewCard } from "@/modules/listings/components/listing-previe
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Viewer Activity | Homzie",
-  description: "Review a buyer or session activity timeline for your Homzie listing.",
+  title: "Conversation Activity | Homzie",
+  description: "Review listing activity after a buyer has chosen to contact you.",
 };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ListingViewerActivityPageProps = {
   params: Promise<{ listingId: string; viewerKey: string }>;
@@ -64,14 +66,14 @@ type BuyerInsightRow = {
   active_days_30d: number;
   avg_bathrooms: number | null;
   avg_bedrooms: number | null;
-  avg_price_cents: number | null;
+  avg_price_comparable_zar_cents: number | null;
   current_listing_actions: number;
   current_listing_events: number;
   current_listing_views: number;
   high_intent_actions_30d: number;
   last_seen_at: Date | string | null;
-  max_price_cents: number | null;
-  min_price_cents: number | null;
+  max_price_comparable_zar_cents: number | null;
+  min_price_comparable_zar_cents: number | null;
   offer_count_30d: number;
   saved_or_liked_count_30d: number;
   top_areas: string[] | null;
@@ -105,7 +107,7 @@ function formatCompactCount(value: number | null | undefined) {
   return new Intl.NumberFormat("en-ZA", { maximumFractionDigits: 0 }).format(value || 0);
 }
 
-function formatZar(value: number | null | undefined) {
+function formatApproximateZar(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return "Not enough data";
   }
@@ -118,13 +120,19 @@ function formatZar(value: number | null | undefined) {
 }
 
 function formatPriceBracket(insight: BuyerInsightRow) {
-  if (!insight.min_price_cents || !insight.max_price_cents) return "Not enough data";
-
-  if (insight.min_price_cents === insight.max_price_cents) {
-    return formatZar(insight.min_price_cents);
+  if (
+    !insight.min_price_comparable_zar_cents ||
+    !insight.max_price_comparable_zar_cents
+  ) {
+    return "Not enough data";
   }
 
-  return `${formatZar(insight.min_price_cents)} - ${formatZar(insight.max_price_cents)}`;
+  const priceRange =
+    insight.min_price_comparable_zar_cents === insight.max_price_comparable_zar_cents
+      ? formatApproximateZar(insight.min_price_comparable_zar_cents)
+      : `${formatApproximateZar(insight.min_price_comparable_zar_cents)} - ${formatApproximateZar(insight.max_price_comparable_zar_cents)}`;
+
+  return `Approximate ZAR equivalent: ${priceRange}`;
 }
 
 const STREET_ADDRESS_PATTERN =
@@ -161,18 +169,18 @@ function buyerInsightFacts(insight: BuyerInsightRow) {
   const topAreas = areaNamesOnly(insight.top_areas);
 
   return {
-    activityLine: `${formatCompactCount(insight.viewed_listings_30d)} listings viewed, ${formatCompactCount(insight.view_count_30d)} views, ${formatCompactCount(insight.active_days_30d)} active days in the last 30 days`,
+    activityLine: `${formatCompactCount(insight.view_count_30d)} views and ${formatCompactCount(insight.active_days_30d)} active days on this listing in the last 30 days`,
     areaLine: topAreas.length ? topAreas.join(", ") : "Not enough area data yet",
     offerLine:
       insight.offer_count_30d > 0
-        ? `${formatCompactCount(insight.offer_count_30d)} recent ${insight.offer_count_30d === 1 ? "offer" : "offers"}`
-        : "No recent offers captured",
-    priceLine: `${formatPriceBracket(insight)}; average viewed price ${formatZar(insight.avg_price_cents)}`,
-    propertyLine: `${formatNumber(insight.avg_bedrooms)} average beds and ${formatNumber(insight.avg_bathrooms)} average baths across viewed listings`,
+        ? `${formatCompactCount(insight.offer_count_30d)} proposed ${insight.offer_count_30d === 1 ? "price" : "prices"}`
+        : "No proposed price captured",
+    priceLine: formatPriceBracket(insight),
+    propertyLine: `${formatNumber(insight.avg_bedrooms)} beds and ${formatNumber(insight.avg_bathrooms)} baths on this listing`,
     savedLine:
       insight.saved_or_liked_count_30d > 0
-        ? `${formatCompactCount(insight.saved_or_liked_count_30d)} saved or liked listings`
-        : "No saved or liked listings captured recently",
+        ? `${formatCompactCount(insight.saved_or_liked_count_30d)} save or like actions on this listing`
+        : "No save or like actions on this listing",
     thisListingLine: `${formatCompactCount(insight.current_listing_events)} events on this listing, including ${formatCompactCount(insight.current_listing_views)} views and ${formatCompactCount(insight.current_listing_actions)} actions`,
   };
 }
@@ -199,17 +207,10 @@ function deterministicBuyerInsightSummary(insight: BuyerInsightRow) {
   }
 
   if (!signals.length) {
-    return "There is not enough behavioural depth yet to infer strong intent. Treat this as early-stage browsing.";
+    return "There is not enough activity yet to summarize this conversation context.";
   }
 
-  const activityLevel =
-    insight.active_days_30d >= 5
-      ? "highly active"
-      : insight.active_days_30d >= 2
-        ? "active"
-        : "recently active";
-
-  return `This buyer looks ${activityLevel}: they ${signals.join(", ")}. Use the price and preference profile below as directional context, not a guarantee of budget.`;
+  return `This contact has ${signals.join(", ")} on this listing. Treat these facts as listing activity, not a prediction of motivation, budget, or likelihood to transact.`;
 }
 
 function cleanAiInsight(value: string) {
@@ -362,18 +363,18 @@ async function generateBuyerInsightNarrative({
             content: [
               {
                 text: [
-                  "Write a concise buyer-intent insight for a real estate agent.",
-                  "Use only the provided facts. Do not invent motivations, finances, urgency, family status, or certainty.",
+                  "Write a concise listing conversation-context summary for a real estate agent.",
+                  "Use only the provided facts from this listing. Do not infer motivations, finances, urgency, family status, budget, or certainty.",
                   "Keep it to 2 short sentences. Plain text only. No markdown.",
                   "",
                   `Buyer: ${buyerName}`,
                   `Listing: ${listingTitle}`,
                   `Activity: ${facts.activityLine}`,
                   `This listing: ${facts.thisListingLine}`,
-                  `Shopping price: ${facts.priceLine}`,
-                  `Property preference: ${facts.propertyLine}`,
-                  `Area focus: ${facts.areaLine}`,
-                  `Offers: ${facts.offerLine}`,
+                  `Comparable price: ${facts.priceLine}`,
+                  `Listing features: ${facts.propertyLine}`,
+                  `Listing area: ${facts.areaLine}`,
+                  `Proposed prices: ${facts.offerLine}`,
                   `Saved/liked: ${facts.savedLine}`,
                   `High-intent actions: ${formatCompactCount(insight.high_intent_actions_30d)}`,
                 ].join("\n"),
@@ -502,7 +503,7 @@ function BuyerInsightPanel({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-            Buyer insight
+            Conversation context
           </p>
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
             {narrative.generatedByAi ? "AI assisted" : "Data based"}
@@ -526,23 +527,23 @@ function BuyerInsightPanel({
       ) : null}
       <ul className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground">
         <li>
-          <span className="font-semibold text-foreground">Shopping range:</span>{" "}
+          <span className="font-semibold text-foreground">Comparable price:</span>{" "}
           {facts.priceLine}.
         </li>
         <li>
-          <span className="font-semibold text-foreground">Property preference:</span>{" "}
+          <span className="font-semibold text-foreground">Listing features:</span>{" "}
           {facts.propertyLine}.
         </li>
         <li>
-          <span className="font-semibold text-foreground">Area focus:</span>{" "}
+          <span className="font-semibold text-foreground">Listing area:</span>{" "}
           {facts.areaLine}.
         </li>
         <li>
-          <span className="font-semibold text-foreground">Platform activity:</span>{" "}
+          <span className="font-semibold text-foreground">Listing activity:</span>{" "}
           {facts.activityLine}.
         </li>
         <li>
-          <span className="font-semibold text-foreground">Offer and save signals:</span>{" "}
+          <span className="font-semibold text-foreground">Interest signals:</span>{" "}
           {facts.offerLine}; {facts.savedLine}.
         </li>
         <li>
@@ -574,6 +575,12 @@ export default async function ListingViewerActivityPage({
     redirect(
       `/sign-in?callbackUrl=/listings/${listingId}/activity/${encodeURIComponent(viewerKey)}`,
     );
+  }
+
+  // Person-level activity is available only for a signed-in buyer who chose to
+  // start a conversation. Passive and anonymous viewers never have a detail page.
+  if (!UUID_PATTERN.test(viewerKey)) {
+    notFound();
   }
 
   const [viewer, listingRows, access, agencyActivityAccess] = await Promise.all([
@@ -618,6 +625,19 @@ export default async function ListingViewerActivityPage({
         viewerUsername={viewer.username}
       />
     );
+  }
+
+  const contactRows = await sql<{ id: string }[]>`
+    SELECT id
+    FROM listing_action_events
+    WHERE listing_id = ${listingId}
+      AND viewer_user_id = ${viewerKey}::uuid
+      AND action_type = 'contact_agent'
+    LIMIT 1
+  `;
+
+  if (!contactRows.length) {
+    notFound();
   }
 
   await sql`
@@ -748,7 +768,7 @@ export default async function ListingViewerActivityPage({
         SELECT
           lve.created_at,
           lve.listing_id,
-          pl.asking_price_cents,
+          pl.asking_price_comparable_zar_cents,
           pl.details,
           COALESCE(
             NULLIF(pl.details->>'suburb', ''),
@@ -771,7 +791,8 @@ export default async function ListingViewerActivityPage({
           OR (vi.viewer_user_id IS NULL AND lve.viewer_session_id = vi.viewer_session_id)
         )
         JOIN property_listings pl ON pl.id = lve.listing_id
-        WHERE lve.created_at >= now() - interval '30 days'
+        WHERE lve.listing_id = ${listingId}
+          AND lve.created_at >= now() - interval '30 days'
       ),
       scoped_actions AS (
         SELECT lae.action_type, lae.created_at, lae.listing_id
@@ -780,13 +801,15 @@ export default async function ListingViewerActivityPage({
           (vi.viewer_user_id IS NOT NULL AND lae.viewer_user_id = vi.viewer_user_id)
           OR (vi.viewer_user_id IS NULL AND lae.viewer_session_id = vi.viewer_session_id)
         )
-        WHERE lae.created_at >= now() - interval '30 days'
+        WHERE lae.listing_id = ${listingId}
+          AND lae.created_at >= now() - interval '30 days'
       ),
       scoped_offers AS (
         SELECT po.id, po.created_at
         FROM property_offers po
         JOIN viewer_identity vi ON vi.viewer_user_id IS NOT NULL AND po.buyer_user_id = vi.viewer_user_id
-        WHERE po.created_at >= now() - interval '30 days'
+        WHERE po.listing_id = ${listingId}
+          AND po.created_at >= now() - interval '30 days'
       ),
       area_counts AS (
         SELECT area, count(*) AS area_count
@@ -801,9 +824,9 @@ export default async function ListingViewerActivityPage({
         count(DISTINCT sv.listing_id)::int AS viewed_listings_30d,
         count(DISTINCT sv.created_at::date)::int AS active_days_30d,
         max(sv.created_at) AS last_seen_at,
-        min(sv.asking_price_cents)::int AS min_price_cents,
-        max(sv.asking_price_cents)::int AS max_price_cents,
-        avg(sv.asking_price_cents)::int AS avg_price_cents,
+        min(sv.asking_price_comparable_zar_cents)::float AS min_price_comparable_zar_cents,
+        max(sv.asking_price_comparable_zar_cents)::float AS max_price_comparable_zar_cents,
+        avg(sv.asking_price_comparable_zar_cents)::float AS avg_price_comparable_zar_cents,
         avg(sv.bedrooms)::float AS avg_bedrooms,
         avg(sv.bathrooms)::float AS avg_bathrooms,
         coalesce((SELECT array_agg(area) FROM area_counts), ARRAY[]::text[]) AS top_areas,
@@ -852,14 +875,14 @@ export default async function ListingViewerActivityPage({
     active_days_30d: 0,
     avg_bathrooms: null,
     avg_bedrooms: null,
-    avg_price_cents: null,
+    avg_price_comparable_zar_cents: null,
     current_listing_actions: 0,
     current_listing_events: totalRows,
     current_listing_views: 0,
     high_intent_actions_30d: 0,
     last_seen_at: null,
-    max_price_cents: null,
-    min_price_cents: null,
+    max_price_comparable_zar_cents: null,
+    min_price_comparable_zar_cents: null,
     offer_count_30d: 0,
     saved_or_liked_count_30d: 0,
     top_areas: [],
@@ -973,10 +996,10 @@ export default async function ListingViewerActivityPage({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                Viewer activity
+                Conversation activity
               </p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-4xl">
-                Activity timeline
+                Listing conversation timeline
               </h1>
             </div>
             <ActivityRealtimeRefresh clearSearchParams={["refreshInsight"]} />

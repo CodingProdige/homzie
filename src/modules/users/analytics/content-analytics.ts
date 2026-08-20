@@ -4,6 +4,11 @@ import { getServerSession } from "next-auth";
 import { sql } from "@/db";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
+import {
+  formatCurrencyAmount,
+  normalizeSupportedCurrency,
+  type SupportedCurrency,
+} from "@/modules/currency/currency";
 import { buildListingPath } from "@/modules/listings/seo";
 import { toPublicMediaUrl } from "@/media/paths";
 
@@ -52,6 +57,7 @@ export type ListingAnalyticsRow = {
   impressionCount: number;
   lastActivityAt: string | null;
   likeCount: number;
+  listingCurrency: SupportedCurrency;
   location: string | null;
   priceLabel: string;
   reserveCount: number;
@@ -133,6 +139,7 @@ type ListingMetricsRow = {
   id: string;
   last_activity_at: string | null;
   likes: number | string | null;
+  listing_currency: string | null;
   listing_type: string;
   location: string | null;
   property_type: string;
@@ -296,14 +303,12 @@ function listingNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function formatZar(cents: number | null) {
+function formatListingPrice(cents: number | null, listingCurrency: string | null) {
   if (!cents) return "Price not set";
 
-  return new Intl.NumberFormat("en-ZA", {
-    currency: "ZAR",
+  return formatCurrencyAmount(cents / 100, normalizeSupportedCurrency(listingCurrency), {
     maximumFractionDigits: 0,
-    style: "currency",
-  }).format(cents / 100);
+  });
 }
 
 function formatLabel(value: string) {
@@ -322,7 +327,7 @@ function formatLabel(value: string) {
 function breakdownDescription(value: string) {
   const descriptions: Record<string, string> = {
     bond_calculator:
-      "A visitor opened the bond calculator from this listing.",
+      "A visitor opened the mortgage calculator from this listing.",
     buy_now:
       "A legacy reserve-now click recorded before this action was renamed.",
     call_agent:
@@ -334,7 +339,7 @@ function breakdownDescription(value: string) {
     complete:
       "A play session reached the end, or close enough to count as completed.",
     contact_agent:
-      "A visitor started a contact flow from this listing.",
+      "A visitor sent a message from this listing.",
     email_agent:
       "A visitor tapped the email action to contact the agent.",
     follow:
@@ -418,6 +423,7 @@ function mapListingRow(row: ListingMetricsRow): ListingAnalyticsRow {
   const contactCount = numberFrom(row.contacts);
   const reserveCount = numberFrom(row.reserves);
   const actionCount = numberFrom(row.actions);
+  const listingCurrency = normalizeSupportedCurrency(row.listing_currency);
 
   return {
     actionCount,
@@ -431,8 +437,9 @@ function mapListingRow(row: ListingMetricsRow): ListingAnalyticsRow {
     impressionCount: numberFrom(row.views),
     lastActivityAt: dateString(row.last_activity_at) || dateString(row.updated_at),
     likeCount: numberFrom(row.likes),
+    listingCurrency,
     location: row.location,
-    priceLabel: formatZar(row.asking_price_cents),
+    priceLabel: formatListingPrice(row.asking_price_cents, listingCurrency),
     reserveCount,
     saveCount,
     shareCount,
@@ -556,6 +563,7 @@ export async function getListingAnalyticsRows(
       pl.location,
       pl.status,
       pl.asking_price_cents,
+      pl.listing_currency,
       pl.details,
       pl.listing_type,
       pl.property_type,
@@ -677,6 +685,7 @@ export async function getListingAnalyticsDetail(
       pl.location,
       pl.status,
       pl.asking_price_cents,
+      pl.listing_currency,
       pl.details,
       pl.listing_type,
       pl.property_type,

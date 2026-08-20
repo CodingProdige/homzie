@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
@@ -413,6 +413,7 @@ export function BroadcastComposer({
   initialSubject = "",
 }: BroadcastComposerProps) {
   const router = useRouter();
+  const saveFormId = useId();
   const [saveState, saveAction, saving] = useActionState(
     saveBroadcastCampaignAction,
     emptyBroadcastActionState,
@@ -603,15 +604,16 @@ export function BroadcastComposer({
   }
 
   return (
-    <form action={saveAction} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      {effectiveCampaignId ? (
-        <input name="campaignId" type="hidden" value={effectiveCampaignId} />
-      ) : null}
-      <input name="audienceJson" type="hidden" value={audienceJson} />
-      <input name="blocksJson" type="hidden" value={blocksJson} />
-
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-6">
-        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+        <form action={saveAction} className="space-y-6" id={saveFormId}>
+          {effectiveCampaignId ? (
+            <input name="campaignId" type="hidden" value={effectiveCampaignId} />
+          ) : null}
+          <input name="audienceJson" type="hidden" value={audienceJson} />
+          <input name="blocksJson" type="hidden" value={blocksJson} />
+
+          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
@@ -666,9 +668,9 @@ export function BroadcastComposer({
               />
             </div>
           </div>
-        </section>
+          </section>
 
-        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
@@ -810,9 +812,9 @@ export function BroadcastComposer({
               </label>
             </div>
           </div>
-        </section>
+          </section>
 
-        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
@@ -1213,12 +1215,26 @@ export function BroadcastComposer({
               </div>
             ))}
           </div>
-        </section>
+          </section>
+        </form>
 
         {!isLocked ? (
           <div className="sticky bottom-4 z-10 rounded-lg border border-border bg-background/95 p-3 shadow-lg backdrop-blur">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:w-[30rem]">
+              <form
+                action={testAction}
+                className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:w-[30rem]"
+              >
+                {effectiveCampaignId ? (
+                  <input
+                    name="campaignId"
+                    type="hidden"
+                    value={effectiveCampaignId}
+                  />
+                ) : null}
+                <input name="blocksJson" type="hidden" value={blocksJson} />
+                <input name="preheader" type="hidden" value={preheader} />
+                <input name="subject" type="hidden" value={subject} />
                 <Input
                   name="recipientEmail"
                   onChange={(event) => setTestRecipient(event.target.value)}
@@ -1228,15 +1244,14 @@ export function BroadcastComposer({
                 />
                 <Button
                   disabled={testing || !testRecipient}
-                  formAction={testAction}
                   type="submit"
                   variant="outline"
                 >
                   <Send className="size-4" />
                   {testing ? "Sending" : "Send test"}
                 </Button>
-              </div>
-              <Button disabled={saving} type="submit">
+              </form>
+              <Button disabled={saving} form={saveFormId} type="submit">
                 <Plus className="size-4" />
                 {saving ? "Saving" : "Save draft"}
               </Button>
@@ -1276,6 +1291,6 @@ export function BroadcastComposer({
           </div>
         </div>
       </aside>
-    </form>
+    </div>
   );
 }

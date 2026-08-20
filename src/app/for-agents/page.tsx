@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import {
   ArrowRight,
@@ -17,43 +18,40 @@ import {
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
 import { Button } from "@/components/ui/button";
+import { activateFreeAgentProfile } from "@/modules/agents/free-agent-profile-actions";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
 import {
-  AgentPricingViewedTracker,
-  AgentTrialLink,
   AgentWalkthroughVideo,
 } from "./agent-landing-tracking";
 
 export const metadata: Metadata = {
-  title: "Win More Mandates With Homzie | Agent Trial",
+  title: "List Free, Build Your Audience | Homzie for Agents",
   description:
-    "Start a 7-day Homzie agent trial. Build your agent profile, publish listings and reels, see live buyer intent, and prove your marketing to sellers.",
+    "Build a public real estate agent profile, publish listings and property reels for free, then upgrade to Homzie Pro when you need advanced buyer-intent tools.",
 };
 
-const trialCallbackUrl = "/become-agent";
+const freeProfileCallbackUrl = "/for-agents";
 
-function trialHref(isSignedIn: boolean) {
-  return isSignedIn
-    ? trialCallbackUrl
-    : `/register?callbackUrl=${encodeURIComponent(trialCallbackUrl)}`;
+function freeProfileHref() {
+  return `/register?callbackUrl=${encodeURIComponent(freeProfileCallbackUrl)}`;
 }
 
 const valueCards = [
   {
     icon: UserRoundCheck,
-    title: "Prove your marketing",
-    text: "Show sellers a public agent profile with your listings, reels, sold activity, and buyer engagement proof in one place.",
+    title: "Build your following",
+    text: "Keep your profile, listings, reels, and track record attached to you—not buried under a portal or agency logo.",
   },
   {
     icon: Radar,
-    title: "Know who is serious",
-    text: "See active viewers, returning buyers, listing activity, direct offers, and buyer intent signals instead of guessing from basic view counts.",
+    title: "Understand demand safely",
+    text: "Use anonymous activity patterns, saves, views, and contact signals to understand where interest is growing.",
   },
   {
     icon: MessageCircle,
-    title: "Act while interest is hot",
-    text: "Start a chat while a buyer is viewing your listing, follow up with returning buyers, and respond before interest goes cold.",
+    title: "Connect when buyers choose",
+    text: "Let buyers start the conversation through messages and enquiries, with the listing context already attached.",
   },
 ];
 
@@ -61,7 +59,7 @@ const featureBlocks = [
   {
     icon: UserRoundCheck,
     title: "Agent profile",
-    text: "Build a public profile that shows sellers who you are, where you operate, your listings, reels, and performance proof.",
+    text: "Build a public profile that shows who you are, where you work, and the listings and reels that represent your work.",
   },
   {
     icon: Clapperboard,
@@ -70,18 +68,18 @@ const featureBlocks = [
   },
   {
     icon: Eye,
-    title: "Realtime buyer activity",
-    text: "See who is actively viewing your listings, who came back, and which listings are getting serious attention.",
+    title: "Buyer activity trends",
+    text: "Understand active views, returning interest, saves, and listing engagement without exposing passive buyer identities.",
   },
   {
     icon: BarChart3,
-    title: "Buyer intent insights",
-    text: "Understand what buyer actions suggest: browsing, returning, saving, calculating bond payments, starting offers, or engaging with photos.",
+    title: "Buyer interest insights",
+    text: "See which actions signal momentum: returning, saving, engaging with media, messaging, and sharing interest.",
   },
   {
     icon: TrendingUp,
-    title: "Direct offers",
-    text: "Let buyers show intent directly through offer starts and listing actions instead of waiting for a cold enquiry.",
+    title: "Interest conversations",
+    text: "Give buyers a clear way to ask questions, send interest, and start a direct conversation about a listing.",
   },
   {
     icon: MessageCircle,
@@ -93,7 +91,7 @@ const featureBlocks = [
 const comparisonRows = [
   {
     old: "Wait for buyers to enquire.",
-    new: "See buyer activity and act while interest is live.",
+    new: "See anonymous activity trends and respond when a buyer chooses to engage.",
   },
   {
     old: "Listings sit under the agency brand.",
@@ -101,42 +99,59 @@ const comparisonRows = [
   },
   {
     old: "Views are vague and easy to overread.",
-    new: "Buyer intent shows who returned, acted, offered, or engaged.",
+    new: "Buyer interest shows how listings are performing without treating passive browsing as a lead.",
   },
 ];
 
-const trialBullets = [
-  "7 days free",
-  "Payment method required to activate trial",
-  "Cancel before the trial ends",
-  "Built for estate agents and agencies",
+const freeProfileBullets = [
+  "Free public agent profile",
+  "Publish listings and property reels",
+  "No payment details required",
+  "Upgrade to Pro only when you want advanced tools",
 ];
 
-function TrialButton({
+function FreeProfileButton({
   className,
-  href,
-  location,
+  isSignedIn,
   variant = "default",
 }: {
   className?: string;
-  href: string;
-  location: string;
+  isSignedIn: boolean;
   variant?: "default" | "outline";
 }) {
+  const label = "Create free agent profile";
+
+  if (isSignedIn) {
+    return (
+      <form action={activateFreeAgentProfile}>
+        <Button className={className} size="lg" type="submit" variant={variant}>
+          {label}
+          <ArrowRight className="size-4" />
+        </Button>
+      </form>
+    );
+  }
+
   return (
     <Button asChild className={className} size="lg" variant={variant}>
-      <AgentTrialLink href={href} location={location}>
-        Start 7-day free trial
+      <Link href={freeProfileHref()}>
+        {label}
         <ArrowRight className="size-4" />
-      </AgentTrialLink>
+      </Link>
     </Button>
   );
 }
 
-export default async function ForAgentsPage() {
+export default async function ForAgentsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ notice?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   const viewer = await getViewerChrome(session?.user?.id);
-  const href = trialHref(Boolean(session?.user?.id));
+  const isSignedIn = Boolean(session?.user?.id);
+  const query = searchParams ? await searchParams : {};
+  const notice = query.notice;
 
   return (
     <>
@@ -162,25 +177,34 @@ export default async function ForAgentsPage() {
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent" />
 
           <div className="homzie-fade-up relative z-10 mx-auto flex min-h-[92svh] w-full max-w-7xl flex-col justify-end px-4 pb-20 pt-28 sm:px-6 lg:px-8">
+            {notice === "profile-suspended" ? (
+              <p className="mb-5 max-w-2xl rounded-lg border border-amber-300/45 bg-amber-100/15 px-4 py-3 text-sm font-semibold text-amber-50">
+                Your agent profile is currently under review. Please contact Homzie support if you need help.
+              </p>
+            ) : null}
+            {notice === "agency-profile" ? (
+              <p className="mb-5 max-w-2xl rounded-lg border border-sky-200/35 bg-sky-100/10 px-4 py-3 text-sm font-semibold text-sky-50">
+                Your agency role is already active. Manage your team and listings from the control room.
+              </p>
+            ) : null}
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">
-              Homzie for estate agents
+              Homzie for real estate agents
             </p>
             <h1 className="mt-5 max-w-5xl text-5xl font-semibold leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">
-              Win More Mandates. See Buyer Intent Live.
+              Your listings shouldn&apos;t disappear into a portal.
             </h1>
             <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-white/82 sm:text-lg">
-              Homzie helps estate agents prove their marketing, publish modern
-              listings and reels, track real buyer activity, and chat with
-              serious buyers while interest is hot.
+              Build an audience around your properties, create reels that travel,
+              and turn every listing into proof of your work. Start with a free
+              public agent profile—no card required.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <TrialButton
+              <FreeProfileButton
                 className="h-12 px-6 text-sm font-semibold sm:h-14 sm:px-8"
-                href={href}
-                location="hero"
+                isSignedIn={isSignedIn}
               />
               <p className="text-sm font-semibold text-white/72">
-                Set up your profile, add your first listing, and activate your trial.
+                Set up your profile, add your first listing, and publish at your pace.
               </p>
             </div>
           </div>
@@ -221,13 +245,13 @@ export default async function ForAgentsPage() {
               </h2>
               <p className="mt-4 max-w-3xl text-sm font-normal leading-7 text-muted-foreground sm:text-base">
                 See how an agent can build a profile, publish listings and reels,
-                monitor live buyer activity, and use buyer intent to follow up smarter.
+                understand listing momentum, and turn chosen buyer contact into
+                stronger conversations.
               </p>
             </div>
-            <TrialButton
+            <FreeProfileButton
               className="w-full sm:w-fit"
-              href={href}
-              location="demo_header"
+              isSignedIn={isSignedIn}
             />
           </div>
 
@@ -269,7 +293,7 @@ export default async function ForAgentsPage() {
             </div>
 
             <div className="mt-8">
-              <TrialButton href={href} location="features" />
+              <FreeProfileButton isSignedIn={isSignedIn} />
             </div>
           </div>
         </section>
@@ -277,27 +301,26 @@ export default async function ForAgentsPage() {
         <section className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-              Seller mandate proof
+              More proof, less portal dependence
             </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
-              Walk into seller meetings with proof.
+              Make every listing part of your public portfolio.
             </h2>
             <p className="mt-4 text-sm font-normal leading-7 text-muted-foreground sm:text-base">
-              Most agents tell sellers they will market harder. Homzie helps you
-              show it. Your profile, reels, listings, buyer activity, and
-              performance signals become proof that you understand buyer behaviour
-              and can act on interest faster.
+              Your profile, reels, listings, and performance stay connected to you.
+              Show prospective sellers how you present homes and build a visible
+              body of work over time.
             </p>
             <div className="mt-8">
-              <TrialButton href={href} location="mandate_proof" />
+              <FreeProfileButton isSignedIn={isSignedIn} />
             </div>
           </div>
 
           <div className="grid content-start gap-3">
             {[
               "Show your active marketing presence.",
-              "Show listing engagement and buyer activity.",
-              "Show sellers how you follow up on real intent.",
+              "Show listing engagement and interest trends.",
+              "Show buyers a clear way to start a conversation.",
               "Differentiate from agents relying only on property portals.",
             ].map((item) => (
               <div
@@ -317,7 +340,7 @@ export default async function ForAgentsPage() {
               Not just another portal
             </p>
             <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-5xl">
-              Stop waiting for cold enquiries.
+              Don&apos;t just upload a listing. Build a following around it.
             </h2>
 
             <div className="homzie-fade-up homzie-delay-1 mt-8 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -348,34 +371,37 @@ export default async function ForAgentsPage() {
             </div>
 
             <div className="mt-8">
-              <TrialButton href={href} location="comparison" />
+              <FreeProfileButton isSignedIn={isSignedIn} />
             </div>
           </div>
         </section>
 
         <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <AgentPricingViewedTracker />
           <div className="homzie-hover-lift overflow-hidden rounded-lg border border-border bg-card shadow-xl shadow-primary/5">
             <div className="grid gap-0 lg:grid-cols-[1fr_0.85fr]">
               <div className="p-6 sm:p-8 lg:p-10">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                  Start your agent trial
+                  Start free
                 </p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
-                  Start your 7-day agent trial.
+                  Build your public property brand first.
                 </h2>
                 <p className="mt-4 max-w-2xl text-sm font-normal leading-7 text-muted-foreground sm:text-base">
-                  Create your profile, publish your first listing, test reels, and
-                  see how Homzie helps you prove your value to sellers.
+                  Create your profile, publish your first listing, and test property
+                  reels without entering payment details. Homzie Pro remains there
+                  when you need advanced buyer-interest tools.
                 </p>
-                <div className="mt-8">
-                  <TrialButton href={href} location="trial_section" />
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <FreeProfileButton isSignedIn={isSignedIn} />
+                  <Button asChild size="lg" variant="outline">
+                    <Link href="/go-pro">Explore Homzie Pro</Link>
+                  </Button>
                 </div>
               </div>
 
               <div className="border-t border-border bg-muted/35 p-6 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
                 <div className="grid gap-3">
-                  {trialBullets.map((item) => (
+                  {freeProfileBullets.map((item) => (
                     <div key={item} className="flex items-center gap-3">
                       <ShieldCheck className="size-5 shrink-0 text-primary" />
                       <p className="text-sm font-semibold">{item}</p>
@@ -383,9 +409,8 @@ export default async function ForAgentsPage() {
                   ))}
                 </div>
                 <p className="mt-6 text-xs font-normal leading-6 text-muted-foreground">
-                  Trial activation uses Homzie&apos;s existing agent subscription
-                  checkout. Your card is stored securely by Stripe and you can
-                  manage billing from your account settings.
+                  Free publishing does not create a Stripe subscription. Pro is a
+                  separate, optional upgrade that you can manage from your account.
                 </p>
               </div>
             </div>
@@ -403,16 +428,16 @@ export default async function ForAgentsPage() {
                 "No. Individual agents can start with their own profile. Agencies and Network HQs can later manage teams, branches, billing, and listing controls through the control room.",
               ],
               [
-                "Why do you need payment details for a free trial?",
-                "To activate the subscription automatically after the trial unless you cancel. You can cancel before the trial ends.",
+                "Do I need a card to create an agent profile or list?",
+                "No. Your public agent profile, listings, and property reels are free to create and publish. Payment details are only needed if you choose the optional Homzie Pro upgrade.",
               ],
               [
                 "Can I use Homzie if my agency controls listings?",
                 "Yes. You can still build your profile and reels, and agency-controlled listing workflows are being built for teams that need approval and oversight.",
               ],
               [
-                "Is this replacing Property24?",
-                "No. Homzie is designed to give agents and agencies buyer intent, profile proof, reels, chat, and performance visibility that traditional portals do not provide.",
+                "Is this just another property portal?",
+                "No. Homzie is built around people as well as properties: agent profiles, property reels, public portfolios, buyer conversations, and respectful activity signals.",
               ],
             ].map(([question, answer]) => (
               <details key={question} className="group p-5">
@@ -428,10 +453,9 @@ export default async function ForAgentsPage() {
           </div>
 
           <div className="mt-8 text-center">
-            <TrialButton
+            <FreeProfileButton
               className="mx-auto"
-              href={href}
-              location="faq_final"
+              isSignedIn={isSignedIn}
             />
           </div>
         </section>

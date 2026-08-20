@@ -157,6 +157,7 @@ type ProfileListing = {
   likedByViewer?: boolean;
   likeCount: number;
   likeCountLabel: string;
+  listingCurrency: string;
   listingType: string;
   location: string | null;
   loadingBays: number;
@@ -182,8 +183,8 @@ type ProfileListing = {
 const agentCtaFeatures = [
   {
     icon: Eye,
-    title: "See active buyers",
-    description: "Know who is viewing and returning.",
+    title: "See activity trends",
+    description: "Understand anonymous viewing and returning activity.",
     className: "border-white/15 bg-white/8 text-white",
   },
   {
@@ -194,8 +195,8 @@ const agentCtaFeatures = [
   },
   {
     icon: MessageCircle,
-    title: "Chat while hot",
-    description: "Start conversations before interest cools.",
+    title: "Respond to contact",
+    description: "Continue conversations when buyers choose to message.",
     className: "border-white/15 bg-white/8 text-white",
   },
   {
@@ -1454,9 +1455,9 @@ function AgentBrandCta() {
 
           <div className="mt-8 flex min-w-0 flex-col gap-3 sm:flex-row">
             <Button asChild className="h-11 min-w-0 px-7">
-              <Link href="/become-agent">
+              <Link href="/go-pro">
                 <LockKeyhole className="size-4" />
-                Unlock buyer intent
+                Unlock listing activity
               </Link>
             </Button>
             <Button
@@ -1473,13 +1474,13 @@ function AgentBrandCta() {
           <div className="absolute left-0 top-24 z-20 rounded-lg bg-white px-4 py-3 text-xs font-bold text-brand-black shadow-xl">
             <span className="flex items-center gap-2">
               <MessageCircle className="size-4 text-primary" />
-              Chat while active
+              Respond to contact
             </span>
           </div>
           <div className="absolute right-0 top-5 z-20 rounded-lg bg-white px-4 py-3 text-xs font-bold text-brand-black shadow-xl">
             <span className="flex items-center gap-2">
               <Eye className="size-4 text-primary" />
-              3 active buyers
+              3 active viewers
             </span>
             <span className="mt-1 block text-muted-foreground">Viewing now</span>
           </div>
@@ -1492,18 +1493,18 @@ function AgentBrandCta() {
           <div className="absolute right-16 top-9 w-[280px] overflow-hidden rounded-lg border border-white/20 bg-white text-brand-black shadow-2xl">
             <div className="border-b border-border bg-[linear-gradient(135deg,#f4f0ff,#ffe8f5)] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
-                Buyer activity
+                Listing activity
               </p>
-              <p className="mt-1 text-2xl font-semibold">Intent is locked</p>
+              <p className="mt-1 text-2xl font-semibold">Activity is locked</p>
               <div className="mt-4 space-y-2 blur-[2px]">
-                {["Sarah Parker", "James M.", "Lindiwe N."].map((name, index) => (
+                {["Anonymous activity", "Contact-ready activity", "Listing trend"].map((name, index) => (
                   <div
                     key={name}
                     className="flex items-center justify-between rounded-md bg-white/85 px-3 py-2 shadow-sm"
                   >
                     <span className="text-xs font-semibold">{name}</span>
                     <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
-                      {index === 0 ? "High" : "Live"}
+                      {index === 0 ? "Aggregate" : "Live"}
                     </span>
                   </div>
                 ))}
@@ -1518,7 +1519,7 @@ function AgentBrandCta() {
               <div className="rounded-lg border border-border bg-muted/40 p-3">
                 <p className="text-xs font-semibold">AI summary</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Upgrade to see which buyers are serious and what they did.
+                  Upgrade to see anonymous activity patterns and listing performance signals.
                 </p>
               </div>
             </div>
@@ -1662,6 +1663,7 @@ function ProfileListingCard({
     likedByViewer: listing.likedByViewer,
     likeCount: listing.likeCount,
     likeCountLabel: listing.likeCountLabel,
+    listingCurrency: listing.listingCurrency,
     listingType: listing.listingType,
     listingTypeLabel: listingTypeLabel(listing.listingType),
     location: listing.location,

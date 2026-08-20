@@ -5,11 +5,6 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import {
-  agentSubscriptionPlans,
-  agentSubscriptionTrialLabel,
-} from "@/modules/billing/plans";
-import { CurrencyAmount } from "@/modules/currency/currency-amount";
 
 export type FaqItem = {
   answer: ReactNode;
@@ -20,25 +15,12 @@ const contactFaqs: FaqItem[] = [
   {
     question: "How do I list my property on Homzie?",
     answer:
-      `Create an account, start the Homzie Agent plan with a ${agentSubscriptionTrialLabel.toLowerCase()}, then open Listings and choose New listing. You can add property details, photos, pricing, location, features, and publish when everything looks right.`,
+      "Create an account, activate your free agent profile, then open Listings and choose New listing. You can add property details, photos, pricing, location, features, and publish when everything looks right.",
   },
   {
     question: "Is it free to list a property?",
-    answer: (
-      <>
-        Buyers can browse for free. To list properties, create reels, and unlock agent tools,
-        you need an active Homzie Agent subscription. Every new subscription starts
-        with a{" "}
-        <span className="font-semibold text-foreground">
-          {agentSubscriptionTrialLabel.toLowerCase()}
-        </span>{" "}
-        and then continues at{" "}
-        <span className="font-semibold text-foreground">
-          <CurrencyAmount cents={agentSubscriptionPlans.month.amountCents} />/month
-        </span>
-        .
-      </>
-    ),
+    answer:
+      "Yes. Your public agent profile, listings, and property reels are free to create and publish. Homzie Pro is an optional paid upgrade for advanced buyer-interest and performance tools.",
   },
   {
     question: "How do I contact an agent?",

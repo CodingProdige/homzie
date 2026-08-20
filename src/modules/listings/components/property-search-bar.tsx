@@ -180,16 +180,18 @@ function readSessionSearchState() {
   }
 }
 
-function formatPrice(value: string) {
+function formatComparableZarPrice(value: string) {
   const number = Number(value);
 
   if (!Number.isFinite(number)) return value;
 
-  return new Intl.NumberFormat("en", {
+  const formatted = new Intl.NumberFormat("en", {
     currency: "ZAR",
     maximumFractionDigits: 0,
     style: "currency",
   }).format(number);
+
+  return `≈ ${formatted}`;
 }
 
 function formatListingCount(count: number) {
@@ -484,7 +486,7 @@ export function PropertySearchBar({
   }, [areaQuery, areas, options.areas]);
 
   const priceOptions = options.prices.map((price) => ({
-    label: formatPrice(price),
+    label: formatComparableZarPrice(price),
     value: price,
   }));
   const listingTypeSelectOptions = listingTypeOptions.map((option) => ({
@@ -509,10 +511,10 @@ export function PropertySearchBar({
           .join(", ");
   const priceLabel =
     minPrice || maxPrice
-      ? `${minPrice ? formatPrice(minPrice) : "Any"} - ${
-          maxPrice ? formatPrice(maxPrice) : "Any"
+      ? `Approx. ZAR: ${minPrice ? formatComparableZarPrice(minPrice) : "Any"} - ${
+          maxPrice ? formatComparableZarPrice(maxPrice) : "Any"
         }`
-      : "Any price";
+      : "Any price (approx. ZAR)";
   const isHero = variant === "hero";
   const modalFilterCount =
     [
@@ -1165,16 +1167,16 @@ export function PropertySearchBar({
           />
           <SearchSelect
             className="h-12 bg-white text-sm dark:bg-background sm:h-14 sm:text-base lg:col-start-4 lg:row-start-1"
-            label="Min price"
+            label="Min price (≈ ZAR)"
             onChange={setMinPrice}
-            options={[{ label: "Min price", value: "" }, ...priceOptions]}
+            options={[{ label: "Any minimum", value: "" }, ...priceOptions]}
             value={minPrice}
           />
           <SearchSelect
             className="col-span-2 h-12 bg-white text-sm dark:bg-background sm:col-span-1 sm:h-14 sm:text-base lg:col-start-5 lg:row-start-1"
-            label="Max price"
+            label="Max price (≈ ZAR)"
             onChange={setMaxPrice}
-            options={[{ label: "Max price", value: "" }, ...priceOptions]}
+            options={[{ label: "Any maximum", value: "" }, ...priceOptions]}
             value={maxPrice}
           />
           <div className="col-span-2 lg:col-span-1 lg:col-start-6 lg:row-start-1">
@@ -1388,16 +1390,16 @@ export function PropertySearchBar({
         />
         <SearchSelect
           className={isHero ? "h-14 bg-white dark:bg-background" : undefined}
-          label="Min price"
+          label="Min price (≈ ZAR)"
           onChange={setMinPrice}
-          options={[{ label: "Min price", value: "" }, ...priceOptions]}
+          options={[{ label: "Any minimum", value: "" }, ...priceOptions]}
           value={minPrice}
         />
         <SearchSelect
           className={isHero ? "h-14 bg-white dark:bg-background" : undefined}
-          label="Max price"
+          label="Max price (≈ ZAR)"
           onChange={setMaxPrice}
-          options={[{ label: "Max price", value: "" }, ...priceOptions]}
+          options={[{ label: "Any maximum", value: "" }, ...priceOptions]}
           value={maxPrice}
         />
         <SearchSelect

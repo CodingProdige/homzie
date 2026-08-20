@@ -118,12 +118,15 @@ function listingArea(listing: ListingSeoInput) {
 }
 
 function listingProvince(listing: ListingSeoInput) {
+  const parts = locationParts(listing.location);
+
   return (
     compactText(listing.province || "") ||
     compactText(listing.state || "") ||
     compactText(listing.region || "") ||
     compactText(listing.country || "") ||
-    "South Africa"
+    parts.at(-1) ||
+    "global"
   );
 }
 

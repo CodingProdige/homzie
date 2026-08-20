@@ -249,7 +249,7 @@ async function getDashboardData() {
           AND pl.status = 'sold'
       ) AS sold_count,
       (
-        SELECT COALESCE(sum(pl.sold_price_cents), 0)
+        SELECT COALESCE(sum(pl.sold_price_comparable_zar_cents), 0)
         FROM property_listings pl
         WHERE pl.user_id = u.id
           AND pl.is_demo_content = true

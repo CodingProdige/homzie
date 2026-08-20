@@ -1,4 +1,4 @@
-import { randomBytes, scrypt } from "node:crypto";
+import { createHash, randomBytes, scrypt } from "node:crypto";
 import { promisify } from "node:util";
 import postgres from "postgres";
 
@@ -24,30 +24,56 @@ async function hashPassword(password) {
 const sql = postgres(databaseUrl, { max: 1 });
 const normalizedEmail = adminEmail.toLowerCase();
 
+function fallbackAdminUsername(email) {
+  return `${adminUsername}-${createHash("sha256").update(email).digest("hex").slice(0, 8)}`;
+}
+
 try {
   const passwordHash = await hashPassword(adminPassword);
-
-  await sql`
-    INSERT INTO users (name, username, email, password_hash, role, status, email_verified, updated_at)
-    VALUES (
-      ${adminName},
-      ${adminUsername},
-      ${normalizedEmail},
-      ${passwordHash},
-      'admin',
-      'active',
-      true,
-      now()
-    )
-    ON CONFLICT (email) DO UPDATE SET
-      name = EXCLUDED.name,
-      username = EXCLUDED.username,
-      password_hash = EXCLUDED.password_hash,
-      role = 'admin',
-      status = 'active',
-      email_verified = true,
-      updated_at = now()
+  const [existingAdmin] = await sql`
+    SELECT id
+    FROM users
+    WHERE email = ${normalizedEmail}
+    LIMIT 1
   `;
+
+  if (existingAdmin) {
+    await sql`
+      UPDATE users
+      SET
+        name = ${adminName},
+        password_hash = ${passwordHash},
+        role = 'admin',
+        status = 'active',
+        email_verified = true,
+        updated_at = now()
+      WHERE id = ${existingAdmin.id}
+    `;
+  } else {
+    const [existingUsername] = await sql`
+      SELECT id
+      FROM users
+      WHERE username = ${adminUsername}
+      LIMIT 1
+    `;
+    const username = existingUsername
+      ? fallbackAdminUsername(normalizedEmail)
+      : adminUsername;
+
+    await sql`
+      INSERT INTO users (name, username, email, password_hash, role, status, email_verified, updated_at)
+      VALUES (
+        ${adminName},
+        ${username},
+        ${normalizedEmail},
+        ${passwordHash},
+        'admin',
+        'active',
+        true,
+        now()
+      )
+    `;
+  }
 
   console.log(`Admin user seeded: ${normalizedEmail}`);
 } finally {

@@ -89,6 +89,7 @@ export type PromotedListing = {
   location: string | null;
   coverImageUrl: string | null;
   videoUrls: string[];
+  listingCurrency: string;
   priceCents: number | null;
   priceLabel: string | null;
   listingType: string;
@@ -165,6 +166,7 @@ export async function getPromotedItems({
         location: propertyListings.location,
         coverImageUrl: propertyListings.coverImageUrl,
         askingPriceCents: propertyListings.askingPriceCents,
+        listingCurrency: propertyListings.listingCurrency,
         priceLabel: propertyListings.priceLabel,
         listingType: propertyListings.listingType,
         propertyType: propertyListings.propertyType,
@@ -273,6 +275,7 @@ export async function getPromotedItems({
         location: r.location,
         coverImageUrl: toPublicMediaUrl(r.coverImageUrl),
         videoUrls,
+        listingCurrency: r.listingCurrency,
         priceCents: r.askingPriceCents,
         priceLabel: r.priceLabel,
         listingType: r.listingType,

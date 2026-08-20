@@ -33,10 +33,12 @@ export type AgentSoldPropertyHistoryItem = {
   askingPriceCents: number | null;
   daysOnMarketLabel: string;
   id: string;
+  listingCurrency: string;
   listedAt: Date;
   location: string | null;
   proofStatus: string;
   soldAt: Date | null;
+  soldPriceComparableZarCents: number | null;
   soldPriceCents: number | null;
   title: string;
 };
@@ -152,7 +154,7 @@ export async function getAgentPerformanceStats(
       outcomeAt: propertyListings.outcomeAt,
       proofStatus: propertyListings.proofStatus,
       soldAt: propertyListings.soldAt,
-      soldPriceCents: propertyListings.soldPriceCents,
+      soldPriceComparableZarCents: propertyListings.soldPriceComparableZarCents,
       status: propertyListings.status,
     })
     .from(propertyListings)
@@ -181,11 +183,11 @@ export async function getAgentPerformanceStats(
   const soldRows = currentRows.filter((listing) => listing.status === "sold");
   const previousSoldRows = previousRows.filter((listing) => listing.status === "sold");
   const totalSoldValueThisYearCents = soldRows.reduce(
-    (total, listing) => total + (listing.soldPriceCents || 0),
+    (total, listing) => total + (listing.soldPriceComparableZarCents || 0),
     0,
   );
   const previousTotalSoldValueCents = previousSoldRows.reduce(
-    (total, listing) => total + (listing.soldPriceCents || 0),
+    (total, listing) => total + (listing.soldPriceComparableZarCents || 0),
     0,
   );
   const verifiedSales = soldRows.filter(
@@ -256,11 +258,13 @@ export async function getAgentSoldPropertyHistory(
     .select({
       askingPriceCents: propertyListings.askingPriceCents,
       id: propertyListings.id,
+      listingCurrency: propertyListings.listingCurrency,
       listedAt: propertyListings.listedAt,
       location: propertyListings.location,
       outcomeAt: propertyListings.outcomeAt,
       proofStatus: propertyListings.proofStatus,
       soldAt: propertyListings.soldAt,
+      soldPriceComparableZarCents: propertyListings.soldPriceComparableZarCents,
       soldPriceCents: propertyListings.soldPriceCents,
       title: propertyListings.title,
     })

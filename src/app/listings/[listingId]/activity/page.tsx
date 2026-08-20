@@ -19,8 +19,6 @@ import { getViewerChrome } from "@/modules/auth/viewer";
 import { getAgencyBuyerActivityAccessForUser } from "@/modules/listings/agency-buyer-activity";
 import { clearListingBuyerActivityAction } from "@/modules/listings/activity-count-actions";
 import {
-  activityBadge,
-  activityLabel,
   formatDateTime,
   PublicBuyerAvatar,
   TruncatedText,
@@ -34,7 +32,8 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Listing Activity | Homzie",
-  description: "Review realtime buyer activity for your Homzie listing.",
+  description:
+    "Review anonymous listing activity and direct buyer conversations for your Homzie listing.",
 };
 
 type ListingActivityPageProps = {
@@ -43,22 +42,21 @@ type ListingActivityPageProps = {
 };
 
 type ListingActivityGroup = {
-  action_count: number;
   actor_name: string | null;
   activity_count: number;
   avatar_url: string | null;
   buyer_id: string | null;
-  first_seen_at: Date | string | null;
-  is_active: boolean;
-  latest_action_type: string | null;
-  latest_activity_type: "action" | "view";
   latest_is_new: boolean;
   latest_seen_at: Date | string | null;
-  latest_session_id: string | null;
-  latest_source: string | null;
   username: string | null;
-  view_count: number;
   viewer_key: string;
+};
+
+type AnonymousActivitySummary = {
+  interaction_count: number;
+  latest_seen_at: Date | string | null;
+  unique_viewer_count: number;
+  view_count: number;
 };
 
 function parsePage(value: string | undefined) {
@@ -141,137 +139,95 @@ export default async function ListingActivityPage({
     );
   }
 
-  const [countRows, activityGroups, unreadRows] = await Promise.all([
+  const [countRows, activityGroups, unreadRows, anonymousActivityRows] = await Promise.all([
     sql<{ total_rows: number }[]>`
-      WITH activity_rows AS (
-        SELECT coalesce(viewer_user_id::text, viewer_session_id) AS viewer_key
-        FROM listing_view_events
-        WHERE listing_id = ${listingId}
-          AND (viewer_user_id IS NULL OR viewer_user_id <> ${userId})
-        UNION ALL
-        SELECT coalesce(viewer_user_id::text, viewer_session_id) AS viewer_key
-        FROM listing_action_events
-        WHERE listing_id = ${listingId}
-          AND (viewer_user_id IS NULL OR viewer_user_id <> ${userId})
-      )
-      SELECT count(DISTINCT viewer_key)::int AS total_rows
-      FROM activity_rows
-      WHERE viewer_key IS NOT NULL
+      SELECT count(DISTINCT viewer_user_id)::int AS total_rows
+      FROM listing_action_events
+      WHERE listing_id = ${listingId}
+        AND action_type = 'contact_agent'
+        AND viewer_user_id IS NOT NULL
+        AND viewer_user_id <> ${userId}
     `,
     sql<ListingActivityGroup[]>`
-      WITH activity_rows AS (
+      WITH contacted_buyers AS (
         SELECT
-          'view'::text AS activity_type,
-          NULL::text AS action_type,
-          lve.created_at,
-          lve.source,
-          lve.viewer_session_id,
-          lve.viewer_user_id,
-          coalesce(lve.view_instance_id, lve.viewer_session_id) AS view_key,
-          coalesce(lve.viewer_user_id::text, lve.viewer_session_id) AS viewer_key
-        FROM listing_view_events lve
-        WHERE lve.listing_id = ${listingId}
-          AND (lve.viewer_user_id IS NULL OR lve.viewer_user_id <> ${userId})
-        UNION ALL
-        SELECT
-          'action'::text AS activity_type,
-          lae.action_type,
-          lae.created_at,
-          lae.source,
-          lae.viewer_session_id,
-          lae.viewer_user_id,
-          NULL::text AS view_key,
-          coalesce(lae.viewer_user_id::text, lae.viewer_session_id) AS viewer_key
-        FROM listing_action_events lae
-        WHERE lae.listing_id = ${listingId}
-          AND (lae.viewer_user_id IS NULL OR lae.viewer_user_id <> ${userId})
-      ),
-      grouped AS (
-        SELECT
-          viewer_key,
-          (array_agg(viewer_user_id ORDER BY created_at DESC) FILTER (WHERE viewer_user_id IS NOT NULL))[1] AS viewer_user_id,
-          (array_agg(viewer_session_id ORDER BY created_at DESC))[1] AS latest_session_id,
-          count(*)::int AS activity_count,
-          count(*) FILTER (WHERE activity_type = 'action')::int AS action_count,
-          count(DISTINCT view_key) FILTER (WHERE activity_type = 'view')::int AS view_count,
-          min(created_at) AS first_seen_at,
-          max(created_at) AS latest_seen_at,
-          (array_agg(activity_type ORDER BY created_at DESC))[1] AS latest_activity_type,
-          (array_agg(action_type ORDER BY created_at DESC))[1] AS latest_action_type,
-          (array_agg(source ORDER BY created_at DESC))[1] AS latest_source
-        FROM activity_rows
-        WHERE viewer_key IS NOT NULL
-        GROUP BY viewer_key
+          viewer_user_id,
+          count(*)::int AS contact_count,
+          max(created_at) AS latest_contact_at
+        FROM listing_action_events
+        WHERE listing_id = ${listingId}
+          AND action_type = 'contact_agent'
+          AND viewer_user_id IS NOT NULL
+          AND viewer_user_id <> ${userId}
+        GROUP BY viewer_user_id
       )
       SELECT
-        g.viewer_key,
-        g.activity_count,
-        g.action_count,
-        g.first_seen_at,
-        g.latest_seen_at,
-        (lar.last_read_at IS NULL OR g.latest_seen_at > lar.last_read_at) AS latest_is_new,
-        g.latest_activity_type,
-        g.latest_action_type,
-        g.latest_source,
-        g.latest_session_id,
+        cb.viewer_user_id::text AS viewer_key,
+        cb.contact_count AS activity_count,
+        cb.latest_contact_at AS latest_seen_at,
+        (lar.last_read_at IS NULL OR cb.latest_contact_at > lar.last_read_at) AS latest_is_new,
         u.id AS buyer_id,
         u.name AS actor_name,
         u.username,
-        u.avatar_url,
-        g.view_count,
-        EXISTS (
-          SELECT 1
-          FROM listing_presence_sessions lps
-          WHERE lps.listing_id = ${listingId}
-            AND (
-              (g.viewer_user_id IS NOT NULL AND lps.viewer_user_id = g.viewer_user_id)
-              OR lps.viewer_session_id = g.latest_session_id
-            )
-            AND lps.expires_at > now()
-        ) AS is_active
-      FROM grouped g
-      LEFT JOIN users u ON u.id = g.viewer_user_id
+        u.avatar_url
+      FROM contacted_buyers cb
+      JOIN users u ON u.id = cb.viewer_user_id
       LEFT JOIN listing_activity_reads lar
         ON lar.listing_id = ${listingId}
         AND lar.owner_user_id = ${userId}
-        AND lar.viewer_key = g.viewer_key
+        AND lar.viewer_key = cb.viewer_user_id::text
       ORDER BY
-        (lar.last_read_at IS NULL OR g.latest_seen_at > lar.last_read_at) DESC,
-        is_active DESC,
-        g.latest_seen_at DESC
+        (lar.last_read_at IS NULL OR cb.latest_contact_at > lar.last_read_at) DESC,
+        cb.latest_contact_at DESC
       LIMIT ${pageSize}
       OFFSET ${offset}
     `,
     sql<{ unread_viewer_count: number }[]>`
-      WITH activity_rows AS (
+      WITH contacted_buyers AS (
+        SELECT viewer_user_id, max(created_at) AS latest_contact_at
+        FROM listing_action_events
+        WHERE listing_id = ${listingId}
+          AND action_type = 'contact_agent'
+          AND viewer_user_id IS NOT NULL
+          AND viewer_user_id <> ${userId}
+        GROUP BY viewer_user_id
+      )
+      SELECT count(*) FILTER (
+        WHERE lar.last_read_at IS NULL OR cb.latest_contact_at > lar.last_read_at
+      )::int AS unread_viewer_count
+      FROM contacted_buyers cb
+      LEFT JOIN listing_activity_reads lar
+        ON lar.listing_id = ${listingId}
+        AND lar.owner_user_id = ${userId}
+        AND lar.viewer_key = cb.viewer_user_id::text
+    `,
+    sql<AnonymousActivitySummary[]>`
+      WITH passive_activity AS (
         SELECT
           coalesce(viewer_user_id::text, viewer_session_id) AS viewer_key,
-          created_at
+          created_at,
+          0::int AS interaction_count,
+          1::int AS view_count
         FROM listing_view_events
         WHERE listing_id = ${listingId}
           AND (viewer_user_id IS NULL OR viewer_user_id <> ${userId})
         UNION ALL
         SELECT
           coalesce(viewer_user_id::text, viewer_session_id) AS viewer_key,
-          created_at
+          created_at,
+          1::int AS interaction_count,
+          0::int AS view_count
         FROM listing_action_events
         WHERE listing_id = ${listingId}
+          AND action_type <> 'contact_agent'
           AND (viewer_user_id IS NULL OR viewer_user_id <> ${userId})
-      ),
-      viewer_latest AS (
-        SELECT viewer_key, max(created_at) AS latest_seen_at
-        FROM activity_rows
-        WHERE viewer_key IS NOT NULL
-        GROUP BY viewer_key
       )
-      SELECT count(*) FILTER (
-        WHERE lar.last_read_at IS NULL OR vl.latest_seen_at > lar.last_read_at
-      )::int AS unread_viewer_count
-      FROM viewer_latest vl
-      LEFT JOIN listing_activity_reads lar
-        ON lar.listing_id = ${listingId}
-        AND lar.owner_user_id = ${userId}
-        AND lar.viewer_key = vl.viewer_key
+      SELECT
+        count(DISTINCT viewer_key) FILTER (WHERE viewer_key IS NOT NULL)::int AS unique_viewer_count,
+        coalesce(sum(view_count), 0)::int AS view_count,
+        coalesce(sum(interaction_count), 0)::int AS interaction_count,
+        max(created_at) AS latest_seen_at
+      FROM passive_activity
     `,
   ]);
 
@@ -281,6 +237,12 @@ export default async function ListingActivityPage({
   const firstRow = totalRows ? offset + 1 : 0;
   const lastRow = Math.min(offset + activityGroups.length, totalRows);
   const unreadViewerCount = unreadRows[0]?.unread_viewer_count || 0;
+  const anonymousActivity = anonymousActivityRows[0] || {
+    interaction_count: 0,
+    latest_seen_at: null,
+    unique_viewer_count: 0,
+    view_count: 0,
+  };
   const activityHref = (path: string, page?: number) => {
     const params = new URLSearchParams();
 
@@ -304,10 +266,10 @@ export default async function ListingActivityPage({
   const activityColumns: Array<CanonicalTableColumn<ListingActivityGroup>> = [
     {
       className: "w-[62%] md:w-[31%]",
-      header: "Buyer",
+      header: "Contact-ready buyer",
       key: "buyer",
       render: (group) => {
-        const buyerName = group.actor_name || "Anonymous viewer";
+        const buyerName = group.actor_name || "Homzie member";
 
         return (
           <div className="flex min-w-0 items-center gap-2 md:gap-3">
@@ -321,10 +283,10 @@ export default async function ListingActivityPage({
                 {buyerName}
               </TruncatedText>
               <TruncatedText
-                title={group.username ? `@${group.username}` : "Guest session"}
+                title={group.username ? `@${group.username}` : "Contacted you"}
                 className="mt-0.5 text-[10px] text-muted-foreground md:text-xs"
               >
-                {group.username ? `@${group.username}` : "Guest"}
+                {group.username ? `@${group.username}` : "Contacted you"}
               </TruncatedText>
             </div>
           </div>
@@ -333,53 +295,33 @@ export default async function ListingActivityPage({
     },
     {
       className: "w-[20%] px-2 md:w-[14%] md:px-4",
-      header: "Events",
+      header: "Contacts",
       key: "events",
       render: (group) => (
-        <>
-          <TruncatedText title={`${group.activity_count} events`}>
-            <span className="md:hidden">{group.activity_count}</span>
-            <span className="hidden md:inline">{group.activity_count} events</span>
-          </TruncatedText>
-          <TruncatedText
-            title={`${group.view_count} views`}
-            className="mt-0.5 hidden text-xs text-muted-foreground md:block"
-          >
-            {group.view_count} views
-          </TruncatedText>
-        </>
+        <TruncatedText title={`${group.activity_count} contact starts`}>
+          <span className="md:hidden">{group.activity_count}</span>
+          <span className="hidden md:inline">
+            {group.activity_count} contact {group.activity_count === 1 ? "start" : "starts"}
+          </span>
+        </TruncatedText>
       ),
     },
     {
       className: "hidden w-[30%] md:table-cell",
-      header: "Latest",
+      header: "Conversation",
       key: "latest",
-      render: (group) => {
-        const label = activityLabel({
-          action_type: group.latest_action_type,
-          activity_type: group.latest_activity_type,
-        });
-        const badge = activityBadge({
-          action_type: group.latest_action_type,
-          activity_type: group.latest_activity_type,
-        });
-
-        return (
-          <>
-            <TruncatedText title={label}>{label}</TruncatedText>
-            <TruncatedText title={badge} className="mt-0.5 hidden text-xs text-muted-foreground md:block">
-              {badge}
-            </TruncatedText>
-          </>
-        );
-      },
+      render: () => (
+        <TruncatedText title="Started direct contact">
+          Started direct contact
+        </TruncatedText>
+      ),
     },
     {
       className: "hidden w-[17%] md:table-cell",
-      header: "Last active",
+      header: "Last contact",
       key: "last-active",
       render: (group) => {
-        const label = group.is_active ? "Active now" : formatDateTime(group.latest_seen_at);
+        const label = formatDateTime(group.latest_seen_at);
 
         return (
           <TruncatedText title={label} className="text-muted-foreground">
@@ -426,10 +368,10 @@ export default async function ListingActivityPage({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                Buyer activity
+                Listing activity
               </p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-4xl">
-                Listing events
+                Buyer conversations
               </h1>
             </div>
             <ActivityRealtimeRefresh />
@@ -439,10 +381,45 @@ export default async function ListingActivityPage({
           </div>
         </section>
 
+        <section className="mt-5 rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Anonymous listing activity</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Passive browsing is kept anonymous. Only people who start direct contact with
+                you appear in the buyer conversation list below.
+              </p>
+            </div>
+            {anonymousActivity.latest_seen_at ? (
+              <p className="text-xs text-muted-foreground">
+                Last activity {formatDateTime(anonymousActivity.latest_seen_at)}
+              </p>
+            ) : null}
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-muted/45 px-4 py-3">
+              <p className="text-2xl font-semibold">
+                {anonymousActivity.unique_viewer_count}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Anonymous activity groups
+              </p>
+            </div>
+            <div className="rounded-xl bg-muted/45 px-4 py-3">
+              <p className="text-2xl font-semibold">{anonymousActivity.view_count}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Listing views</p>
+            </div>
+            <div className="rounded-xl bg-muted/45 px-4 py-3">
+              <p className="text-2xl font-semibold">{anonymousActivity.interaction_count}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Other interactions</p>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-5">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              Showing {firstRow}-{lastRow} of {totalRows} viewers
+              Showing {firstRow}-{lastRow} of {totalRows} contact-ready buyers
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <form action={clearListingBuyerActivityAction}>
@@ -454,7 +431,7 @@ export default async function ListingActivityPage({
                   disabled={unreadViewerCount <= 0}
                   className="h-8 rounded-full px-3 text-xs"
                 >
-                  Clear all
+                  Mark activity read
                 </Button>
               </form>
               <p className="text-xs font-normal text-muted-foreground">
@@ -465,7 +442,7 @@ export default async function ListingActivityPage({
 
           <CanonicalTable
             columns={activityColumns}
-            emptyState="No buyer activity has been recorded yet."
+            emptyState="No buyer has started direct contact from this listing yet."
             getRowHref={(group) =>
               activityHref(
                 `/listings/${listing.id}/activity/${encodeURIComponent(group.viewer_key)}`,

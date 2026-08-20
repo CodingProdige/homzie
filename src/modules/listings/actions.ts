@@ -29,6 +29,14 @@ import { getMediaStorageRoot } from "@/media/storage";
 import { getAgentProfileForUser } from "@/modules/agents/queries";
 import { authOptions } from "@/modules/auth/config";
 import {
+  BASE_CURRENCY,
+  convertToZar,
+  fallbackCurrencyRates,
+  formatCurrencyAmount,
+  supportedCurrencies,
+  type SupportedCurrency,
+} from "@/modules/currency/currency";
+import {
   createUserEvent,
   createUserEventOnce,
 } from "@/modules/events/server";
@@ -117,6 +125,10 @@ const mandateTypeValues = mandateTypeOptions.map((option) => option.value) as [
   string,
   ...string[],
 ];
+const supportedCurrencyValues = supportedCurrencies.map((currency) => currency.code) as [
+  SupportedCurrency,
+  ...SupportedCurrency[],
+];
 const completedListingStatuses = new Set([
   "sold",
   "sold_externally",
@@ -198,6 +210,7 @@ const listingSchema = z.object({
   leaseExpiryDate: z.string().trim().max(32).optional(),
   listingVisibility: z.enum(["public", "profile_private"]).optional(),
   listingType: z.enum(listingTypeValues),
+  listingCurrency: z.enum(supportedCurrencyValues),
   location: z.string().trim().min(2).max(240),
   localTaxes: z.coerce.number().finite().min(0).max(10_000_000_000).optional(),
   loadingBays: z.coerce.number().int().min(0).max(999).optional(),
@@ -286,9 +299,9 @@ const listingActionTypeSchema = z.enum([
 const buyerActivityNotificationActionLabels: Partial<
   Record<z.infer<typeof listingActionTypeSchema>, string>
 > = {
-  bond_calculator: "A buyer used the bond calculator",
+  bond_calculator: "A buyer used the mortgage calculator",
   call_agent: "A buyer tapped call agent",
-  contact_agent: "A buyer opened contact options",
+  contact_agent: "A buyer sent a message",
   email_agent: "A buyer tapped email agent",
   media_video_play: "A buyer played a listing video",
   place_offer: "A buyer started an offer",
@@ -454,7 +467,7 @@ async function createAgencyListingActivityEventOnce({
 
   await createAgencyActivityEvent({
     actionHref: listingActivityActionHref(listing),
-    actionLabel: "Open buyer activity",
+    actionLabel: "Open listing activity",
     actorUserId: actorUserId || null,
     agencyId: listing.agencyId,
     body,
@@ -546,6 +559,9 @@ function parseListingFormData(formData: FormData) {
     leaseExpiryDate: formData.get("leaseExpiryDate"),
     listingVisibility: formData.get("listingVisibility") || "public",
     listingType,
+    listingCurrency: String(formData.get("listingCurrency") || BASE_CURRENCY)
+      .trim()
+      .toUpperCase(),
     location:
       String(formData.get("location") || "").trim() ||
       (publishIntent === "draft" ? "Location not set" : ""),
@@ -864,10 +880,21 @@ async function getValidatedReservationFields(data: z.infer<typeof listingSchema>
   const enabled = Boolean(data.reservationEnabled);
 
   if (!enabled) {
+    if (data.listingCurrency !== BASE_CURRENCY) {
+      return {
+        reservationAmountCents: null,
+        reservationEnabled: false,
+      };
+    }
+
     return {
       reservationAmountCents: amountCents,
       reservationEnabled: false,
     };
+  }
+
+  if (data.listingCurrency !== BASE_CURRENCY) {
+    throw new Error("Reservations are currently available only for ZAR listings.");
   }
 
   if (!settings.enabled) {
@@ -895,6 +922,17 @@ async function getValidatedReservationFields(data: z.infer<typeof listingSchema>
     reservationAmountCents: amountCents,
     reservationEnabled: true,
   };
+}
+
+function calculateComparableZarCents(
+  amountCents: number | null,
+  listingCurrency: SupportedCurrency,
+) {
+  if (amountCents === null) return null;
+
+  return Math.round(
+    convertToZar(amountCents / 100, listingCurrency, fallbackCurrencyRates) * 100,
+  );
 }
 
 function normalizeDuplicateLocation(value: string) {
@@ -1360,6 +1398,7 @@ type ImportedDraft = {
   garages: string;
   grossLettableArea: string;
   landSizeHectares: string;
+  listingCurrency: SupportedCurrency;
   listingType: (typeof listingTypeOptions)[number]["value"];
   location: string;
   parking: string;
@@ -1383,6 +1422,31 @@ function responseOutputText(result: {
       .join(" ") ||
     ""
   );
+}
+
+function importedListingCurrency(...values: string[]) {
+  for (const value of values) {
+    const normalized = value.trim().toUpperCase();
+    const exactCurrency = supportedCurrencies.find(
+      (currency) => currency.code === normalized,
+    )?.code;
+
+    if (exactCurrency) return exactCurrency;
+
+    const code = normalized.match(/\b[A-Z]{3}\b/)?.[0];
+    const matchedCurrency = supportedCurrencies.find(
+      (currency) => currency.code === code,
+    )?.code;
+
+    if (matchedCurrency) return matchedCurrency;
+  }
+
+  const evidence = values.join(" ");
+
+  if (/(?:^|\s)(?:R|ZAR)\s?[\d,.]/i.test(evidence)) return "ZAR";
+  if (/(?:^|\s)[$]\s?[\d,.]/.test(evidence)) return "USD";
+
+  return BASE_CURRENCY;
 }
 
 function parseJsonObject(value: string) {
@@ -1466,7 +1530,7 @@ async function mapImportedListingWithAi(input: {
             content: [
               {
                 text: [
-                  "Extract structured data from this South African property listing page.",
+                  "Extract structured data from this property listing page.",
                   "Use only facts explicitly present in the evidence. Do not invent.",
                   "Return strict JSON only, with these optional keys:",
                   "title, listingType, propertyType, askingPrice, bedrooms, bathrooms, garages, parking, floorSize, erfSize, grossLettableArea, landSizeHectares, estateName, zoning, servitudes, features, description.",
@@ -1476,7 +1540,7 @@ async function mapImportedListingWithAi(input: {
                   `- propertyType must be one of: ${propertyTypeValues.join(", ")}.`,
                   "- If the evidence says 'for sale' or has a bond calculator, prefer sale unless there is clear rental/monthly rent language.",
                   "- Only use rental when the page clearly says to rent, rental, lease, per month, /month, p/m, or monthly rental.",
-                  "- askingPrice must be a number in ZAR, without cents or separators.",
+                  "- askingPrice must be the numeric amount in the listing's stated currency, without separators. Keep the supplied listingCurrency unchanged.",
                   "- bedrooms, bathrooms, garages, and parking must be numeric counts. Do not confuse garages with parking.",
                   "- floorSize and erfSize must be numeric square metre values. If only one size exists, map it only when the label makes the meaning clear.",
                   "- description must be the full marketing description section, not only the headline or mandate line.",
@@ -1706,6 +1770,7 @@ export async function importListingDraftFromUrl(
       objects
         .map((object) => nestedRecord(object.offers))
         .find((offer) => Object.keys(offer).length) || {};
+    const jsonLdPriceSpecification = nestedRecord(jsonLdOffer.priceSpecification);
     const jsonLdAddress = extractJsonLdAddress(objects);
     const title = cleanListingTitle(
       firstString(metaContent(html, "og:title"), jsonLdTitle, titleContent(html)).replace(/\s+[|-]\s+.*$/, ""),
@@ -1720,8 +1785,16 @@ export async function importListingDraftFromUrl(
     );
     const priceText = firstString(
       metaContent(html, "product:price:amount"),
-      firstString(jsonLdOffer.price, nestedRecord(jsonLdOffer.priceSpecification).price),
-      visibleText.match(/(?:R|ZAR)\s?[\d\s,.]{4,}/i)?.[0],
+      firstString(jsonLdOffer.price, jsonLdPriceSpecification.price),
+      visibleText.match(/(?:R|ZAR|USD|EUR|GBP|AED|AUD|CAD|[$])\s?[\d\s,.]{4,}/i)?.[0],
+    );
+    const listingCurrency = importedListingCurrency(
+      firstString(
+        metaContent(html, "product:price:currency"),
+        jsonLdOffer.priceCurrency,
+        jsonLdPriceSpecification.priceCurrency,
+      ),
+      priceText,
     );
     const listingType = inferListingType(`${title} ${visibleText}`);
     const propertyType = inferPropertyType(`${title} ${visibleText}`);
@@ -1783,6 +1856,7 @@ export async function importListingDraftFromUrl(
       garages,
       grossLettableArea,
       landSizeHectares,
+      listingCurrency,
       listingType,
       location,
       parking,
@@ -1984,6 +2058,10 @@ export async function createListing(formData: FormData) {
     typeof data.askingPrice === "number"
       ? Math.round(data.askingPrice * 100)
       : null;
+  const askingPriceComparableZarCents = calculateComparableZarCents(
+    askingPriceCents,
+    data.listingCurrency,
+  );
   const previousAskingPriceCents =
     typeof data.previousAskingPrice === "number" &&
     typeof data.askingPrice === "number" &&
@@ -2010,6 +2088,7 @@ export async function createListing(formData: FormData) {
       : null;
   const priceLabel = buildPriceLabel({
     amount: data.askingPrice,
+    currency: data.listingCurrency,
     listingType: data.listingType,
     qualifier: data.priceQualifier,
   });
@@ -2035,6 +2114,7 @@ export async function createListing(formData: FormData) {
           agentProfileId,
           agencyId: agencySubmission?.agencyId || null,
           askingPriceCents,
+          askingPriceComparableZarCents,
           coverImageUrl,
           description: description || null,
           details: {
@@ -2095,6 +2175,7 @@ export async function createListing(formData: FormData) {
           },
           features: data.features || [],
           listedAt: finalStatus === "published" ? new Date() : undefined,
+          listingCurrency: data.listingCurrency,
           listingType: data.listingType,
           location: data.location,
           mandateEndDate: parseDate(data.mandateEndDate),
@@ -2458,6 +2539,10 @@ export async function updateListing(formData: FormData) {
     typeof data.askingPrice === "number"
       ? Math.round(data.askingPrice * 100)
       : null;
+  const askingPriceComparableZarCents = calculateComparableZarCents(
+    askingPriceCents,
+    data.listingCurrency,
+  );
   const previousAskingPriceCents =
     typeof data.previousAskingPrice === "number" &&
     typeof data.askingPrice === "number" &&
@@ -2484,6 +2569,7 @@ export async function updateListing(formData: FormData) {
       : null;
   const priceLabel = buildPriceLabel({
     amount: data.askingPrice,
+    currency: data.listingCurrency,
     listingType: data.listingType,
     qualifier: data.priceQualifier,
   });
@@ -2516,6 +2602,7 @@ export async function updateListing(formData: FormData) {
           agentProfileId,
           agencyId: agencySubmission?.agencyId || existingListing.agencyId || null,
           askingPriceCents,
+          askingPriceComparableZarCents,
           coverImageUrl,
           description: description || null,
           details: {
@@ -2579,6 +2666,7 @@ export async function updateListing(formData: FormData) {
             existingListing.status !== "published"
               ? new Date()
               : existingListing.listedAt,
+          listingCurrency: data.listingCurrency,
           listingType: data.listingType,
           location: locationFields.location,
           mandateEndDate: parseDate(data.mandateEndDate),
@@ -2865,6 +2953,7 @@ export async function startListingReservationCheckout(listingId: string) {
     .select({
       details: propertyListings.details,
       id: propertyListings.id,
+      listingCurrency: propertyListings.listingCurrency,
       listingType: propertyListings.listingType,
       location: propertyListings.location,
       propertyType: propertyListings.propertyType,
@@ -2880,6 +2969,13 @@ export async function startListingReservationCheckout(listingId: string) {
 
   if (!listing || listing.status !== "published") {
     return { error: "This listing is not available for reservation.", ok: false as const };
+  }
+
+  if (listing.listingCurrency !== BASE_CURRENCY) {
+    return {
+      error: "Reservations are currently available only for ZAR listings.",
+      ok: false as const,
+    };
   }
 
   if (listing.userId === buyer.id) {
@@ -3288,7 +3384,6 @@ export async function toggleListingLike(listingId: string) {
 }
 
 const offerStatsSchema = z.object({
-  currency: z.string().trim().min(3).max(3),
   listingId: listingIdSchema,
 });
 
@@ -3296,7 +3391,12 @@ export async function getListingOfferStatsAction(
   input: z.input<typeof offerStatsSchema>,
 ) {
   const parsed = offerStatsSchema.parse(input);
-  const currency = parsed.currency.toUpperCase();
+  const [listing] = await db
+    .select({ listingCurrency: propertyListings.listingCurrency })
+    .from(propertyListings)
+    .where(eq(propertyListings.id, parsed.listingId))
+    .limit(1);
+  const currency = listing?.listingCurrency || BASE_CURRENCY;
   const [stats] = await db
     .select({
       averageAmountCents: sql<number | null>`round(avg(${propertyOffers.amountCents}))::int`,
@@ -3481,11 +3581,9 @@ export async function trackListingPresence(input: unknown) {
     const activeViewerMetadata = {
       listingTitle: listing.title,
       source: parsed.data.source || "listing_detail",
-      viewerKey,
     };
 
     await createListingActivityUserEventsOnce(activityContext, {
-      actorUserId: viewerUserId,
       dedupeKey: activeViewerDedupeKey,
       entityId: listing.id,
       entityType: "listing",
@@ -3494,14 +3592,13 @@ export async function trackListingPresence(input: unknown) {
       metadata: activeViewerMetadata,
     });
     await createAgencyListingActivityEventOnce({
-      actorUserId: viewerUserId,
-      body: `A buyer is viewing ${listing.title} right now.`,
+      body: `${listing.title} has anonymous activity right now.`,
       dedupeKey: activeViewerDedupeKey,
       eventType: "listing.buyer_intent.active_viewer",
       listing,
       metadata: activeViewerMetadata,
       severity: "action_required",
-      title: "Buyer active now",
+      title: "Listing active now",
     });
 
     if (viewerUserId && listing.userId !== viewerUserId) {
@@ -3527,7 +3624,6 @@ export async function trackListingPresence(input: unknown) {
         };
 
         await createListingActivityUserEventsOnce(activityContext, {
-          actorUserId: viewerUserId,
           dedupeKey: repeatViewDedupeKey,
           entityId: listing.id,
           entityType: "listing",
@@ -3536,14 +3632,13 @@ export async function trackListingPresence(input: unknown) {
           metadata: repeatViewMetadata,
         });
         await createAgencyListingActivityEventOnce({
-          actorUserId: viewerUserId,
-          body: `A buyer has viewed ${listing.title} ${buyerViewCount} times.`,
+          body: `${listing.title} has a returning viewer (${buyerViewCount} views).`,
           dedupeKey: repeatViewDedupeKey,
           eventType: "listing.buyer_intent.repeat_view",
           listing,
           metadata: repeatViewMetadata,
           severity: "action_required",
-          title: "Repeat buyer view",
+          title: "Repeat listing view",
         });
       }
     }
@@ -3692,6 +3787,13 @@ export async function getListingLiveIntentAction(input: unknown) {
           WHERE ap.user_id = u.id
             AND ap.status = 'active'
         )
+        AND EXISTS (
+          SELECT 1
+          FROM listing_action_events lae
+          WHERE lae.listing_id = lps.listing_id
+            AND lae.viewer_user_id = lps.viewer_user_id
+            AND lae.action_type = 'contact_agent'
+        )
       GROUP BY u.id, u.name, u.username, u.avatar_url
       ORDER BY max(lps.last_seen_at) DESC
       LIMIT 12
@@ -3719,17 +3821,6 @@ export async function getListingLiveIntentAction(input: unknown) {
       ),
       activity_rows AS (
         SELECT
-          'view'::text AS activity_type,
-          NULL::text AS action_type,
-          created_at,
-          viewer_user_id
-        FROM listing_view_events
-        WHERE listing_id = ${parsed.data.listingId}
-          AND source = 'listing_detail'
-          AND viewer_user_id IS NOT NULL
-          AND viewer_user_id <> ${ownerUserId}
-        UNION ALL
-        SELECT
           'action'::text AS activity_type,
           action_type,
           created_at,
@@ -3738,6 +3829,7 @@ export async function getListingLiveIntentAction(input: unknown) {
         WHERE listing_id = ${parsed.data.listingId}
           AND viewer_user_id IS NOT NULL
           AND viewer_user_id <> ${ownerUserId}
+          AND action_type = 'contact_agent'
       )
       SELECT
         ar.activity_type,
@@ -3858,7 +3950,7 @@ export async function trackListingAction(input: unknown) {
     if (listing.agencyId) {
       await createAgencyActivityEvent({
         actionHref: listingActivityActionHref(listing),
-        actionLabel: "Open buyer activity",
+        actionLabel: "Open listing activity",
         actorUserId: viewerUserId,
         agencyId: listing.agencyId,
         body: `A buyer contacted an agent about ${listing.title}.`,
@@ -4249,10 +4341,12 @@ function parseDate(value: string | undefined) {
 
 function buildPriceLabel({
   amount,
+  currency,
   listingType,
   qualifier,
 }: {
   amount?: number;
+  currency: SupportedCurrency;
   listingType: string;
   qualifier?: string;
 }) {
@@ -4260,11 +4354,9 @@ function buildPriceLabel({
     return qualifier || null;
   }
 
-  const formatted = new Intl.NumberFormat("en-ZA", {
-    currency: "ZAR",
+  const formatted = formatCurrencyAmount(amount, currency, {
     maximumFractionDigits: 0,
-    style: "currency",
-  }).format(amount);
+  });
 
   if (listingType === "rental") {
     return `${formatted}/month`;

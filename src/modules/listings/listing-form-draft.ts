@@ -1,4 +1,5 @@
 import type { ListingDraft } from "@/modules/listings/components/create-listing-page";
+import { normalizeSupportedCurrency } from "@/modules/currency/currency";
 import {
   formatBathroomCount,
   formatPlainNumber,
@@ -92,6 +93,7 @@ export function draftFromListing(
     landSizeHectares: numberToInput(listing.landSizeHectares),
     leaseExpiryDate: listing.leaseExpiryDate,
     listingReference: listing.listingReference,
+    listingCurrency: normalizeSupportedCurrency(listing.listingCurrency),
     listingVisibility: listing.listingVisibility,
     listingType: listingTypeValue(listing.listingType),
     location: listing.location || "",

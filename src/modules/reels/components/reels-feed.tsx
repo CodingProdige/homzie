@@ -33,6 +33,10 @@ import { cn } from "@/lib/utils";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/modules/currency/currency-provider";
+import {
+  formatCurrencyAmount,
+  normalizeSupportedCurrency,
+} from "@/modules/currency/currency";
 import { ReportContentButton } from "@/modules/moderation/report-content-button";
 import { buildReelPath } from "@/modules/reels/urls";
 import {
@@ -64,7 +68,8 @@ export type ReelFeedItem = {
   title: string;
   location: string;
   price?: string;
-  priceZarCents?: number | null;
+  priceCents?: number | null;
+  listingCurrency?: string | null;
   recommendationReasons?: string[];
   beds?: string;
   baths?: string;
@@ -98,6 +103,7 @@ export type ReelFeedItem = {
 type ReelLinkedListing = {
   coverImageUrl: string | null;
   id: string;
+  listingCurrency: string | null;
   location: string | null;
   priceCents: number | null;
   priceLabel: string | null;
@@ -1155,11 +1161,16 @@ function ReelListingLinkCard({
   onAction?: () => Promise<void> | void;
   onSelect?: () => void;
 }) {
-  const { formatPriceCents, formatPriceLabel } = useCurrency();
-  const displayPrice =
+  const { currency, formatPriceCentsFromCurrency } = useCurrency();
+  const listingCurrency = normalizeSupportedCurrency(listing.listingCurrency);
+  const nativePrice =
     typeof listing.priceCents === "number"
-      ? formatPriceCents(listing.priceCents)
-      : formatPriceLabel(listing.priceLabel);
+      ? formatCurrencyAmount(listing.priceCents / 100, listingCurrency)
+      : listing.priceLabel || "";
+  const convertedPrice =
+    typeof listing.priceCents === "number" && currency !== listingCurrency
+      ? formatPriceCentsFromCurrency(listing.priceCents, listingCurrency)
+      : null;
   const className = cn(
     "flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left text-black shadow-sm transition",
     isSelected && "border-primary ring-2 ring-primary/30",
@@ -1195,7 +1206,10 @@ function ReelListingLinkCard({
           </p>
         ) : null}
         <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-black/60">
-          {displayPrice ? <span>{displayPrice}</span> : null}
+          {nativePrice ? <span>{nativePrice}</span> : null}
+          {convertedPrice ? (
+            <span className="text-black/45">({convertedPrice})</span>
+          ) : null}
           <span className="rounded-full bg-black/5 px-2 py-1 capitalize">
             {listing.status}
           </span>

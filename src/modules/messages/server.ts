@@ -124,7 +124,7 @@ function publicUser(row: UserRow): MessageUser {
 }
 
 function messagePreview(type: string | null, body: string | null) {
-  if (type === "offer") return "Made an offer";
+  if (type === "offer") return "Shared a proposed price";
   if (type === "image") return "Sent an image";
   if (type === "voice") return "Sent a voice note";
   if (type === "audio") return "Sent audio";
@@ -558,11 +558,12 @@ export async function createListingInquiryMessage({
   const [listing] = await sql<{
     asking_price_cents: number | null;
     cover_image_url: string | null;
+    listing_currency: string | null;
     location: string | null;
     title: string;
     user_id: string;
   }[]>`
-    SELECT user_id, title, location, asking_price_cents, cover_image_url
+    SELECT user_id, title, location, asking_price_cents, listing_currency, cover_image_url
     FROM property_listings
     WHERE id = ${listingId}
       AND status = 'published'
@@ -585,6 +586,9 @@ export async function createListingInquiryMessage({
   });
   const attachmentMetadata = JSON.stringify({
     askingPriceCents: listing.asking_price_cents,
+    listingCurrency: /^[A-Z]{3}$/.test(listing.listing_currency || "")
+      ? listing.listing_currency
+      : "ZAR",
     location: listing.location,
     source: "listing_detail_agent_card",
   });
@@ -881,7 +885,7 @@ export async function respondToPropertyOffer({
   `;
 
   if (!offer) {
-    throw new Error("This offer cannot be updated.");
+    throw new Error("This proposed price cannot be updated.");
   }
 
   const amountLabel = new Intl.NumberFormat(undefined, {
@@ -903,8 +907,8 @@ export async function respondToPropertyOffer({
       ${responderUserId},
       'system',
       ${status === "accepted"
-        ? `Offer accepted: ${amountLabel}`
-        : `Offer declined: ${amountLabel}`},
+        ? `Proposed price acknowledged: ${amountLabel}`
+        : `Proposed price declined: ${amountLabel}`},
       ${messageMetadata}::jsonb
     )
     RETURNING id
@@ -918,24 +922,23 @@ export async function respondToPropertyOffer({
 export async function createOfferMessage({
   amountCents,
   buyerUserId,
-  currency,
   listingId,
   note,
 }: {
   amountCents: number;
   buyerUserId: string;
-  currency: string;
   listingId: string;
   note?: string;
 }) {
   const [listing] = await sql<{
     asking_price_cents: number | null;
     cover_image_url: string | null;
+    listing_currency: string | null;
     location: string | null;
     title: string;
     user_id: string;
   }[]>`
-    SELECT user_id, title, location, asking_price_cents, cover_image_url
+    SELECT user_id, title, location, asking_price_cents, listing_currency, cover_image_url
     FROM property_listings
     WHERE id = ${listingId}
       AND status = 'published'
@@ -945,6 +948,10 @@ export async function createOfferMessage({
   if (!listing) {
     throw new Error("Listing not found.");
   }
+
+  const currency = /^[A-Z]{3}$/.test(listing.listing_currency || "")
+    ? String(listing.listing_currency)
+    : "ZAR";
 
   const conversationId = await findOrCreateDirectConversation(
     buyerUserId,
@@ -1003,6 +1010,7 @@ export async function createOfferMessage({
 
   const attachmentMetadata = JSON.stringify({
     askingPriceCents: listing.asking_price_cents,
+    listingCurrency: currency,
     location: listing.location,
     offerId: offer.id,
   });

@@ -895,15 +895,15 @@ function CompactAgentUpgradeCta({ trialEligible }: { trialEligible: boolean }) {
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-pink">
-            Buyer intent locked
+            Listing activity locked
           </p>
           <h2 className="mt-2 max-w-xl text-2xl font-bold leading-tight tracking-tight">
-            Go Pro to unlock realtime buyer demand.
+            Go Pro for deeper listing insight.
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70">
             {trialEligible
-              ? `Start with a ${agentSubscriptionTrialLabel.toLowerCase()} to see active buyers, buyer timelines, AI insights, and chat opportunities.`
-              : "Subscribe to see active buyers, buyer timelines, AI insights, and chat opportunities."}
+              ? `A card is required for the ${agentSubscriptionTrialLabel.toLowerCase()}, which unlocks anonymized activity, AI listing insight, and buyer conversations.`
+              : "Subscribe to unlock anonymized activity, AI listing insight, and buyer conversations."}
           </p>
         </div>
         <Button asChild className="h-11 px-6">

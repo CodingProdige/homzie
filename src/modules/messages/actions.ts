@@ -375,7 +375,6 @@ export async function reportConversationAction(input: z.input<typeof reportSchem
 
 const offerSchema = z.object({
   amountCents: z.number().int().positive(),
-  currency: z.string().trim().min(3).max(3),
   listingId: uuidSchema,
   note: z.string().trim().max(1000).optional(),
 });
@@ -386,7 +385,6 @@ export async function createOfferMessageAction(input: z.input<typeof offerSchema
   const result = await createOfferMessage({
     amountCents: parsed.amountCents,
     buyerUserId: userId,
-    currency: parsed.currency.toUpperCase(),
     listingId: parsed.listingId,
     note: parsed.note,
   });

@@ -29,6 +29,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AgencyBrandBadge } from "@/modules/agencies/components/agency-brand-badge";
 import {
+  formatCurrencyAmount,
+  normalizeSupportedCurrency,
+  type SupportedCurrency,
+} from "@/modules/currency/currency";
+import {
   toggleListingLike,
   toggleListingSave,
   trackListingAction,
@@ -43,6 +48,10 @@ import {
   formatPlainNumber,
   parseListingNumberInput,
 } from "@/modules/listings/numeric-values";
+import {
+  formatListingArea,
+  type ListingAreaUnit,
+} from "@/modules/listings/measurements";
 import type { EffectiveAgencyBrand } from "@/modules/agencies/server";
 
 export type ListingCardData = {
@@ -66,6 +75,7 @@ export type ListingCardData = {
   likedByViewer?: boolean;
   likeCount?: number;
   likeCountLabel?: string;
+  listingCurrency?: SupportedCurrency | string | null;
   listingType: ListingType | string;
   listingTypeLabel: string;
   location?: string | null;
@@ -125,6 +135,7 @@ function hasMetricValue(value: ListingCardData["bedrooms"]) {
 
 type ListingCardStatData = {
   icon: typeof BedDouble;
+  secondaryValue?: string;
   value: string;
 };
 
@@ -134,20 +145,45 @@ function compactStats(
   return stats.filter((item): item is ListingCardStatData => Boolean(item));
 }
 
+function listingAreaStat({
+  icon,
+  label,
+  unit,
+  value,
+}: {
+  icon: typeof BedDouble;
+  label: string;
+  unit: ListingAreaUnit;
+  value: unknown;
+}): ListingCardStatData | null {
+  const area = formatListingArea(value, unit);
+
+  return area
+    ? {
+        icon,
+        secondaryValue: area.imperial,
+        value: `${area.metric} ${label}`,
+      }
+    : null;
+}
+
 function listingCardStats(listing: ListingCardData) {
   const category = String(listing.propertyCategory || "").toLowerCase();
 
   if (category === "commercial") {
     return compactStats([
-      hasMetricValue(listing.grossLettableArea)
-        ? {
-            icon: Ruler,
-            value: `${formatMetric(listing.grossLettableArea)}m² GLA`,
-          }
-        : {
-            icon: Ruler,
-            value: `${formatMetric(listing.floorSize)}m² floor`,
-          },
+      listingAreaStat({
+        icon: Ruler,
+        label: "GLA",
+        unit: "square-meters",
+        value: listing.grossLettableArea,
+      }) ||
+        listingAreaStat({
+          icon: Ruler,
+          label: "floor",
+          unit: "square-meters",
+          value: listing.floorSize,
+        }),
       hasMetricValue(listing.parking)
         ? {
             icon: ParkingCircle,
@@ -160,35 +196,35 @@ function listingCardStats(listing: ListingCardData) {
             value: `${formatMetric(listing.loadingBays)} loading bays`,
           }
         : null,
-      hasMetricValue(listing.erfSize)
-        ? {
-            icon: Trees,
-            value: `${formatMetric(listing.erfSize)}m² erf`,
-          }
-        : null,
+      listingAreaStat({
+        icon: Trees,
+        label: "erf",
+        unit: "square-meters",
+        value: listing.erfSize,
+      }),
     ]);
   }
 
   if (category === "land" || category === "farm") {
     return compactStats([
-      hasMetricValue(listing.landSizeHectares)
-        ? {
-            icon: Trees,
-            value: `${formatMetric(listing.landSizeHectares)} ha`,
-          }
-        : null,
-      hasMetricValue(listing.erfSize)
-        ? {
-            icon: Trees,
-            value: `${formatMetric(listing.erfSize)}m² land`,
-          }
-        : null,
-      hasMetricValue(listing.floorSize)
-        ? {
-            icon: Ruler,
-            value: `${formatMetric(listing.floorSize)}m² floor`,
-          }
-        : null,
+      listingAreaStat({
+        icon: Trees,
+        label: "land",
+        unit: "hectares",
+        value: listing.landSizeHectares,
+      }),
+      listingAreaStat({
+        icon: Trees,
+        label: "land",
+        unit: "square-meters",
+        value: listing.erfSize,
+      }),
+      listingAreaStat({
+        icon: Ruler,
+        label: "floor",
+        unit: "square-meters",
+        value: listing.floorSize,
+      }),
       hasMetricValue(listing.parking)
         ? {
             icon: ParkingCircle,
@@ -198,7 +234,7 @@ function listingCardStats(listing: ListingCardData) {
     ]);
   }
 
-  return [
+  return compactStats([
     {
       icon: BedDouble,
       value: `${formatMetric(listing.bedrooms)} bedrooms`,
@@ -215,28 +251,41 @@ function listingCardStats(listing: ListingCardData) {
       icon: ParkingCircle,
       value: `${formatMetric(listing.parking)} parking`,
     },
-    {
+    listingAreaStat({
       icon: Ruler,
-      value: `${formatMetric(listing.floorSize)}m² floor`,
-    },
-    {
+      label: "floor",
+      unit: "square-meters",
+      value: listing.floorSize,
+    }),
+    listingAreaStat({
       icon: Trees,
-      value: `${formatMetric(listing.erfSize)}m² erf`,
-    },
-  ];
+      label: "erf",
+      unit: "square-meters",
+      value: listing.erfSize,
+    }),
+  ]);
 }
 
 function ListingCardStat({
   icon: Icon,
+  secondaryValue,
   value,
 }: {
   icon: typeof BedDouble;
+  secondaryValue?: string;
   value: string;
 }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
       <Icon className="size-4 shrink-0" />
-      <span className="truncate">{value}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{value}</span>
+        {secondaryValue ? (
+          <span className="block truncate text-[10px] text-muted-foreground/80">
+            {secondaryValue}
+          </span>
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -463,20 +512,29 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
   const hasTrackedHoverRef = useRef(false);
   const hasTrackedImpressionRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const { formatPriceCents } = useCurrency();
+  const { currency, formatPriceCentsFromCurrency } = useCurrency();
+  const listingCurrency = normalizeSupportedCurrency(listing.listingCurrency);
   const imageUrls = Array.from(
     new Set([...(listing.coverImageUrl ? [listing.coverImageUrl] : []), ...(listing.imageUrls || [])]),
   ).filter(Boolean);
   const activeImageUrl = imageUrls[activeImageIndex] || listing.coverImageUrl;
   const videoUrl = listing.videoUrls?.[0] || "";
-  const formattedPrice =
+  const nativeFormattedPrice =
     listing.priceCents && listing.priceCents > 0
-      ? formatPriceCents(listing.priceCents)
+      ? formatCurrencyAmount(listing.priceCents / 100, listingCurrency)
       : listing.priceLabel || "Price not set";
+  const convertedFormattedPrice =
+    currency !== listingCurrency && listing.priceCents && listing.priceCents > 0
+      ? formatPriceCentsFromCurrency(listing.priceCents, listingCurrency)
+      : null;
   const price =
     listing.listingType === "rental" && listing.priceCents && listing.priceCents > 0
-      ? `${formattedPrice}/month`
-      : formattedPrice;
+      ? `${nativeFormattedPrice}/month`
+      : nativeFormattedPrice;
+  const convertedPrice =
+    convertedFormattedPrice && listing.listingType === "rental"
+      ? `${convertedFormattedPrice}/month`
+      : convertedFormattedPrice;
   const showReducedPrice =
     Boolean(listing.priceCents) &&
     Number(listing.previousPriceCents || 0) > Number(listing.priceCents || 0);
@@ -793,11 +851,19 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         <p className={listing.pricePrefix ? "mt-1 text-xl font-semibold" : "mt-4 text-xl font-semibold"}>
           {price}
         </p>
+        {convertedPrice ? (
+          <p className="mt-1 text-[11px] font-medium text-muted-foreground">
+            ≈ {convertedPrice}
+          </p>
+        ) : null}
         {showReducedPrice ? (
           <p className="mt-1 text-xs font-medium text-red-600">
             Reduced from{" "}
             <span className="text-muted-foreground line-through">
-              {formatPriceCents(Number(listing.previousPriceCents))}
+              {formatCurrencyAmount(
+                Number(listing.previousPriceCents) / 100,
+                listingCurrency,
+              )}
             </span>
           </p>
         ) : null}
@@ -807,6 +873,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
               <ListingCardStat
                 key={stat.value}
                 icon={stat.icon}
+                secondaryValue={stat.secondaryValue}
                 value={stat.value}
               />
             ))}

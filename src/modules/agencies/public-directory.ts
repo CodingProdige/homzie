@@ -8,6 +8,10 @@ import {
 } from "@/modules/agencies/brand-style";
 import { agencyTypeLabel } from "@/modules/agencies/server";
 import {
+  formatCurrencyAmount,
+  normalizeSupportedCurrency,
+} from "@/modules/currency/currency";
+import {
   listingTypeOptions,
   propertyTypeOptions,
 } from "@/modules/listings/options";
@@ -171,6 +175,7 @@ type AgencyListingRow = {
   details: unknown;
   id: string;
   listed_at: Date | string | null;
+  listing_currency: string;
   listing_type: string;
   location: string | null;
   media: unknown;
@@ -269,13 +274,16 @@ function listingCoverImageUrl(coverImageUrl: string | null, media: unknown) {
   return imageUrls.includes(coverUrl || "") ? coverUrl : imageUrls[0] || coverUrl;
 }
 
-function formatPriceLabel(cents: number | null, fallback: string | null) {
+function formatPriceLabel(
+  cents: number | null,
+  listingCurrency: string | null,
+  fallback: string | null,
+) {
   if (typeof cents === "number" && cents > 0) {
-    return new Intl.NumberFormat("en-ZA", {
-      currency: "ZAR",
-      maximumFractionDigits: 0,
-      style: "currency",
-    }).format(cents / 100);
+    return formatCurrencyAmount(
+      cents / 100,
+      normalizeSupportedCurrency(listingCurrency),
+    );
   }
 
   return fallback || "Price not set";
@@ -324,7 +332,11 @@ function mapListing(row: AgencyListingRow): PublicAgencyListing {
         : row.listed_at || null,
     listingTypeLabel: optionLabel(listingTypeOptions, row.listing_type),
     location: location || "Location hidden",
-    priceLabel: formatPriceLabel(row.asking_price_cents, row.price_label),
+    priceLabel: formatPriceLabel(
+      row.asking_price_cents,
+      row.listing_currency,
+      row.price_label,
+    ),
     propertyTypeLabel: optionLabel(propertyTypeOptions, row.property_type),
     status: row.status,
     title: row.title,
@@ -587,6 +599,7 @@ export async function getPublicAgencyProfile(slug: string) {
         pl.media,
         pl.details,
         pl.asking_price_cents,
+        pl.listing_currency,
         pl.price_label,
         pl.property_type,
         pl.listing_type,

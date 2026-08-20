@@ -200,7 +200,7 @@ async function getAgentDirectory({
 
   const listingRows = await db
     .select({
-      soldPriceCents: propertyListings.soldPriceCents,
+      soldPriceComparableZarCents: propertyListings.soldPriceComparableZarCents,
       status: propertyListings.status,
       userId: propertyListings.userId,
     })
@@ -243,7 +243,7 @@ async function getAgentDirectory({
     if (listing.status === "published") current.activeListingCount += 1;
     if (listing.status === "sold") {
       current.soldCount += 1;
-      current.totalSoldValueCents += listing.soldPriceCents || 0;
+      current.totalSoldValueCents += listing.soldPriceComparableZarCents || 0;
     }
 
     statsByUserId.set(listing.userId, current);

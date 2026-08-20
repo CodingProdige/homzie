@@ -409,6 +409,7 @@ async function getProfileListings({
           )`
         : sql<boolean>`false`,
       listingType: propertyListings.listingType,
+      listingCurrency: propertyListings.listingCurrency,
       location: propertyListings.location,
       mandateEndDate: propertyListings.mandateEndDate,
       mandateStartDate: propertyListings.mandateStartDate,
@@ -498,6 +499,7 @@ async function getProfileListings({
       id: listing.id,
       imageUrls: listingMediaUrls(listing.media, "image"),
       landSizeHectares: listingNumber(details.landSizeHectares),
+      listingCurrency: listing.listingCurrency,
       listingType: listing.listingType,
       likedByViewer: listing.likedByViewer,
       likeCount: listing.likeCount,
@@ -558,6 +560,7 @@ async function getSavedListings({
           )`
         : sql<boolean>`false`,
       listingType: propertyListings.listingType,
+      listingCurrency: propertyListings.listingCurrency,
       location: propertyListings.location,
       mandateEndDate: propertyListings.mandateEndDate,
       mandateStartDate: propertyListings.mandateStartDate,
@@ -644,6 +647,7 @@ async function getSavedListings({
       id: listing.id,
       imageUrls: listingMediaUrls(listing.media, "image"),
       landSizeHectares: listingNumber(details.landSizeHectares),
+      listingCurrency: listing.listingCurrency,
       listingType: listing.listingType,
       likedByViewer: listing.likedByViewer,
       likeCount: listing.likeCount,

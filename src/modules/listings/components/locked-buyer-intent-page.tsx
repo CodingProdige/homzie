@@ -34,15 +34,15 @@ export function LockedBuyerIntentPage({
         <section className="page-container py-16">
           <div className="rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-primary">
-              Buyer intent locked
+              Listing activity locked
             </p>
             <h1 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
-              Unlock realtime buyer activity
+              Unlock realtime listing activity
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               Your listings and reels can stay live for free. Upgrade when you
-              want to see who is interacting, view buyer intent, and act while
-              interest is hot.
+              want anonymous activity trends, performance summaries, and tools to
+              follow up after a buyer chooses to contact you.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild>

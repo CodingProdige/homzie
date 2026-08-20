@@ -1292,8 +1292,11 @@ try {
       description text,
       location text,
       price_label text,
+      listing_currency text NOT NULL DEFAULT 'ZAR',
       asking_price_cents bigint,
+      asking_price_comparable_zar_cents bigint,
       sold_price_cents bigint,
+      sold_price_comparable_zar_cents bigint,
       reservation_enabled boolean NOT NULL DEFAULT false,
       reservation_amount_cents bigint,
       active_reservation_id uuid,
@@ -1345,12 +1348,58 @@ try {
 
   await sql`
     ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS listing_currency text
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
     ADD COLUMN IF NOT EXISTS asking_price_cents bigint
   `;
 
   await sql`
     ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS asking_price_comparable_zar_cents bigint
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
     ADD COLUMN IF NOT EXISTS sold_price_cents bigint
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+    ADD COLUMN IF NOT EXISTS sold_price_comparable_zar_cents bigint
+  `;
+
+  await sql`
+    UPDATE property_listings
+    SET listing_currency = 'ZAR'
+    WHERE listing_currency IS NULL
+      OR btrim(listing_currency) = ''
+  `;
+
+  await sql`
+    ALTER TABLE property_listings
+      ALTER COLUMN listing_currency SET DEFAULT 'ZAR',
+      ALTER COLUMN listing_currency SET NOT NULL
+  `;
+
+  await sql`
+    UPDATE property_listings
+    SET
+      asking_price_comparable_zar_cents = COALESCE(
+        asking_price_comparable_zar_cents,
+        asking_price_cents
+      ),
+      sold_price_comparable_zar_cents = COALESCE(
+        sold_price_comparable_zar_cents,
+        sold_price_cents
+      )
+    WHERE upper(listing_currency) = 'ZAR'
+      AND (
+        asking_price_comparable_zar_cents IS NULL
+        OR sold_price_comparable_zar_cents IS NULL
+      )
   `;
 
   await sql`
@@ -1468,6 +1517,11 @@ try {
   await sql`
     CREATE INDEX IF NOT EXISTS property_listings_status_idx
     ON property_listings (status)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS property_listings_asking_price_comparable_zar_cents_idx
+    ON property_listings (asking_price_comparable_zar_cents)
   `;
 
   await sql`

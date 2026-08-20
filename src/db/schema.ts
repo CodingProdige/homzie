@@ -565,8 +565,15 @@ export const propertyListings = pgTable(
     description: text("description"),
     location: text("location"),
     priceLabel: text("price_label"),
+    listingCurrency: text("listing_currency").notNull().default("ZAR"),
     askingPriceCents: bigint("asking_price_cents", { mode: "number" }),
+    askingPriceComparableZarCents: bigint("asking_price_comparable_zar_cents", {
+      mode: "number",
+    }),
     soldPriceCents: bigint("sold_price_cents", { mode: "number" }),
+    soldPriceComparableZarCents: bigint("sold_price_comparable_zar_cents", {
+      mode: "number",
+    }),
     reservationEnabled: boolean("reservation_enabled").notNull().default(false),
     reservationAmountCents: bigint("reservation_amount_cents", { mode: "number" }),
     activeReservationId: uuid("active_reservation_id"),
@@ -595,6 +602,9 @@ export const propertyListings = pgTable(
     index("property_listings_agency_id_idx").on(table.agencyId),
     index("property_listings_property_identity_id_idx").on(table.propertyIdentityId),
     index("property_listings_status_idx").on(table.status),
+    index("property_listings_asking_price_comparable_zar_cents_idx").on(
+      table.askingPriceComparableZarCents,
+    ),
     index("property_listings_is_demo_content_idx").on(table.isDemoContent),
     index("property_listings_active_reservation_id_idx").on(
       table.activeReservationId,

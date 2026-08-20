@@ -39,6 +39,10 @@ import {
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
 import { CurrencyAmount } from "@/modules/currency/currency-amount";
+import {
+  formatCurrencyAmount,
+  normalizeSupportedCurrency,
+} from "@/modules/currency/currency";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
 import { toPublicMediaUrl } from "@/media/paths";
 
@@ -196,7 +200,7 @@ function rangeStartDate(range: AgentPerformanceRange) {
 function buildTrendPoints(
   soldProperties: Array<{
     soldAt: Date | null;
-    soldPriceCents: number | null;
+    soldPriceComparableZarCents: number | null;
   }>,
   range: AgentPerformanceRange,
 ): PerformanceTrendPoint[] {
@@ -217,7 +221,10 @@ function buildTrendPoints(
 
         return property.soldAt >= bucketStart && property.soldAt < bucketEnd;
       })
-      .reduce((total, property) => total + (property.soldPriceCents || 0), 0);
+      .reduce(
+        (total, property) => total + (property.soldPriceComparableZarCents || 0),
+        0,
+      );
 
     points.push({
       label: new Intl.DateTimeFormat("en", { month: "short" }).format(bucketStart),
@@ -389,7 +396,7 @@ export default async function AgentPerformancePage({
       accent: "bg-orange-100 text-orange-500",
       delta: stats.totalSoldValueThisYearDeltaLabel,
       description: "Sales value recorded in the selected period",
-      info: "The total recorded sold value for this agent's completed sales in the selected date range. Values are stored in ZAR and converted for display when you change currency.",
+      info: "The total recorded sold value for this agent's completed sales in the selected date range. Multi-currency sales use the ZAR comparison snapshot captured for each sale; the individual property figures below retain their stated currency.",
       icon: ChartPie,
       isCurrency: true,
       label: "Total value",
@@ -664,7 +671,7 @@ export default async function AgentPerformancePage({
                   <h2 className="text-lg font-semibold">Total value trend</h2>
                   <AnalyticsInfoPopover
                     title="Total value trend"
-                    description="A month-by-month view of this agent's recorded sold value in the selected date range. The line uses confirmed sold property values and stays currency-aware for display."
+                    description="A month-by-month view of this agent's recorded sold value in the selected date range. Multi-currency sales use their ZAR comparison snapshot so the trend stays meaningful; individual property figures retain their stated currency."
                   />
                 </div>
                 <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -735,7 +742,10 @@ export default async function AgentPerformancePage({
                       </p>
                       <p className="mt-1 text-sm font-semibold md:mt-0">
                         {property.askingPriceCents ? (
-                          <CurrencyAmount cents={property.askingPriceCents} />
+                          formatCurrencyAmount(
+                            property.askingPriceCents / 100,
+                            normalizeSupportedCurrency(property.listingCurrency),
+                          )
                         ) : (
                           "Not captured"
                         )}
@@ -747,7 +757,10 @@ export default async function AgentPerformancePage({
                       </p>
                       <p className="mt-1 text-sm font-semibold text-emerald-600 md:mt-0">
                         {property.soldPriceCents ? (
-                          <CurrencyAmount cents={property.soldPriceCents} />
+                          formatCurrencyAmount(
+                            property.soldPriceCents / 100,
+                            normalizeSupportedCurrency(property.listingCurrency),
+                          )
                         ) : (
                           "Not captured"
                         )}

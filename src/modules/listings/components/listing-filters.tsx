@@ -25,8 +25,8 @@ type ListingFiltersProps = {
 };
 
 const selectFilters = [
-  { name: "minPrice", label: "Min price", values: "prices" },
-  { name: "maxPrice", label: "Max price", values: "prices" },
+  { name: "minPrice", label: "Min price (≈ ZAR)", values: "prices" },
+  { name: "maxPrice", label: "Max price (≈ ZAR)", values: "prices" },
   { name: "bedrooms", label: "Beds", values: "bedrooms" },
   { name: "bathrooms", label: "Baths", values: "bathrooms" },
   { name: "garages", label: "Garages", values: "garages" },
@@ -54,11 +54,13 @@ function fieldValues(filters: ListingFiltersProps["filters"], name: string) {
 
 function formatOptionLabel(name: string, value: string) {
   if (name.toLowerCase().includes("price")) {
-    return new Intl.NumberFormat("en", {
+    const formatted = new Intl.NumberFormat("en", {
       maximumFractionDigits: 0,
       style: "currency",
       currency: "ZAR",
     }).format(Number(value));
+
+    return `≈ ${formatted}`;
   }
 
   return value;
@@ -433,7 +435,7 @@ export function ListingFilters({
           <div>
             <p className="text-sm font-semibold">Filters</p>
             <p className="text-xs font-normal text-muted-foreground">
-              Refine properties by type, price and details.
+              Price filters compare approximate ZAR equivalents across listings.
             </p>
           </div>
           <Dialog.Trigger asChild>
@@ -450,7 +452,7 @@ export function ListingFilters({
               <div>
                 <Dialog.Title className="text-lg font-semibold">Filters</Dialog.Title>
                 <Dialog.Description className="mt-1 text-sm font-normal text-muted-foreground">
-                  Refine properties by type, price and listing details.
+                  Price filters compare approximate ZAR equivalents across listings.
                 </Dialog.Description>
               </div>
               <Dialog.Close asChild>
@@ -495,7 +497,7 @@ export function ListingFiltersSidebar({
         <div>
           <p className="text-sm font-semibold">Filters</p>
           <p className="mt-1 text-xs font-normal text-muted-foreground">
-            Refine properties by type, price and details.
+            Price filters compare approximate ZAR equivalents across listings.
           </p>
         </div>
         <FiltersFields

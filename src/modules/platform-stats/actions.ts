@@ -39,10 +39,10 @@ export async function getPlatformStats(): Promise<PlatformStats> {
         WHERE status = 'published'
       ) AS total_reels,
       (
-        SELECT coalesce(sum(sold_price_cents), 0)::bigint
+        SELECT coalesce(sum(sold_price_comparable_zar_cents), 0)::bigint
         FROM property_listings
         WHERE status = 'sold'
-          AND sold_price_cents IS NOT NULL
+          AND sold_price_comparable_zar_cents IS NOT NULL
       ) AS total_sold_value_cents,
       (
         SELECT count(*)::int

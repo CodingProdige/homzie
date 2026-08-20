@@ -38,7 +38,8 @@ export default function TermsOfServicePage() {
         {
           title: "Agent tools, subscriptions, and listing access",
           body: [
-            "Listing access and agent tools may require an active paid subscription. The current Homzie Agent subscription is displayed during checkout or account management and may vary by currency, taxes, promotions, or future plan changes.",
+            "Creating a public agent profile and publishing listings or property reels is free on Homzie. Certain advanced tools, including paid buyer-interest, analytics, visibility, team, or management features, may require an active paid subscription.",
+            "The current Homzie Pro subscription is displayed during checkout or account management and may vary by currency, taxes, promotions, or future plan changes.",
             "You are responsible for keeping your payment method valid and for paying all applicable subscription fees, taxes, and charges. If a payment fails, we may suspend or restrict access to paid features until payment is resolved.",
             "Subscriptions may renew automatically unless cancelled according to the cancellation flow available in your account or payment provider portal. Cancellation may stop future renewals but does not automatically refund previous charges unless required by law or expressly stated.",
             "We may change pricing, plan features, limits, billing intervals, or subscription requirements. Where required, we will provide notice or display updated terms before they apply.",
@@ -58,6 +59,7 @@ export default function TermsOfServicePage() {
           body: [
             "Users must make their own enquiries before relying on any listing, agent statement, price, availability, property feature, media, reel, performance metric, or communication on Homzie.",
             "Buyers and renters should inspect properties, verify ownership or mandates, confirm prices and availability, check property condition, seek finance advice, and obtain professional legal, tax, inspection, or conveyancing advice where appropriate.",
+            "A message, enquiry, saved listing, expression of interest, or proposed price shared through Homzie is a request to start a conversation. It does not itself create a binding property offer, agreement, reservation, or transaction.",
             "Agents, sellers, and property professionals must comply with applicable laws, professional standards, advertising rules, consumer protection obligations, privacy laws, and any regulatory duties that apply to their services.",
           ],
         },
@@ -90,7 +92,7 @@ export default function TermsOfServicePage() {
           body: [
             "Paid services are processed through third-party payment providers. By purchasing a subscription or paid feature, you may also agree to the payment provider's terms and privacy policy.",
             "Fees are generally non-refundable except where required by law or expressly stated by Homzie. If you believe a charge is incorrect, you must contact support promptly with the relevant billing information.",
-            "Homzie may suspend access to paid features, listings, reels, or agent tools if payment fails, if a chargeback is raised, if fraud is suspected, or if these terms are breached.",
+            "Homzie may suspend access to paid features if payment fails, if a chargeback is raised, if fraud is suspected, or if these terms are breached. Free publishing remains subject to these terms, moderation, and applicable law.",
           ],
         },
         {

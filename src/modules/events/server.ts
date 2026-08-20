@@ -176,19 +176,19 @@ function eventMessage(row: EventRow) {
   }
 
   if (row.event_type === "offer.created") {
-    return `${actor} made an offer${amount ? ` of ${amount}` : ""}${
+    return `${actor} shared a proposed price${amount ? ` of ${amount}` : ""}${
       title ? ` on ${title}` : ""
     }.`;
   }
 
   if (row.event_type === "offer.accepted") {
-    return `${actor} accepted your offer${amount ? ` of ${amount}` : ""}${
+    return `${actor} acknowledged your proposed price${amount ? ` of ${amount}` : ""}${
       title ? ` on ${title}` : ""
     }.`;
   }
 
   if (row.event_type === "offer.declined") {
-    return `${actor} declined your offer${amount ? ` of ${amount}` : ""}${
+    return `${actor} declined your proposed price${amount ? ` of ${amount}` : ""}${
       title ? ` on ${title}` : ""
     }.`;
   }
@@ -224,13 +224,13 @@ function eventMessage(row: EventRow) {
   }
 
   if (row.event_type === "listing.buyer_intent.repeat_view") {
-    return `${actor} is viewing ${title || "your listing"}. Open the listing to start a chat while they are active.`;
+    return `${title || "Your listing"} has a returning viewer. Passive viewer details remain anonymous.`;
   }
 
   if (row.event_type === "listing.buyer_intent.active_viewers") {
     return `${title || "Your listing"} has ${
       activeViewerCount?.toLocaleString() || "multiple"
-    } active viewers right now. Open the listing to see buyer intent.`;
+    } active viewers right now. Open the listing to see aggregate activity.`;
   }
 
   if (row.event_type === "reel.liked") {

@@ -47,11 +47,11 @@ export function activityLabel(event: ListingActivityEventLike) {
 
   switch (event.action_type) {
     case "bond_calculator":
-      return "Opened bond calculator";
+      return "Opened mortgage calculator";
     case "call_agent":
       return "Tapped call agent";
     case "contact_agent":
-      return "Started contact";
+      return "Sent a message";
     case "email_agent":
       return "Tapped email agent";
     case "gallery_next":
@@ -64,7 +64,7 @@ export function activityLabel(event: ListingActivityEventLike) {
     case "media_video_play":
       return "Played listing video";
     case "place_offer":
-      return "Started an offer";
+      return "Shared a proposed price";
     case "reserve_now":
       return "Started reservation";
     case "save":

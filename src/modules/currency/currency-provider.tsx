@@ -11,6 +11,7 @@ import {
 
 import {
   CURRENCY_RATES_STORAGE_KEY,
+  convertCurrencyAmount,
   CURRENCY_SOURCE_STORAGE_KEY,
   convertFromZar,
   convertToZar,
@@ -21,6 +22,7 @@ import {
   formatZarCentsCompact,
   formatZarPriceLabel,
   isSupportedCurrency,
+  normalizeSupportedCurrency,
   supportedCurrencies,
   type CurrencyRates,
   type SupportedCurrency,
@@ -43,6 +45,14 @@ type CurrencyContextValue = {
   currency: SupportedCurrency;
   formatPriceCents: (cents: number) => string;
   formatPriceCentsCompact: (cents: number) => string;
+  formatPriceCentsFromCurrency: (
+    cents: number,
+    sourceCurrency: SupportedCurrency | string | null | undefined,
+  ) => string;
+  formatPriceCentsFromCurrencyCompact: (
+    cents: number,
+    sourceCurrency: SupportedCurrency | string | null | undefined,
+  ) => string;
   formatPriceLabel: (label: string | null | undefined) => string;
   isUsingFallbackRates: boolean;
   ratesUpdatedAt: Date | null;
@@ -293,6 +303,29 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       formatPriceCents: (cents) => formatZarCents(cents, currency, rates),
       formatPriceCentsCompact: (cents) =>
         formatZarCentsCompact(cents, currency, rates),
+      formatPriceCentsFromCurrency: (cents, sourceCurrency) => {
+        const source = normalizeSupportedCurrency(sourceCurrency);
+        const amount = convertCurrencyAmount(cents / 100, source, currency, rates);
+
+        return new Intl.NumberFormat(undefined, {
+          currency,
+          maximumFractionDigits: amount >= 1000 ? 0 : 2,
+          minimumFractionDigits: 0,
+          style: "currency",
+        }).format(amount);
+      },
+      formatPriceCentsFromCurrencyCompact: (cents, sourceCurrency) => {
+        const source = normalizeSupportedCurrency(sourceCurrency);
+        const amount = convertCurrencyAmount(cents / 100, source, currency, rates);
+
+        return new Intl.NumberFormat(undefined, {
+          compactDisplay: "short",
+          currency,
+          maximumFractionDigits: 1,
+          notation: "compact",
+          style: "currency",
+        }).format(amount);
+      },
       formatPriceLabel: (label) => formatZarPriceLabel(label, currency, rates),
       isUsingFallbackRates,
       ratesUpdatedAt,

@@ -7,7 +7,3 @@ export function cleanBroadcastSubject(value: string) {
 export function liveBroadcastSubject(value: string) {
   return cleanBroadcastSubject(value) || "Homzie update";
 }
-
-export function testBroadcastSubject(value: string) {
-  return `[Test] ${liveBroadcastSubject(value)}`;
-}

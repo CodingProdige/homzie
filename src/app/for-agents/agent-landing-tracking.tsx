@@ -85,7 +85,7 @@ export function AgentWalkthroughVideo({
 
   function trackVideoEvent(eventName: string, extra?: Record<string, number | string>) {
     trackGoogleEvent(eventName, {
-      event_category: "agent_trial",
+      event_category: "agent_growth",
       event_label: "homzie_walkthrough",
       ...extra,
     });

@@ -10,6 +10,7 @@ import {
   users,
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
+import { BASE_CURRENCY } from "@/modules/currency/currency";
 import {
   listingTypeOptions,
   mandateTypeOptions,
@@ -101,6 +102,7 @@ export type ListingDetailData = {
   saveCount: number;
   saveCountLabel: string;
   listedAt: string;
+  listingCurrency: string;
   listingVisibility: string;
   listingType: ListingType | string;
   listingTypeLabel: string;
@@ -338,6 +340,7 @@ async function getListingRow(listingId: string) {
       agentWhatsappNumber: users.whatsappNumber,
       agencyId: propertyListings.agencyId,
       askingPriceCents: propertyListings.askingPriceCents,
+      listingCurrency: propertyListings.listingCurrency,
       coverImageUrl: propertyListings.coverImageUrl,
       description: propertyListings.description,
       details: propertyListings.details,
@@ -476,6 +479,7 @@ export async function getOwnedListingDetail({
       agentWhatsappNumber: users.whatsappNumber,
       agencyId: propertyListings.agencyId,
       askingPriceCents: propertyListings.askingPriceCents,
+      listingCurrency: propertyListings.listingCurrency,
       coverImageUrl: propertyListings.coverImageUrl,
       description: propertyListings.description,
       details: propertyListings.details,
@@ -699,6 +703,7 @@ async function mapListingRow(
     reservationEnabled:
       reservationSettings.enabled &&
       row.reservationEnabled &&
+      row.listingCurrency === BASE_CURRENCY &&
       row.status === "published" &&
       row.listingType !== "rental" &&
       Boolean(row.reservationAmountCents),
@@ -710,6 +715,7 @@ async function mapListingRow(
     saveCount: viewerState.saveCount,
     saveCountLabel: formatCompactCount(viewerState.saveCount),
     listedAt: row.listedAt.toISOString(),
+    listingCurrency: row.listingCurrency,
     listingVisibility: stringValue(details.listingVisibility) || "public",
     listingType: row.listingType,
     listingTypeLabel,

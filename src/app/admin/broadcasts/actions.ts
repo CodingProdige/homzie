@@ -15,10 +15,7 @@ import {
   queueBroadcastCampaign,
   renderBroadcastParts,
 } from "@/modules/broadcasts/server";
-import {
-  liveBroadcastSubject,
-  testBroadcastSubject,
-} from "@/modules/broadcasts/subject";
+import { liveBroadcastSubject } from "@/modules/broadcasts/subject";
 import { defaultBroadcastBlocks } from "@/modules/broadcasts/types";
 import { authOptions } from "@/modules/auth/config";
 import { sendSendGridEmail } from "@/modules/email/sendgrid";
@@ -43,8 +40,12 @@ const saveSchema = z.object({
   subject: z.string().trim().min(2, "Subject is required.").max(180),
 });
 
-const testSchema = saveSchema.extend({
+const testSchema = z.object({
+  blocksJson: z.string().trim().min(1),
+  campaignId: z.string().uuid().optional(),
+  preheader: z.string().trim().max(240).optional(),
   recipientEmail: z.string().trim().toLowerCase().email("Enter a test recipient."),
+  subject: z.string().trim().min(2, "Subject is required.").max(180),
 });
 
 async function requireAdminUser() {
@@ -218,10 +219,8 @@ export async function sendBroadcastTestAction(
     await requireAdminUser();
 
     const parsed = testSchema.safeParse({
-      audienceJson: formValue(formData, "audienceJson"),
       blocksJson: formValue(formData, "blocksJson"),
       campaignId: formValue(formData, "campaignId") || undefined,
-      name: formValue(formData, "name"),
       preheader: formValue(formData, "preheader"),
       recipientEmail: formValue(formData, "recipientEmail"),
       subject: formValue(formData, "subject"),
@@ -233,7 +232,7 @@ export async function sendBroadcastTestAction(
 
     const blocks = normalizeBroadcastBlocks(parseJson(parsed.data.blocksJson));
     if (!blocks.length) throw new Error("Add at least one content block.");
-    const subject = testBroadcastSubject(parsed.data.subject);
+    const subject = liveBroadcastSubject(parsed.data.subject);
 
     const rendered = renderBroadcastParts({
       blocks,

@@ -33,6 +33,7 @@ export default function PrivacyPolicyPage() {
           body: [
             "When you use Homzie, we may automatically collect technical and usage information such as your IP address, device type, browser type, operating system, referring pages, pages viewed, search activity, listing views, saved items, clicks, reels watched, session activity, approximate location inferred from technical data, and timestamps.",
             "We use cookies, local storage, and similar technologies to keep you signed in, remember preferences such as country, currency and theme, protect accounts, measure usage, improve search, and understand platform performance.",
+            "We may use aggregated listing activity to help listing owners understand how their content is performing. Passive browsing, views, and similar activity are not presented to an owner as an identified buyer profile. Your identity may be shared with an agent when you intentionally message, submit an enquiry, or take another clear contact action.",
             "We may collect logs and security data to detect misuse, spam, fraud, scraping, unauthorised access, service abuse, and technical errors.",
           ],
         },
@@ -67,6 +68,7 @@ export default function PrivacyPolicyPage() {
           body: [
             "We share information with service providers that help us provide Homzie, including hosting, databases, storage, analytics, payments, email delivery, security, authentication, customer support, and infrastructure providers.",
             "We may share relevant information between users where needed for the platform to function, such as sending your enquiry to an agent, showing message participants, displaying agent details, or allowing a listing owner to manage their listing.",
+            "We do not disclose the identity of a passive listing viewer to the listing owner through buyer-activity tools. Identifiable contact information is shared when you choose to start a conversation or submit an enquiry through the platform.",
             "We may disclose information if required by law, legal process, regulators, courts, law enforcement, or government authorities, or where disclosure is necessary to protect rights, safety, security, property, users, Homzie, or the public.",
             "If Homzie is involved in a merger, acquisition, financing, restructuring, sale of assets, or similar transaction, information may be transferred as part of that transaction, subject to appropriate safeguards where required.",
           ],
