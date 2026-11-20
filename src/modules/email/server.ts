@@ -4,7 +4,9 @@ import { eq } from "drizzle-orm";
 
 import { db, sql } from "@/db";
 import { emailDeliveryLogs, emailTemplates, users } from "@/db/schema";
-import { sendSendGridEmail } from "@/modules/email/sendgrid";
+import { EmailDeliveryError, sendEmail } from "@/modules/email/transport";
+import type { EmailProvider } from "@/modules/email/types";
+import { getStoredEmailSettings } from "@/modules/platform-settings/email-settings";
 import { defaultEmailTemplates } from "@/modules/email/templates";
 
 import { renderEmailParts } from "./render";
@@ -105,6 +107,7 @@ async function logEmailDelivery({
   campaignRecipientId,
   error,
   eventKey,
+  provider,
   providerMessageId,
   recipientEmail,
   status,
@@ -117,6 +120,7 @@ async function logEmailDelivery({
   campaignRecipientId?: string | null;
   error?: string | null;
   eventKey: string;
+  provider: EmailProvider;
   providerMessageId?: string | null;
   recipientEmail: string;
   status: "sent" | "failed" | "skipped";
@@ -130,6 +134,7 @@ async function logEmailDelivery({
     campaignRecipientId: campaignRecipientId || null,
     error: error || null,
     eventKey,
+    provider,
     providerMessageId: providerMessageId || null,
     recipientEmail,
     sentAt: status === "sent" ? new Date() : null,
@@ -178,6 +183,8 @@ export async function sendTemplatedEmailToUser({
 
   const template = await getTemplate(templateKey);
   const key = eventKey || templateKey;
+  const settings = await getStoredEmailSettings();
+  const { provider } = settings;
 
   if (!template || !template.enabled) {
     await logEmailDelivery({
@@ -185,6 +192,7 @@ export async function sendTemplatedEmailToUser({
       campaignRecipientId,
       error: template ? "Template disabled." : "Template not found.",
       eventKey: key,
+      provider,
       recipientEmail: recipient.email,
       status: "skipped",
       templateKey,
@@ -215,6 +223,7 @@ export async function sendTemplatedEmailToUser({
         campaignRecipientId,
         error: "User email preferences disabled this notification.",
         eventKey: key,
+        provider,
         recipientEmail: recipient.email,
         status: "skipped",
         templateKey,
@@ -234,19 +243,20 @@ export async function sendTemplatedEmailToUser({
   });
 
   try {
-    const delivery = await sendSendGridEmail({
+    const delivery = await sendEmail({
       categories,
       customArgs,
       html: rendered.html,
       subject: rendered.subject,
       text: rendered.text,
       to: { email: recipient.email, name: recipient.name },
-    });
+    }, settings);
 
     await logEmailDelivery({
       campaignId,
       campaignRecipientId,
       eventKey: key,
+      provider: delivery.provider,
       providerMessageId: delivery.messageId,
       recipientEmail: recipient.email,
       status: "sent",
@@ -261,8 +271,9 @@ export async function sendTemplatedEmailToUser({
     await logEmailDelivery({
       campaignId,
       campaignRecipientId,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : "Could not send email.",
       eventKey: key,
+      provider: error instanceof EmailDeliveryError ? error.provider : provider,
       recipientEmail: recipient.email,
       status: "failed",
       subject: rendered.subject,
@@ -305,6 +316,8 @@ export async function sendTemplatedEmailToAddress({
 }) {
   const template = await getTemplate(templateKey);
   const key = eventKey || templateKey;
+  const settings = await getStoredEmailSettings();
+  const { provider } = settings;
 
   if (!template || !template.enabled) {
     await logEmailDelivery({
@@ -312,6 +325,7 @@ export async function sendTemplatedEmailToAddress({
       campaignRecipientId,
       error: template ? "Template disabled." : "Template not found.",
       eventKey: key,
+      provider,
       recipientEmail,
       status: "skipped",
       templateKey,
@@ -329,7 +343,7 @@ export async function sendTemplatedEmailToAddress({
   });
 
   try {
-    const delivery = await sendSendGridEmail({
+    const delivery = await sendEmail({
       categories,
       customArgs,
       from,
@@ -338,12 +352,13 @@ export async function sendTemplatedEmailToAddress({
       subject: rendered.subject,
       text: rendered.text,
       to: { email: recipientEmail, name: recipientName },
-    });
+    }, settings);
 
     await logEmailDelivery({
       campaignId,
       campaignRecipientId,
       eventKey: key,
+      provider: delivery.provider,
       providerMessageId: delivery.messageId,
       recipientEmail,
       status: "sent",
@@ -357,8 +372,9 @@ export async function sendTemplatedEmailToAddress({
     await logEmailDelivery({
       campaignId,
       campaignRecipientId,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : "Could not send email.",
       eventKey: key,
+      provider: error instanceof EmailDeliveryError ? error.provider : provider,
       recipientEmail,
       status: "failed",
       subject: rendered.subject,

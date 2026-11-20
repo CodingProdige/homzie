@@ -6,11 +6,29 @@ on:
       - main
   workflow_dispatch:
 
-jobs:
-  deploy:
-    runs-on: self-hosted
-    timeout-minutes: 30
+permissions:
+  contents: read
 
+concurrency:
+  group: homzie-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test-only-postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -27,22 +45,62 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build
-        env:
-          HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
-        run: node scripts/run-with-env-file.mjs "$HOMZIE_ENV_FILE" npm run build
+      - name: Check TypeScript
+        run: npx next typegen && npx tsc --noEmit
 
-      - name: Start database services
+      - name: Test listing visibility, auth loading, and email transport
         env:
-          HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
-        run: docker compose --env-file "$HOMZIE_ENV_FILE" -p homzie_selfhost up -d postgres redis
+          LISTING_VISIBILITY_TEST_DATABASE_URL: postgres://postgres:test-only-postgres@127.0.0.1:5432/postgres
+        run: >-
+          node --import tsx --test
+          src/modules/listings/public-visibility.test.mjs
+          src/modules/auth/viewer-loading.test.mjs
+          src/modules/agents/components/performance-share-dialog.test.mjs
+          src/modules/email/transport.test.mjs
 
-      - name: Migrate database
-        env:
-          HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
-        run: docker compose --env-file "$HOMZIE_ENV_FILE" -p homzie_selfhost --profile selfhost run --rm --build --no-deps worker node scripts/migrate.mjs
+      - name: Test deployment safeguards
+        run: python3 scripts/github-vps-deploy.test.py
 
-      - name: Deploy containers
+  deploy:
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: https://homzie.co.za
+    steps:
+      - name: Deploy the verified main commit to the VPS
         env:
-          HOMZIE_ENV_FILE: /mnt/c/Homzie/config/homzie.env
-        run: docker compose --env-file "$HOMZIE_ENV_FILE" -p homzie_selfhost --profile selfhost --profile tunnel up --build -d
+          DEPLOY_HOST: ${{ vars.HOMZIE_VPS_HOST }}
+          DEPLOY_KEY: ${{ secrets.HOMZIE_VPS_DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.HOMZIE_VPS_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_KEY"
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          key_path="$RUNNER_TEMP/homzie-deploy-key"
+          hosts_path="$RUNNER_TEMP/homzie-known-hosts"
+          trap 'rm -f "$key_path" "$hosts_path"' EXIT
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > "$key_path"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$hosts_path"
+          ssh -i "$key_path" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$hosts_path" \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            "root@$DEPLOY_HOST" "deploy $GITHUB_SHA"
+
+      - name: Confirm public HTTPS
+        run: |
+          curl --fail --silent --show-error --retry 3 https://homzie.co.za/ -o /dev/null
+          curl --fail --silent --show-error --retry 3 https://homzie.co.za/listings -o /dev/null

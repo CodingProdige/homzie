@@ -41,23 +41,21 @@ const shareTargets: ShareTarget[] = [
 export function PerformanceShareDialog({
   username,
   name,
+  performanceUrl,
   isOwner = false,
 }: {
   username: string;
   name: string;
+  performanceUrl: string;
   isOwner?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const performancePath = `/users/${username}/performance`;
   const shareText = `View ${name}'s Homzie Agent performance`;
 
-  function getPerformanceUrl() {
-    return `${window.location.origin}${performancePath}`;
-  }
-
   async function copyPerformanceLink() {
     try {
-      await navigator.clipboard.writeText(getPerformanceUrl());
+      await navigator.clipboard.writeText(performanceUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -71,7 +69,7 @@ export function PerformanceShareDialog({
         await navigator.share({
           title: `${name} performance on Homzie`,
           text: shareText,
-          url: getPerformanceUrl(),
+          url: performanceUrl,
         });
         return;
       }
@@ -148,7 +146,7 @@ export function PerformanceShareDialog({
             {shareTargets.map((target) => (
               <a
                 key={target.label}
-                href={target.getHref(getPerformanceUrl(), shareText)}
+                href={target.getHref(performanceUrl, shareText)}
                 className="flex min-w-0 flex-col items-center gap-2 rounded-lg p-2 text-xs font-bold transition-colors hover:bg-accent"
                 target={target.brand === "sms" || target.brand === "email" ? undefined : "_blank"}
                 rel={target.brand === "sms" || target.brand === "email" ? undefined : "noreferrer"}

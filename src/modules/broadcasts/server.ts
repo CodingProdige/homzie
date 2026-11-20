@@ -9,7 +9,9 @@ import {
   broadcastCampaigns,
   emailDeliveryLogs,
 } from "@/db/schema";
-import { sendSendGridEmail } from "@/modules/email/sendgrid";
+import { EmailDeliveryError, sendEmail } from "@/modules/email/transport";
+import type { EmailProvider } from "@/modules/email/types";
+import { getStoredEmailSettings } from "@/modules/platform-settings/email-settings";
 
 import { getBroadcastAudienceRecipients } from "./audience";
 import { renderBroadcastEmail, renderBroadcastText } from "./render";
@@ -299,6 +301,7 @@ async function logBroadcastDelivery({
   campaignId,
   campaignRecipientId,
   error,
+  provider,
   providerMessageId,
   recipientEmail,
   status,
@@ -307,6 +310,7 @@ async function logBroadcastDelivery({
   campaignId: string;
   campaignRecipientId: string;
   error?: string | null;
+  provider: EmailProvider;
   providerMessageId?: string | null;
   recipientEmail: string;
   status: "sent" | "failed";
@@ -317,6 +321,7 @@ async function logBroadcastDelivery({
     campaignRecipientId,
     error: error || null,
     eventKey: "broadcast_campaign",
+    provider,
     providerMessageId: providerMessageId || null,
     recipientEmail,
     sentAt: status === "sent" ? new Date() : null,
@@ -335,6 +340,7 @@ async function insertRecipientSnapshot(
   recipients: BroadcastRecipient[],
 ) {
   const chunkSize = 500;
+  const { provider } = await getStoredEmailSettings();
 
   for (let index = 0; index < recipients.length; index += chunkSize) {
     const chunk = recipients.slice(index, index + chunkSize);
@@ -346,6 +352,7 @@ async function insertRecipientSnapshot(
           campaignId,
           recipientEmail: recipient.email,
           recipientName: recipient.name,
+          provider,
           status: "pending",
           userId: recipient.userId,
         })),
@@ -372,8 +379,18 @@ async function sendPreparedRecipient({
   subject: string;
   text: string;
 }) {
+  const settings = await getStoredEmailSettings();
+  const configuredProvider = settings.provider;
+
   try {
-    const delivery = await sendSendGridEmail({
+    // Record the chosen provider before submitting, including for a fast
+    // SendGrid webhook arriving immediately after provider acceptance.
+    await db
+      .update(broadcastCampaignRecipients)
+      .set({ provider: configuredProvider, updatedAt: new Date() })
+      .where(eq(broadcastCampaignRecipients.id, recipient.id));
+
+    const delivery = await sendEmail({
       categories: ["broadcast", `campaign-${campaignId.slice(0, 8)}`],
       customArgs: {
         campaign_id: campaignId,
@@ -387,11 +404,12 @@ async function sendPreparedRecipient({
         email: recipient.recipient_email,
         name: recipient.recipient_name || undefined,
       },
-    });
+    }, settings);
 
     await db
       .update(broadcastCampaignRecipients)
       .set({
+        provider: delivery.provider,
         providerMessageId: delivery.messageId,
         sentAt: new Date(),
         status: "sent",
@@ -402,6 +420,7 @@ async function sendPreparedRecipient({
     await logBroadcastDelivery({
       campaignId,
       campaignRecipientId: recipient.id,
+      provider: delivery.provider,
       providerMessageId: delivery.messageId,
       recipientEmail: recipient.recipient_email,
       status: "sent",
@@ -410,12 +429,14 @@ async function sendPreparedRecipient({
 
     return { ok: true as const };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : "Could not send email.";
+    const provider = error instanceof EmailDeliveryError ? error.provider : configuredProvider;
 
     await db
       .update(broadcastCampaignRecipients)
       .set({
         error: message,
+        provider,
         status: "failed",
         updatedAt: new Date(),
       })
@@ -425,6 +446,7 @@ async function sendPreparedRecipient({
       campaignId,
       campaignRecipientId: recipient.id,
       error: message,
+      provider,
       recipientEmail: recipient.recipient_email,
       status: "failed",
       subject,
@@ -747,6 +769,7 @@ export async function recordSendGridBroadcastEvents(events: unknown[]) {
       .values({
         campaignId,
         eventType,
+        provider: "sendgrid",
         ip: cleanText(payload.ip, 120) || null,
         occurredAt,
         providerEventId: eventId || null,
@@ -770,7 +793,11 @@ export async function recordSendGridBroadcastEvents(events: unknown[]) {
       await db
         .update(broadcastCampaignRecipients)
         .set(patch)
-        .where(eq(broadcastCampaignRecipients.id, recipientId));
+        .where(and(
+          eq(broadcastCampaignRecipients.id, recipientId),
+          eq(broadcastCampaignRecipients.campaignId, campaignId),
+          eq(broadcastCampaignRecipients.provider, "sendgrid"),
+        ));
     } else if (payload.email) {
       await db
         .update(broadcastCampaignRecipients)
@@ -778,6 +805,7 @@ export async function recordSendGridBroadcastEvents(events: unknown[]) {
         .where(
           and(
             eq(broadcastCampaignRecipients.campaignId, campaignId),
+            eq(broadcastCampaignRecipients.provider, "sendgrid"),
             eq(broadcastCampaignRecipients.recipientEmail, cleanText(payload.email, 320)),
           ),
         );

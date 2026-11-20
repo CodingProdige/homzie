@@ -1,0 +1,191 @@
+# Standalone Linux VPS configuration. Do not combine with docker-compose.yml.
+# Supply the server-managed environment with --env-file and HOMZIE_ENV_FILE.
+x-build-args: &build-args
+  APP_URL: ${APP_URL:?Set APP_URL to the public HTTPS URL}
+  AUTH_URL: ${AUTH_URL:-}
+  NEXTAUTH_URL: ${NEXTAUTH_URL:-}
+  # The build must never connect to, or embed credentials for, the live database.
+  DATABASE_URL: postgres://homzie:build-only@127.0.0.1:5432/homzie
+  AUTH_SECRET: homzie-build-only-secret-never-use-at-runtime
+  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+  NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL to the public HTTPS URL}
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+  NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY:-}
+  NEXT_DEPLOYMENT_ID: ${NEXT_DEPLOYMENT_ID:-}
+  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
+  NODE_BUILD_OPTIONS: ${HOMZIE_BUILD_NODE_OPTIONS:-}
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-runtime-environment: &runtime-environment
+  NODE_ENV: production
+  MEDIA_ROOT: /data/media
+  MEDIA_STORAGE_PATH: /data/media
+  VIDEO_STORAGE_PATH: /data/media/videos
+  THUMBNAIL_STORAGE_PATH: /data/media/thumbnails
+  EXPORT_STORAGE_PATH: /data/media/exports
+  BACKUP_STORAGE_PATH: /data/media/backups
+
+x-media-volumes: &media-volumes
+  - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/media:/data/media
+  - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/videos:/data/media/videos
+  - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/thumbnails:/data/media/thumbnails
+  - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/exports:/data/media/exports
+  - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/backups:/data/media/backups
+
+x-app-defaults: &app-defaults
+  <<: *service-defaults
+  env_file:
+    - ${HOMZIE_ENV_FILE:?Set HOMZIE_ENV_FILE to the absolute server environment file path}
+  environment: *runtime-environment
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    <<: *service-defaults
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-homzie}
+      POSTGRES_USER: ${POSTGRES_USER:-homzie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - homzie_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    <<: *service-defaults
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - homzie_redis_data:/data
+
+  web:
+    <<: *app-defaults
+    image: homzie-vps-web:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args: *build-args
+    environment:
+      <<: *runtime-environment
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    expose:
+      - "3000"
+    volumes: *media-volumes
+    stop_grace_period: 30s
+
+  worker:
+    <<: *app-defaults
+    image: homzie-vps-worker:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+      args: *build-args
+    volumes: *media-volumes
+    stop_grace_period: 30s
+
+  realtime:
+    <<: *app-defaults
+    image: homzie-vps-realtime:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: realtime
+      args: *build-args
+    environment:
+      <<: *runtime-environment
+      MESSAGE_SOCKET_PORT: 3001
+    expose:
+      - "3001"
+
+  # Restored production data can contain pending email and billing jobs.
+  # Start this only after reviewing them: --profile scheduled up -d cron
+  cron:
+    <<: *app-defaults
+    profiles: [scheduled]
+    image: homzie-vps-cron:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: cron
+      args: *build-args
+    environment:
+      <<: *runtime-environment
+      BROADCAST_CRON_INTERVAL_MS: ${BROADCAST_CRON_INTERVAL_MS:-600000}
+      BROADCAST_CRON_BATCH_LIMIT: ${BROADCAST_CRON_BATCH_LIMIT:-3}
+
+  # Optional TURN relay for calls. Set TURN_SHARED_SECRET and TURN_EXTERNAL_IP
+  # before enabling; permit the same UDP relay range in the VPS firewall.
+  coturn:
+    <<: *service-defaults
+    profiles: [calls]
+    image: coturn/coturn:4.6.3
+    command:
+      - --listening-port=3478
+      - --fingerprint
+      - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SHARED_SECRET:-}
+      - --realm=${TURN_REALM:-${DOMAIN:?Set DOMAIN to the public hostname}}
+      - --external-ip=${TURN_EXTERNAL_IP:-}
+      - --min-port=${TURN_MIN_PORT:-49160}
+      - --max-port=${TURN_MAX_PORT:-49200}
+      - --no-cli
+      - --no-multicast-peers
+      - --no-tls
+      - --no-dtls
+      - --log-file=-
+    ports:
+      - "${TURN_PORT:-3478}:3478/tcp"
+      - "${TURN_PORT:-3478}:3478/udp"
+      - "${TURN_MIN_PORT:-49160}-${TURN_MAX_PORT:-49200}:${TURN_MIN_PORT:-49160}-${TURN_MAX_PORT:-49200}/udp"
+
+  caddy:
+    <<: *service-defaults
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN to the public hostname}
+      CADDY_EMAIL: ${CADDY_EMAIL:?Set CADDY_EMAIL for HTTPS certificate notices}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile.vps:/etc/caddy/Caddyfile:ro
+      - homzie_caddy_data:/data
+      - homzie_caddy_config:/config
+      - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/media:/data/media:ro
+      - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/videos:/data/media/videos:ro
+      - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/thumbnails:/data/media/thumbnails:ro
+      - ${HOMZIE_STORAGE_ROOT:-/srv/homzie/storage}/exports:/data/media/exports:ro
+    depends_on:
+      - web
+      - realtime
+
+volumes:
+  homzie_postgres_data:
+  homzie_redis_data:
+  homzie_caddy_data:
+  homzie_caddy_config:

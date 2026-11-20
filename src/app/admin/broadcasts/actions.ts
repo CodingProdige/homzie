@@ -18,7 +18,7 @@ import {
 import { liveBroadcastSubject } from "@/modules/broadcasts/subject";
 import { defaultBroadcastBlocks } from "@/modules/broadcasts/types";
 import { authOptions } from "@/modules/auth/config";
-import { sendSendGridEmail } from "@/modules/email/sendgrid";
+import { sendEmail } from "@/modules/email/transport";
 
 export type BroadcastActionState = {
   campaignId?: string;
@@ -239,7 +239,7 @@ export async function sendBroadcastTestAction(
       preheader: parsed.data.preheader,
     });
 
-    const delivery = await sendSendGridEmail({
+    const delivery = await sendEmail({
       categories: ["broadcast-test"],
       html: rendered.html,
       subject,
@@ -249,6 +249,7 @@ export async function sendBroadcastTestAction(
 
     await db.insert(emailDeliveryLogs).values({
       eventKey: "broadcast_test",
+      provider: delivery.provider,
       providerMessageId: delivery.messageId,
       recipientEmail: parsed.data.recipientEmail,
       sentAt: new Date(),

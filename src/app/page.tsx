@@ -1385,18 +1385,21 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         viewerUsername={viewer.username}
       />
       <main className="pb-14">
-        <section className="relative isolate min-h-[760px] overflow-hidden pt-16 sm:min-h-[820px] sm:pt-28">
-          <Image
-            src={heroImage}
-            alt=""
-            fill
-            preload
-            sizes="100vw"
-            className="absolute inset-0 object-cover object-center"
-          />
-          <div className="hero-theme-overlay absolute inset-0" />
+        <section className="relative min-h-[760px] pt-16 sm:min-h-[820px] sm:pt-28">
+          {/* Clip the background without clipping search suggestions over the next section. */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+            <Image
+              src={heroImage}
+              alt=""
+              fill
+              preload
+              sizes="100vw"
+              className="absolute inset-0 object-cover object-center"
+            />
+            <div className="hero-theme-overlay absolute inset-0" />
+          </div>
 
-          <div className="page-body relative z-10 flex min-h-[700px] flex-col items-center justify-center pb-8 pt-8 text-center sm:min-h-[740px]">
+          <div className="page-body relative z-30 flex min-h-[700px] flex-col items-center justify-center pb-8 pt-8 text-center sm:min-h-[740px]">
             <div className="max-w-5xl">
               <div className="mx-auto mb-4 flex max-w-4xl flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[10px] font-bold uppercase leading-4 tracking-[0.14em] text-brand-black/75 dark:text-foreground/80 sm:mb-6 sm:gap-x-4 sm:text-xs">
                 {heroValueSignals.map(({ icon: Icon, label }, index) => (

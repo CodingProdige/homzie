@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 const reachOptions = [
-  { icon: Mail, title: "Email", detail: "support@homzieproperty.com", meta: "We reply within 24 hours" },
+  { icon: Mail, title: "Email", detail: "support@homzie.co.za", meta: "We reply within 24 hours" },
   { icon: MessageCircle, title: "Live chat", detail: "Chat with our support team", meta: "Available on our website" },
   {
     icon: MapPin,

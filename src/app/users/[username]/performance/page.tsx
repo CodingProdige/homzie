@@ -44,6 +44,7 @@ import {
   normalizeSupportedCurrency,
 } from "@/modules/currency/currency";
 import { CurrencySelector } from "@/modules/currency/currency-selector";
+import { absoluteUrl } from "@/modules/site/url";
 import { toPublicMediaUrl } from "@/media/paths";
 
 type AgentPerformanceRouteProps = {
@@ -526,6 +527,7 @@ export default async function AgentPerformancePage({
             <PerformanceShareDialog
               username={profile.username || username}
               name={profile.name}
+              performanceUrl={absoluteUrl(`/users/${profile.username || username}/performance`)}
               isOwner={isOwner}
             />
           </div>

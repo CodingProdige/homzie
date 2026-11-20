@@ -67,6 +67,13 @@ const settingsItems = [
       "Configure Pixabay and Freesound API keys so reel creators can browse and preview royalty-free tracks.",
   },
   {
+    href: "/admin/settings/email",
+    icon: Mail,
+    label: "Email Delivery",
+    description:
+      "Choose SendGrid or SMTP, manage sender details, and check the SMTP connection.",
+  },
+  {
     href: "/admin/email-templates",
     icon: Mail,
     label: "Email Templates",

@@ -74,7 +74,7 @@ export default function CookiePolicyPage() {
         {
           title: "Contact us",
           body: [
-            "Questions about cookies, local storage, or tracking technologies can be sent to support@homzieproperty.com or submitted through the contact page.",
+            "Questions about cookies, local storage, or tracking technologies can be sent to support@homzie.co.za or submitted through the contact page.",
           ],
         },
       ]}

@@ -1,26 +1,15 @@
 import "server-only";
 
-type SendGridEmailAddress = {
-  email: string;
-  name?: string;
-};
+import type { EmailAddress, EmailMessage } from "./types";
 
-type SendGridMessage = {
-  asmGroupId?: number;
-  categories?: string[];
-  customArgs?: Record<string, string | number | boolean | null | undefined>;
-  to: SendGridEmailAddress | SendGridEmailAddress[];
-  from?: SendGridEmailAddress;
-  replyTo?: SendGridEmailAddress;
-  subject: string;
-  text: string;
-  html?: string;
-};
+export type SendGridEmailAddress = EmailAddress;
+export type SendGridMessage = EmailMessage;
 
 const sendGridEndpoint = "https://api.sendgrid.com/v3/mail/send";
 
 function getConfiguredSender(): SendGridEmailAddress {
   const email =
+    process.env.EMAIL_FROM_EMAIL ||
     process.env.SENDGRID_FROM_EMAIL ||
     process.env.CONTACT_FROM_EMAIL ||
     process.env.SUPPORT_EMAIL ||
@@ -28,7 +17,7 @@ function getConfiguredSender(): SendGridEmailAddress {
 
   return {
     email,
-    name: process.env.SENDGRID_FROM_NAME || "Homzie",
+    name: process.env.EMAIL_FROM_NAME || process.env.SENDGRID_FROM_NAME || "Homzie",
   };
 }
 
@@ -91,8 +80,7 @@ export async function sendSendGridEmail(message: SendGridMessage) {
   });
 
   if (!response.ok) {
-    const details = await response.text().catch(() => "");
-    throw new Error(`SendGrid request failed with ${response.status}: ${details}`);
+    throw new Error(`SendGrid rejected the email request (HTTP ${response.status}).`);
   }
 
   return {

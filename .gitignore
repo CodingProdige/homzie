@@ -22,6 +22,7 @@
 
 # local media/uploads
 /storage
+/DEMO_ACCOUNTS.md
 
 # misc
 .DS_Store

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull } from "drizzle-orm";
 
 import { BackButton } from "@/components/back-button";
 import { db } from "@/db";
@@ -52,7 +52,7 @@ function sendGridWebhookUrl() {
   return `${baseUrl.replace(/\/$/, "")}/api/sendgrid/events`;
 }
 
-function metricCards(campaign: typeof broadcastCampaigns.$inferSelect) {
+function metricCards(campaign: typeof broadcastCampaigns.$inferSelect, sendGridAcceptedCount: number) {
   return [
     { label: "Recipients", value: campaign.recipientCount.toLocaleString("en-ZA") },
     { label: "Accepted", value: campaign.sentCount.toLocaleString("en-ZA") },
@@ -60,7 +60,7 @@ function metricCards(campaign: typeof broadcastCampaigns.$inferSelect) {
       label: "Delivered",
       value: `${campaign.deliveredCount.toLocaleString("en-ZA")} (${rate(
         campaign.deliveredCount,
-        campaign.sentCount,
+        sendGridAcceptedCount,
       )})`,
     },
     {
@@ -102,7 +102,7 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
     notFound();
   }
 
-  const [recipients, events, progress] = await Promise.all([
+  const [recipients, events, progress, providerCounts] = await Promise.all([
     db
       .select()
       .from(broadcastCampaignRecipients)
@@ -116,17 +116,27 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
       .orderBy(desc(broadcastCampaignEvents.occurredAt))
       .limit(50),
     getBroadcastSendProgress(campaign.id),
+    db
+      .select({ provider: broadcastCampaignRecipients.provider, count: count() })
+      .from(broadcastCampaignRecipients)
+      .where(and(
+        eq(broadcastCampaignRecipients.campaignId, campaign.id),
+        isNotNull(broadcastCampaignRecipients.sentAt),
+      ))
+      .groupBy(broadcastCampaignRecipients.provider),
   ]);
 
   const audience = normalizeBroadcastAudience(campaign.audience);
   const blocks = normalizeBroadcastBlocks(campaign.blocks);
-  const metrics = metricCards(campaign);
   const sendGridPublicKeyConfigured = Boolean(process.env.SENDGRID_WEBHOOK_PUBLIC_KEY);
   const legacyWebhookSecretConfigured = Boolean(process.env.SENDGRID_EVENT_WEBHOOK_SECRET);
   const webhookAuthConfigured =
     sendGridPublicKeyConfigured || legacyWebhookSecretConfigured;
+  const sendGridAcceptedCount = providerCounts.find((row) => row.provider === "sendgrid")?.count || 0;
+  const smtpAcceptedCount = providerCounts.find((row) => row.provider === "smtp")?.count || 0;
+  const metrics = metricCards(campaign, sendGridAcceptedCount);
   const showSendGridEventNotice =
-    campaign.sentCount > 0 && (campaign.deliveredCount === 0 || events.length === 0);
+    sendGridAcceptedCount > 0 && (campaign.deliveredCount === 0 || events.length === 0);
   const webhookUrl = sendGridWebhookUrl();
 
   return (
@@ -169,13 +179,26 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
         ))}
       </div>
 
+      {smtpAcceptedCount > 0 ? (
+        <section className="mb-6 rounded-lg border border-border bg-card p-5 text-sm shadow-sm">
+          <p className="font-semibold">SMTP delivery</p>
+          <p className="mt-2 leading-6 text-muted-foreground">
+            {smtpAcceptedCount.toLocaleString("en-ZA")} messages were accepted by the SMTP server.
+            Acceptance confirms the relay received them. SMTP sends do not report
+            delivery, opens, clicks, bounces or unsubscribe events through SendGrid.
+            SendGrid metrics below apply only to messages sent through SendGrid.
+          </p>
+        </section>
+      ) : null}
+
       {showSendGridEventNotice ? (
         <section className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20">
           <p className="font-semibold text-amber-950 dark:text-amber-100">
             Waiting for SendGrid delivery events
           </p>
           <p className="mt-2 leading-6 text-amber-900/90 dark:text-amber-100/80">
-            Accepted means SendGrid accepted Homzie&apos;s send request. Delivered,
+            For messages sent through SendGrid, accepted means SendGrid accepted
+            Homzie&apos;s send request. Delivered,
             opened, clicked, bounced, dropped and unsubscribed only update after
             SendGrid posts Event Webhook data back to Homzie.
           </p>
@@ -293,7 +316,7 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-              SendGrid
+              SendGrid tracking
             </p>
             <h2 className="mt-2 text-xl font-semibold tracking-tight">
               Recent delivery events
@@ -332,7 +355,7 @@ export default async function AdminBroadcastDetailsPage({ params }: PageProps) {
               {!events.length ? (
                 <tr>
                   <td className="py-8 text-center text-muted-foreground" colSpan={4}>
-                    No SendGrid events yet.
+                    No SendGrid delivery events recorded. SMTP sends do not generate these events.
                   </td>
                 </tr>
               ) : null}

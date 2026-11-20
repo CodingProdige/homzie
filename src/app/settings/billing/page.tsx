@@ -1002,8 +1002,8 @@ export default async function BillingSettingsPage() {
                 Help Centre
               </Link>{" "}
               or contact{" "}
-              <Link href="mailto:support@homzieproperty.com" className="font-bold text-primary">
-                support@homzieproperty.com
+              <Link href="mailto:support@homzie.co.za" className="font-bold text-primary">
+                support@homzie.co.za
               </Link>
             </span>
           </p>

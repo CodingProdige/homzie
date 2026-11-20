@@ -16,7 +16,7 @@ import {
 } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { renderEmailParts } from "@/modules/email/render";
-import { sendSendGridEmail } from "@/modules/email/sendgrid";
+import { sendEmail } from "@/modules/email/transport";
 import {
   notifyUser,
   sendTemplatedEmailToAddress,
@@ -204,7 +204,7 @@ export async function sendTestEmailTemplateAction(
       variables,
     });
 
-    await sendSendGridEmail({
+    await sendEmail({
       html: rendered.html,
       subject: `[Test] ${rendered.subject}`,
       text: rendered.text,

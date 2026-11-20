@@ -25,7 +25,7 @@ const sql = postgres(databaseUrl, { max: 1 });
 const normalizedEmail = adminEmail.toLowerCase();
 
 function fallbackAdminUsername(email) {
-  return `${adminUsername}-${createHash("sha256").update(email).digest("hex").slice(0, 8)}`;
+  return `${adminUsername}${createHash("sha256").update(email).digest("hex").slice(0, 8)}`;
 }
 
 try {

@@ -74,7 +74,7 @@ function contactRecipient() {
       process.env.CONTACT_TO_EMAIL ||
       process.env.SUPPORT_EMAIL ||
       process.env.SENDGRID_FROM_EMAIL ||
-      "support@homzieproperty.com",
+      "support@homzie.co.za",
     name: "Homzie Support",
   };
 }

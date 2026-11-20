@@ -116,11 +116,11 @@ export function GlobalFooter({
           <h2 className="text-sm font-semibold">Support</h2>
           <div className="mt-4 grid gap-4 text-sm font-normal text-muted-foreground">
             <Link
-              href="mailto:support@homzieproperty.com"
+              href="mailto:support@homzie.co.za"
               className="flex items-start gap-2 transition hover:text-primary"
             >
               <Mail className="mt-0.5 size-4 shrink-0" />
-              <span>support@homzieproperty.com</span>
+              <span>support@homzie.co.za</span>
             </Link>
             <address className="flex items-start gap-2 not-italic leading-6">
               <MapPin className="mt-0.5 size-4 shrink-0" />
