@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -26,9 +27,12 @@ def write_archive(path, entries):
         root = tarfile.TarInfo("homzie-" + SHA)
         root.type = tarfile.DIRTYPE
         archive.addfile(root)
-        for name, contents, kind in entries:
+        for entry in entries:
+            name, contents, kind = entry[:3]
             member = tarfile.TarInfo(name)
             member.type = kind
+            if len(entry) > 3:
+                member.mode = entry[3]
             if kind == tarfile.REGTYPE:
                 member.size = len(contents)
                 archive.addfile(member, io.BytesIO(contents))
@@ -79,6 +83,36 @@ class ArchiveTests(unittest.TestCase):
             write_archive(archive, [("homzie-" + SHA + "/src/app/page.tsx", b"valid source", tarfile.REGTYPE)])
             deploy.extract_source(archive, root / "app", SHA)
             self.assertEqual((root / "app/src/app/page.tsx").read_bytes(), b"valid source")
+
+    def test_private_umask_does_not_make_public_source_unreadable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "source.tar.gz"
+            prefix = "homzie-" + SHA + "/"
+            write_archive(archive, [
+                (prefix + "public", b"", tarfile.DIRTYPE, 0o700),
+                (prefix + "public/badges", b"", tarfile.DIRTYPE, 0o700),
+                (prefix + "public/badges/agent.svg", b"<svg/>", tarfile.REGTYPE, 0o600),
+                (prefix + "scripts/run.sh", b"#!/bin/sh\n", tarfile.REGTYPE, 0o700),
+            ])
+            extraction_filters = []
+            original_extractall = tarfile.TarFile.extractall
+
+            def observe_extraction(archive, *arguments, **keywords):
+                extraction_filters.append(keywords.get("filter"))
+                return original_extractall(archive, *arguments, **keywords)
+
+            previous_umask = os.umask(0o077)
+            try:
+                with patch.object(tarfile.TarFile, "extractall", new=observe_extraction):
+                    deploy.extract_source(archive, root / "app", SHA)
+            finally:
+                os.umask(previous_umask)
+            self.assertEqual(extraction_filters, ["data"] if hasattr(tarfile, "data_filter") else [])
+            for path in ("app", "app/public", "app/public/badges", "app/scripts"):
+                self.assertEqual((root / path).stat().st_mode & 0o777, 0o755, path)
+            self.assertEqual((root / "app/public/badges/agent.svg").stat().st_mode & 0o777, 0o644)
+            self.assertEqual((root / "app/scripts/run.sh").stat().st_mode & 0o777, 0o755)
 
     def test_unsafe_entries_are_rejected_before_any_output(self):
         unsafe = [
@@ -195,17 +229,21 @@ class LifecycleTests(unittest.TestCase):
                 deployment = self.make_deployer(root)
                 images = {"web": "sha256:old-web"}
                 failure = deploy.DeploymentError("isolated failure")
+                recovery_order = []
                 with patch.object(deploy, "assert_current_main"), \
                      patch.object(deploy, "download_archive"), \
                      patch.object(deploy, "extract_source", side_effect=self.extract_fake_release), \
                      patch.object(deployment, "snapshot_images", return_value=images), \
                      patch.object(deployment, "run_deployment", side_effect=failure if failed_stage == "run_deployment" else None), \
                      patch.object(deployment, "verify_health", side_effect=failure if failed_stage == "verify_health" else None), \
-                     patch.object(deployment, "rollback_images") as rollback, \
+                     patch.object(deployment, "capture_service_logs", side_effect=lambda: recovery_order.append("capture")) as capture, \
+                     patch.object(deployment, "rollback_images", side_effect=lambda images: recovery_order.append("rollback")) as rollback, \
                      patch.object(deployment, "stage"):
                     with self.assertRaises(deploy.DeploymentError):
                         deployment.deploy()
                 rollback.assert_called_once_with(images)
+                capture.assert_called_once_with()
+                self.assertEqual(recovery_order, ["capture", "rollback"])
                 self.assertFalse((root / "app").is_symlink())
                 self.assertEqual((root / "app/original.txt").read_text(), "original")
                 self.assertFalse((root / "config/github-deployment.json").exists())
@@ -220,6 +258,7 @@ class LifecycleTests(unittest.TestCase):
                  patch.object(deployment, "snapshot_images", return_value={"web": "old"}), \
                  patch.object(deployment, "run_deployment"), \
                  patch.object(deployment, "verify_health"), \
+                 patch.object(deployment, "capture_service_logs"), \
                  patch.object(deployment, "rollback_images") as rollback, \
                  patch.object(deployment, "stage"):
                 with self.assertRaises(deploy.DeploymentError):
@@ -238,6 +277,37 @@ class LifecycleTests(unittest.TestCase):
                 with self.assertRaises(deploy.DeploymentError):
                     deployment.verify_health(timeout=0)
 
+    def test_health_retries_bad_http_and_wrong_identity_with_private_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            deployment = self.make_deployer(Path(directory))
+            deployment.log = io.StringIO()
+            unavailable = Response(b"unavailable")
+            unavailable.status = 503
+            responses = [unavailable] + [Response(b"{}") for _ in range(6)]
+            public_output = io.StringIO()
+            with patch.object(deploy, "urlopen", side_effect=responses), \
+                 patch.object(deployment, "run", side_effect=[OTHER_SHA, SHA]), \
+                 patch.object(deploy.time, "sleep") as sleep, \
+                 patch("sys.stdout", public_output):
+                deployment.verify_health(timeout=30)
+            self.assertEqual(sleep.call_count, 2)
+            private_output = deployment.log.getvalue()
+            self.assertIn("Health probe 1 failed", private_output)
+            self.assertIn("returned HTTP 503", private_output)
+            self.assertIn("Health probe 2 failed", private_output)
+            self.assertIn(repr(OTHER_SHA), private_output)
+            self.assertIn("does not match requested SHA " + SHA, private_output)
+            self.assertEqual(public_output.getvalue(), "")
+
+    def test_final_health_reason_stays_private(self):
+        with tempfile.TemporaryDirectory() as directory:
+            deployment = self.make_deployer(Path(directory))
+            deployment.log = io.StringIO()
+            with patch.object(deploy, "urlopen", side_effect=OSError("isolated connection failure")):
+                with self.assertRaisesRegex(deploy.DeploymentError, "^Live health or deployment identity checks failed[.]$"):
+                    deployment.verify_health(timeout=0)
+            self.assertIn("Final health failure: OSError: isolated connection failure", deployment.log.getvalue())
+
     def test_rollback_restores_service_images_and_the_old_caddy_config_mount(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -253,6 +323,19 @@ class LifecycleTests(unittest.TestCase):
             self.assertEqual(restart.args[0][-4:], ["web", "worker", "realtime", "caddy"])
             self.assertIn("--no-build", restart.args[0])
             self.assertIn("--no-deps", restart.args[0])
+
+    def test_failure_logs_capture_new_service_logs_privately_before_containers_are_replaced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            deployment = self.make_deployer(Path(directory))
+            deployment.log = io.StringIO()
+            with patch.object(deployment, "run") as run, patch("sys.stdout", io.StringIO()) as public:
+                deployment.capture_service_logs()
+            self.assertEqual(run.call_args.kwargs["cwd"], deployment.source)
+            arguments = run.call_args.args[0]
+            self.assertEqual(arguments[-8:], ["logs", "--no-color", "--tail", "80", "web", "worker", "realtime", "caddy"])
+            self.assertNotIn("capture", run.call_args.kwargs)
+            self.assertIn("Failed deployment service logs before rollback", deployment.log.getvalue())
+            self.assertEqual(public.getvalue(), "")
 
 
 if __name__ == "__main__":

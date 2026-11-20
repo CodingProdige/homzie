@@ -116,6 +116,18 @@ def extract_source(archive_path: Path, destination: Path, sha: str) -> None:
                             output.write(chunk)
                     target.chmod(0o755 if member.mode & 0o111 else 0o644)
 
+        # The SSH command uses umask 077 for credentials and logs. Source is
+        # public Git content: normalize permissions after either extraction
+        # path so Docker's unprivileged app user can read copied static assets.
+        file_modes = {member.name: 0o755 if member.mode & 0o111 else 0o644
+                      for member in members if member.isfile()}
+        destination.chmod(0o755)
+        for target in destination.rglob("*"):
+            if target.is_dir():
+                target.chmod(0o755)
+            else:
+                target.chmod(file_modes[target.relative_to(destination).as_posix()])
+
 
 def deployment_environment(sha: str, env_path: Path) -> dict:
     environment = dict(os.environ)
@@ -201,21 +213,31 @@ class Deployer:
 
     def verify_health(self, timeout=90) -> None:
         deadline = time.monotonic() + timeout
+        attempt = 0
+        last_reason = "No health probe completed."
         while True:
+            attempt += 1
             try:
                 for path in ("/", "/listings", "/api/auth/session"):
                     with urlopen(Request(SITE_URL + path, headers={"User-Agent": "HomzieDeployment/1.0"}), timeout=8) as response:
                         if response.status != 200:
-                            raise DeploymentError("Public health check did not return HTTP 200.")
+                            raise DeploymentError("Public health path " + path + " returned HTTP " + str(response.status) + ".")
                 deployed_sha = self.run([
                     "docker", "exec", "homzie_vps-web-1", "node", "-e",
                     "process.stdout.write(JSON.parse(require('fs').readFileSync('.next/required-server-files.json','utf8')).config.deploymentId || '')",
                 ], capture=True)
                 if deployed_sha == self.sha:
                     return
-            except Exception:
-                pass
+                raise DeploymentError("Running deployment ID " + repr(deployed_sha) + " does not match requested SHA " + self.sha + ".")
+            except Exception as error:
+                last_reason = type(error).__name__ + ": " + str(error)
+                if self.log is not None and not self.log.closed:
+                    self.log.write("Health probe " + str(attempt) + " failed: " + last_reason + "\n")
+                    self.log.flush()
             if time.monotonic() >= deadline:
+                if self.log is not None and not self.log.closed:
+                    self.log.write("Final health failure: " + last_reason + "\n")
+                    self.log.flush()
                 raise DeploymentError("Live health or deployment identity checks failed.")
             time.sleep(3)
 
@@ -224,6 +246,13 @@ class Deployer:
             self.run(["docker", "image", "tag", image_id, "homzie-vps-" + service + ":latest"])
         self.run(["docker", "compose", "--env-file", str(self.env_path), "-f", "docker-compose.vps.yml",
                   "-p", "homzie_vps", "up", "-d", "--no-build", "--no-deps", *SERVICES, "caddy"], cwd=self.app_path)
+
+    def capture_service_logs(self) -> None:
+        if self.log is not None and not self.log.closed:
+            self.log.write("\nFailed deployment service logs before rollback:\n")
+            self.log.flush()
+        self.run(["docker", "compose", "--env-file", str(self.env_path), "-f", "docker-compose.vps.yml",
+                  "-p", "homzie_vps", "logs", "--no-color", "--tail", "80", *SERVICES, "caddy"], cwd=self.source)
 
     def deploy(self) -> None:
         self.releases_path.mkdir(parents=True, exist_ok=True)
@@ -251,6 +280,10 @@ class Deployer:
                 assert_current_main(self.sha)
             except Exception:
                 self.stage("Deployment checks failed; restoring the previous service images.")
+                try:
+                    self.capture_service_logs()
+                except Exception:
+                    self.stage("Service log collection needs operator review.")
                 try:
                     self.rollback_images(images)
                     self.stage("Previous images restarted. Database contents were retained.")
