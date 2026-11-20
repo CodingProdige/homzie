@@ -14,6 +14,7 @@ import {
   propertyTypeOptions,
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 import { buildReelPath } from "@/modules/reels/urls";
 
 type TargetArea = { label?: string; placeId?: string };
@@ -183,6 +184,7 @@ export async function getPromotedItems({
           eq(adCampaigns.promotedType, "listing"),
           isNotNull(adCampaigns.listingId),
           eq(propertyListings.status, "published"),
+          publicListingVisibilityCondition(),
         ),
       )
       .orderBy(adCampaigns.createdAt)

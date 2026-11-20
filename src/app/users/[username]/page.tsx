@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db, sql as rawSql } from "@/db";
@@ -28,6 +28,10 @@ import { UserProfilePage as UserProfile } from "@/modules/users/components/user-
 import { toPublicMediaUrl } from "@/media/paths";
 import { buildListingPath } from "@/modules/listings/seo";
 import { publicListingLocation } from "@/modules/listings/listing-validation";
+import {
+  listingReadyForPublicDisplay,
+  publicListingVisibilityCondition,
+} from "@/modules/listings/public-visibility";
 import {
   formatSeoTitle,
   getStoredSeoSettings,
@@ -442,6 +446,7 @@ async function getProfileListings({
         : and(
             profileListingCondition,
             eq(propertyListings.status, "published"),
+            publicListingVisibilityCondition(),
           ),
     )
     .orderBy(desc(propertyListings.updatedAt));
@@ -588,7 +593,15 @@ async function getSavedListings({
     })
     .from(listingSaves)
     .innerJoin(propertyListings, eq(propertyListings.id, listingSaves.listingId))
-    .where(eq(listingSaves.userId, userId))
+    .where(
+      and(
+        eq(listingSaves.userId, userId),
+        or(
+          viewerUserId ? eq(propertyListings.userId, viewerUserId) : undefined,
+          listingReadyForPublicDisplay(),
+        ),
+      ),
+    )
     .orderBy(desc(listingSaves.createdAt));
 
   const agencyBrands = await getEffectiveAgencyBrandsForUsers(
@@ -679,7 +692,7 @@ async function getSavedListings({
   });
 }
 
-async function getProfileSocialStats(userId: string) {
+async function getProfileSocialStats(userId: string, isOwner: boolean) {
   const profileListingCondition = profileListingAssignmentCondition(userId);
   const [
     [{ count: publishedReels }],
@@ -698,6 +711,7 @@ async function getProfileSocialStats(userId: string) {
         and(
           profileListingCondition,
           eq(propertyListings.status, "published"),
+          isOwner ? undefined : publicListingVisibilityCondition(),
         ),
       ),
     db
@@ -923,7 +937,7 @@ export default async function UserProfilePage({
       viewerUserId,
     }),
     getAgentPerformanceStats(profile.id),
-    getProfileSocialStats(profile.id),
+    getProfileSocialStats(profile.id, isOwner),
     getProfileConnections(profile.id, viewerUserId),
   ]);
   const hasAgentAccess = agentAccess.canViewBuyerIntent;

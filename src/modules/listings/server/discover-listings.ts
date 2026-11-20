@@ -16,6 +16,7 @@ import {
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
 import { publicListingLocation } from "@/modules/listings/listing-validation";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 
 export type DiscoverListingFilters = {
   area?: string[] | string;
@@ -59,10 +60,6 @@ type DiscoverListingOptions = {
 };
 
 const visibleListingStatuses = ["published", "under_offer"] as const;
-
-function publicListingVisibilityFilter() {
-  return sql`coalesce(${propertyListings.details}->>'listingVisibility', 'public') = 'public'`;
-}
 
 function cleanParam(value?: string) {
   return typeof value === "string" ? value.trim().slice(0, 80) : "";
@@ -254,7 +251,7 @@ function discoverWhere(filters: ReturnType<typeof normalizeDiscoverListingFilter
 
   return [
     inArray(propertyListings.status, visibleListingStatuses),
-    publicListingVisibilityFilter(),
+    publicListingVisibilityCondition(),
     filters.listingTypes.length
       ? inArray(propertyListings.listingType, filters.listingTypes)
       : undefined,
@@ -378,7 +375,7 @@ export async function getDiscoverListingFilterOptions({
 } = {}): Promise<ListingFilterOptions> {
   const filters = [
     inArray(propertyListings.status, visibleListingStatuses),
-    publicListingVisibilityFilter(),
+    publicListingVisibilityCondition(),
     countryName
       ? or(
           sql`${propertyListings.details}->>'country' ilike ${`%${countryName}%`}`,

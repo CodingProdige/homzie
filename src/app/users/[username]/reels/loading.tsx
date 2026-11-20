@@ -1,9 +1,18 @@
 import { GlobalHeader } from "@/components/global-header";
+import { getCurrentViewerChrome } from "@/modules/auth/viewer";
 
-export default function UserReelsLoading() {
+export default async function UserReelsLoading() {
+  const viewer = await getCurrentViewerChrome();
+
   return (
     <div className="min-h-screen bg-black text-white">
-      <GlobalHeader />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="flex min-h-screen items-center justify-center px-4 pt-20">
         <section className="relative h-[calc(100vh-6rem)] max-h-[860px] w-full max-w-[420px] animate-pulse overflow-hidden rounded-lg bg-zinc-900 shadow-2xl">
           <div className="absolute inset-0 bg-gradient-to-b from-zinc-700/50 via-zinc-900 to-black" />

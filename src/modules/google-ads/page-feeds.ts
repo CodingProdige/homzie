@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { adCampaigns, propertyListings } from "@/db/schema";
 import { buildListingPath } from "@/modules/listings/seo";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 import { absoluteUrl } from "@/modules/site/url";
 
 type ListingFeedSourceRow = {
@@ -89,6 +90,7 @@ export async function getUserPaidGoogleListingPageFeedRows(label: string) {
         eq(adCampaigns.channel, "google"),
         eq(adCampaigns.promotedType, "listing"),
         eq(propertyListings.status, "published"),
+        publicListingVisibilityCondition(),
         inArray(adCampaigns.status, ["ready", "live"]),
       ),
     )
@@ -118,6 +120,7 @@ export async function getHomzieFundedListingPageFeedRows(label: string) {
     .where(
       and(
         eq(propertyListings.status, "published"),
+        publicListingVisibilityCondition(),
         eq(propertyListings.isDemoContent, false),
         isNull(propertyListings.activeReservationId),
         isNull(propertyListings.archivedAt),

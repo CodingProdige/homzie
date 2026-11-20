@@ -1,10 +1,16 @@
 "use server";
 
+import { PgDialect } from "drizzle-orm/pg-core";
+
 import { sql as postgresSql } from "@/db";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 
 const activeVisitorWindowMs = 90_000;
 const staleVisitorWindowMs = 10 * 60_000;
 const visitorIdPattern = /^[a-zA-Z0-9_-]{12,120}$/;
+const publicListingCondition = new PgDialect().sqlToQuery(
+  publicListingVisibilityCondition().inlineParams(),
+).sql;
 
 export type PlatformStats = {
   currentVisitors: number;
@@ -32,6 +38,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
         SELECT count(*)::int
         FROM property_listings
         WHERE status = 'published'
+          AND ${postgresSql.unsafe(publicListingCondition)}
       ) AS total_listings,
       (
         SELECT count(*)::int

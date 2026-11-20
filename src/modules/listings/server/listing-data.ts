@@ -20,6 +20,7 @@ import {
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
 import { publicListingLocation } from "@/modules/listings/listing-validation";
+import { isListingReadyForPublicDisplay } from "@/modules/listings/public-visibility";
 import {
   getEffectiveAgencyBrandsForUsers,
   type EffectiveAgencyBrand,
@@ -394,6 +395,12 @@ export async function getListingDetail({
   const row = await getListingRow(listingId);
 
   if (!row) return null;
+
+  // Owners can still preview and finish incomplete listings. Public links and
+  // saved-listing links must not expose records that are not ready to publish.
+  if (row.userId !== viewerUserId && !isListingReadyForPublicDisplay(row)) {
+    return null;
+  }
 
   const [save] = viewerUserId
     ? await db

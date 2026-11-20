@@ -5,6 +5,7 @@ import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { adCampaigns, propertyListings } from "@/db/schema";
 import { getHomzieFundedListingPageFeedRows } from "@/modules/google-ads/page-feeds";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 import {
   getStoredGoogleAdsSettings,
   hasGoogleAdsApiCredentials,
@@ -256,6 +257,7 @@ export async function getGoogleDsaAutomationHealth(): Promise<GoogleDsaAutomatio
           eq(adCampaigns.channel, "google"),
           eq(adCampaigns.promotedType, "listing"),
           eq(propertyListings.status, "published"),
+          publicListingVisibilityCondition(),
           inArray(adCampaigns.status, ["ready", "live"]),
         ),
       ),
@@ -383,6 +385,7 @@ export async function syncGoogleDsaCampaignState() {
           eq(adCampaigns.channel, "google"),
           eq(adCampaigns.promotedType, "listing"),
           eq(propertyListings.status, "published"),
+          publicListingVisibilityCondition(),
           inArray(adCampaigns.status, ["ready", "live"]),
         ),
       ),

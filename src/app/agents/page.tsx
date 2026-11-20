@@ -23,6 +23,7 @@ import { agentProfiles, propertyListings, users } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { authOptions } from "@/modules/auth/config";
 import { getViewerChrome } from "@/modules/auth/viewer";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 
 type AgentsPageProps = {
   searchParams?: Promise<{
@@ -209,7 +210,10 @@ async function getAgentDirectory({
       and(
         inArray(propertyListings.userId, userIds),
         or(
-          eq(propertyListings.status, "published"),
+          and(
+            eq(propertyListings.status, "published"),
+            publicListingVisibilityCondition(),
+          ),
           and(
             eq(propertyListings.status, "sold"),
             or(

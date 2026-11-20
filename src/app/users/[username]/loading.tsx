@@ -1,10 +1,19 @@
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
+import { getCurrentViewerChrome } from "@/modules/auth/viewer";
 
-export default function UserProfileLoading() {
+export default async function UserProfileLoading() {
+  const viewer = await getCurrentViewerChrome();
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="page-body pb-24 pt-20">
         <section className="page-container py-6">
           <div className="animate-pulse overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -28,7 +37,7 @@ export default function UserProfileLoading() {
           </div>
         </section>
       </main>
-      <GlobalFooter />
+      <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
   );
 }

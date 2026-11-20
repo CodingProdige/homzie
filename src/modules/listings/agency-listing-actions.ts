@@ -7,6 +7,10 @@ import { getServerSession } from "next-auth";
 import { sql } from "@/db";
 import { authOptions } from "@/modules/auth/config";
 import { getAgencyListingAccessForUser } from "@/modules/listings/agency-listing-access";
+import {
+  isListingReadyForPublicDisplay,
+  type ListingPublicDisplayRow,
+} from "@/modules/listings/public-visibility";
 
 type AgencyListingRequestActionRow = {
   agency_id: string;
@@ -18,6 +22,8 @@ type AgencyListingActionRow = {
   agency_id: string | null;
   status: string;
 };
+
+type AgencyListingPublishRow = AgencyListingActionRow & ListingPublicDisplayRow;
 
 const agencyListingStatusLabels: Record<string, string> = {
   archived: "Archived",
@@ -62,6 +68,14 @@ async function requireAgencyListingManager(userId: string, agencyId: string) {
   return access;
 }
 
+function assertListingReadyForPublication(listing: ListingPublicDisplayRow) {
+  if (!isListingReadyForPublicDisplay(listing)) {
+    throw new Error(
+      "Complete the listing details and upload at least one photo or video before publishing.",
+    );
+  }
+}
+
 export async function approveAgencyListingRequest(formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -88,16 +102,23 @@ export async function approveAgencyListingRequest(formData: FormData) {
   );
 
   await sql.begin(async (tx) => {
-    const [listing] = await tx<AgencyListingActionRow[]>`
-      SELECT agency_id, status
+    const [listing] = await tx<AgencyListingPublishRow[]>`
+      SELECT
+        agency_id, status, title, description, location, details, media,
+        listing_type AS "listingType", property_type AS "propertyType",
+        asking_price_cents AS "askingPriceCents",
+        cover_image_url AS "coverImageUrl", mandate_type AS "mandateType"
       FROM property_listings
       WHERE id = ${request.listing_id}
       LIMIT 1
+      FOR UPDATE
     `;
 
     if (!listing || listing.agency_id !== access.agencyId) {
       throw new Error("Listing not found.");
     }
+
+    assertListingReadyForPublication(listing);
 
     await tx`
       UPDATE agency_listing_requests
@@ -247,6 +268,26 @@ export async function updateAgencyListingStatus(formData: FormData) {
   await requireAgencyListingManager(session.user.id, listing.agency_id);
 
   await sql.begin(async (tx) => {
+    const [currentListing] = await tx<AgencyListingPublishRow[]>`
+      SELECT
+        agency_id, status, title, description, location, details, media,
+        listing_type AS "listingType", property_type AS "propertyType",
+        asking_price_cents AS "askingPriceCents",
+        cover_image_url AS "coverImageUrl", mandate_type AS "mandateType"
+      FROM property_listings
+      WHERE id = ${listingId}
+      LIMIT 1
+      FOR UPDATE
+    `;
+
+    if (!currentListing || currentListing.agency_id !== listing.agency_id) {
+      throw new Error("Listing not found.");
+    }
+
+    if (nextStatus === "published" || nextStatus === "under_offer") {
+      assertListingReadyForPublication(currentListing);
+    }
+
     await tx`
       UPDATE property_listings
       SET
@@ -273,7 +314,7 @@ export async function updateAgencyListingStatus(formData: FormData) {
       VALUES (
         ${listingId},
         ${session.user.id},
-        ${listing.status},
+        ${currentListing.status},
         ${nextStatus},
         ${`Agency changed listing status to ${agencyListingStatusLabels[nextStatus]}.`}
       )

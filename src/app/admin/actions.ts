@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { sql } from "@/db";
 import { authOptions } from "@/modules/auth/config";
+import { isListingReadyForPublicDisplay } from "@/modules/listings/public-visibility";
 import {
   saveStoredAdsSettings,
 } from "@/modules/platform-settings/ads-settings";
@@ -1298,7 +1299,7 @@ const demoListingSeeds: DemoListingSeed[] = [
 ];
 
 function demoListingDetails(listing: DemoListingSeed) {
-  return JSON.stringify({
+  return {
     bathrooms: listing.bathrooms,
     bedrooms: listing.bedrooms,
     buyerIncentive: listing.buyerIncentive,
@@ -1307,7 +1308,7 @@ function demoListingDetails(listing: DemoListingSeed) {
     garages: listing.garages,
     parking: listing.parking,
     previousAskingPriceCents: Math.round(listing.askingPriceCents * 1.04),
-  });
+  };
 }
 
 function demoListingFeatures(listing: DemoListingSeed) {
@@ -1567,9 +1568,29 @@ async function ensureDemoProfile({
 
   for (const listing of listings) {
     const soldAt = listing.soldAt || null;
-    const status = visible ? listing.status : "archived";
+    const description =
+      "A premium demo listing used to show how a polished Homzie profile can present trust, momentum, and high-value sales outcomes.";
+    const details = demoListingDetails(listing);
+    const canPublish = isListingReadyForPublicDisplay({
+      askingPriceCents: listing.askingPriceCents,
+      description,
+      details,
+      listingType: "sale",
+      location: listing.location,
+      mandateType: "exclusive",
+      media: [],
+      propertyType: "free_standing_house",
+      title: listing.title,
+    });
+    // These templates have no uploaded media or complete address details yet.
+    // Keep active examples editable as drafts until an agent completes them.
+    const status = visible
+      ? listing.status === "published" && !canPublish
+        ? "draft"
+        : listing.status
+      : "archived";
     const outcomeAt = listing.status === "sold" ? soldAt : null;
-    const reservationEnabled = listing.status === "published";
+    const reservationEnabled = status === "published";
     const reservationAmountCents = reservationEnabled ? 5000000 : null;
     const archivedAt = visible ? null : new Date().toISOString();
 
@@ -1610,7 +1631,7 @@ async function ensureDemoProfile({
         'sale',
         'free_standing_house',
         ${listing.title},
-        ${"A premium demo listing used to show how a polished Homzie profile can present trust, momentum, and high-value sales outcomes."},
+        ${description},
         ${listing.location},
         ${`R ${(listing.askingPriceCents / 100).toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`},
         'ZAR',
@@ -1622,7 +1643,7 @@ async function ensureDemoProfile({
         ${reservationAmountCents},
         true,
         '[]'::jsonb,
-        ${demoListingDetails(listing)}::jsonb,
+        ${JSON.stringify(details)}::jsonb,
         ${demoListingFeatures(listing)}::jsonb,
         'exclusive',
         ${status},

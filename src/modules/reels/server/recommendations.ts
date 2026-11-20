@@ -14,6 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 import {
   locationMatchesCountry,
   type CountryPreference,
@@ -373,7 +374,7 @@ async function getCandidateRows({
       listingAskingPriceCents: propertyListings.askingPriceCents,
       listingCoverImageUrl: propertyListings.coverImageUrl,
       listingCurrency: propertyListings.listingCurrency,
-      listingId: reels.listingId,
+      listingId: propertyListings.id,
       listingLocation: propertyListings.location,
       listingPriceLabel: propertyListings.priceLabel,
       listingReference: reels.listingReference,
@@ -399,7 +400,14 @@ async function getCandidateRows({
     })
     .from(reels)
     .innerJoin(users, eq(users.id, reels.userId))
-    .leftJoin(propertyListings, eq(propertyListings.id, reels.listingId))
+    .leftJoin(
+      propertyListings,
+      and(
+        eq(propertyListings.id, reels.listingId),
+        notInArray(propertyListings.status, ["draft", "pending_approval"]),
+        publicListingVisibilityCondition(),
+      ),
+    )
     .where(
       and(
         eq(reels.status, "published"),

@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { propertyIdentities, propertyListings, users } from "@/db/schema";
 import { authOptions } from "@/modules/auth/config";
 import { getTargetAreaPopulationEstimate } from "@/modules/ads/target-area-population";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 
 const requestSchema = z.object({
   locations: z
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
               count: countDistinct(propertyListings.id),
             })
             .from(propertyListings)
-            .where(eq(propertyListings.status, "published")),
+            .where(and(eq(propertyListings.status, "published"), publicListingVisibilityCondition())),
         ]);
 
         return {
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
         .where(
           and(
             eq(propertyListings.status, "published"),
+            publicListingVisibilityCondition(),
             or(
               eq(propertyIdentities.googlePlaceId, location.placeId),
               eq(propertyListings.location, location.label),

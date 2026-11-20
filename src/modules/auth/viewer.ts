@@ -1,9 +1,13 @@
+import "server-only";
+
 import { eq } from "drizzle-orm";
+import { getServerSession } from "next-auth";
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import { getPrimaryAgencyWorkspace } from "@/modules/agencies/server";
+import { authOptions } from "@/modules/auth/config";
 
 export type ViewerRole = "user" | "admin";
 
@@ -14,6 +18,12 @@ export type ViewerChrome = {
   role?: ViewerRole;
   username?: string;
 };
+
+export async function getCurrentViewerChrome(): Promise<ViewerChrome> {
+  const session = await getServerSession(authOptions);
+
+  return getViewerChrome(session?.user?.id);
+}
 
 export async function getViewerChrome(
   userId?: string | null,

@@ -79,6 +79,7 @@ import {
 } from "@/modules/listings/server/discover-listings";
 import { createAgencyActivityEvent } from "@/modules/agencies/activity";
 import { completeListingReservationPayment } from "@/modules/listings/reservations";
+import { listingReadyForPublicDisplay } from "@/modules/listings/public-visibility";
 import {
   assertCanEditListingForUser,
   createPendingAgencyListingRequest,
@@ -2964,7 +2965,7 @@ export async function startListingReservationCheckout(listingId: string) {
       userId: propertyListings.userId,
     })
     .from(propertyListings)
-    .where(eq(propertyListings.id, parsed.data))
+    .where(and(eq(propertyListings.id, parsed.data), listingReadyForPublicDisplay()))
     .limit(1);
 
   if (!listing || listing.status !== "published") {

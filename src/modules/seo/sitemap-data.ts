@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { propertyListings, reels, users } from "@/db/schema";
 import { shouldSkipDatabaseDuringBuild } from "@/modules/build-flags";
 import { buildListingPath } from "@/modules/listings/seo";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 import { buildReelPath } from "@/modules/reels/urls";
 import { getStoredSeoSettings } from "@/modules/seo/settings";
 import { absoluteUrl } from "@/modules/site/url";
@@ -54,7 +55,7 @@ export async function getListingSitemapEntries(now = new Date()): Promise<Metada
       updatedAt: propertyListings.updatedAt,
     })
     .from(propertyListings)
-    .where(eq(propertyListings.status, "published"))
+    .where(and(eq(propertyListings.status, "published"), publicListingVisibilityCondition()))
     .orderBy(desc(propertyListings.updatedAt))
     .limit(seoSettings.sitemapMaxEntries);
 

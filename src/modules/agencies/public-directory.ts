@@ -1,6 +1,9 @@
 import "server-only";
 
+import { alias, PgDialect } from "drizzle-orm/pg-core";
+
 import { sql } from "@/db";
+import { propertyListings } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
 import {
   agencyBadgeStyleFromSettings,
@@ -17,6 +20,13 @@ import {
 } from "@/modules/listings/options";
 import { buildListingPath } from "@/modules/listings/seo";
 import { publicListingLocation } from "@/modules/listings/listing-validation";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
+
+// This module uses postgres.js queries. Compile the shared Drizzle condition
+// with its fixed table alias and constants so both query styles use one rule.
+const publicAgencyListingSql = new PgDialect().sqlToQuery(
+  publicListingVisibilityCondition(alias(propertyListings, "pl")).inlineParams(),
+).sql;
 
 export type PublicAgencyType = "branch" | "independent" | "network";
 
@@ -382,7 +392,9 @@ export async function getAgencyDirectory({
     LEFT JOIN LATERAL (
       SELECT
         count(DISTINCT am.user_id)::int AS member_count,
-        count(DISTINCT pl.id) FILTER (WHERE pl.status = 'published')::int AS listing_count
+        count(DISTINCT pl.id) FILTER (
+          WHERE pl.status = 'published' AND ${sql.unsafe(publicAgencyListingSql)}
+        )::int AS listing_count
       FROM agencies scoped
       INNER JOIN agency_members am ON am.agency_id = scoped.id
       LEFT JOIN property_listings pl ON pl.user_id = am.user_id
@@ -481,7 +493,9 @@ export async function getPublicAgencyProfile(slug: string) {
     SELECT
       count(DISTINCT scoped_agencies.id) FILTER (WHERE ${agency.agency_type} = 'network')::int AS branch_count,
       count(DISTINCT am.user_id)::int AS agent_count,
-      count(DISTINCT pl.id) FILTER (WHERE pl.status = 'published')::int AS active_listing_count,
+      count(DISTINCT pl.id) FILTER (
+        WHERE pl.status = 'published' AND ${sql.unsafe(publicAgencyListingSql)}
+      )::int AS active_listing_count,
       count(DISTINCT pl.id) FILTER (WHERE pl.status = 'sold')::int AS sold_listing_count
     FROM scoped_agencies
     LEFT JOIN agency_members am
@@ -501,7 +515,9 @@ export async function getPublicAgencyProfile(slug: string) {
             b.location,
             b.branch_code,
             count(DISTINCT am.user_id)::int AS agent_count,
-            count(DISTINCT pl.id) FILTER (WHERE pl.status = 'published')::int AS active_listing_count,
+            count(DISTINCT pl.id) FILTER (
+              WHERE pl.status = 'published' AND ${sql.unsafe(publicAgencyListingSql)}
+            )::int AS active_listing_count,
             count(DISTINCT pl.id) FILTER (WHERE pl.status = 'sold')::int AS sold_listing_count
           FROM agencies b
           LEFT JOIN agency_members am
@@ -543,7 +559,9 @@ export async function getPublicAgencyProfile(slug: string) {
         scoped_agencies.id AS agency_id,
         scoped_agencies.name AS agency_name,
         scoped_agencies.slug AS agency_slug,
-        count(DISTINCT pl.id) FILTER (WHERE pl.status = 'published')::int AS active_listing_count,
+        count(DISTINCT pl.id) FILTER (
+          WHERE pl.status = 'published' AND ${sql.unsafe(publicAgencyListingSql)}
+        )::int AS active_listing_count,
         count(DISTINCT pl.id) FILTER (WHERE pl.status = 'sold')::int AS sold_listing_count
       FROM scoped_agencies
       INNER JOIN agency_members am
@@ -619,7 +637,7 @@ export async function getPublicAgencyProfile(slug: string) {
         AND u.status = 'active'
       INNER JOIN property_listings pl ON pl.user_id = u.id
       WHERE pl.status IN ('published', 'reserved', 'sold')
-        AND coalesce(pl.details->>'listingVisibility', 'public') = 'public'
+        AND ${sql.unsafe(publicAgencyListingSql)}
       ORDER BY
         pl.id,
         CASE pl.status

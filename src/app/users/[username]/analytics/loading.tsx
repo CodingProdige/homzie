@@ -1,5 +1,6 @@
 import { GlobalFooter } from "@/components/global-footer";
 import { GlobalHeader } from "@/components/global-header";
+import { getCurrentViewerChrome } from "@/modules/auth/viewer";
 
 function MetricSkeleton() {
   return (
@@ -11,10 +12,18 @@ function MetricSkeleton() {
   );
 }
 
-export default function UserAnalyticsLoading() {
+export default async function UserAnalyticsLoading() {
+  const viewer = await getCurrentViewerChrome();
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <GlobalHeader />
+      <GlobalHeader
+        viewerAvatarUrl={viewer.avatarUrl}
+        viewerHasAgencyWorkspace={viewer.hasAgencyWorkspace}
+        viewerName={viewer.name}
+        viewerRole={viewer.role}
+        viewerUsername={viewer.username}
+      />
       <main className="mx-auto w-full max-w-6xl px-4 pb-14 pt-24 sm:px-6 lg:px-8 lg:pb-10 lg:pt-28">
         <section className="animate-pulse">
           <div className="h-4 w-32 rounded-full bg-muted" />
@@ -51,7 +60,7 @@ export default function UserAnalyticsLoading() {
           </div>
         </section>
       </main>
-      <GlobalFooter />
+      <GlobalFooter viewerRole={viewer.role} viewerUsername={viewer.username} />
     </div>
   );
 }

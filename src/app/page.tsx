@@ -55,6 +55,7 @@ import {
   type CountryPreference,
 } from "@/modules/location/country-preference";
 import { ListingCard } from "@/modules/listings/components/listing-card";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 import { ListingsInfiniteGrid } from "@/modules/listings/components/listings-infinite-grid";
 import { PropertySearchBar } from "@/modules/listings/components/property-search-bar";
 import {
@@ -326,6 +327,7 @@ function formatCurrencyCompact(cents: number) {
 async function getHomeListings(countryName?: string) {
   const filters = [
     eq(propertyListings.status, "published"),
+    publicListingVisibilityCondition(),
     countryName
       ? or(
           ilike(propertyListings.location, `%${countryName}%`),
@@ -473,7 +475,10 @@ async function getTopAgents(countryName?: string): Promise<TopAgent[]> {
           uniqueAgents.map((agent) => agent.id),
         ),
         or(
-          eq(propertyListings.status, "published"),
+          and(
+            eq(propertyListings.status, "published"),
+            publicListingVisibilityCondition(),
+          ),
           and(
             eq(propertyListings.status, "sold"),
             or(

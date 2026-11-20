@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { desc, eq, and, sql } from "drizzle-orm";
+import { desc, eq, and, notInArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -14,6 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { toPublicMediaUrl } from "@/media/paths";
+import { publicListingVisibilityCondition } from "@/modules/listings/public-visibility";
 import { authOptions } from "@/modules/auth/config";
 import { normalizeUsername } from "@/modules/auth/username";
 import { ReelsFeed, type ReelFeedItem } from "@/modules/reels/components/reels-feed";
@@ -109,7 +110,7 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
       listingAskingPriceCents: propertyListings.askingPriceCents,
       listingCoverImageUrl: propertyListings.coverImageUrl,
       listingCurrency: propertyListings.listingCurrency,
-      listingId: reels.listingId,
+      listingId: propertyListings.id,
       listingLocation: propertyListings.location,
       listingPriceLabel: propertyListings.priceLabel,
       listingReference: reels.listingReference,
@@ -121,7 +122,14 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
     })
     .from(reels)
     .innerJoin(users, eq(users.id, reels.userId))
-    .leftJoin(propertyListings, eq(propertyListings.id, reels.listingId))
+    .leftJoin(
+      propertyListings,
+      and(
+        eq(propertyListings.id, reels.listingId),
+        notInArray(propertyListings.status, ["draft", "pending_approval"]),
+        publicListingVisibilityCondition(),
+      ),
+    )
     .where(and(eq(reels.userId, profile.id), eq(reels.status, "published")))
     .orderBy(desc(reels.createdAt));
 
@@ -137,7 +145,7 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
       listingAskingPriceCents: propertyListings.askingPriceCents,
       listingCoverImageUrl: propertyListings.coverImageUrl,
       listingCurrency: propertyListings.listingCurrency,
-      listingId: reels.listingId,
+      listingId: propertyListings.id,
       listingLocation: propertyListings.location,
       listingPriceLabel: propertyListings.priceLabel,
       listingReference: reels.listingReference,
@@ -150,7 +158,14 @@ export default async function UserReelsPage({ params }: UserReelsPageProps) {
     .from(reelReshares)
     .innerJoin(reels, eq(reels.id, reelReshares.reelId))
     .innerJoin(users, eq(users.id, reels.userId))
-    .leftJoin(propertyListings, eq(propertyListings.id, reels.listingId))
+    .leftJoin(
+      propertyListings,
+      and(
+        eq(propertyListings.id, reels.listingId),
+        notInArray(propertyListings.status, ["draft", "pending_approval"]),
+        publicListingVisibilityCondition(),
+      ),
+    )
     .where(and(eq(reelReshares.userId, profile.id), eq(reels.status, "published")))
     .orderBy(desc(reelReshares.createdAt));
 
